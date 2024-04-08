@@ -11,7 +11,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { hasNativeTitlebar } from 'vs/platform/window/common/window';
-import { IBaseWindow } from 'vs/platform/window/electron-main/window';
+import { IBaseWindow, WindowMode } from 'vs/platform/window/electron-main/window';
 import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
@@ -31,7 +31,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		return super.win;
 	}
 
-	private optionsApplied = false;
+	private stateApplied = false;
 
 	constructor(
 		private readonly webContents: WebContents,
@@ -54,10 +54,22 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 		this.doTryClaimWindow();
 
-		if (options && !this.optionsApplied) {
-			this.optionsApplied = true;
+		if (options && !this.stateApplied) {
+			this.stateApplied = true;
 
-			this.fixWindowBounds(options);
+			this.applyState({
+				x: options.x,
+				y: options.y,
+				width: options.width,
+				height: options.height,
+				// We currently do not support restoring fullscreen state for auxiliary windows
+				// but we can probe the `options.show` value for whether the window should be
+				// maximized or not.
+				//
+				// This is a bit of a hack but we know that `show: false` for when the window
+				// should restore maximised or fullscreen.
+				mode: options.show === false ? WindowMode.Maximized : WindowMode.Normal
+			});
 		}
 	}
 
