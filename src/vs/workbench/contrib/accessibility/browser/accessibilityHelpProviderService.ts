@@ -41,7 +41,7 @@ export const IAccessibilityHelpProviderService = createDecorator<IAccessibilityH
 export class AccessibilityHelpProviderService extends Disposable implements IAccessibilityHelpProviderService {
 	readonly _serviceBrand: undefined;
 	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): void {
-		this._register(AccessibleViewAction.addImplementation(95, 'hover', accessor => {
+		this._register(AccessibleViewAction.addImplementation(95, provider.id, accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			accessibleViewService.show({
 				id: provider.id as any,
