@@ -35,14 +35,12 @@ declare module 'vscode' {
 		 * @example
 		 * // Log all data written to the terminal for a command
 		 * const command = term.shellIntegration.executeCommand({ commandLine: 'echo "Hello world"' });
-		 * const stream = command.readData();
+		 * const stream = command.read();
 		 * for await (const data of stream) {
 		 *   console.log(data);
 		 * }
 		 */
-		// TODO: read? "data" typically means Uint8Array. What's the encoding of the string? Usage here will typically be checking for substrings
-		// TODO: dispose function?
-		readData(): AsyncIterable<string>;
+		read(): AsyncIterable<string>;
 	}
 
 	/**
