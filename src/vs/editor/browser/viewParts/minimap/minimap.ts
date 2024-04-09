@@ -1886,11 +1886,14 @@ class InnerMinimap extends Disposable {
 			target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
 
 			target.fillStyle = foregroundFill;
-			let x = MINIMAP_GUTTER_WIDTH;
 
-			for (let i = 0; i < headerText.length; i++) {
-				target.fillText(headerText[i], x, textY);
-				const charWidth = target.measureText(headerText[i]).width;
+			// Canvas doesn't have a direct api for letter spacing, and therefore
+			// we need to do it ourselves, by rendering and measuring each character
+			// individually.
+			let x = MINIMAP_GUTTER_WIDTH;
+			for (const visibleCharacter of [...headerText]) {
+				target.fillText(visibleCharacter, x, textY);
+				const charWidth = target.measureText(visibleCharacter).width;
 				x += charWidth + letterSpacing;
 			}
 		}
