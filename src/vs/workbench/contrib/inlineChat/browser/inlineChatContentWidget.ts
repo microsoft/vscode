@@ -68,6 +68,7 @@ export class InlineChatContentWidget implements IContentWidget {
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
 				renderStyle: 'compact',
 				renderInputOnTop: true,
+				renderFollowups: true,
 				supportsFileReferences: false,
 				menus: {
 					telemetrySource: 'inlineChat-content'
