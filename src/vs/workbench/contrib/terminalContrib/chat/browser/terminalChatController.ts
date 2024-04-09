@@ -251,7 +251,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	async acceptInput(): Promise<void> {
 		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(CancellationToken.None);
+			this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, CancellationToken.None);
 			if (!this._model.value) {
 				throw new Error('Could not start chat session');
 			}

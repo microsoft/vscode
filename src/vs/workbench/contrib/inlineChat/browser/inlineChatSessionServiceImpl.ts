@@ -342,7 +342,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return undefined;
 		}
 
-		const chatModel = this._chatService.startSession(token);
+		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
 			return undefined;
