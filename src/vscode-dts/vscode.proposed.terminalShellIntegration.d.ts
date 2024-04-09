@@ -22,7 +22,6 @@ declare module 'vscode' {
 		 * the specific shell's shell integration implementation. This value may become more
 		 * accurate after {@link onDidEndTerminalShellExecution} is fired.
 		 */
-		// TODO: Implement command line fetching via buffer markers
 		readonly commandLine: TerminalShellExecutionCommandLine;
 
 		/**
