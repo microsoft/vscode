@@ -97,11 +97,11 @@ suite('ChatService', () => {
 
 	test('retrieveSession', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		const session1 = testDisposables.add(testService.startSession(CancellationToken.None));
+		const session1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		await session1.waitForInitialization();
 		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
-		const session2 = testDisposables.add(testService.startSession(CancellationToken.None));
+		const session2 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		await session2.waitForInitialization();
 		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
@@ -118,7 +118,7 @@ suite('ChatService', () => {
 	test('addCompleteRequest', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 
-		const model = testDisposables.add(testService.startSession(CancellationToken.None));
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
 		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, 0, { message: 'test response' });
@@ -132,7 +132,7 @@ suite('ChatService', () => {
 		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' }, fullName: 'test' });
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 
-		const model = testDisposables.add(testService.startSession(CancellationToken.None));
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
 		await assertSnapshot(model.toExport());
@@ -154,7 +154,7 @@ suite('ChatService', () => {
 		{  // serapate block to not leak variables in outer scope
 			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 
-			const chatModel1 = testDisposables.add(testService.startSession(CancellationToken.None));
+			const chatModel1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 			assert.strictEqual(chatModel1.getRequests().length, 0);
 
 			const response = await testService.sendRequest(chatModel1.sessionId, `@${chatAgentWithUsedContextId} test request`);

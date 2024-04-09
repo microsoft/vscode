@@ -186,6 +186,29 @@ class BridgeAgent implements IChatAgentImplementation {
 		coalesceInPlace(chatFollowups);
 		return chatFollowups;
 	}
+
+	provideWelcomeMessage(token: CancellationToken): string[] {
+		// without this provideSampleQuestions is not called
+		return [];
+	}
+
+	async provideSampleQuestions(location: ChatAgentLocation, token: CancellationToken): Promise<IChatFollowup[]> {
+		// TODO@jrieken DEBT
+		// (hack) this function is called while creating the session. We need the timeout to make sure this._sessions is populated.
+		// (hack) we have no context/session id and therefore use the first session with an active editor
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		for (const [, data] of this._sessions) {
+			if (data.session.session.input && data.editor.hasWidgetFocus()) {
+				return [{
+					kind: 'reply',
+					agentId: _bridgeAgentId,
+					message: data.session.session.input,
+				}];
+			}
+		}
+		return [];
+	}
 }
 
 type SessionData = {
@@ -342,19 +365,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return undefined;
 		}
 
-		const chatModel = this._chatService.startSession(token);
-		if (!chatModel) {
-			this._logService.trace('[IE] NO chatModel found');
-			return undefined;
-		}
-
-		const store = new DisposableStore();
-
-		store.add(toDisposable(() => {
-			this._chatService.clearSession(chatModel.sessionId);
-			chatModel.dispose();
-		}));
-
 		this._onWillStartSession.fire(editor);
 
 		const textModel = editor.getModel();
@@ -375,8 +385,19 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return undefined;
 		}
 
+		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${provider.extensionId}`);
 
+		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
+		if (!chatModel) {
+			this._logService.trace('[IE] NO chatModel found');
+			return undefined;
+		}
+
+		store.add(toDisposable(() => {
+			this._chatService.clearSession(chatModel.sessionId);
+			chatModel.dispose();
+		}));
 
 		const lastResponseListener = store.add(new MutableDisposable());
 		store.add(chatModel.onDidChange(e => {

@@ -173,6 +173,7 @@ export class InlineChatWidget {
 				defaultElementHeight: 32,
 				renderStyle: 'compact',
 				renderInputOnTop: true,
+				renderFollowups: true,
 				supportsFileReferences: true,
 				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
 				rendererOptions: options.rendererOptions,
@@ -301,7 +302,7 @@ export class InlineChatWidget {
 
 		// LEGACY - default chat model
 		// this is only here for as long as we offer updateChatMessage
-		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, undefined));
+		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
 		this._defaultChatModel.startInitialize();
 		this._defaultChatModel.initialize(undefined);
 		this.setChatModel(this._defaultChatModel);

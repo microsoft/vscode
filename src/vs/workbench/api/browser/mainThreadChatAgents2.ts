@@ -121,8 +121,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			provideWelcomeMessage: (token: CancellationToken) => {
 				return this._proxy.$provideWelcomeMessage(handle, token);
 			},
-			provideSampleQuestions: (token: CancellationToken) => {
-				return this._proxy.$provideSampleQuestions(handle, token);
+			provideSampleQuestions: (location: ChatAgentLocation, token: CancellationToken) => {
+				return this._proxy.$provideSampleQuestions(handle, location, token);
 			}
 		};
 
