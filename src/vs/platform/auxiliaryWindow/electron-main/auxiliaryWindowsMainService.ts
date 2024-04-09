@@ -12,7 +12,7 @@ import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/e
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowState, defaultAuxWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, WindowMode, defaultAuxWindowState } from 'vs/platform/window/electron-main/window';
 import { WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
@@ -51,11 +51,25 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		// is created.
 
 		app.on('browser-window-created', (_event, browserWindow) => {
+
+			// This is an auxiliary window, try to claim it
 			const auxiliaryWindow = this.getWindowByWebContents(browserWindow.webContents);
 			if (auxiliaryWindow) {
 				this.logService.trace('[aux window] app.on("browser-window-created"): Trying to claim auxiliary window');
 
 				auxiliaryWindow.tryClaimWindow();
+			}
+
+			// This is a main window, listen to child windows getting created to claim it
+			else {
+				browserWindow.webContents.on('did-create-window', (browserWindow, details) => {
+					const auxiliaryWindow = this.getWindowByWebContents(browserWindow.webContents);
+					if (auxiliaryWindow) {
+						this.logService.trace('[aux window] window.on("did-create-window"): Trying to claim auxiliary window');
+
+						auxiliaryWindow.tryClaimWindow(details.options);
+					}
+				});
 			}
 		});
 
@@ -73,9 +87,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
 		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, this.validateWindowState(details), {
-			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
-			}
+			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
 		});
 	}
 
@@ -97,6 +109,12 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 					break;
 				case 'top':
 					windowState.y = parseInt(value, 10);
+					break;
+				case 'window-maximized':
+					windowState.mode = WindowMode.Maximized;
+					break;
+				case 'window-fullscreen':
+					windowState.mode = WindowMode.Fullscreen;
 					break;
 			}
 		}
@@ -126,7 +144,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	}
 
 	getWindowByWebContents(webContents: WebContents): AuxiliaryWindow | undefined {
-		return this.windows.get(webContents.id);
+		const window = this.windows.get(webContents.id);
+
+		return window?.matches(webContents) ? window : undefined;
 	}
 
 	getFocusedWindow(): IAuxiliaryWindow | undefined {
