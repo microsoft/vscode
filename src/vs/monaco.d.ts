@@ -4318,6 +4318,10 @@ declare namespace monaco.editor {
 		 * Font size of section headers. Defaults to 9.
 		 */
 		sectionHeaderFontSize?: number;
+		/**
+		 * The sign that is interpreted as a mark, Defaults to `MARK:`
+		 */
+		sectionHeaderMarkSign?: string;
 	}
 
 	/**

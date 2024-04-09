@@ -3071,6 +3071,11 @@ export interface IEditorMinimapOptions {
 	 * Font size of section headers. Defaults to 9.
 	 */
 	sectionHeaderFontSize?: number;
+
+	/**
+	 * The sign that is interpreted as a mark, Defaults to `MARK:`
+	 */
+	sectionHeaderMarkSign?: string;
 }
 
 /**
@@ -3093,6 +3098,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
 			sectionHeaderFontSize: 9,
+			sectionHeaderMarkSign: 'MARK:',
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -3162,6 +3168,11 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'number',
 					default: defaults.sectionHeaderFontSize,
 					description: nls.localize('minimap.sectionHeaderFontSize', "Controls the font size of section headers in the minimap.")
+				},
+				'editor.minimap.sectionHeaderMarkSign': {
+					type: 'string',
+					default: defaults.sectionHeaderMarkSign,
+					description: nls.localize('minimap.sectionHeaderMarkSign', "Sets the prefix in a comment that is interpreted as the mark sign. Everything after this sign in a comment will be read as a section header.")
 				}
 			}
 		);
@@ -3184,6 +3195,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
 			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
 			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
+			sectionHeaderMarkSign: EditorStringOption.string(input.sectionHeaderMarkSign, this.defaultValue.sectionHeaderMarkSign),
 		};
 	}
 }
