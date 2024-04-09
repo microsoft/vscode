@@ -62,12 +62,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				y: options.y,
 				width: options.width,
 				height: options.height,
-				// We currently do not support restoring fullscreen state for auxiliary windows
-				// but we can probe the `options.show` value for whether the window should be
-				// maximized or not.
-				//
-				// This is a bit of a hack but we know that `show: false` for when the window
-				// should restore maximised or fullscreen.
+				// TODO@bpasero We currently do not support restoring fullscreen state for
+				// auxiliary windows because we do not get hold of the original `features`
+				// string that contains that info in `window-fullscreen`. However, we can
+				// probe the `options.show` value for whether the window should be maximized
+				// or not because we never show maximized windows initially to reduce flicker.
 				mode: options.show === false ? WindowMode.Maximized : WindowMode.Normal
 			});
 		}
