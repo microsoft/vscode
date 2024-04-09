@@ -1,23 +1,14 @@
-trigger: none
-pr: none
-
 parameters:
   - name: NPM_REGISTRY
     displayName: "Custom NPM Registry"
     type: string
     default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
-
-variables:
-  - name: NPM_REGISTRY
-    value: ${{ parameters.NPM_REGISTRY }}
-  - name: VSCODE_MIXIN_REPO
-    value: microsoft/vscode-distro
-  - name: skipComponentGovernanceDetection
-    value: true
   - name: NPM_ARCH
-    value: x64
+    type: string
+    default: x64
   - name: VSCODE_ARCH
-    value: x64
+    type: string
+    default: x64
 
 steps:
   - task: NodeTool@0
@@ -38,26 +29,26 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
+      exec { npm config set registry "${{ parameters.NPM_REGISTRY }}" --location=project }
       # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
       # following is a workaround for yarn to send authorization header
       # for GET requests to the registry.
       exec { Add-Content -Path .npmrc -Value "always-auth=true" }
-      exec { yarn config set registry "$env:NPM_REGISTRY" }
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+      exec { yarn config set registry "${{ parameters.NPM_REGISTRY }}" }
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(${{ parameters.NPM_REGISTRY }}, 'none'))
     displayName: Setup NPM & Yarn
 
   - task: npmAuthenticate@0
     inputs:
       workingFile: .npmrc
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(${{ parameters.NPM_REGISTRY }}, 'none'))
     displayName: Setup NPM Authentication
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+      exec { node build/setup-npm-registry.js ${{ parameters.NPM_REGISTRY }} }
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(${{ parameters.NPM_REGISTRY }}, 'none'))
     displayName: Setup NPM Registry
 
   - pwsh: |
@@ -104,7 +95,7 @@ steps:
       mkdir "$nodeGypDir"
       npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
       $env:npm_config_node_gyp = "${nodeGypDir}/node_modules/node-gyp/bin/node-gyp.js"
-      $env:npm_config_arch = "$(NPM_ARCH)"
+      $env:npm_config_arch = "${{ parameters.NPM_ARCH }}"
       retry { exec { yarn --frozen-lockfile --check-files } }
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -123,7 +114,7 @@ steps:
   - powershell: yarn compile
     displayName: Compile
 
-  - powershell: yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)"
+  - powershell: yarn gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Symbols
@@ -135,7 +126,7 @@ steps:
       TargetPattern: "guardianGlob"
       AnalyzeIgnorePdbLoadError: true
       AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
-      AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
+      AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-${{ parameters.VSCODE_ARCH }}\pdb'
 
   - task: CopyFiles@2
     displayName: 'Collect Symbols for API Scan'
