@@ -273,7 +273,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	}
 
 	private getCommentInfoForAccessibleView(element: CommentNode): string | IMarkdownString {
-		return element.comment.body;
+		return typeof element.comment.body === 'string' ? element.comment.body : element.comment.body.value;
 	}
 
 	private getAriaForNode(element: CommentNode) {
