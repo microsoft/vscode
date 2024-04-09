@@ -575,4 +575,5 @@ export const codiconsLibrary = {
 	foldVertical: register('fold-vertical', 0xec30),
 	mapVerticalFilled: register('map-vertical-filled', 0xec31),
 	foldVerticalFilled: register('fold-vertical-filled', 0xec31),
+	goToSearch: register('go-to-search', 0xec32)
 } as const;
