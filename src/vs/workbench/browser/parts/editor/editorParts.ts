@@ -256,12 +256,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 			// Create auxiliary editor parts
 			for (const auxiliaryEditorPartState of state.auxiliary) {
-				auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart({
-					bounds: auxiliaryEditorPartState.bounds,
-					mode: auxiliaryEditorPartState.mode,
-					state: auxiliaryEditorPartState.state,
-					zoomLevel: auxiliaryEditorPartState.zoomLevel
-				}));
+				auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart(auxiliaryEditorPartState));
 			}
 
 			// Await creation
