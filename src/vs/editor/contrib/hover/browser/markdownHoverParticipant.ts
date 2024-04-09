@@ -172,21 +172,11 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 }
 
-interface RenderedBaseHoverPart {
+interface RenderedHoverPart {
 	renderedMarkdown: HTMLElement;
 	disposables: DisposableStore;
+	hoverSourceInformation?: HoverSourceInformation;
 }
-
-interface RenderedNonVerboseHoverPart extends RenderedBaseHoverPart {
-	isVerbose: false;
-}
-
-interface RenderedVerboseHoverPart extends RenderedBaseHoverPart {
-	isVerbose: true;
-	hoverSourceInformation: HoverSourceInformation;
-}
-
-type RenderedHoverPart = RenderedNonVerboseHoverPart | RenderedVerboseHoverPart;
 
 interface FocusedHoverInfo {
 	hoverPartIndex: number;
@@ -239,7 +229,7 @@ class RenderedHoverParts extends Disposable {
 	private _renderMarkdownContent(
 		markdownContent: IMarkdownString[],
 		onFinishedRendering: () => void
-	): RenderedBaseHoverPart {
+	): RenderedHoverPart {
 		const renderedMarkdown = $('div.hover-row');
 		renderedMarkdown.tabIndex = 0;
 		const renderedMarkdownContents = $('div.hover-row-contents');
@@ -266,7 +256,7 @@ class RenderedHoverParts extends Disposable {
 		const { renderedMarkdown, disposables } = this._renderMarkdownContent(hoverContents, onFinishedRendering);
 
 		if (!hoverSourceInformation) {
-			return { isVerbose: false, renderedMarkdown, disposables };
+			return { renderedMarkdown, disposables };
 		}
 
 		const hover = hoverSourceInformation.hover;
@@ -278,7 +268,7 @@ class RenderedHoverParts extends Disposable {
 		}));
 
 		if (!canIncreaseVerbosity && !canDecreaseVerbosity) {
-			return { isVerbose: true, renderedMarkdown, disposables, hoverSourceInformation };
+			return { renderedMarkdown, disposables, hoverSourceInformation };
 		}
 
 		const actionsContainer = $('div.verbosity-actions');
@@ -300,7 +290,7 @@ class RenderedHoverParts extends Disposable {
 				return;
 			}
 		}));
-		return { isVerbose: true, renderedMarkdown, disposables, hoverSourceInformation };
+		return { renderedMarkdown, disposables, hoverSourceInformation };
 	}
 
 	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, actionEnabled: boolean): DisposableStore {
@@ -337,7 +327,7 @@ class RenderedHoverParts extends Disposable {
 		}
 		const hoverFocusedPartIndex = this._hoverFocusInfo.hoverPartIndex;
 		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(hoverFocusedPartIndex);
-		if (!hoverRenderedPart || !hoverRenderedPart.isVerbose) {
+		if (!hoverRenderedPart || !hoverRenderedPart.hoverSourceInformation) {
 			return;
 		}
 		const hoverPosition = hoverRenderedPart.hoverSourceInformation.hoverPosition;
