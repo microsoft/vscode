@@ -202,6 +202,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						providerDescriptor.id,
 						{
 							extensionId: extension.description.identifier,
+							extensionPublisher: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
 							id: providerDescriptor.id,
 							description: providerDescriptor.description,
 							metadata: {
