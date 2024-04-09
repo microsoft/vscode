@@ -23,6 +23,7 @@ import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isMacintosh } from 'vs/base/common/platform';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -47,7 +48,9 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	) {
 		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService);
 
-		this.handleMaximizedState();
+		if (!isMacintosh) {
+			this.handleMaximizedState();
+		}
 	}
 
 	private handleMaximizedState(): void {
@@ -94,8 +97,10 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	}
 
 	override createState(): IAuxiliaryWindowOpenOptions {
+		const state = super.createState();
 		return {
-			...super.createState(),
+			...state,
+			bounds: this.maximized ? undefined : state.bounds, // ignore if maximized
 			mode: this.maximized ? AuxiliaryWindowMode.Maximized : AuxiliaryWindowMode.Normal
 		};
 	}
