@@ -831,7 +831,17 @@ export class ChatModel extends Disposable implements IChatModel {
 					vote: r.response?.vote,
 					agent: r.response?.agent ?
 						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
-						{ id: r.response.agent.id, name: r.response.agent.name, description: r.response.agent.description, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
+						{
+							id: r.response.agent.id,
+							name: r.response.agent.name,
+							description: r.response.agent.description,
+							extensionId: r.response.agent.extensionId,
+							metadata: r.response.agent.metadata,
+							slashCommands: [],
+							locations: r.response.agent.locations,
+							isDefault: r.response.agent.isDefault,
+							extensionPublisher: r.response.agent.extensionPublisher
+						}
 						: undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
