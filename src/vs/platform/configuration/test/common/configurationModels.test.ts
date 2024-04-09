@@ -92,10 +92,11 @@ suite('ConfigurationModelParser', () => {
 	test('parse configuration model with invalid setting key', () => {
 		const testObject = new ConfigurationModelParser('', new NullLogService());
 
-		testObject.parse(JSON.stringify({ 'a': null, 'a.b': { c: 1 } }));
+		testObject.parse(JSON.stringify({ 'a': null, 'a.b.c': { c: 1 } }));
 
 		assert.strictEqual(testObject.configurationModel.getValue('a'), null);
-		// assert.strictEqual(testObject.configurationModel.getValue('a.b'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('a.b'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('a.b.c'), undefined);
 	});
 
 });
