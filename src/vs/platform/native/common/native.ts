@@ -78,7 +78,6 @@ export interface ICommonNativeHostService {
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
-	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 
 	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
 

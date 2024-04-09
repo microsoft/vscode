@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { getZoomLevel } from 'vs/base/browser/browser';
+import { getZoomLevel, isFullscreen } from 'vs/base/browser/browser';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -34,7 +34,6 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	private skipUnloadConfirmation = false;
 
 	private maximized = false;
-	private fullscreen = false;
 
 	constructor(
 		window: CodeWindow,
@@ -50,10 +49,10 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService);
 
 		if (!isMacintosh) {
+			// For now, limit this to platforms that have clear maximised
+			// transitions (Windows, Linux) via window buttons.
 			this.handleMaximizedState();
 		}
-
-		this.handleFullscreenState();
 	}
 
 	private handleMaximizedState(): void {
@@ -70,18 +69,6 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		this._register(this.nativeHostService.onDidUnmaximizeWindow(windowId => {
 			if (windowId === this.window.vscodeWindowId) {
 				this.maximized = false;
-			}
-		}));
-	}
-
-	private handleFullscreenState(): void {
-		(async () => {
-			this.fullscreen = await this.nativeHostService.isFullScreen({ targetWindowId: this.window.vscodeWindowId });
-		})();
-
-		this._register(this.nativeHostService.onDidChangeWindowFullScreen(({ windowId, fullscreen }) => {
-			if (windowId === this.window.vscodeWindowId) {
-				this.fullscreen = fullscreen;
 			}
 		}));
 	}
@@ -113,10 +100,11 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
 	override createState(): IAuxiliaryWindowOpenOptions {
 		const state = super.createState();
+		const fullscreen = isFullscreen(this.window);
 		return {
 			...state,
-			bounds: (this.maximized || this.fullscreen) ? undefined : state.bounds, // ignore if maximized or fullscreen
-			mode: this.maximized ? AuxiliaryWindowMode.Maximized : this.fullscreen ? AuxiliaryWindowMode.Fullscreen : AuxiliaryWindowMode.Normal
+			bounds: this.maximized ? undefined : state.bounds, // ignore if maximized (fullscreen is not yet supported!)
+			mode: this.maximized ? AuxiliaryWindowMode.Maximized : fullscreen ? AuxiliaryWindowMode.Fullscreen : AuxiliaryWindowMode.Normal
 		};
 	}
 }

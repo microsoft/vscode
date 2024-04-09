@@ -91,7 +91,6 @@ export class TestNativeHostService implements INativeHostService {
 	}
 
 	async toggleFullScreen(): Promise<void> { }
-	async isFullScreen(): Promise<boolean> { return false; }
 	async handleTitleDoubleClick(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
 	async maximizeWindow(): Promise<void> { }
