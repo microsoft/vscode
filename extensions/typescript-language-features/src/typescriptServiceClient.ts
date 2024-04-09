@@ -509,7 +509,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private resetWatchers() {
 		clearTimeout(this.watchChangeTimeout);
-		disposeAll(this.watches.values());
+		disposeAll(Array.from(this.watches.values()));
 	}
 
 	public async showVersionPicker(): Promise<void> {

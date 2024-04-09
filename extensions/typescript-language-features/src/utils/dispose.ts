@@ -5,10 +5,11 @@
 
 import * as vscode from 'vscode';
 
-export function disposeAll(disposables: Iterable<vscode.Disposable>) {
+export function disposeAll(disposables: vscode.Disposable[]) {
 	for (const disposable of disposables) {
 		disposable.dispose();
 	}
+	disposables.length = 0;
 }
 
 export interface IDisposable {

@@ -225,7 +225,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	private readUseVsCodeWatcher(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.experimental.useVsCodeWatcher', true);
+		return configuration.get<boolean>('typescript.tsserver.experimental.useVsCodeWatcher', false);
 	}
 
 	private readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
