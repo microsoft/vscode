@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { coalesceInPlace, isNonEmptyArray } from 'vs/base/common/arrays';
-import { raceCancellation, timeout } from 'vs/base/common/async';
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { CancellationError } from 'vs/base/common/errors';
@@ -196,7 +196,7 @@ class BridgeAgent implements IChatAgentImplementation {
 		// TODO@jrieken DEBT
 		// (hack) this function is called while creating the session. We need the timeout to make sure this._sessions is populated.
 		// (hack) we have no context/session id and therefore use the first session with an active editor
-		await timeout(10);
+		await new Promise(resolve => setTimeout(resolve, 10));
 
 		for (const [, data] of this._sessions) {
 			if (data.session.session.input && data.editor.hasWidgetFocus()) {
