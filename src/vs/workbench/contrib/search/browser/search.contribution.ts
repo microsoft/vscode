@@ -109,10 +109,10 @@ quickAccessRegistry.registerQuickAccessProvider({
 	ctor: TextSearchQuickAccess,
 	prefix: TEXT_SEARCH_QUICK_ACCESS_PREFIX,
 	contextKey: 'inTextSearchPicker',
-	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files (experimental)."),
+	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files."),
 	helpEntries: [
 		{
-			description: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
+			description: nls.localize('textSearchPickerHelp', "Search for Text"),
 			commandId: Constants.SearchCommandIds.QuickTextSearchActionId,
 			commandCenterOrder: 25,
 		}
