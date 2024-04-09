@@ -35,6 +35,7 @@ import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/comme
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -67,6 +68,14 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
 
 	readonly onDidChangeVisibility = this.onDidChangeBodyVisibility;
+
+	get focusedCommentInfo(): string | IMarkdownString | undefined {
+		const focused = this.tree?.getFocus();
+		if (focused?.length === 1 && focused[0] && focused[0] instanceof CommentNode) {
+			return this.getCommentInfoForAccessibleView(focused[0]) ?? undefined;
+		}
+		return undefined;
+	}
 
 	constructor(
 		options: IViewPaneOptions,
@@ -261,6 +270,10 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private renderMessage(): void {
 		this.messageBoxContainer.textContent = this.commentService.commentsModel.getMessage();
 		this.messageBoxContainer.classList.toggle('hidden', this.commentService.commentsModel.hasCommentThreads());
+	}
+
+	private getCommentInfoForAccessibleView(element: CommentNode): string | IMarkdownString {
+		return element.comment.body;
 	}
 
 	private getAriaForNode(element: CommentNode) {

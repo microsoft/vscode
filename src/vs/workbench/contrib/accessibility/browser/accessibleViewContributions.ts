@@ -33,6 +33,9 @@ import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { CommentsPanel, CONTEXT_KEY_HAS_COMMENTS } from 'vs/workbench/contrib/comments/browser/commentsView';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);
@@ -222,6 +225,39 @@ export function alertFocusChange(index: number | undefined, length: number | und
 		alert(`Focused ${number - 1} of ${length}`);
 	}
 	return;
+}
+
+
+export class CommentAccessibleViewContribution extends Disposable {
+	static ID: 'commentAccessibleViewContribution';
+	constructor() {
+		super();
+		this._register(AccessibleViewAction.addImplementation(90, 'comment', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const viewsService = accessor.get(IViewsService);
+			const commentsView = viewsService.getActiveViewWithId<CommentsPanel>(COMMENTS_VIEW_ID);
+			if (!commentsView) {
+				return false;
+			}
+			const content = commentsView.focusedCommentInfo;
+			if (!content) {
+				return false;
+			}
+			accessibleViewService.show({
+				id: AccessibleViewProviderId.Notification,
+				provideContent: () => {
+					return content.toString();
+				},
+				onClose(): void {
+
+				},
+
+				verbositySettingKey: AccessibilityVerbositySettingId.Notification,
+				options: { type: AccessibleViewType.View }
+			});
+			return true;
+		}, CONTEXT_KEY_HAS_COMMENTS));
+	}
 }
 
 export class InlineCompletionsAccessibleViewContribution extends Disposable {
