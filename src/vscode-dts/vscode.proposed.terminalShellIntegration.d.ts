@@ -179,6 +179,7 @@ declare module 'vscode' {
 		 * The terminal that shell integration has been activated in.
 		 */
 		readonly terminal: Terminal;
+
 		/**
 		 * The shell integration object.
 		 */
@@ -190,10 +191,11 @@ declare module 'vscode' {
 		 * The terminal shell execution that has ended.
 		 */
 		readonly execution: TerminalShellExecution;
+
 		/**
-		 * The exit code reported by the shell.
+		 * The exit code reported by the shell. `undefined` means the shell did not report an exit
+		 * code or the shell reported a command started before the command finished.
 		 */
-		// TODO: Explain what undefined means
 		readonly exitCode: number | undefined;
 	}
 
