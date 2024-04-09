@@ -96,7 +96,7 @@ declare module 'vscode' {
 		Medium = 1,
 
 		/**
-		 * The command line value confidence is high. This means that the value was explicitly send
+		 * The command line value confidence is high. This means that the value was explicitly sent
 		 * from the shell integration script.
 		 */
 		High = 2
