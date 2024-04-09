@@ -481,10 +481,10 @@ export function registerSignatureHelpProvider(languageSelector: LanguageSelector
 export function registerHoverProvider(languageSelector: LanguageSelector, provider: languages.HoverProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.hoverProvider.register(languageSelector, {
-		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken, context?: languages.HoverContext): Promise<languages.Hover | undefined> => {
+		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken, context?: languages.HoverContext): Promise<languages.DisposableHover | undefined> => {
 			const word = model.getWordAtPosition(position);
 
-			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, position, token, context)).then((value): languages.Hover | undefined => {
+			return Promise.resolve<languages.DisposableHover | null | undefined>(provider.provideHover(model, position, token, context)).then((value): languages.DisposableHover | undefined => {
 				if (!value) {
 					return undefined;
 				}

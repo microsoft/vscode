@@ -946,8 +946,8 @@ export namespace DefinitionLink {
 }
 
 export namespace Hover {
-	export function from(hover: vscode.VerboseHover): languages.Hover {
-		return <languages.Hover>{
+	export function from(hover: vscode.VerboseHover): languages.DisposableHover {
+		return <languages.DisposableHover>{
 			range: Range.from(hover.range),
 			contents: MarkdownString.fromMany(hover.contents),
 			canIncreaseVerbosity: hover.canIncreaseVerbosity,
@@ -955,7 +955,7 @@ export namespace Hover {
 		};
 	}
 
-	export function to(info: languages.Hover): types.VerboseHover {
+	export function to(info: languages.DisposableHover): types.VerboseHover {
 		return new types.VerboseHover(info.contents.map(MarkdownString.to), Range.to(info.range), info.canIncreaseVerbosity, info.canDecreaseVerbosity);
 	}
 }

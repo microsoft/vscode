@@ -111,7 +111,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<languages.Hover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
+		new ApiCommandResult<languages.DisposableHover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
 	),
 	// -- selection range
 	new ApiCommand(

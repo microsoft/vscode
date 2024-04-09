@@ -5,7 +5,6 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { asArray, compareBy, numberComparator } from 'vs/base/common/arrays';
-import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,16 +12,15 @@ import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/brow
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Hover, HoverContext, HoverProvider, HoverVerbosityAction } from 'vs/editor/common/languages';
+import { DisposableHover, HoverContext, HoverProvider, HoverVerbosityAction } from 'vs/editor/common/languages';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -32,6 +30,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ClickAction, KeyDownAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { createHoverProviderResultPromise } from 'vs/editor/contrib/hover/browser/getHover';
+import { AsyncIterableObject } from 'vs/base/common/async';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -45,7 +46,7 @@ export class MarkdownHover implements IHoverPart {
 		public readonly contents: IMarkdownString[],
 		public readonly isBeforeContent: boolean,
 		public readonly ordinal: number,
-		public readonly source: HoverSourceInformation | undefined = undefined,
+		public readonly source: HoverSource | undefined = undefined,
 	) { }
 
 	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
@@ -57,10 +58,21 @@ export class MarkdownHover implements IHoverPart {
 	}
 }
 
-interface HoverSourceInformation {
-	readonly hover: Hover;
-	readonly hoverPosition: Position;
-	readonly hoverProvider: HoverProvider;
+class HoverSource {
+	constructor(
+		readonly hover: DisposableHover,
+		readonly hoverProvider: HoverProvider,
+		readonly hoverPosition: Position,
+	) { }
+
+	public supportsVerbosityAction(hoverVerbosityAction: HoverVerbosityAction): boolean {
+		switch (hoverVerbosityAction) {
+			case HoverVerbosityAction.Increase:
+				return this.hover.canIncreaseVerbosity ?? false;
+			case HoverVerbosityAction.Decrease:
+				return this.hover.canDecreaseVerbosity ?? false;
+		}
+	}
 }
 
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
@@ -147,19 +159,20 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		if (!hoverProviderRegistry.has(model)) {
 			return AsyncIterableObject.EMPTY;
 		}
+		const markdownHovers = this._getMarkdownHovers(hoverProviderRegistry, model, anchor, token);
+		return AsyncIterableObject.fromPromise(markdownHovers);
+	}
 
+	private async _getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider<DisposableHover>>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): Promise<MarkdownHover[]> {
 		const position = anchor.range.getStartPosition();
-		return getHover(hoverProviderRegistry, model, position, token)
-			.filter(item => !isEmptyMarkdownString(item.hover.contents))
+		const hoverProviderResults = await createHoverProviderResultPromise(hoverProviderRegistry, model, position, token);
+		const markdownHovers = hoverProviderResults.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const range = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				const hoverSource: HoverSourceInformation = {
-					hover: item.hover,
-					hoverProvider: item.provider,
-					hoverPosition: position
-				};
+				const hoverSource = new HoverSource(item.hover, item.provider, position);
 				return new MarkdownHover(this, range, item.hover.contents, false, item.ordinal, hoverSource);
 			});
+		return markdownHovers;
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
@@ -175,7 +188,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 interface RenderedHoverPart {
 	renderedMarkdown: HTMLElement;
 	disposables: DisposableStore;
-	hoverSourceInformation?: HoverSourceInformation;
+	hoverSource?: HoverSource;
 }
 
 interface FocusedHoverInfo {
@@ -249,33 +262,33 @@ class RenderedHoverParts extends Disposable {
 	private _renderHoverPart(
 		hoverPartIndex: number,
 		hoverContents: IMarkdownString[],
-		hoverSourceInformation: HoverSourceInformation | undefined,
+		hoverSource: HoverSource | undefined,
 		onFinishedRendering: () => void
 	): RenderedHoverPart {
 
 		const { renderedMarkdown, disposables } = this._renderMarkdownContent(hoverContents, onFinishedRendering);
 
-		if (!hoverSourceInformation) {
+		if (!hoverSource) {
 			return { renderedMarkdown, disposables };
 		}
 
-		const hover = hoverSourceInformation.hover;
-		const canIncreaseVerbosity = hover.canIncreaseVerbosity;
-		const canDecreaseVerbosity = hover.canDecreaseVerbosity;
+		const hover = hoverSource.hover;
+		const canIncreaseVerbosity = hoverSource.supportsVerbosityAction(HoverVerbosityAction.Increase);
+		const canDecreaseVerbosity = hoverSource.supportsVerbosityAction(HoverVerbosityAction.Decrease);
 
 		disposables.add(toDisposable(() => {
 			hover.dispose();
 		}));
 
 		if (!canIncreaseVerbosity && !canDecreaseVerbosity) {
-			return { renderedMarkdown, disposables, hoverSourceInformation };
+			return { renderedMarkdown, disposables, hoverSource };
 		}
 
 		const actionsContainer = $('div.verbosity-actions');
 		renderedMarkdown.prepend(actionsContainer);
 
-		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity ?? false));
-		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity ?? false));
+		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity));
+		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity));
 
 		const focusTracker = disposables.add(dom.trackFocus(renderedMarkdown));
 		disposables.add(focusTracker.onDidFocus(() => {
@@ -290,7 +303,7 @@ class RenderedHoverParts extends Disposable {
 				return;
 			}
 		}));
-		return { renderedMarkdown, disposables, hoverSourceInformation };
+		return { renderedMarkdown, disposables, hoverSource };
 	}
 
 	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, actionEnabled: boolean): DisposableStore {
@@ -327,15 +340,15 @@ class RenderedHoverParts extends Disposable {
 		}
 		const hoverFocusedPartIndex = this._hoverFocusInfo.hoverPartIndex;
 		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(hoverFocusedPartIndex);
-		if (!hoverRenderedPart || !hoverRenderedPart.hoverSourceInformation) {
+		if (!hoverRenderedPart || !hoverRenderedPart.hoverSource?.supportsVerbosityAction(action)) {
 			return;
 		}
-		const hoverPosition = hoverRenderedPart.hoverSourceInformation.hoverPosition;
-		const hoverProvider = hoverRenderedPart.hoverSourceInformation.hoverProvider;
-		const hover = hoverRenderedPart.hoverSourceInformation.hover;
+		const hoverPosition = hoverRenderedPart.hoverSource.hoverPosition;
+		const hoverProvider = hoverRenderedPart.hoverSource.hoverProvider;
+		const hover = hoverRenderedPart.hoverSource.hover;
 		const hoverContext: HoverContext = { action, previousHover: hover };
 
-		let newHover: Hover | null | undefined;
+		let newHover: DisposableHover | null | undefined;
 		try {
 			newHover = await Promise.resolve(hoverProvider.provideHover(model, hoverPosition, CancellationToken.None, hoverContext));
 		} catch (e) {
@@ -345,15 +358,11 @@ class RenderedHoverParts extends Disposable {
 			return;
 		}
 
-		const hoverInformation: HoverSourceInformation = {
-			hover: newHover,
-			hoverPosition: hoverPosition,
-			hoverProvider: hoverProvider
-		};
+		const hoverSource = new HoverSource(newHover, hoverProvider, hoverPosition);
 		const renderedHoverPart = this._renderHoverPart(
 			hoverFocusedPartIndex,
 			newHover.contents,
-			hoverInformation,
+			hoverSource,
 			this._onFinishedRendering
 		);
 		this._replaceRenderedHoverPartAtIndex(hoverFocusedPartIndex, renderedHoverPart);
