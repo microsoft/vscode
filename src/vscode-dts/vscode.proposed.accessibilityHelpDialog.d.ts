@@ -6,6 +6,7 @@
 
 declare module 'vscode' {
 
+	// @meganrogge https://github.com/microsoft/vscode/issues/209855
 	export interface AccessibilityHelpProvider {
 		/**
 		 * The id of the provider.
@@ -29,7 +30,6 @@ declare module 'vscode' {
 	}
 
 	export namespace window {
-		// @meganrogge https://github.com/microsoft/vscode/issues/209855
 
 		/**
 		 * Registers an accessibility help provider.
