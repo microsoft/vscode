@@ -173,6 +173,7 @@ export class InlineChatWidget {
 				defaultElementHeight: 32,
 				renderStyle: 'compact',
 				renderInputOnTop: true,
+				renderFollowups: true,
 				supportsFileReferences: true,
 				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
 				rendererOptions: options.rendererOptions,

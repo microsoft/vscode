@@ -343,9 +343,6 @@ export class InlineChatController implements IEditorContribution {
 				break;
 		}
 
-		if (session.session.input) {
-			options.message = session.session.input;
-		}
 		this._session = session;
 		return State.INIT_UI;
 	}
