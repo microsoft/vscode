@@ -16,7 +16,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -37,7 +37,7 @@ suite('ChatModel', () => {
 	});
 
 	test('Waits for initialization', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -54,7 +54,7 @@ suite('ChatModel', () => {
 	});
 
 	test('must call startInitialize before initialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -69,7 +69,7 @@ suite('ChatModel', () => {
 	});
 
 	test('deinitialize/reinitialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -94,7 +94,7 @@ suite('ChatModel', () => {
 	});
 
 	test('cannot initialize twice', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		model.startInitialize();
 		model.initialize(undefined);
@@ -102,14 +102,14 @@ suite('ChatModel', () => {
 	});
 
 	test('Initialization fails when model is disposed', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 		model.dispose();
 
 		assert.throws(() => model.initialize(undefined));
 	});
 
 	test('removeRequest', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		model.startInitialize();
 		model.initialize(undefined);
