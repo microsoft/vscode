@@ -1798,7 +1798,7 @@ class InnerMinimap extends Disposable {
 		const separatorStroke = foregroundFill;
 
 		const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
-		canvasContext.font = sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
+		canvasContext.font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
 		canvasContext.strokeStyle = separatorStroke;
 		canvasContext.lineWidth = 0.2;
 
