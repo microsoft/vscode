@@ -57,8 +57,7 @@ declare module 'vscode' {
 		 *   console.log(data);
 		 * }
 		 */
-		// TODO: read? "data" typically means Uint8Array. What's the encoding of the string? Usage here will typically be checking for substrings
-		readData(): AsyncIterable<string>;
+		read(): AsyncIterable<string>;
 	}
 
 	export interface Terminal {
