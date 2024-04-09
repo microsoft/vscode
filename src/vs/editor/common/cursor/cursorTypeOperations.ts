@@ -296,6 +296,7 @@ export class TypeOperations {
 		}
 	}
 
+	// TODO: potentially make public and call this in order to construct the other test
 	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);

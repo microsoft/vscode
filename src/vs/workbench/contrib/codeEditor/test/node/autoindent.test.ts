@@ -15,6 +15,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ILanguageConfiguration, LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/common/languageConfigurationExtensionPoint';
 import { parse } from 'vs/base/common/json';
 import { IRange } from 'vs/editor/common/core/range';
+import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -51,7 +52,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Test which can be ran to find cases of incorrect indentation...
-	test('Find Cases of Incorrect Indentation', () => {
+	test('Find Cases of Incorrect Indentation with the Reindent Lines Command', () => {
 
 		// ./scripts/test.sh --inspect --grep='Find Cases of Incorrect Indentation' --timeout=15000
 
@@ -74,15 +75,17 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 					};
 					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 					const lineCount = model.getLineCount();
-					/*
-					TODO: Doesn't work because the indentation is not kept when the cursor moves without typing some code on Enter
-					const editOperations: ISingleEditOperation[] = [];
-					for (let line = 1; line <= lineCount - 1; line++) {
-						editOperations.push(...getReindentEditOperations(model, languageConfigurationService, line, line + 1));
-					}
-					*/
+					// const editOperations: ISingleEditOperation[] = [];
+					// for (let line = 1; line <= lineCount - 1; line++) {
+					// 	// skip empty lines so that we don't put at zero
+					// 	if (line > 1 && model.getLineContent(line - 1).length === 0) {
+					// 		continue;
+					// 	}
+					// 	editOperations.push(...getReindentEditOperations(model, languageConfigurationService, line, line + 1));
+					// }
 					const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, lineCount);
 					model.applyEdits(editOperations);
+					model.applyEdits(trimTrailingWhitespace(model, [], true));
 					fs.writeFileSync(pathName, model.getValue());
 				}
 			}
@@ -93,6 +96,50 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 		walkDirectoryAndReindent('/Users/aiday/Desktop/Test/vscode-test', 'ts-test');
 	});
+
+	/*
+	test('Find Cases of Incorrect Indentation with the onEnter Rules', () => {
+		function walkDirectoryAndReindent(directory: string, languageId: string) {
+			const files = fs.readdirSync(directory, { withFileTypes: true });
+			const directoriesFromWhichToContinue: string[] = [];
+			for (const file of files) {
+				if (file.isDirectory()) {
+					directoriesFromWhichToContinue.push(path.join(directory, file.name));
+				} else {
+					const pathName = path.join(directory, file.name);
+					const fileType = path.extname(pathName);
+					if (fileType !== '.ts') {
+						continue;
+					}
+					const fileContents = fs.readFileSync(pathName).toString();
+					const options: IRelaxedTextModelCreationOptions = {
+						tabSize: 4,
+						insertSpaces: false
+					};
+					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+					const lineCount = model.getLineCount();
+
+					const editOperations: ISingleEditOperation[] = [];
+					for (let line = 1; line <= lineCount - 1; line++) {
+						// skip empty lines so that we don't put at zero
+						if (line > 1 && model.getLineContent(line - 1).length === 0) {
+							continue;
+						}
+						const command: ICommand = TypeOperations._enter();
+						editOperations.push(...getEditOperation(model, command));
+					}
+					model.applyEdits(editOperations);
+					model.applyEdits(trimTrailingWhitespace(model, [], true));
+					fs.writeFileSync(pathName, model.getValue());
+				}
+			}
+			for (const directory of directoriesFromWhichToContinue) {
+				walkDirectoryAndReindent(directory, languageId);
+			}
+		}
+		walkDirectoryAndReindent('/Users/aiday/Desktop/Test/vscode-test', 'ts-test');
+	});
+	*/
 
 	// Unit tests for increase and decrease indent patterns...
 
