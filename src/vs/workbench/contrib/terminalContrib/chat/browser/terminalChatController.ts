@@ -301,7 +301,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			location: ChatAgentLocation.Terminal
 		};
 		try {
-			const task = this._chatAgentService.invokeAgent(this._terminalAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
+			const task = this._chatAgentService.invokeAgent(this._terminalAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model, this._terminalAgentId!), cancellationToken);
 			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateProgress(true);
