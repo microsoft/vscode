@@ -63,7 +63,13 @@ const CORE_TYPES = [
 	'EventTarget',
 	'BroadcastChannel',
 	'performance',
-	'Blob'
+	'Blob',
+	'crypto',
+	'File',
+	'fetch',
+	'RequestInit',
+	'Headers',
+	'Response'
 ];
 
 // Types that are defined in a common layer but are known to be only
