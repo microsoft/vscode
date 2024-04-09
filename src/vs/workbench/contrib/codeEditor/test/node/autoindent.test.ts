@@ -51,7 +51,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Test which can be ran to find cases of incorrect indentation...
-	test.skip('Find Cases of Incorrect Indentation', () => {
+	test('Find Cases of Incorrect Indentation', () => {
 
 		// ./scripts/test.sh --inspect --grep='Find Cases of Incorrect Indentation' --timeout=15000
 
@@ -74,6 +74,13 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 					};
 					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 					const lineCount = model.getLineCount();
+					/*
+					TODO: Doesn't work because the indentation is not kept when the cursor moves without typing some code on Enter
+					const editOperations: ISingleEditOperation[] = [];
+					for (let line = 1; line <= lineCount - 1; line++) {
+						editOperations.push(...getReindentEditOperations(model, languageConfigurationService, line, line + 1));
+					}
+					*/
 					const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, lineCount);
 					model.applyEdits(editOperations);
 					fs.writeFileSync(pathName, model.getValue());
