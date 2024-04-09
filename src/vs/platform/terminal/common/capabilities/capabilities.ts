@@ -240,6 +240,7 @@ export interface IPartialCommandDetectionCapability {
 interface IBaseTerminalCommand {
 	// Mandatory
 	command: string;
+	commandLineConfidence: 'low' | 'medium' | 'high';
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;

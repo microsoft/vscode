@@ -12,6 +12,7 @@ import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
 
 export interface ITerminalCommandProperties {
 	command: string;
+	commandLineConfidence: 'low' | 'medium' | 'high';
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
@@ -33,6 +34,7 @@ export interface ITerminalCommandProperties {
 export class TerminalCommand implements ITerminalCommand {
 
 	get command() { return this._properties.command; }
+	get commandLineConfidence() { return this._properties.commandLineConfidence; }
 	get isTrusted() { return this._properties.isTrusted; }
 	get timestamp() { return this._properties.timestamp; }
 	get duration() { return this._properties.duration; }
@@ -71,6 +73,7 @@ export class TerminalCommand implements ITerminalCommand {
 		const executedMarker = serialized.executedLine !== undefined ? xterm.registerMarker(serialized.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
 		const newCommand = new TerminalCommand(xterm, {
 			command: isCommandStorageDisabled ? '' : serialized.command,
+			commandLineConfidence: serialized.commandLineConfidence ?? 'low',
 			isTrusted: serialized.isTrusted,
 			promptStartMarker,
 			marker,
@@ -99,6 +102,7 @@ export class TerminalCommand implements ITerminalCommand {
 			executedLine: this.executedMarker?.line,
 			executedX: this.executedX,
 			command: isCommandStorageDisabled ? '' : this.command,
+			commandLineConfidence: isCommandStorageDisabled ? 'low' : this.commandLineConfidence,
 			isTrusted: this.isTrusted,
 			cwd: this.cwd,
 			exitCode: this.exitCode,
@@ -265,6 +269,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 
 	cwd?: string;
 	command?: string;
+	commandLineConfidence?: 'low' | 'medium' | 'high';
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
@@ -287,6 +292,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 			executedLine: undefined,
 			executedX: undefined,
 			command: '',
+			commandLineConfidence: 'low',
 			isTrusted: true,
 			cwd,
 			exitCode: undefined,
@@ -306,6 +312,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		if ((this.command !== undefined && !this.command.startsWith('\\')) || ignoreCommandLine) {
 			return new TerminalCommand(this._xterm, {
 				command: ignoreCommandLine ? '' : (this.command || ''),
+				commandLineConfidence: ignoreCommandLine ? 'low' : (this.commandLineConfidence || 'low'),
 				isTrusted: !!this.isTrusted,
 				promptStartMarker: this.promptStartMarker,
 				marker: this.commandStartMarker,

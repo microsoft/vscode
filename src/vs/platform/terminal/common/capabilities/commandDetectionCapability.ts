@@ -87,6 +87,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	) {
 		super();
 
+		this.onCommandExecuted(command => {
+			// Pull command line from the buffer if it was not set explicitly
+			if (command.commandLineConfidence !== 'high') {
+
+				console.log('commandLineConfidence !== high', command.command);
+			}
+		});
+
 		// Set up platform-specific behaviors
 		const that = this;
 		this._ptyHeuristicsHooks = new class implements ICommandDetectionHeuristicsHooks {
@@ -353,6 +361,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	setCommandLine(commandLine: string, isTrusted: boolean) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
 		this._currentCommand.command = commandLine;
+		this._currentCommand.commandLineConfidence = 'high';
 		this._currentCommand.isTrusted = isTrusted;
 	}
 

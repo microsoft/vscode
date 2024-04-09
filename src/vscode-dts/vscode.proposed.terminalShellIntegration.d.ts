@@ -17,23 +17,13 @@ declare module 'vscode' {
 		readonly terminal: Terminal;
 
 		/**
-		 * The full command line that was executed, including both the command and arguments.
-		 * The accuracy of this value depends on the shell integration implementation:
-		 *
-		 * - It may be undefined or the empty string until {@link onDidEndTerminalShellExecution} is
-		 *   fired.
-		 * - It may be inaccurate initially if the command line is pulled from the buffer directly
-		 *   via the shell integration prompt markers.
-		 * - It may contain line continuation characters and/or parts of the right prompt.
-		 * - It may be inaccurate if the shell integration does not support command line reporting.
+		 * The full command line that was executed, including both the command and arguments. The
+		 * {@link TerminalShellExecutionCommandLineConfidence confidence} of this value depends on
+		 * the specific shell's shell integration implementation. This value may become more
+		 * accurate after {@link onDidEndTerminalShellExecution} is fired.
 		 */
-		// TODO: Remove | undefined - this will be the empty string if the command start and end is the same position
 		// TODO: Implement command line fetching via buffer markers
-		// TODO: Quality/confidence 3x:
-		//       - Top: shell integration reporting
-		//       - Middle: Not multi-line, command start is not on the left-most column
-		//       - Bottom: Multi-line or command start is on the left-most column
-		readonly commandLine: string | undefined;
+		readonly commandLine: TerminalShellExecutionCommandLine;
 
 		/**
 		 * The working directory that was reported by the shell when this command executed. This
@@ -58,7 +48,51 @@ declare module 'vscode' {
 		 * }
 		 */
 		// TODO: read? "data" typically means Uint8Array. What's the encoding of the string? Usage here will typically be checking for substrings
+		// TODO: dispose function?
 		readData(): AsyncIterable<string>;
+	}
+
+	/**
+	 * A command line that was executed in a terminal.
+	 */
+	export interface TerminalShellExecutionCommandLine {
+		/**
+		 * The full command line that was executed, including both the command and its arguments.
+		 */
+		value: string;
+
+		/**
+		 * The confidence of the command line value which is determined by how the value was
+		 * obtained. This depends upon the implementation of the shell integration script.
+		 */
+		confidence: TerminalShellExecutionCommandLineConfidence;
+	}
+
+	/**
+	 * The confidence of a {@link TerminalShellExecutionCommandLine} value.
+	 */
+	enum TerminalShellExecutionCommandLineConfidence {
+		/**
+		 * The command line value confidence is low. This means that the value was read from the
+		 * terminal buffer using markers reported by the shell integration script. Additionally the
+		 * command either started on the very left-most column which is unusual, or the command is
+		 * multi-line which is more difficult to accurately detect due to line continuation
+		 * characters and right prompts.
+		 */
+		Low = 0,
+
+		/**
+		 * The command line value confidence is medium. This means that the value was read from the
+		 * terminal buffer using markers reported by the shell integration script. The command is
+		 * single-line and does not start on the very left-most column (which is unusual).
+		 */
+		Medium = 1,
+
+		/**
+		 * The command line value confidence is high. This means that the value was explicitly send
+		 * from the shell integration script.
+		 */
+		High = 2
 	}
 
 	export interface Terminal {
