@@ -53,18 +53,38 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	// Test which can be ran to find cases of incorrect indentation...
 	test.skip('Find Cases of Incorrect Indentation', () => {
 
-		const filePath = path.join('..', 'TypeScript', 'src', 'server', 'utilities.ts');
-		const fileContents = fs.readFileSync(filePath).toString();
+		// ./scripts/test.sh --inspect --grep='Find Cases of Incorrect Indentation' --timeout=15000
 
-		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
-		model.applyEdits(editOperations);
+		function walkDirectoryAndReindent(directory: string, languageId: string) {
+			const files = fs.readdirSync(directory, { withFileTypes: true });
+			const directoriesFromWhichToContinue: string[] = [];
+			for (const file of files) {
+				if (file.isDirectory()) {
+					directoriesFromWhichToContinue.push(path.join(directory, file.name));
+				} else {
+					const pathName = path.join(directory, file.name);
+					const fileType = path.extname(pathName);
+					if (fileType !== '.ts') {
+						continue;
+					}
+					const fileContents = fs.readFileSync(pathName).toString();
+					const options: IRelaxedTextModelCreationOptions = {
+						tabSize: 4,
+						insertSpaces: false
+					};
+					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+					const lineCount = model.getLineCount();
+					const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, lineCount);
+					model.applyEdits(editOperations);
+					fs.writeFileSync(pathName, model.getValue());
+				}
+			}
+			for (const directory of directoriesFromWhichToContinue) {
+				walkDirectoryAndReindent(directory, languageId);
+			}
+		}
 
-		// save the files to disk
-		const initialFile = path.join('..', 'autoindent', 'initial.ts');
-		const finalFile = path.join('..', 'autoindent', 'final.ts');
-		fs.writeFileSync(initialFile, fileContents);
-		fs.writeFileSync(finalFile, model.getValue());
+		walkDirectoryAndReindent('/Users/aiday/Desktop/Test/vscode-test', 'ts-test');
 	});
 
 	// Unit tests for increase and decrease indent patterns...
