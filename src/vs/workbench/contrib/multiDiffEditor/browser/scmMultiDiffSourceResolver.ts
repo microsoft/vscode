@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { observableFromEvent, waitForState } from 'vs/base/common/observable';
 import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { localize2 } from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
@@ -110,6 +110,12 @@ export class ScmMultiDiffSourceResolverContribution extends Disposable {
 	}
 }
 
+interface OpenScmGroupActionOptions {
+	title: string;
+	repositoryUri: UriComponents;
+	resourceGroupId: string;
+}
+
 export class OpenScmGroupAction extends Action2 {
 	public static async openMultiFileDiffEditor(editorService: IEditorService, label: string, repositoryRootUri: URI | undefined, resourceGroupId: string, options?: IMultiDiffEditorOptions) {
 		if (!repositoryRootUri) {
@@ -122,14 +128,14 @@ export class OpenScmGroupAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'multiDiffEditor.openScmDiff',
+			id: '_workbench.openScmMultiDiffEditor',
 			title: localize2('viewChanges', 'View Changes'),
 			f1: false
 		});
 	}
 
-	async run(accessor: ServicesAccessor, title: string, repositoryRootUri: URI, resourceGroupId: string): Promise<void> {
+	async run(accessor: ServicesAccessor, options: OpenScmGroupActionOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		await OpenScmGroupAction.openMultiFileDiffEditor(editorService, title, repositoryRootUri, resourceGroupId);
+		await OpenScmGroupAction.openMultiFileDiffEditor(editorService, options.title, URI.revive(options.repositoryUri), options.resourceGroupId);
 	}
 }
