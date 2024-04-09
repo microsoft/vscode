@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { AuxiliaryWindow, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -32,6 +32,8 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
 	private skipUnloadConfirmation = false;
 
+	private maximized = false;
+
 	constructor(
 		window: CodeWindow,
 		container: HTMLElement,
@@ -44,6 +46,26 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService);
+
+		this.handleMaximizedState();
+	}
+
+	private handleMaximizedState(): void {
+		(async () => {
+			this.maximized = await this.nativeHostService.isMaximized({ targetWindowId: this.window.vscodeWindowId });
+		})();
+
+		this._register(this.nativeHostService.onDidMaximizeWindow(windowId => {
+			if (windowId === this.window.vscodeWindowId) {
+				this.maximized = true;
+			}
+		}));
+
+		this._register(this.nativeHostService.onDidUnmaximizeWindow(windowId => {
+			if (windowId === this.window.vscodeWindowId) {
+				this.maximized = false;
+			}
+		}));
 	}
 
 	protected override async handleVetoBeforeClose(e: BeforeUnloadEvent, veto: string): Promise<void> {
@@ -69,6 +91,13 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	protected override preventUnload(e: BeforeUnloadEvent): void {
 		e.preventDefault();
 		e.returnValue = true;
+	}
+
+	override createState(): IAuxiliaryWindowOpenOptions {
+		return {
+			...super.createState(),
+			mode: this.maximized ? AuxiliaryWindowMode.Maximized : AuxiliaryWindowMode.Normal
+		};
 	}
 }
 
