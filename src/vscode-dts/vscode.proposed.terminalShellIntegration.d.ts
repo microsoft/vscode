@@ -69,7 +69,7 @@ declare module 'vscode' {
 		/**
 		 * The full command line that was executed, including both the command and its arguments.
 		 */
-		value: string;
+		readonly value: string;
 
 		/**
 		 * Whether the command line value came from a trusted source and is therefore safe to
@@ -81,13 +81,13 @@ declare module 'vscode' {
 		 * integration script (ie. {@link TerminalShellExecutionCommandLineConfidence.High high confidence})
 		 * and it used a nonce for verification.
 		 */
-		isTrusted: boolean;
+		readonly isTrusted: boolean;
 
 		/**
 		 * The confidence of the command line value which is determined by how the value was
 		 * obtained. This depends upon the implementation of the shell integration script.
 		 */
-		confidence: TerminalShellExecutionCommandLineConfidence;
+		readonly confidence: TerminalShellExecutionCommandLineConfidence;
 	}
 
 	/**
