@@ -202,6 +202,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		let allSessions: (ChatModel | ISerializableChatData)[] = Array.from(this._sessionModels.values())
+			.filter(session => !session.providerId.startsWith('inlinechat:'))
 			.filter(session => session.getRequests().length > 0);
 		allSessions = allSessions.concat(
 			Object.values(this._persistedSessions)
@@ -705,7 +706,9 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		this._persistedSessions[sessionId] = model.toJSON();
+		if (!model.providerId.startsWith('inlinechat')) {
+			this._persistedSessions[sessionId] = model.toJSON();
+		}
 
 		this._sessionModels.deleteAndDispose(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
