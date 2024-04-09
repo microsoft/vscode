@@ -886,14 +886,14 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 }
 
-export function getHistoryEntriesFromModel(model: IChatModel, forAgent: IChatAgentData | undefined): IChatAgentHistoryEntry[] {
+export function getHistoryEntriesFromModel(model: IChatModel, forAgentId: string | undefined): IChatAgentHistoryEntry[] {
 	const history: IChatAgentHistoryEntry[] = [];
 	for (const request of model.getRequests()) {
 		if (!request.response) {
 			continue;
 		}
 
-		if (forAgent && forAgent.id !== request.response.agent?.id) {
+		if (forAgentId && forAgentId !== request.response.agent?.id) {
 			// An agent only gets to see requests that were sent to this agent.
 			// The default agent (the undefined case) gets to see all of them.
 			continue;
