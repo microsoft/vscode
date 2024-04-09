@@ -1001,7 +1001,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						vscode.Uri.file((event.body as Proto.CreateDirectoryWatcherEventBody).path),
 						(event.body as Proto.CreateDirectoryWatcherEventBody).recursive ? '**' : '*'
 					),
-					event.body.ignoreUpdate // TODO when typescript.d.ts gets updated update the type info
+					(event.body as Proto.CreateDirectoryWatcherEventBody).ignoreUpdate
 				);
 				break;
 
