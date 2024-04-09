@@ -154,13 +154,6 @@ export class InlineCompletionsController extends Disposable {
 			this.updateObservables(tx, getReason(e))
 		)));
 
-		this._register(this._contextKeyService.onDidChangeContext((e) => transaction(tx => {
-			if (e.affectsSome(new Set('editorDictation.inProgress'))) {
-				/** @description contextKeyService.editorDictation.inProgress*/
-				this.updateObservables(tx, VersionIdChangeReason.Other);
-				this.model.get()?.stop(tx);
-			}
-		})));
 
 		this._register(editor.onDidChangeCursorPosition(e => transaction(tx => {
 			/** @description InlineCompletionsController.onDidChangeCursorPosition */
