@@ -104,7 +104,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, cwd: URI | undefined): void {
+	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: URI | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
@@ -112,15 +112,17 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		}
 		const commandLine: vscode.TerminalShellExecutionCommandLine = {
 			value: commandLineValue,
-			confidence: commandLineConfidence
+			confidence: commandLineConfidence,
+			isTrusted
 		};
 		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, cwd);
 	}
 
-	public $shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, exitCode: number | undefined): void {
+	public $shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void {
 		const commandLine: vscode.TerminalShellExecutionCommandLine = {
 			value: commandLineValue,
-			confidence: commandLineConfidence
+			confidence: commandLineConfidence,
+			isTrusted
 		};
 		this._activeShellIntegrations.get(instanceId)?.endShellExecution(commandLine, exitCode);
 	}
@@ -182,7 +184,8 @@ class InternalTerminalShellIntegration extends Disposable {
 				// the start event fires
 				const commandLine: vscode.TerminalShellExecutionCommandLine = {
 					value: commandLineValue,
-					confidence: TerminalShellExecutionCommandLineConfidence.High
+					confidence: TerminalShellExecutionCommandLineConfidence.High,
+					isTrusted: true
 				};
 				const execution = that.startShellExecution(commandLine, that._cwd, true).value;
 				that._ignoreNextExecution = true;

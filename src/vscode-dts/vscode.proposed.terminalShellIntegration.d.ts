@@ -63,8 +63,8 @@ declare module 'vscode' {
 
 		/**
 		 * Whether the command line value came from a trusted source and is therefore safe to
-		 * execute without user additional confirmation (eg. a notification "Do you want to execute
-		 * (command)?".
+		 * execute without user additional confirmation, such as a notification that asks "Do you
+		 * want to execute (command)?".
 		 *
 		 * This is false when the command line was reported explicitly by the shell integration
 		 * script (ie. {@link TerminalShellExecutionCommandLineConfidence.High high confidence}),
@@ -85,10 +85,13 @@ declare module 'vscode' {
 	enum TerminalShellExecutionCommandLineConfidence {
 		/**
 		 * The command line value confidence is low. This means that the value was read from the
-		 * terminal buffer using markers reported by the shell integration script. Additionally the
-		 * command either started on the very left-most column which is unusual, or the command is
-		 * multi-line which is more difficult to accurately detect due to line continuation
-		 * characters and right prompts.
+		 * terminal buffer using markers reported by the shell integration script. Additionally one
+		 * of the following conditions will be met:
+		 *
+		 * - The command started on the very left-most column which is unusual, or
+		 * - The command is multi-line which is more difficult to accurately detect due to line
+		 *   continuation characters and right prompts.
+		 * - Command line markers were not reported by the shell integration script.
 		 */
 		Low = 0,
 

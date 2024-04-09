@@ -263,6 +263,7 @@ export interface ITerminalCommand extends IBaseTerminalCommand {
 	readonly aliases?: string[][];
 	readonly wasReplayed?: boolean;
 
+	extractCommandLine(): string;
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;

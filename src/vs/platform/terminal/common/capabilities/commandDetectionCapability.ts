@@ -87,13 +87,42 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	) {
 		super();
 
-		this.onCommandExecuted(command => {
-			// Pull command line from the buffer if it was not set explicitly
+		// Pull command line from the buffer if it was not set explicitly
+		this._register(this.onCommandExecuted(command => {
 			if (command.commandLineConfidence !== 'high') {
+				// HACK: onCommandExecuted actually fired with PartialTerminalCommand
+				const typedCommand = (command as ITerminalCommand | PartialTerminalCommand);
+				command.command = typedCommand.extractCommandLine();
+				command.commandLineConfidence = 'low';
 
-				console.log('commandLineConfidence !== high', command.command);
+				// ITerminalCommand
+				if ('getOutput' in typedCommand) {
+					if (
+						// Markers exist
+						typedCommand.promptStartMarker && typedCommand.marker && typedCommand.executedMarker &&
+						// Single line command
+						command.command.indexOf('\n') === -1 &&
+						// Start marker is not on the left-most column
+						typedCommand.startX !== undefined && typedCommand.startX > 0
+					) {
+						command.commandLineConfidence = 'medium';
+					}
+				}
+				// PartialTerminalCommand
+				else {
+					if (
+						// Markers exist
+						typedCommand.promptStartMarker && typedCommand.commandStartMarker && typedCommand.commandExecutedMarker &&
+						// Single line command
+						command.command.indexOf('\n') === -1 &&
+						// Start marker is not on the left-most column
+						typedCommand.commandStartX !== undefined && typedCommand.commandStartX > 0
+					) {
+						command.commandLineConfidence = 'medium';
+					}
+				}
 			}
-		});
+		}));
 
 		// Set up platform-specific behaviors
 		const that = this;
