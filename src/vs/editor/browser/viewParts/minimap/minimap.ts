@@ -94,6 +94,10 @@ class MinimapOptions {
 	public readonly minimapCharWidth: number;
 	public readonly sectionHeaderFontFamily: string;
 	public readonly sectionHeaderFontSize: number;
+	/**
+	 * Space in between the characters of the section header (in CSS px)
+	 */
+	public readonly sectionHeaderLetterSpacing: number;
 	public readonly sectionHeaderFontColor: RGBA8;
 
 	public readonly charRenderer: () => MinimapCharRenderer;
@@ -139,6 +143,7 @@ class MinimapOptions {
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
 		this.sectionHeaderFontFamily = DEFAULT_FONT_FAMILY;
 		this.sectionHeaderFontSize = minimapOpts.sectionHeaderFontSize * pixelRatio;
+		this.sectionHeaderLetterSpacing = minimapOpts.sectionHeaderLetterSpacing * pixelRatio;
 		this.sectionHeaderFontColor = MinimapOptions._getSectionHeaderColor(theme, tokensColorTracker.getColor(ColorId.DefaultForeground));
 
 		this.charRenderer = createSingleCallFunction(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
@@ -1788,6 +1793,7 @@ class InnerMinimap extends Disposable {
 	private _renderSectionHeaders(layout: MinimapLayout) {
 		const minimapLineHeight = this._model.options.minimapLineHeight;
 		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
+		const sectionHeaderLetterSpacing = this._model.options.sectionHeaderLetterSpacing;
 		const backgroundFillHeight = sectionHeaderFontSize * 1.5;
 		const { canvasInnerWidth } = this._model.options;
 
@@ -1820,6 +1826,7 @@ class InnerMinimap extends Disposable {
 				decoration.options.minimap?.sectionHeaderStyle === MinimapSectionHeaderStyle.Underlined,
 				backgroundFill,
 				foregroundFill,
+				sectionHeaderLetterSpacing,
 				canvasInnerWidth,
 				backgroundFillY,
 				backgroundFillHeight,
@@ -1866,6 +1873,7 @@ class InnerMinimap extends Disposable {
 		hasSeparatorLine: boolean,
 		backgroundFill: string,
 		foregroundFill: string,
+		letterSpacing: number,
 		minimapWidth: number,
 		backgroundFillY: number,
 		backgroundFillHeight: number,
@@ -1883,7 +1891,7 @@ class InnerMinimap extends Disposable {
 			for (let i = 0; i < headerText.length; i++) {
 				target.fillText(headerText[i], x, textY);
 				const charWidth = target.measureText(headerText[i]).width;
-				x += charWidth + 1;
+				x += charWidth + letterSpacing;
 			}
 		}
 
