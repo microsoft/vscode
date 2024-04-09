@@ -17,7 +17,7 @@ import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workben
 import { OutlineEntry } from './OutlineEntry';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { NotebookOutlineConstants, NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 
 export class NotebookCellOutlineProvider {
 	private readonly _disposables = new DisposableStore();
@@ -263,7 +263,21 @@ export class NotebookCellOutlineProvider {
 				}
 			}
 		}
-		if (newActive !== this._activeEntry) {
+
+		// @Yoyokrazy - Make sure the new active entry isn't part of the filtered exclusions
+		const showCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
+		const showCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+		const showMarkdownHeadersOnly = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
+
+		// check the three outline filtering conditions
+		// if any are true, newActive should NOT be set to this._activeEntry and the event should NOT fire
+		if (
+			(newActive !== this._activeEntry) && !(
+				(showMarkdownHeadersOnly && newActive?.cell.cellKind === CellKind.Markup && newActive?.level === NotebookOutlineConstants.NonHeaderOutlineLevel) ||	// show headers only + cell is mkdn + is level 7 (no header)
+				(!showCodeCells && newActive?.cell.cellKind === CellKind.Code) ||																					// show code cells   + cell is code
+				(!showCodeCellSymbols && newActive?.cell.cellKind === CellKind.Code && newActive?.level > NotebookOutlineConstants.NonHeaderOutlineLevel)			// show code symbols + cell is code + has level > 7 (nb symbol levels)
+			)
+		) {
 			this._activeEntry = newActive;
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}

@@ -128,6 +128,9 @@ declare module 'vscode' {
 		// current version of the proposal.
 		export const _version: 1 | number;
 
+		/**
+		 * @deprecated
+		 */
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider, metadata?: InteractiveEditorSessionProviderMetadata): Disposable;

@@ -281,8 +281,6 @@ export class SessionPrompt {
 
 	constructor(
 		readonly value: string,
-		readonly attempt: number,
-		readonly withIntentDetection: boolean,
 	) { }
 }
 

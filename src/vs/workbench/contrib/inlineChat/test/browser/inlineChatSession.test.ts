@@ -46,17 +46,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IChatSlashCommandService, ChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatWidgetHistoryService, ChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { TestExtensionService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IChatAgentService, ChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { MockChatContributionService } from 'vs/workbench/contrib/chat/test/common/mockChatContributionService';
+import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 
 suite('InlineChatSession', function () {
 
@@ -74,20 +72,18 @@ suite('InlineChatSession', function () {
 
 		const serviceCollection = new ServiceCollection(
 			[IConfigurationService, new TestConfigurationService()],
-			[IChatVariablesService, new MockChatVariablesService()],
+			[IChatVariablesService, new SyncDescriptor(ChatVariablesService)],
 			[ILogService, new NullLogService()],
 			[ITelemetryService, NullTelemetryService],
 			[IExtensionService, new TestExtensionService()],
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new TestExtensionService()],
-			[IChatContributionService, new TestExtensionService()],
 			[IWorkspaceContextService, new TestContextService()],
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
-			[IChatContributionService, new MockChatContributionService()],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IContextKeyService, contextKeyService],
