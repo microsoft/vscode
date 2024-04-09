@@ -18,7 +18,7 @@ export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIn
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeTerminalShellIntegration: Event<vscode.TerminalShellIntegrationChangeEvent>;
-	readonly onDidStartTerminalShellExecution: Event<vscode.TerminalShellExecution>;
+	readonly onDidStartTerminalShellExecution: Event<vscode.TerminalShellExecutionStartEvent>;
 	readonly onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecutionEndEvent>;
 }
 export const IExtHostTerminalShellIntegration = createDecorator<IExtHostTerminalShellIntegration>('IExtHostTerminalShellIntegration');
@@ -33,7 +33,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 	protected readonly _onDidChangeTerminalShellIntegration = new Emitter<vscode.TerminalShellIntegrationChangeEvent>();
 	readonly onDidChangeTerminalShellIntegration = this._onDidChangeTerminalShellIntegration.event;
-	protected readonly _onDidStartTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
+	protected readonly _onDidStartTerminalShellExecution = new Emitter<vscode.TerminalShellExecutionStartEvent>();
 	readonly onDidStartTerminalShellExecution = this._onDidStartTerminalShellExecution.event;
 	protected readonly _onDidEndTerminalShellExecution = new Emitter<vscode.TerminalShellExecutionEndEvent>();
 	readonly onDidEndTerminalShellExecution = this._onDidEndTerminalShellExecution.event;
@@ -162,7 +162,7 @@ class InternalTerminalShellIntegration extends Disposable {
 
 	constructor(
 		private readonly _terminal: vscode.Terminal,
-		private readonly _onDidStartTerminalShellExecution: Emitter<vscode.TerminalShellExecution>
+		private readonly _onDidStartTerminalShellExecution: Emitter<vscode.TerminalShellExecutionStartEvent>
 	) {
 		super();
 
@@ -200,13 +200,13 @@ class InternalTerminalShellIntegration extends Disposable {
 		} else {
 			if (this._currentExecution) {
 				this._currentExecution.endExecution(undefined);
-				this._onDidRequestEndExecution.fire({ execution: this._currentExecution.value, exitCode: undefined });
+				this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
 			}
-			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
+			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(commandLine, cwd);
 			if (fireEventInMicrotask) {
-				queueMicrotask(() => this._onDidStartTerminalShellExecution.fire(currentExecution.value));
+				queueMicrotask(() => this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: currentExecution.value }));
 			} else {
-				this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
+				this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value });
 			}
 		}
 		return this._currentExecution;
@@ -219,7 +219,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	endShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine | undefined, exitCode: number | undefined): void {
 		if (this._currentExecution) {
 			this._currentExecution.endExecution(commandLine);
-			this._onDidRequestEndExecution.fire({ execution: this._currentExecution.value, exitCode });
+			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode });
 			this._currentExecution = undefined;
 		}
 	}
@@ -246,15 +246,11 @@ class InternalTerminalShellExecution {
 	readonly value: vscode.TerminalShellExecution;
 
 	constructor(
-		readonly terminal: vscode.Terminal,
 		private _commandLine: vscode.TerminalShellExecutionCommandLine,
 		readonly cwd: URI | undefined,
 	) {
 		const that = this;
 		this.value = {
-			get terminal(): vscode.Terminal {
-				return that.terminal;
-			},
 			get commandLine(): vscode.TerminalShellExecutionCommandLine {
 				return that._commandLine;
 			},

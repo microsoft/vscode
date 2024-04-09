@@ -10,12 +10,6 @@ declare module 'vscode' {
 	// TODO: Add missing docs
 	// TODO: Review and polish up all docs
 	export interface TerminalShellExecution {
-		// TODO: Create a a `TerminalShellExecutionStartEvent` for future proofing and consistency with other events
-		/**
-		 * The {@link Terminal} the command was executed in.
-		 */
-		readonly terminal: Terminal;
-
 		/**
 		 * The full command line that was executed, including both the command and arguments. The
 		 * {@link TerminalShellExecutionCommandLineConfidence confidence} of this value depends on
@@ -233,7 +227,34 @@ declare module 'vscode' {
 		readonly shellIntegration: TerminalShellIntegration;
 	}
 
+	export interface TerminalShellExecutionStartEvent {
+		/**
+		 * The terminal that shell integration has been activated in.
+		 */
+		readonly terminal: Terminal;
+
+		/**
+		 * The shell integration object.
+		 */
+		readonly shellIntegration: TerminalShellIntegration;
+
+		/**
+		 * The terminal shell execution that has ended.
+		 */
+		readonly execution: TerminalShellExecution;
+	}
+
 	export interface TerminalShellExecutionEndEvent {
+		/**
+		 * The terminal that shell integration has been activated in.
+		 */
+		readonly terminal: Terminal;
+
+		/**
+		 * The shell integration object.
+		 */
+		readonly shellIntegration: TerminalShellIntegration;
+
 		/**
 		 * The terminal shell execution that has ended.
 		 */
@@ -257,7 +278,7 @@ declare module 'vscode' {
 		 * [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) is
 		 * activated for the terminal.
 		 */
-		export const onDidStartTerminalShellExecution: Event<TerminalShellExecution>;
+		export const onDidStartTerminalShellExecution: Event<TerminalShellExecutionStartEvent>;
 
 		/**
 		 * This will be fired when a terminal command is ended. This event will fire only when
