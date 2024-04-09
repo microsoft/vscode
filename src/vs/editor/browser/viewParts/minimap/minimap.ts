@@ -1872,12 +1872,19 @@ class InnerMinimap extends Disposable {
 		textY: number,
 		separatorY: number
 	): void {
+
 		if (headerText) {
 			target.fillStyle = backgroundFill;
 			target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
 
 			target.fillStyle = foregroundFill;
-			target.fillText(headerText, MINIMAP_GUTTER_WIDTH, textY);
+			let x = MINIMAP_GUTTER_WIDTH;
+
+			for (let i = 0; i < headerText.length; i++) {
+				target.fillText(headerText[i], x, textY);
+				const charWidth = target.measureText(headerText[i]).width;
+				x += charWidth + 1;
+			}
 		}
 
 		if (hasSeparatorLine) {
