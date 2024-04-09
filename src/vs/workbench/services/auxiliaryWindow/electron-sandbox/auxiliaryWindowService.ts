@@ -34,6 +34,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	private skipUnloadConfirmation = false;
 
 	private maximized = false;
+	private fullscreen = false;
 
 	constructor(
 		window: CodeWindow,
@@ -51,6 +52,8 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		if (!isMacintosh) {
 			this.handleMaximizedState();
 		}
+
+		this.handleFullscreenState();
 	}
 
 	private handleMaximizedState(): void {
@@ -67,6 +70,18 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		this._register(this.nativeHostService.onDidUnmaximizeWindow(windowId => {
 			if (windowId === this.window.vscodeWindowId) {
 				this.maximized = false;
+			}
+		}));
+	}
+
+	private handleFullscreenState(): void {
+		(async () => {
+			this.fullscreen = await this.nativeHostService.isFullScreen({ targetWindowId: this.window.vscodeWindowId });
+		})();
+
+		this._register(this.nativeHostService.onDidChangeWindowFullScreen(({ windowId, fullscreen }) => {
+			if (windowId === this.window.vscodeWindowId) {
+				this.fullscreen = fullscreen;
 			}
 		}));
 	}
@@ -100,8 +115,8 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		const state = super.createState();
 		return {
 			...state,
-			bounds: this.maximized ? undefined : state.bounds, // ignore if maximized
-			mode: this.maximized ? AuxiliaryWindowMode.Maximized : AuxiliaryWindowMode.Normal
+			bounds: (this.maximized || this.fullscreen) ? undefined : state.bounds, // ignore if maximized or fullscreen
+			mode: this.maximized ? AuxiliaryWindowMode.Maximized : this.fullscreen ? AuxiliaryWindowMode.Fullscreen : AuxiliaryWindowMode.Normal
 		};
 	}
 }

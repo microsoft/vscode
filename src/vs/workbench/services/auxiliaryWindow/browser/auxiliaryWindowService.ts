@@ -328,8 +328,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			`top=${newWindowBounds.y}`,
 			`width=${newWindowBounds.width}`,
 			`height=${newWindowBounds.height}`,
-			options?.mode === AuxiliaryWindowMode.Maximized ? 'maximized=yes' : undefined,
-			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'fullscreen=yes' : undefined
+			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined, 	// non-standard property
+			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined 	// non-standard property
 		]);
 
 		const auxiliaryWindow = mainWindow.open('about:blank', undefined, features.join(','));

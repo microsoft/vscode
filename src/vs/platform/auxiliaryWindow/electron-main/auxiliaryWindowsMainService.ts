@@ -110,8 +110,12 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'top':
 					windowState.y = parseInt(value, 10);
 					break;
-				case 'maximized':
+				case 'window-maximized':
 					windowState.mode = WindowMode.Maximized;
+					break;
+				case 'window-fullscreen':
+					windowState.mode = WindowMode.Fullscreen;
+					break;
 			}
 		}
 
