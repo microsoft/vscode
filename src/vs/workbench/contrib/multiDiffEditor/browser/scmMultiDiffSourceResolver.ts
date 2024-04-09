@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { observableFromEvent, waitForState } from 'vs/base/common/observable';
 import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
 import { URI } from 'vs/base/common/uri';
 import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
+import { localize2 } from 'vs/nls';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { ISCMRepository, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
@@ -112,13 +111,12 @@ export class ScmMultiDiffSourceResolverContribution extends Disposable {
 }
 
 export class OpenScmGroupAction extends Action2 {
-	public static async openMultiFileDiffEditor(group: ISCMResourceGroup, editorService: IEditorService, options?: IMultiDiffEditorOptions) {
-		if (!group.provider.rootUri) {
+	public static async openMultiFileDiffEditor(editorService: IEditorService, label: string, repositoryRootUri: URI | undefined, resourceGroupId: string, options?: IMultiDiffEditorOptions) {
+		if (!repositoryRootUri) {
 			return;
 		}
 
-		const multiDiffSource = ScmMultiDiffSourceResolver.getMultiDiffSourceUri(group.provider.rootUri.toString(), group.id);
-		const label = localize('scmDiffLabel', '{0}: {1}', group.provider.label, group.label);
+		const multiDiffSource = ScmMultiDiffSourceResolver.getMultiDiffSourceUri(repositoryRootUri.toString(), resourceGroupId);
 		return await editorService.openEditor({ label, multiDiffSource, options });
 	}
 
@@ -126,21 +124,12 @@ export class OpenScmGroupAction extends Action2 {
 		super({
 			id: 'multiDiffEditor.openScmDiff',
 			title: localize2('viewChanges', 'View Changes'),
-			icon: Codicon.diffMultiple,
-			menu: {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.has('config.multiDiffEditor.experimental.enabled'),
-					ContextKeyExpr.has('multiDiffEditorEnableViewChanges'),
-				),
-				id: MenuId.SCMResourceGroupContext,
-				group: 'inline',
-			},
-			f1: false,
+			f1: false
 		});
 	}
 
-	async run(accessor: ServicesAccessor, group: ISCMResourceGroup): Promise<void> {
+	async run(accessor: ServicesAccessor, title: string, repositoryRootUri: URI, resourceGroupId: string): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		await OpenScmGroupAction.openMultiFileDiffEditor(group, editorService);
+		await OpenScmGroupAction.openMultiFileDiffEditor(editorService, title, repositoryRootUri, resourceGroupId);
 	}
 }

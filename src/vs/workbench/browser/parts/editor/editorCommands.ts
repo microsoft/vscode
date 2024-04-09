@@ -527,12 +527,23 @@ function registerOpenEditorAPICommands(): void {
 			label: options.title,
 		});
 	});
+
+	CommandsRegistry.registerCommand('_workbench.openScmMultiDiffEditor', async (accessor: ServicesAccessor, options: OpenScmMultiFileDiffEditorOptions) => {
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand('multiDiffEditor.openScmDiff', options.title, URI.revive(options.repositoryUri), options.resourceGroupId);
+	});
 }
 
 interface OpenMultiFileDiffEditorOptions {
 	title: string;
 	multiDiffSourceUri?: UriComponents;
 	resources?: { originalUri: UriComponents; modifiedUri: UriComponents }[];
+}
+
+interface OpenScmMultiFileDiffEditorOptions {
+	title: string;
+	repositoryUri: UriComponents;
+	resourceGroupId: string;
 }
 
 function registerOpenEditorAtIndexCommands(): void {
