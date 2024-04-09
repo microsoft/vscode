@@ -249,9 +249,8 @@ export class CommentAccessibleViewContribution extends Disposable {
 					return content.toString();
 				},
 				onClose(): void {
-
+					commentsView.focus();
 				},
-
 				verbositySettingKey: AccessibilityVerbositySettingId.Notification,
 				options: { type: AccessibleViewType.View }
 			});
