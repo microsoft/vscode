@@ -10,13 +10,13 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/edito
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentContextItem, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -607,6 +607,7 @@ export function registerChatCodeCompareBlockActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.check,
+				precondition: EditorContextKeys.hasChanges,
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation'
@@ -615,19 +616,25 @@ export function registerChatCodeCompareBlockActions() {
 		}
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
-			if (!isResponseVM(context.element)) {
+			const model = context.diffEditor.getModel();
+			if (!model) {
 				return;
 			}
-			const modelService = accessor.get(ITextModelService);
-			const ref = await modelService.createModelReference(context.uri);
-			try {
-				const edits = context.edits.map(TextEdit.asEditOperation);
-				ref.object.textEditorModel.pushStackElement();
-				ref.object.textEditorModel.pushEditOperations(null, edits, () => null);
-				ref.object.textEditorModel.pushStackElement();
-			} finally {
-				ref.dispose();
+			const diff = context.diffEditor.getDiffComputationResult();
+			if (!diff || diff.identical) {
+				return;
 			}
+
+			const edits: ISingleEditOperation[] = [];
+			for (const item of diff.changes2) {
+				const range = item.original.toExclusiveRange();
+				const newText = model.modified.getValueInRange(item.modified.toExclusiveRange());
+				edits.push(EditOperation.replace(range, newText));
+			}
+
+			model.original.pushStackElement();
+			model.original.pushEditOperations(null, edits, () => null);
+			model.original.pushStackElement();
 		}
 	});
 
