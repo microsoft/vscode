@@ -36,6 +36,8 @@ import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetN
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -72,7 +74,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	get focusedCommentInfo(): string | IMarkdownString | undefined {
 		const focused = this.tree?.getFocus();
 		if (focused?.length === 1 && focused[0] && focused[0] instanceof CommentNode) {
-			return this.getCommentInfoForAccessibleView(focused[0]) ?? undefined;
+			return this.getScreenReaderInfoForNode(focused[0]) ?? undefined;
 		}
 		return undefined;
 	}
@@ -272,15 +274,16 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.messageBoxContainer.classList.toggle('hidden', this.commentService.commentsModel.hasCommentThreads());
 	}
 
-	private getCommentInfoForAccessibleView(element: CommentNode): string | IMarkdownString {
-		return typeof element.comment.body === 'string' ? element.comment.body : element.comment.body.value;
-	}
-
-	private getAriaForNode(element: CommentNode) {
+	private getScreenReaderInfoForNode(element: CommentNode, asAriaLabel?: boolean) {
+		let accessibleViewHint = '';
+		if (asAriaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.Comments)) {
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
+			accessibleViewHint = kbLabel ? nls.localize('acessibleViewHint', "Inspect this in the accessible view ({0}).\n", kbLabel) : nls.localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.\n");
+		}
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
-				return nls.localize('resourceWithCommentLabelOutdated',
-					"Outdated from ${0} at line {1} column {2} in {3}, source: {4}",
+				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
+					"Outdated from ${0} at line {1} column {2} in {3}, comment: {4}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
@@ -288,8 +291,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
 				);
 			} else {
-				return nls.localize('resourceWithCommentLabel',
-					"${0} at line {1} column {2} in {3}, source: {4}",
+				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
+					"${0} at line {1} column {2} in {3}, comment: {4}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
@@ -299,15 +302,15 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			}
 		} else {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
-				return nls.localize('resourceWithCommentLabelFileOutdated',
-					"Outdated from {0} in {1}, source: {2}",
+				return accessibleViewHint + nls.localize('resourceWithCommentLabelFileOutdated',
+					"Outdated from {0} in {1}, comment: {2}",
 					element.comment.userName,
 					basename(element.resource),
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
 				);
 			} else {
-				return nls.localize('resourceWithCommentLabelFile',
-					"{0} in {1}, source: {2}",
+				return accessibleViewHint + nls.localize('resourceWithCommentLabelFile',
+					"{0} in {1}, comment: {2}",
 					element.comment.userName,
 					basename(element.resource),
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
@@ -336,7 +339,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 						return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
 					}
 					if (element instanceof CommentNode) {
-						return this.getAriaForNode(element);
+						return this.getScreenReaderInfoForNode(element, true);
 					}
 					return '';
 				},
