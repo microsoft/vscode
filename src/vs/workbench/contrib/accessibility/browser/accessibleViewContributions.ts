@@ -21,7 +21,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { FocusedViewContext, NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { IAccessibleViewService, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService, IAccessibleViewOptions, AccessibleViewType, IAccessibleExtensionContentProvider } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
@@ -312,7 +312,8 @@ function registerAccessibilityHelpAction(viewDescriptor: IViewDescriptor): IDisp
 			options: { type: AccessibleViewType.Help },
 			provideContent: () => helpContent,
 			onClose: () => viewsService.openView(viewDescriptor.id),
-		});
+			verbositySettingKey: 'extension'
+		} as IAccessibleExtensionContentProvider);
 		return true;
 	}, FocusedViewContext.isEqualTo(viewDescriptor.id));
 }
