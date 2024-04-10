@@ -174,6 +174,9 @@ export const defaultListStyles: IListStyles = {
 	listHoverOutline: asCssVariable(activeContrastBorder),
 	treeIndentGuidesStroke: asCssVariable(treeIndentGuidesStroke),
 	treeInactiveIndentGuidesStroke: asCssVariable(treeInactiveIndentGuidesStroke),
+	treeStickyScrollBackground: undefined,
+	treeStickyScrollBorder: undefined,
+	treeStickyScrollShadow: undefined,
 	tableColumnsBorder: asCssVariable(tableColumnsBorder),
 	tableOddRowsBackgroundColor: asCssVariable(tableOddRowsBackgroundColor),
 };
@@ -216,6 +219,9 @@ export const defaultSelectBoxStyles: ISelectBoxStyles = {
 	tableOddRowsBackgroundColor: undefined,
 	treeIndentGuidesStroke: undefined,
 	treeInactiveIndentGuidesStroke: undefined,
+	treeStickyScrollBackground: undefined,
+	treeStickyScrollBorder: undefined,
+	treeStickyScrollShadow: undefined
 };
 
 export function getSelectBoxStyles(override: IStyleOverride<ISelectBoxStyles>): ISelectBoxStyles {

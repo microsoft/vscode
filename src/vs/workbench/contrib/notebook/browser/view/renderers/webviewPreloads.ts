@@ -587,14 +587,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		if (node.hasAttribute('recentlyScrolled')) {
-			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 300) {
+			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 400) {
 				// it has been a while since we actually scrolled
-				// if scroll velocity increases, it's likely a new scroll event
-				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 2) {
+				// if scroll velocity increases significantly, it's likely a new scroll event
+				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 8) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
 					return false;
-				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 2) {
+				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 8) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
 					return false;
