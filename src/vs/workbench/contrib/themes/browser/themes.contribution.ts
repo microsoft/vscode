@@ -423,14 +423,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	private getTitle(colorScheme: ColorScheme | undefined): string | undefined {
+	private getTitle(colorScheme: ColorScheme | undefined): string {
 		switch (colorScheme) {
-			case ColorScheme.DARK: return localize('themes.selectTheme.darkScheme', "Select Color Theme for Dark Mode");
-			case ColorScheme.LIGHT: return localize('themes.selectTheme.lightScheme', "Select Color Theme for Light Mode");
-			case ColorScheme.HIGH_CONTRAST_DARK: return localize('themes.selectTheme.darkHC', "Select Color Theme for Dark High Contrast Mode");
-			case ColorScheme.HIGH_CONTRAST_LIGHT: return localize('themes.selectTheme.lightHC', "Select Color Theme for Light High Contrast Mode");
+			case ColorScheme.DARK: return localize('themes.selectTheme.darkScheme', "Select Color Theme for OS Dark Mode");
+			case ColorScheme.LIGHT: return localize('themes.selectTheme.lightScheme', "Select Color Theme for OS Light Mode");
+			case ColorScheme.HIGH_CONTRAST_DARK: return localize('themes.selectTheme.darkHC', "Select Color Theme for OS High Contrast Dark Mode");
+			case ColorScheme.HIGH_CONTRAST_LIGHT: return localize('themes.selectTheme.lightHC', "Select Color Theme for OS High Contrast Dark Mode");
 			default:
-				return undefined;
+				return localize('themes.selectTheme.default', "Select Color Theme (OS Color Mode Switching Disabled)");
 		}
 	}
 
@@ -443,15 +443,15 @@ registerAction2(class extends Action2 {
 		let modeConfigureToggle;
 		if (preferredColorScheme) {
 			modeConfigureToggle = new Toggle({
-				title: 'Automatic Mode Switching is Enabled. Click to configure.',
+				title: 'Automatic Mode Switching Enabled. Click to configure.',
 				icon: Codicon.colorMode,
 				isChecked: false,
 				...defaultToggleStyles
 			});
 		} else {
 			modeConfigureToggle = new Toggle({
-				title: 'Click to configure automatic mode switching.',
-				icon: Codicon.gear,
+				title: 'Automatic Mode Switching Disabled. Click to configure.',
+				icon: Codicon.colorMode,
 				isChecked: false,
 				...defaultToggleStyles
 			});
@@ -460,7 +460,7 @@ registerAction2(class extends Action2 {
 		const options = {
 			installMessage: localize('installColorThemes', "Install Additional Color Themes..."),
 			browseMessage: '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes..."),
-			placeholderMessage: this.getTitle(preferredColorScheme) ?? 'Select Color Theme (Mode Switching Disabled)',
+			placeholderMessage: this.getTitle(preferredColorScheme),
 			marketplaceTag: 'category:themes',
 			toggles: [modeConfigureToggle],
 			onToggle: async (toggle, picker) => {
