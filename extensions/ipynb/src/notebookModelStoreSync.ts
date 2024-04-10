@@ -46,6 +46,9 @@ function triggerDebouncedNotebookDocumentChangeEvent() {
 
 export function debounceOnDidChangeNotebookDocument() {
 	const disposable = workspace.onDidChangeNotebookDocument(e => {
+		if (!isSupportedNotebook(e.notebook)) {
+			return;
+		}
 		if (!mergedEvents) {
 			mergedEvents = e;
 		} else if (mergedEvents.notebook === e.notebook) {
