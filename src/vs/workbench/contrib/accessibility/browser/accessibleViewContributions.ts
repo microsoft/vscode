@@ -251,7 +251,7 @@ export class CommentAccessibleViewContribution extends Disposable {
 				onClose(): void {
 					commentsView.focus();
 				},
-				verbositySettingKey: AccessibilityVerbositySettingId.Notification,
+				verbositySettingKey: AccessibilityVerbositySettingId.Comments,
 				options: { type: AccessibleViewType.View }
 			});
 			return true;
