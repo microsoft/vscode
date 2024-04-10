@@ -70,12 +70,20 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 	readonly onDidChangeVisibility = this.onDidChangeBodyVisibility;
 
-	get focusedCommentInfo(): string | undefined {
+	get focusedCommentNode(): CommentNode | undefined {
 		const focused = this.tree?.getFocus();
-		if (focused?.length === 1 && focused[0] && focused[0] instanceof CommentNode) {
-			return this.getScreenReaderInfoForNode(focused[0]) ?? undefined;
+		if (focused?.length === 1 && focused[0] instanceof CommentNode) {
+			return focused[0];
 		}
 		return undefined;
+	}
+
+	get focusedCommentInfo(): string | undefined {
+		const focused = this.focusedCommentNode;
+		if (!focused) {
+			return;
+		}
+		return this.getScreenReaderInfoForNode(focused);
 	}
 
 	focusNext(): void {
