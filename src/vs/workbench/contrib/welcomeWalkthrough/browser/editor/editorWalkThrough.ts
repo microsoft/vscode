@@ -36,7 +36,10 @@ export class EditorWalkThroughAction extends Action2 {
 			id: EditorWalkThroughAction.ID,
 			title: EditorWalkThroughAction.LABEL,
 			category: Categories.Help,
-			f1: true
+			f1: true,
+			metadata: {
+				description: localize2('editorWalkThroughMetadata', "Opens an interactive playground for learning about the editor.")
+			}
 		});
 	}
 

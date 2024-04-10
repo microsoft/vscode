@@ -11,6 +11,7 @@ import { Location } from 'vs/editor/common/languages';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { contentRefUrl } from '../common/annotations';
 
@@ -20,7 +21,8 @@ export class ChatMarkdownDecorationsRenderer {
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) { }
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
@@ -35,7 +37,15 @@ export class ChatMarkdownDecorationsRenderer {
 					part instanceof ChatRequestAgentPart ? part.agent.id :
 						'';
 
-				result += `[${part.text}](${variableRefUrl}?${title})`;
+				let text = part.text;
+				if (part instanceof ChatRequestAgentPart) {
+					const isDupe = this.chatAgentService.getAgentsByName(part.agent.name).length > 1;
+					if (isDupe) {
+						text += ` (${part.agent.extensionPublisher})`;
+					}
+				}
+
+				result += `[${text}](${variableRefUrl}?${title})`;
 			}
 		}
 

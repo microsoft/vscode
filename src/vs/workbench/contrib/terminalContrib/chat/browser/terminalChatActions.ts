@@ -34,11 +34,24 @@ registerActiveXtermAction({
 		// TODO: This needs to change to check for a terminal location capable agent
 		CTX_INLINE_CHAT_HAS_PROVIDER
 	),
-	run: (_xterm, _accessor, activeInstance) => {
+	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
+
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+
+		if (opts) {
+			opts = typeof opts === 'string' ? { query: opts } : opts;
+			if (typeof opts === 'object' && opts !== null && 'query' in opts && typeof opts.query === 'string') {
+				contr?.updateInput(opts.query, false);
+				if (!('isPartialQuery' in opts && opts.isPartialQuery)) {
+					contr?.acceptInput();
+				}
+			}
+
+		}
+
 		contr?.reveal();
 	}
 });

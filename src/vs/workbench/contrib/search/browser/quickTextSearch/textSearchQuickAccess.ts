@@ -104,7 +104,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
 		}
 		picker.customButton = true;
-		picker.customLabel = '$(link-external)';
+		picker.customLabel = '$(go-to-search)';
 		this.editorViewState.reset();
 		disposables.add(picker.onDidCustom(() => {
 			if (this.searchModel.searchResult.count() > 0) {

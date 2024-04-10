@@ -620,7 +620,10 @@ export class FocusFilesExplorer extends Action2 {
 			id: FocusFilesExplorer.ID,
 			title: FocusFilesExplorer.LABEL,
 			f1: true,
-			category: Categories.File
+			category: Categories.File,
+			metadata: {
+				description: nls.localize2('focusFilesExplorerMetadata', "Moves focus to the file explorer view container.")
+			}
 		});
 	}
 
@@ -640,7 +643,10 @@ export class ShowActiveFileInExplorer extends Action2 {
 			id: ShowActiveFileInExplorer.ID,
 			title: ShowActiveFileInExplorer.LABEL,
 			f1: true,
-			category: Categories.File
+			category: Categories.File,
+			metadata: {
+				description: nls.localize2('showInExplorerMetadata', "Reveals and selects the active file within the explorer view.")
+			}
 		});
 	}
 
@@ -666,7 +672,10 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			title: OpenActiveFileInEmptyWorkspace.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: EmptyWorkspaceSupportContext
+			precondition: EmptyWorkspaceSupportContext,
+			metadata: {
+				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active file in a new window with no folders open.")
+			}
 		});
 	}
 
