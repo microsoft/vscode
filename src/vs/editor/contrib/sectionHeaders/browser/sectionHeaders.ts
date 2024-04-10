@@ -82,6 +82,12 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 			this.computeSectionHeaders.schedule();
 		}));
 
+		this._register(editor.onDidChangeModelTokens((e) => {
+			if (!this.computeSectionHeaders.isScheduled()) {
+				this.computeSectionHeaders.schedule(1000);
+			}
+		}));
+
 		this.computeSectionHeaders = this._register(new RunOnceScheduler(() => {
 			this.findSectionHeaders();
 		}, 250));
@@ -140,24 +146,16 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		const model = this.editor.getModel();
 		if (model) {
 			// Remove all section headers that should be in comments and are not in comments
-			const curLanguageId = model.getLanguageId();
 			sectionHeaders = sectionHeaders.filter((sectionHeader) => {
 				if (!sectionHeader.shouldBeInComments) {
 					return true;
 				}
 				const validRange = model.validateRange(sectionHeader.range);
-				if (validRange.isEmpty()) {
-					return false;
-				}
-				const startLineNumber = validRange.startLineNumber;
-				if (!model.tokenization.hasAccurateTokensForLine(startLineNumber)) {
-					model.tokenization.forceTokenization(startLineNumber);
-				}
-				const tokens = model.tokenization.getLineTokens(startLineNumber);
+				const tokens = model.tokenization.getLineTokens(validRange.startLineNumber);
 				const idx = tokens.findTokenIndexAtOffset(validRange.startColumn - 1);
 				const tokenType = tokens.getStandardTokenType(idx);
 				const languageId = tokens.getLanguageId(idx);
-				return (languageId === curLanguageId && tokenType === StandardTokenType.Comment);
+				return (languageId === model.getLanguageId() && tokenType === StandardTokenType.Comment);
 			});
 		}
 
