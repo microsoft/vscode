@@ -1340,11 +1340,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	async applyState(state: IEditorPartUIState): Promise<void> {
 
 		// Close all opened editors and dispose groups
-		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			const closed = await group.closeAllEditors();
-			if (!closed) {
-				return;
-			}
+		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+		for (const group of groups) {
+			await group.closeAllEditors({ excludeModified: true });
 		}
 		this.disposeGroups();
 
@@ -1353,6 +1351,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Grid Widget
 		this.doApplyGridState(state.serializedGrid, state.activeGroup);
+
+		// Move editors from temporary group to active group
+		for (const group of groups) {
+			this.activeGroup.openEditors(group.editors.map(editor => {
+				return {
+					editor,
+					options: { inactive: true }
+				};
+			}));
+		}
 	}
 
 	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {

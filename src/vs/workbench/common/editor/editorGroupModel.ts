@@ -262,21 +262,29 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this.sticky + 1;
 	}
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
-		const editors = order === EditorsOrder.MOST_RECENTLY_ACTIVE ? this.mru.slice(0) : this.editors.slice(0);
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean; excludeModified?: boolean }): EditorInput[] {
+		let editors = order === EditorsOrder.MOST_RECENTLY_ACTIVE ? this.mru.slice(0) : this.editors.slice(0);
 
 		if (options?.excludeSticky) {
+			editors = this.doGetEditorsExcludeSticky(order, editors);
+		}
 
-			// MRU: need to check for index on each
-			if (order === EditorsOrder.MOST_RECENTLY_ACTIVE) {
-				return editors.filter(editor => !this.isSticky(editor));
-			}
-
-			// Sequential: simply start after sticky index
-			return editors.slice(this.sticky + 1);
+		if (options?.excludeModified) {
+			editors = editors.filter(editor => !editor.isModified());
 		}
 
 		return editors;
+	}
+
+	private doGetEditorsExcludeSticky(order: EditorsOrder, editors: EditorInput[]): EditorInput[] {
+
+		// MRU: need to check for index on each
+		if (order === EditorsOrder.MOST_RECENTLY_ACTIVE) {
+			return editors.filter(editor => !this.isSticky(editor));
+		}
+
+		// Sequential: simply start after sticky index
+		return editors.slice(this.sticky + 1);
 	}
 
 	getEditorByIndex(index: number): EditorInput | undefined {

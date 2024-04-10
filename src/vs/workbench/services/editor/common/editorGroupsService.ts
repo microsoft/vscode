@@ -116,6 +116,7 @@ export type ICloseEditorsFilter = {
 
 export interface ICloseAllEditorsOptions {
 	readonly excludeSticky?: boolean;
+	readonly excludeModified?: boolean;
 }
 
 export interface IEditorReplacement {
