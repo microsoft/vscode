@@ -35,7 +35,7 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import type { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export interface ICompositeTitleLabel {
 
@@ -83,6 +83,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected readonly contextMenuService: IContextMenuService,
 		layoutService: IWorkbenchLayoutService,
 		protected readonly keybindingService: IKeybindingService,
+		private readonly hoverService: IHoverService,
 		protected readonly instantiationService: IInstantiationService,
 		themeService: IThemeService,
 		protected readonly registry: CompositeRegistry<T>,
@@ -420,7 +421,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const titleContainer = append(parent, $('.title-label'));
 		const titleLabel = append(titleContainer, $('h2'));
 		this.titleLabelElement = titleLabel;
-		const hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), titleLabel, ''));
+		const hover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), titleLabel, ''));
 
 		const $this = this;
 		return {

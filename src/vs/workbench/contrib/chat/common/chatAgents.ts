@@ -11,11 +11,12 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { CONTEXT_HAS_DEFAULT_AGENT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressResponseContent, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
 
 //#region agent service, commands etc
@@ -39,6 +40,7 @@ export namespace ChatAgentLocation {
 			case 'panel': return ChatAgentLocation.Panel;
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
+			case 'editor': return ChatAgentLocation.Editor;
 		}
 		return ChatAgentLocation.Panel;
 	}
@@ -49,6 +51,7 @@ export interface IChatAgentData {
 	name: string;
 	description?: string;
 	extensionId: ExtensionIdentifier;
+	extensionPublisher: string;
 	/** The agent invoked when no agent is specified */
 	isDefault?: boolean;
 	metadata: IChatAgentMetadata;
@@ -61,7 +64,7 @@ export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined>;
-	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
+	provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
 
 export type IChatAgent = IChatAgentData & IChatAgentImplementation;
@@ -102,6 +105,8 @@ export interface IChatAgentRequest {
 	agentId: string;
 	command?: string;
 	message: string;
+	attempt?: number;
+	enableCommandDetection?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
 }
@@ -138,7 +143,16 @@ export interface IChatAgentService {
 	getAgents(): IChatAgentData[];
 	getActivatedAgents(): Array<IChatAgent>;
 	getAgentsByName(name: string): IChatAgentData[];
+
+	/**
+	 * Get the default agent (only if activated)
+	 */
 	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined;
+
+	/**
+	 * Get the default agent data that has been contributed (may not be activated yet)
+	 */
+	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined;
 	getSecondaryAgent(): IChatAgentData | undefined;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
@@ -154,9 +168,13 @@ export class ChatAgentService implements IChatAgentService {
 	private readonly _onDidChangeAgents = new Emitter<IChatAgent | undefined>();
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
 
+	private readonly _hasDefaultAgent: IContextKey<boolean>;
+
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
-	) { }
+	) {
+		this._hasDefaultAgent = CONTEXT_HAS_DEFAULT_AGENT.bindTo(this.contextKeyService);
+	}
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
 		const existingAgent = this.getAgent(id);
@@ -190,12 +208,20 @@ export class ChatAgentService implements IChatAgentService {
 			throw new Error(`Agent already has implementation: ${JSON.stringify(id)}`);
 		}
 
+		if (entry.data.isDefault) {
+			this._hasDefaultAgent.set(true);
+		}
+
 		entry.impl = agentImpl;
 		this._onDidChangeAgents.fire(new MergedChatAgent(entry.data, agentImpl));
 
 		return toDisposable(() => {
 			entry.impl = undefined;
 			this._onDidChangeAgents.fire(undefined);
+
+			if (entry.data.isDefault) {
+				this._hasDefaultAgent.set(false);
+			}
 		});
 	}
 
@@ -221,6 +247,10 @@ export class ChatAgentService implements IChatAgentService {
 
 	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined {
 		return this.getActivatedAgents().find(a => !!a.isDefault && a.locations.includes(location));
+	}
+
+	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {
+		return this.getAgents().find(a => !!a.isDefault && a.locations.includes(location));
 	}
 
 	getSecondaryAgent(): IChatAgentData | undefined {
@@ -286,6 +316,7 @@ export class MergedChatAgent implements IChatAgent {
 	get name(): string { return this.data.name ?? ''; }
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
+	get extensionPublisher(): string { return this.data.extensionPublisher; }
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
@@ -312,9 +343,9 @@ export class MergedChatAgent implements IChatAgent {
 		return undefined;
 	}
 
-	provideSampleQuestions(token: CancellationToken): ProviderResult<IChatFollowup[] | undefined> {
+	provideSampleQuestions(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined> {
 		if (this.impl.provideSampleQuestions) {
-			return this.impl.provideSampleQuestions(token);
+			return this.impl.provideSampleQuestions(location, token);
 		}
 
 		return undefined;

@@ -20,7 +20,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import Severity from 'vs/base/common/severity';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -300,6 +300,8 @@ export interface IViewDescriptor {
 	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
+
+	readonly accessibilityHelpContent?: MarkdownString;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {

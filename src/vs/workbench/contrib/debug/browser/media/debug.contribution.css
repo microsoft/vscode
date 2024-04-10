@@ -54,6 +54,10 @@
 	vertical-align: middle;
 }
 
+.debug-var-hover-pre {
+	margin: 0;
+}
+
 /* Do not push text with inline decoration when decoration on start of line */
 .monaco-editor .debug-top-stack-frame-column.start-of-line {
 	position: absolute;

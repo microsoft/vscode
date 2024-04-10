@@ -32,7 +32,7 @@ const accountsBadgeConfigKey = 'workbench.accounts.experimental.showEntitlements
 const chatWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
 
 type EntitlementEnablementClassification = {
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if the entitlement is enabled' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the entitlement is enabled' };
 	owner: 'bhavyaus';
 	comment: 'Reporting when the entitlement is shown';
 };
@@ -48,20 +48,19 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 	private isInitialized = false;
 	private showAccountsBadgeContextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, false).bindTo(this.contextService);
 	private showChatWelcomeViewContextKey = new RawContextKey<boolean>(chatWelcomeViewConfigKey, false).bindTo(this.contextService);
-	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
+	private readonly accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
-		@IContextKeyService readonly contextService: IContextKeyService,
-		@ICommandService readonly commandService: ICommandService,
-		@ITelemetryService readonly telemetryService: ITelemetryService,
-		@IAuthenticationService readonly authenticationService: IAuthenticationService,
-		@IProductService readonly productService: IProductService,
-		@IStorageService readonly storageService: IStorageService,
-		@IExtensionManagementService readonly extensionManagementService: IExtensionManagementService,
-		@IActivityService readonly activityService: IActivityService,
-		@IExtensionService readonly extensionService: IExtensionService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IRequestService readonly requestService: IRequestService) {
+		@IContextKeyService private readonly contextService: IContextKeyService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IActivityService private readonly activityService: IActivityService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRequestService private readonly requestService: IRequestService) {
 		super();
 
 		if (!this.productService.gitHubEntitlement || isWeb) {

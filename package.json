@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.88.0",
-  "distro": "e41085db148ffd07a4e572f5099c0b986324f8be",
+  "version": "1.89.0",
+  "distro": "25df1b5602ba46d6b0f618dd227963d1163c83df",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -63,7 +63,8 @@
     "core-ci-pr": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js core-ci-pr",
     "extensions-ci": "node --max-old-space-size=8095 ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
-    "perf": "node scripts/code-perf.js"
+    "perf": "node scripts/code-perf.js",
+    "update-build-ts-version": "yarn add typescript@next && tsc -p ./build/tsconfig.build.json"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -99,7 +100,7 @@
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta11",
     "tas-client-umd": "0.1.8",
-    "v8-inspect-profiler": "^0.1.0",
+    "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.0.0",
@@ -112,7 +113,6 @@
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
     "@types/graceful-fs": "4.1.2",
-    "@types/gulp-postcss": "^8.0.6",
     "@types/gulp-svgmin": "^1.2.1",
     "@types/http-proxy-agent": "^2.0.1",
     "@types/kerberos": "^1.1.2",
@@ -129,9 +129,9 @@
     "@types/winreg": "^1.2.30",
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
-    "@typescript-eslint/eslint-plugin": "^5.57.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/experimental-utils": "^5.57.0",
-    "@typescript-eslint/parser": "^5.57.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "@vscode/gulp-electron": "^1.36.0",
     "@vscode/l10n-dev": "0.0.30",
     "@vscode/telemetry-extractor": "^1.10.2",
@@ -170,7 +170,6 @@
     "gulp-gzip": "^1.4.2",
     "gulp-json-editor": "^2.5.0",
     "gulp-plumber": "^1.2.0",
-    "gulp-postcss": "^9.1.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-sourcemaps": "^3.0.0",
@@ -209,7 +208,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.5.0-dev.20240318",
+    "typescript": "^5.5.0-dev.20240408",
     "typescript-formatter": "7.1.0",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",

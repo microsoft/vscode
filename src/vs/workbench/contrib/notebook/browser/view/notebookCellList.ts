@@ -929,7 +929,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// wait for the editor to be created if the cell is in editing mode
 			cell.getEditState() === CellEditState.Editing
 			// wait for the editor to be created if we are revealing the first line of the cell
-			|| revealType === CellRevealType.FirstLineIfOutsideViewport
+			|| (revealType === CellRevealType.FirstLineIfOutsideViewport && cell.cellKind === CellKind.Code)
 		) && !cell.editorAttached) {
 			return getEditorAttachedPromise(cell);
 		}

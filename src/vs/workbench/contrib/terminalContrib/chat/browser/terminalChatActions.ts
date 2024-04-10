@@ -34,11 +34,24 @@ registerActiveXtermAction({
 		// TODO: This needs to change to check for a terminal location capable agent
 		CTX_INLINE_CHAT_HAS_PROVIDER
 	),
-	run: (_xterm, _accessor, activeInstance) => {
+	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
+
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+
+		if (opts) {
+			opts = typeof opts === 'string' ? { query: opts } : opts;
+			if (typeof opts === 'object' && opts !== null && 'query' in opts && typeof opts.query === 'string') {
+				contr?.updateInput(opts.query, false);
+				if (!('isPartialQuery' in opts && opts.isPartialQuery)) {
+					contr?.acceptInput();
+				}
+			}
+
+		}
+
 		contr?.reveal();
 	}
 });
@@ -123,6 +136,9 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Discard,
 	title: localize2('discard', 'Discard'),
+	metadata: {
+		description: localize2('discardDescription', 'Discards the terminal current chat response, hide the chat widget, and clear the chat input.')
+	},
 	icon: Codicon.discard,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
@@ -156,7 +172,8 @@ registerActiveXtermAction({
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 		TerminalChatContextKeys.agentRegistered,
-		TerminalChatContextKeys.responseContainsCodeBlock
+		TerminalChatContextKeys.responseContainsCodeBlock,
+		TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate()
 	),
 	icon: Codicon.play,
 	keybinding: {
@@ -168,7 +185,39 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 0,
-		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate())
+		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate(), TerminalChatContextKeys.requestActive.negate())
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.acceptCommand(true);
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.RunFirstCommand,
+	title: localize2('runFirstCommand', 'Run First Chat Command'),
+	shortTitle: localize2('runFirst', 'Run First'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalChatContextKeys.requestActive.negate(),
+		TerminalChatContextKeys.agentRegistered,
+		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
+	),
+	icon: Codicon.play,
+	keybinding: {
+		when: TerminalChatContextKeys.requestActive.negate(),
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyCode.Enter,
+	},
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
+		order: 0,
+		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsMultipleCodeBlocks, TerminalChatContextKeys.requestActive.negate())
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -188,18 +237,52 @@ registerActiveXtermAction({
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 		TerminalChatContextKeys.agentRegistered,
-		TerminalChatContextKeys.responseContainsCodeBlock
+		TerminalChatContextKeys.responseContainsCodeBlock,
+		TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate()
 	),
 	keybinding: {
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt]
 	},
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 1,
-		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate())
+		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate(), TerminalChatContextKeys.requestActive.negate())
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.acceptCommand(false);
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.InsertFirstCommand,
+	title: localize2('insertFirstCommand', 'Insert First Chat Command'),
+	shortTitle: localize2('insertFirst', 'Insert First'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalChatContextKeys.requestActive.negate(),
+		TerminalChatContextKeys.agentRegistered,
+		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
+	),
+	keybinding: {
+		when: TerminalChatContextKeys.requestActive.negate(),
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.Alt | KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt]
+	},
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
+		order: 1,
+		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsMultipleCodeBlocks, TerminalChatContextKeys.requestActive.negate())
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {

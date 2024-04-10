@@ -19,6 +19,7 @@ import * as File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangle/index';
 import { RawSourceMap } from 'source-map';
+import { gulpPostcss } from './postcss';
 const watch = require('./watch');
 
 
@@ -67,14 +68,13 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		const isCSS = (f: File) => f.path.endsWith('.css') && !f.path.includes('fixtures');
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
 
-		const postcss = require('gulp-postcss') as typeof import('gulp-postcss');
 		const postcssNesting = require('postcss-nesting');
 
 		const input = es.through();
 		const output = input
 			.pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
 			.pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
-			.pipe(util.$if(isCSS, postcss([postcssNesting()])))
+			.pipe(util.$if(isCSS, gulpPostcss([postcssNesting()], err => reporter(String(err)))))
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(compilation(token))

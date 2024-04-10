@@ -53,11 +53,11 @@ export class CellComments extends CellContentPart {
 		const info = await this._getCommentThreadForCell(element);
 
 		if (info) {
-			this._createCommentTheadWidget(info.owner, info.thread);
+			await this._createCommentTheadWidget(info.owner, info.thread);
 		}
 	}
 
-	private _createCommentTheadWidget(owner: string, commentThread: languages.CommentThread<ICellRange>) {
+	private async _createCommentTheadWidget(owner: string, commentThread: languages.CommentThread<ICellRange>) {
 		this._commentThreadWidget?.dispose();
 		this.commentTheadDisposables.clear();
 		this._commentThreadWidget = this.instantiationService.createInstance(
@@ -84,7 +84,7 @@ export class CellComments extends CellContentPart {
 
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 
-		this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
+		await this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
 		this._applyTheme();
 
 		this.commentTheadDisposables.add(this._commentThreadWidget.onDidResize(() => {
@@ -99,7 +99,7 @@ export class CellComments extends CellContentPart {
 			if (this.currentElement) {
 				const info = await this._getCommentThreadForCell(this.currentElement);
 				if (!this._commentThreadWidget && info) {
-					this._createCommentTheadWidget(info.owner, info.thread);
+					await this._createCommentTheadWidget(info.owner, info.thread);
 					const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
 					this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
 					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget!.getDimensions().height);
@@ -117,7 +117,7 @@ export class CellComments extends CellContentPart {
 						return;
 					}
 
-					this._commentThreadWidget.updateCommentThread(info.thread);
+					await this._commentThreadWidget.updateCommentThread(info.thread);
 					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 				}
 			}

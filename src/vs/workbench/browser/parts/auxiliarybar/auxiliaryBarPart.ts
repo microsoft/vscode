@@ -35,6 +35,7 @@ import { $ } from 'vs/base/browser/dom';
 import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
@@ -78,6 +79,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -104,6 +106,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			contextMenuService,
 			layoutService,
 			keybindingService,
+			hoverService,
 			instantiationService,
 			themeService,
 			viewDescriptorService,

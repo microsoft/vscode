@@ -40,7 +40,7 @@
 	display: initial !important;
 }
 
-.interactive-result-code-block {
+.interactive-item-container .value .rendered-markdown [data-code] {
 	margin: 16px 0;
 }
 

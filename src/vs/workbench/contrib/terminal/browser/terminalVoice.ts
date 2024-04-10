@@ -67,9 +67,8 @@ export class TerminalVoiceSession extends Disposable {
 	private readonly _disposables: DisposableStore;
 	constructor(
 		@ISpeechService private readonly _speechService: ISpeechService,
-		@ITerminalService readonly _terminalService: ITerminalService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IInstantiationService readonly _instantationService: IInstantiationService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
@@ -97,7 +96,6 @@ export class TerminalVoiceSession extends Disposable {
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
-					// TODO: play start audio cue
 					if (!this._decoration) {
 						this._createDecoration();
 					}
@@ -117,7 +115,6 @@ export class TerminalVoiceSession extends Disposable {
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
-					// TODO: play stop audio cue
 					this.stop();
 					break;
 			}
