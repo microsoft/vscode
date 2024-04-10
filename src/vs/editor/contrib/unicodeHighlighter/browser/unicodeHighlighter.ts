@@ -403,6 +403,10 @@ export class UnicodeHighlighterHover implements IHoverPart {
 			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
+
+	dispose() {
+		// noop
+	}
 }
 
 const configureUnicodeHighlightOptionsStr = nls.localize('unicodeHighlight.configureUnicodeHighlightOptions', 'Configure Unicode Highlight Options');

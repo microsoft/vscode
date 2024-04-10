@@ -44,6 +44,10 @@ export class MarkerHover implements IHoverPart {
 			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
+
+	dispose(): void {
+		// noop
+	}
 }
 
 const markerCodeActionTrigger: CodeActionTrigger = {

@@ -56,6 +56,10 @@ export class MarkdownHover implements IHoverPart {
 			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
+
+	dispose() {
+		this.source?.hover.dispose();
+	}
 }
 
 class HoverSource {
@@ -252,13 +256,8 @@ class RenderedHoverParts extends Disposable {
 			return { renderedMarkdown, disposables };
 		}
 
-		const hover = hoverSource.hover;
 		const canIncreaseVerbosity = hoverSource.supportsVerbosityAction(HoverVerbosityAction.Increase);
 		const canDecreaseVerbosity = hoverSource.supportsVerbosityAction(HoverVerbosityAction.Decrease);
-
-		disposables.add(toDisposable(() => {
-			hover.dispose();
-		}));
 
 		if (!canIncreaseVerbosity && !canDecreaseVerbosity) {
 			return { renderedMarkdown, disposables, hoverSource };

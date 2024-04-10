@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 
-export interface IHoverPart {
+export interface IHoverPart extends IDisposable {
 	/**
 	 * The creator of this hover part.
 	 */
