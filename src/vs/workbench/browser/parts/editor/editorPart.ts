@@ -1352,15 +1352,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		// Grid Widget
 		this.doApplyGridState(state.serializedGrid, state.activeGroup);
 
-		// Move editors from temporary group to active group
-		for (const group of groups) {
-			this.activeGroup.openEditors(group.editors.map(editor => {
-				return {
-					editor,
-					options: { inactive: true }
-				};
-			}));
-		}
+		// Restore modified editors
+		this.activeGroup.openEditors(
+			groups
+				.flatMap(group => group.editors)
+				.filter(editor => this.editorPartsView.groups.every(groupView => !groupView.contains(editor)))
+				.map(editor => ({
+					editor, options: { inactive: true }
+				})));
 	}
 
 	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
