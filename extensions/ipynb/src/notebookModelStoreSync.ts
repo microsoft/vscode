@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
+import { Disposable, ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
 import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId, sortObjectPropertiesRecursively } from './serializers';
 import { CellMetadata, useCustomPropertyInMetadata } from './common';
 import { getNotebookMetadata } from './notebookSerializer';
@@ -25,7 +25,6 @@ const noop = () => {
 export const pendingNotebookCellModelUpdates = new WeakMap<NotebookDocument, Set<Thenable<void>>>();
 export function activate(context: ExtensionContext) {
 	context.subscriptions.push(debounceOnDidChangeNotebookDocument());
-	// workspace.onDidChangeNotebookDocument(onDidChangeNotebookCells, undefined, context.subscriptions);
 	workspace.onWillSaveNotebookDocument(waitForPendingModelUpdates, undefined, context.subscriptions);
 }
 
@@ -46,7 +45,7 @@ function triggerDebouncedNotebookDocumentChangeEvent() {
 }
 
 export function debounceOnDidChangeNotebookDocument() {
-	return workspace.onDidChangeNotebookDocument(e => {
+	const disposable = workspace.onDidChangeNotebookDocument(e => {
 		if (!mergedEvents) {
 			mergedEvents = e;
 		} else if (mergedEvents.notebook === e.notebook) {
@@ -68,6 +67,11 @@ export function debounceOnDidChangeNotebookDocument() {
 		}
 		timer = setTimeout(triggerDebouncedNotebookDocumentChangeEvent, 200);
 	});
+
+
+	return Disposable.from(disposable, new Disposable(() => {
+		clearTimeout(timer);
+	}));
 }
 
 function isSupportedNotebook(notebook: NotebookDocument) {
