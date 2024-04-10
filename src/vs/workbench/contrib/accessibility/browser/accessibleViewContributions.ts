@@ -239,22 +239,39 @@ export class CommentAccessibleViewContribution extends Disposable {
 			if (!commentsView) {
 				return false;
 			}
-			const content = commentsView.focusedCommentInfo;
-			if (!content) {
-				return false;
+			function renderAccessibleView() {
+				if (!commentsView) {
+					return false;
+				}
+				const content = commentsView.focusedCommentInfo?.toString();
+				if (!content) {
+					return false;
+				}
+
+				accessibleViewService.show({
+					id: AccessibleViewProviderId.Notification,
+					provideContent: () => {
+						return content;
+					},
+					onClose(): void {
+						commentsView.focus();
+					},
+					next(): void {
+						commentsView.focus();
+						commentsView.focusNext();
+						renderAccessibleView();
+					},
+					previous(): void {
+						commentsView.focus();
+						commentsView.focusPrevious();
+						renderAccessibleView();
+					},
+					verbositySettingKey: AccessibilityVerbositySettingId.Comments,
+					options: { type: AccessibleViewType.View }
+				});
+				return true;
 			}
-			accessibleViewService.show({
-				id: AccessibleViewProviderId.Notification,
-				provideContent: () => {
-					return content.toString();
-				},
-				onClose(): void {
-					commentsView.focus();
-				},
-				verbositySettingKey: AccessibilityVerbositySettingId.Comments,
-				options: { type: AccessibleViewType.View }
-			});
-			return true;
+			return renderAccessibleView();
 		}, CONTEXT_KEY_HAS_COMMENTS));
 	}
 }
