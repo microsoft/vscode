@@ -670,13 +670,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return undefined;
 		}
 
-		let resourceExt = extname(resource);
-
 		// Remove query parameters from the resource extension
+		let resourceExt = extname(resource);
 		const queryStringLocation = resourceExt.indexOf('?');
 		resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
 
-		return { mimeType: new TelemetryTrustedValue(getMimeTypes(resource).join(', ')), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
+		return {
+			mimeType: new TelemetryTrustedValue(getMimeTypes(resource).join(', ')),
+			scheme: resource.scheme,
+			ext: resourceExt,
+			path: hash(path)
+		};
 	}
 
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {
