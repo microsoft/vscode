@@ -279,8 +279,8 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		return; // disabled, auxiliary editor part state is tracked outside
 	}
 
-	close(): void {
-		this.doClose(true /* merge all groups to main part */);
+	close(mergeGroupsToMainPart = true): void {
+		this.doClose(mergeGroupsToMainPart);
 	}
 
 	private doClose(mergeGroupsToMainPart: boolean): void {

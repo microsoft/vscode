@@ -295,7 +295,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	private async applyState(state: IEditorPartsUIState): Promise<boolean> {
+	private async applyState(state: IEditorPartsUIState): Promise<void> {
 
 		// Close all editors and auxiliary parts first
 		for (const part of this.parts) {
@@ -306,17 +306,15 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 				const closed = await group.closeAllEditors();
 				if (!closed) {
-					return false;
+					return;
 				}
 			}
 
-			(part as unknown as IAuxiliaryEditorPart).close();
+			(part as unknown as IAuxiliaryEditorPart).close(false);
 		}
 
 		// Restore auxiliary state
 		await this.restoreState(state);
-
-		return true;
 	}
 
 	//#endregion
@@ -365,23 +363,15 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	async applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> {
+	async applyWorkingSet(workingSet: IEditorWorkingSet): Promise<void> {
 		const workingSetState = this.editorWorkingSets[this.indexOfWorkingSet(workingSet) ?? -1];
 		if (!workingSetState) {
-			return false;
+			return;
 		}
 
-		// Apply main state
-		let applied = await this.mainPart.applyState(workingSetState.main);
-		if (!applied) {
-			return false;
-		}
-
-		// Apply auxiliary state
-		applied = await this.applyState(workingSetState.auxiliary);
-		if (!applied) {
-			return false;
-		}
+		// Apply state
+		await this.mainPart.applyState(workingSetState.main);
+		await this.applyState(workingSetState.auxiliary);
 
 		// Restore Focus
 		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
@@ -389,8 +379,6 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			await mostRecentActivePart.whenReady;
 			mostRecentActivePart.activeGroup.focus();
 		}
-
-		return true;
 	}
 
 	private indexOfWorkingSet(workingSet: IEditorWorkingSet): number | undefined {
@@ -514,16 +502,16 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		this.getPart(group).setSize(group, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement, group?: IEditorGroupView | GroupIdentifier): void {
-		(group !== undefined ? this.getPart(group) : this.activePart).arrangeGroups(arrangement, group);
+	arrangeGroups(arrangement: GroupsArrangement, group: IEditorGroupView | GroupIdentifier = this.activePart.activeGroup): void {
+		this.getPart(group).arrangeGroups(arrangement, group);
 	}
 
-	toggleMaximizeGroup(group?: IEditorGroupView | GroupIdentifier): void {
-		(group !== undefined ? this.getPart(group) : this.activePart).toggleMaximizeGroup(group);
+	toggleMaximizeGroup(group: IEditorGroupView | GroupIdentifier = this.activePart.activeGroup): void {
+		this.getPart(group).toggleMaximizeGroup(group);
 	}
 
-	toggleExpandGroup(group?: IEditorGroupView | GroupIdentifier): void {
-		(group !== undefined ? this.getPart(group) : this.activePart).toggleExpandGroup(group);
+	toggleExpandGroup(group: IEditorGroupView | GroupIdentifier = this.activePart.activeGroup): void {
+		this.getPart(group).toggleExpandGroup(group);
 	}
 
 	restoreGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {

@@ -467,10 +467,12 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
-	 * Close this auxiliary editor part after moving all
+	 * Close this auxiliary editor part.
+	 *
+	 * @param mergeGroupsToMainPart whether to move all
 	 * editors of all groups back to the main editor part.
 	 */
-	close(): void;
+	close(mergeGroupsToMainPart?: boolean): void;
 }
 
 export interface IAuxiliaryEditorPartCreateEvent {
@@ -544,11 +546,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	getWorkingSets(): IEditorWorkingSet[];
 
 	/**
-	 * Closes all editors and groups to apply the working set.
-	 *
-	 * @returns `true` when the working set as applied.
+	 * Applies the working set. Dirty editors (including untitled)
+	 * will remain open even if they are not part of the working
+	 * set.
 	 */
-	applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean>;
+	applyWorkingSet(workingSet: IEditorWorkingSet): Promise<void>;
 
 	/**
 	 * Deletes a working set.
