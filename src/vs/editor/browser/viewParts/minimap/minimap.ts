@@ -1804,6 +1804,7 @@ class InnerMinimap extends Disposable {
 		const separatorStroke = foregroundFill;
 
 		const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
+		canvasContext.letterSpacing = sectionHeaderLetterSpacing + 'px';
 		canvasContext.font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
 		canvasContext.strokeStyle = separatorStroke;
 		canvasContext.lineWidth = 0.2;
@@ -1831,7 +1832,8 @@ class InnerMinimap extends Disposable {
 				backgroundFillY,
 				backgroundFillHeight,
 				y,
-				separatorY);
+				separatorY,
+			);
 		}
 	}
 
@@ -1886,16 +1888,7 @@ class InnerMinimap extends Disposable {
 			target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
 
 			target.fillStyle = foregroundFill;
-
-			// Canvas doesn't have a direct api for letter spacing, and therefore
-			// we need to do it ourselves, by rendering and measuring each character
-			// individually.
-			let x = MINIMAP_GUTTER_WIDTH;
-			for (const visibleCharacter of [...headerText]) {
-				target.fillText(visibleCharacter, x, textY);
-				const charWidth = target.measureText(visibleCharacter).width;
-				x += charWidth + letterSpacing;
-			}
+			target.fillText(headerText, MINIMAP_GUTTER_WIDTH, textY);
 		}
 
 		if (hasSeparatorLine) {
