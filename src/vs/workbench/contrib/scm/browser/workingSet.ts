@@ -76,10 +76,6 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 			}
 
 			disposables.add(Event.runAndSubscribe(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup, async () => {
-				if (this.scmService.repositoryCount > 1) {
-					return;
-				}
-
 				if (!repository.provider.historyProvider?.currentHistoryItemGroup?.id) {
 					return;
 				}
