@@ -18,9 +18,7 @@ import { MultiWindowParts } from 'vs/workbench/browser/part';
 import { DeferredPromise } from 'vs/base/common/async';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IRectangle } from 'vs/platform/window/common/window';
-import { getWindow } from 'vs/base/browser/dom';
-import { getZoomLevel } from 'vs/base/browser/browser';
+import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { generateUuid } from 'vs/base/common/uuid';
 
 interface IEditorPartsUIState {
@@ -28,10 +26,8 @@ interface IEditorPartsUIState {
 	readonly mru: number[];
 }
 
-interface IAuxiliaryEditorPartState {
+interface IAuxiliaryEditorPartState extends IAuxiliaryWindowOpenOptions {
 	readonly state: IEditorPartUIState;
-	readonly bounds?: IRectangle;
-	readonly zoomLevel?: number;
 }
 
 interface IEditorWorkingSetState extends IEditorWorkingSet {
@@ -50,7 +46,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
@@ -248,29 +245,11 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	private createState(): IEditorPartsUIState {
 		return {
 			auxiliary: this.parts.filter(part => part !== this.mainPart).map(part => {
+				const auxiliaryWindow = this.auxiliaryWindowService.getWindow(part.windowId);
+
 				return {
 					state: part.createState(),
-					bounds: (() => {
-						const auxiliaryWindow = getWindow(part.getContainer());
-						if (auxiliaryWindow) {
-							return {
-								x: auxiliaryWindow.screenX,
-								y: auxiliaryWindow.screenY,
-								width: auxiliaryWindow.outerWidth,
-								height: auxiliaryWindow.outerHeight
-							};
-						}
-
-						return undefined;
-					})(),
-					zoomLevel: (() => {
-						const auxiliaryWindow = getWindow(part.getContainer());
-						if (auxiliaryWindow) {
-							return getZoomLevel(auxiliaryWindow);
-						}
-
-						return undefined;
-					})()
+					...auxiliaryWindow?.createState()
 				};
 			}),
 			mru: this.mostRecentActiveParts.map(part => this.parts.indexOf(part))
@@ -283,11 +262,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 			// Create auxiliary editor parts
 			for (const auxiliaryEditorPartState of state.auxiliary) {
-				auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart({
-					bounds: auxiliaryEditorPartState.bounds,
-					state: auxiliaryEditorPartState.state,
-					zoomLevel: auxiliaryEditorPartState.zoomLevel
-				}));
+				auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart(auxiliaryEditorPartState));
 			}
 
 			// Await creation

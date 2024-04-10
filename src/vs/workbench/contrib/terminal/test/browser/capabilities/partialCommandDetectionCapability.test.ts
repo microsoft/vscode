@@ -11,6 +11,8 @@ import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/c
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 suite('PartialCommandDetectionCapability', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let xterm: Terminal;
 	let capability: PartialCommandDetectionCapability;
 	let addEvents: IMarker[];
@@ -23,13 +25,11 @@ suite('PartialCommandDetectionCapability', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal;
-		capability = new PartialCommandDetectionCapability(xterm);
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal);
+		capability = store.add(new PartialCommandDetectionCapability(xterm));
 		addEvents = [];
-		capability.onCommandFinished(e => addEvents.push(e));
+		store.add(capability.onCommandFinished(e => addEvents.push(e)));
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should not add commands when the cursor position is too close to the left side', async () => {
 		assertCommands([]);

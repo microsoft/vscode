@@ -7,64 +7,124 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/145234
 
-	// TODO: Add missing docs
-	// TODO: Review and polish up all docs
+	/**
+	 * A command that was executed in a terminal.
+	 */
 	export interface TerminalShellExecution {
-		// TODO: Create a a `TerminalShellExecutionStartEvent` for future proofing and consistency with other events
 		/**
-		 * The {@link Terminal} the command was executed in.
-		 */
-		readonly terminal: Terminal;
-
-		/**
-		 * The full command line that was executed, including both the command and arguments.
-		 * The accuracy of this value depends on the shell integration implementation:
+		 * The command line that was executed. The {@link TerminalShellExecutionCommandLineConfidence confidence}
+		 * of this value depends on the specific shell's shell integration implementation. This
+		 * value may become more accurate after {@link window.onDidEndTerminalShellExecution} is
+		 * fired.
 		 *
-		 * - It may be undefined or the empty string until {@link onDidEndTerminalShellExecution} is
-		 *   fired.
-		 * - It may be inaccurate initially if the command line is pulled from the buffer directly
-		 *   via the shell integration prompt markers.
-		 * - It may contain line continuation characters and/or parts of the right prompt.
-		 * - It may be inaccurate if the shell integration does not support command line reporting.
+		 * @example
+		 * // Log the details of the command line on start and end
+		 * window.onDidStartTerminalShellExecution(event => {
+		 *   const commandLine = event.execution.commandLine;
+		 *   console.log(`Command started\n${summarizeCommandLine(commandLine)}`);
+		 * });
+		 * window.onDidEndTerminalShellExecution(event => {
+		 *   const commandLine = event.execution.commandLine;
+		 *   console.log(`Command ended\n${summarizeCommandLine(commandLine)}`);
+		 * });
+		 * function summarizeCommandLine(commandLine: TerminalShellExecutionCommandLine) {
+		 *   return [
+		 *     `  Command line: ${command.ommandLine.value}`,
+		 *     `  Confidence: ${command.ommandLine.confidence}`,
+		 *     `  Trusted: ${command.ommandLine.isTrusted}
+		 *   ].join('\n');
+		 * }
 		 */
-		// TODO: Remove | undefined - this will be the empty string if the command start and end is the same position
-		// TODO: Implement command line fetching via buffer markers
-		// TODO: Quality/confidence 3x:
-		//       - Top: shell integration reporting
-		//       - Middle: Not multi-line, command start is not on the left-most column
-		//       - Bottom: Multi-line or command start is on the left-most column
-		readonly commandLine: string | undefined;
+		readonly commandLine: TerminalShellExecutionCommandLine;
 
 		/**
 		 * The working directory that was reported by the shell when this command executed. This
-		 * will be a {@link Uri} if the path reported by the shell can reliably be mapped to the
-		 * connected machine. This requires the shell integration to support working directory
-		 * reporting.
+		 * {@link Uri} may represent a file on another machine (eg. ssh into another machine). This
+		 * requires the shell integration to support working directory reporting.
 		 */
 		readonly cwd: Uri | undefined;
 
 		/**
 		 * Creates a stream of raw data (including escape sequences) that is written to the
-		 * terminal. This will only include data that was written after `stream` was called for the
-		 * first time, ie. you must call `dataStream` immediately after the command is executed via
-		 * {@link executeCommand} or {@link onDidStartTerminalShellExecution} to not miss any data.
+		 * terminal. This will only include data that was written after `readData` was called for
+		 * the first time, ie. you must call `readData` immediately after the command is executed
+		 * via {@link TerminalShellIntegration.executeCommand} or
+		 * {@link window.onDidStartTerminalShellExecution} to not miss any data.
 		 *
 		 * @example
 		 * // Log all data written to the terminal for a command
 		 * const command = term.shellIntegration.executeCommand({ commandLine: 'echo "Hello world"' });
-		 * const stream = command.readData();
+		 * const stream = command.read();
 		 * for await (const data of stream) {
 		 *   console.log(data);
 		 * }
 		 */
-		// TODO: read? "data" typically means Uint8Array. What's the encoding of the string? Usage here will typically be checking for substrings
-		readData(): AsyncIterable<string>;
+		read(): AsyncIterable<string>;
+	}
+
+	/**
+	 * A command line that was executed in a terminal.
+	 */
+	export interface TerminalShellExecutionCommandLine {
+		/**
+		 * The full command line that was executed, including both the command and its arguments.
+		 */
+		readonly value: string;
+
+		/**
+		 * Whether the command line value came from a trusted source and is therefore safe to
+		 * execute without user additional confirmation, such as a notification that asks "Do you
+		 * want to execute (command)?". This verification is likely only needed if you are going to
+		 * execute the command again.
+		 *
+		 * This is `true` only when the command line was reported explicitly by the shell
+		 * integration script (ie. {@link TerminalShellExecutionCommandLineConfidence.High high confidence})
+		 * and it used a nonce for verification.
+		 */
+		readonly isTrusted: boolean;
+
+		/**
+		 * The confidence of the command line value which is determined by how the value was
+		 * obtained. This depends upon the implementation of the shell integration script.
+		 */
+		readonly confidence: TerminalShellExecutionCommandLineConfidence;
+	}
+
+	/**
+	 * The confidence of a {@link TerminalShellExecutionCommandLine} value.
+	 */
+	enum TerminalShellExecutionCommandLineConfidence {
+		/**
+		 * The command line value confidence is low. This means that the value was read from the
+		 * terminal buffer using markers reported by the shell integration script. Additionally one
+		 * of the following conditions will be met:
+		 *
+		 * - The command started on the very left-most column which is unusual, or
+		 * - The command is multi-line which is more difficult to accurately detect due to line
+		 *   continuation characters and right prompts.
+		 * - Command line markers were not reported by the shell integration script.
+		 */
+		Low = 0,
+
+		/**
+		 * The command line value confidence is medium. This means that the value was read from the
+		 * terminal buffer using markers reported by the shell integration script. The command is
+		 * single-line and does not start on the very left-most column (which is unusual).
+		 */
+		Medium = 1,
+
+		/**
+		 * The command line value confidence is high. This means that the value was explicitly sent
+		 * from the shell integration script or the command was executed via the
+		 * {@link TerminalShellIntegration.executeCommand} API.
+		 */
+		High = 2
 	}
 
 	export interface Terminal {
 		/**
 		 * An object that contains [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)-powered
-		 * features for the terminal. This will always be undefined immediately after the terminal
+		 * features for the terminal. This will always be `undefined` immediately after the terminal
 		 * is created. Listen to {@link window.onDidActivateTerminalShellIntegration} to be notified
 		 * when shell integration is activated for a terminal.
 		 *
@@ -75,10 +135,14 @@ declare module 'vscode' {
 		readonly shellIntegration: TerminalShellIntegration | undefined;
 	}
 
+	/**
+	 * [Shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)-powered capabilities owned by a terminal.
+	 */
 	export interface TerminalShellIntegration {
 		/**
-		 * The current working directory of the terminal. This will be a {@link Uri} if the path
-		 * reported by the shell can reliably be mapped to the connected machine.
+		 * The current working directory of the terminal. This {@link Uri} may represent a file on
+		 * another machine (eg. ssh into another machine). This requires the shell integration to
+		 * support working directory reporting.
 		 */
 		readonly cwd: Uri | undefined;
 
@@ -179,21 +243,50 @@ declare module 'vscode' {
 		 * The terminal that shell integration has been activated in.
 		 */
 		readonly terminal: Terminal;
+
 		/**
 		 * The shell integration object.
 		 */
 		readonly shellIntegration: TerminalShellIntegration;
 	}
 
-	export interface TerminalShellExecutionEndEvent {
+	export interface TerminalShellExecutionStartEvent {
+		/**
+		 * The terminal that shell integration has been activated in.
+		 */
+		readonly terminal: Terminal;
+
+		/**
+		 * The shell integration object.
+		 */
+		readonly shellIntegration: TerminalShellIntegration;
+
 		/**
 		 * The terminal shell execution that has ended.
 		 */
 		readonly execution: TerminalShellExecution;
+	}
+
+	export interface TerminalShellExecutionEndEvent {
 		/**
-		 * The exit code reported by the shell.
+		 * The terminal that shell integration has been activated in.
 		 */
-		// TODO: Explain what undefined means
+		readonly terminal: Terminal;
+
+		/**
+		 * The shell integration object.
+		 */
+		readonly shellIntegration: TerminalShellIntegration;
+
+		/**
+		 * The terminal shell execution that has ended.
+		 */
+		readonly execution: TerminalShellExecution;
+
+		/**
+		 * The exit code reported by the shell. `undefined` means the shell did not report an exit
+		 * code or the shell reported a command started before the command finished.
+		 */
 		readonly exitCode: number | undefined;
 	}
 
@@ -208,7 +301,7 @@ declare module 'vscode' {
 		 * [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) is
 		 * activated for the terminal.
 		 */
-		export const onDidStartTerminalShellExecution: Event<TerminalShellExecution>;
+		export const onDidStartTerminalShellExecution: Event<TerminalShellExecutionStartEvent>;
 
 		/**
 		 * This will be fired when a terminal command is ended. This event will fire only when

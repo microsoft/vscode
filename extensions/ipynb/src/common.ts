@@ -67,5 +67,5 @@ export interface CellMetadata {
 }
 
 export function useCustomPropertyInMetadata() {
-	return !workspace.getConfiguration('jupyter', undefined).get<boolean>('experimental.dropCustomMetadata', false);
+	return !workspace.getConfiguration('jupyter', undefined).get<boolean>('experimental.dropCustomMetadata', true);
 }

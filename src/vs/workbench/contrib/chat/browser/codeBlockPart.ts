@@ -49,6 +49,7 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditor
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { TextEdit } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 const $ = dom.$;
 
@@ -424,7 +425,8 @@ export class ChatCodeBlockContentProvider extends Disposable implements ITextMod
 //
 
 export interface ICodeCompareBlockActionContext {
-	element: ChatTreeItem;
+	readonly element: ChatTreeItem;
+	readonly diffEditor: IDiffEditor;
 	readonly uri: URI;
 	readonly edits: readonly TextEdit[];
 }
@@ -700,6 +702,7 @@ export class CodeCompareBlockPart extends Disposable {
 			uri: originalTextModel.uri,
 			edits: data.edits,
 			element: data.element,
+			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
 	}
 }

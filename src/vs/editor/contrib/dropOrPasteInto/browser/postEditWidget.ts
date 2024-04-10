@@ -13,7 +13,7 @@ import 'vs/css!./postEditWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
-import { DocumentOnDropEdit, DocumentPasteEdit } from 'vs/editor/common/languages';
+import { DocumentDropEdit, DocumentPasteEdit } from 'vs/editor/common/languages';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { createCombinedWorkspaceEdit } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 
-interface EditSet<Edit extends DocumentPasteEdit | DocumentOnDropEdit> {
+interface EditSet<Edit extends DocumentPasteEdit | DocumentDropEdit> {
 	readonly activeEditIndex: number;
 	readonly allEdits: ReadonlyArray<Edit>;
 }
@@ -32,7 +32,7 @@ interface ShowCommand {
 	readonly label: string;
 }
 
-class PostEditWidget<T extends DocumentPasteEdit | DocumentOnDropEdit> extends Disposable implements IContentWidget {
+class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Disposable implements IContentWidget {
 	private static readonly baseId = 'editor.widget.postEditWidget';
 
 	readonly allowEditorOverflow = true;
@@ -132,7 +132,7 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentOnDropEdit> extends D
 	}
 }
 
-export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentOnDropEdit> extends Disposable {
+export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdit> extends Disposable {
 
 	private readonly _currentWidget = this._register(new MutableDisposable<PostEditWidget<T>>());
 

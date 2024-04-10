@@ -267,28 +267,6 @@ declare module 'vscode' {
 		readonly values: ChatVariableValue[];
 	}
 
-	/**
-	 * The location at which the chat is happening.
-	 */
-	export enum ChatLocation {
-		/**
-		 * The chat panel
-		 */
-		Panel = 1,
-		/**
-		 * Terminal inline chat
-		 */
-		Terminal = 2,
-		/**
-		 * Notebook inline chat
-		 */
-		Notebook = 3,
-		/**
-		 * Code editor inline chat
-		 */
-		Editor = 4
-	}
-
 	export interface ChatRequest {
 		/**
 		 * The prompt as entered by the user.
@@ -305,6 +283,7 @@ declare module 'vscode' {
 		 */
 		readonly command: string | undefined;
 
+
 		/**
 		 * The list of variables and their values that are referenced in the prompt.
 		 *
@@ -317,10 +296,6 @@ declare module 'vscode' {
 		// TODO@API Q? are there implicit variables that are not part of the prompt?
 		readonly variables: readonly ChatResolvedVariable[];
 
-		/**
-		 * The location at which the chat is happening. This will always be one of the supported values
-		 */
-		readonly location: ChatLocation;
 	}
 
 	/**
