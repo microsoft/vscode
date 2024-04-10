@@ -813,7 +813,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Fill in content if we are resolved
 		let content: VSBufferReadableStream | undefined = undefined;
 		if (this.isResolved()) {
-			content = await raceCancellation(this.model.snapshot(token), token);
+			content = await raceCancellation(this.model.snapshot(token, 'backup'), token);
 		}
 
 		return { meta, content };

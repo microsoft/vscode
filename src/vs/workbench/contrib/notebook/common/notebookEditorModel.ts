@@ -250,7 +250,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		return this._notebookModel;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+	async snapshot(token: CancellationToken, reason?: 'backup' | 'save'): Promise<VSBufferReadableStream> {
 		const serializer = await this.getNotebookSerializer();
 
 		const data: NotebookData = {
@@ -274,7 +274,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			data.cells.push(cellData);
 		}
 
-		const bytes = await serializer.notebookToData(data);
+		const bytes = await serializer.notebookToData(data, reason === 'backup' ? this._notebookModel.uri : undefined);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -327,7 +327,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 		}
 
 		const bytes = await streamToBuffer(stream);
-		const data = await info.serializer.dataToNotebook(bytes);
+		const data = await info.serializer.dataToNotebook(bytes, resource);
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();

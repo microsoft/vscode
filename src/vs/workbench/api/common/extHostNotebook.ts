@@ -37,6 +37,7 @@ import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchMo
 import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
 import { globMatchesResource } from 'vs/workbench/services/editor/common/editorResolverService';
+import { hash } from 'vs/base/common/hash';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -293,21 +294,39 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	async $dataToNotebook(handle: number, bytes: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>> {
+	async $dataToNotebook(handle: number, bytes: VSBuffer, resource: URI | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>> {
+		let buffer = bytes.buffer;
+		if (resource && bytes.byteLength === 0) {
+			try {
+				const path = URI.file('/C:/Users/aamunger/.vscode-oss-dev/Backups/1234/' + hashPath(resource));
+				const content = await this._extHostFileSystem.value.readFile(path);
+				buffer = content;
+			} catch {
+				// skip
+			}
+		}
+
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const data = await serializer.serializer.deserializeNotebook(bytes.buffer, token);
+		const data = await serializer.serializer.deserializeNotebook(buffer, token);
 		return new SerializableObjectWithBuffers(typeConverters.NotebookData.from(data));
 	}
 
-	async $notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer> {
+	async $notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, resource: URI | undefined, token: CancellationToken): Promise<VSBuffer> {
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
 		const bytes = await serializer.serializer.serializeNotebook(typeConverters.NotebookData.to(data.value), token);
+
+		if (resource) {
+			const path = URI.file('/C:/Users/aamunger/.vscode-oss-dev/Backups/1234/' + hashPath(resource));
+			await this._extHostFileSystem.value.writeFile(path, bytes);
+			return VSBuffer.wrap(new Uint8Array(0));
+		}
+
 		return VSBuffer.wrap(bytes);
 	}
 
@@ -716,4 +735,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		extHostCommands.registerApiCommand(commandDataToNotebook);
 		extHostCommands.registerApiCommand(commandNotebookToData);
 	}
+}
+
+
+function hashPath(resource: URI): string {
+	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
+
+	return hashString(str);
+}
+
+function hashString(str: string): string {
+	return hash(str).toString(16);
 }

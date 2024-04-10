@@ -53,14 +53,14 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 
 		disposables.add(this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
-			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
+			dataToNotebook: async (data: VSBuffer, resource?: URI): Promise<NotebookData> => {
 				const sw = new StopWatch();
 				let result: NotebookData;
 				if (data.byteLength === 0 && viewType === 'interactive') {
 					// we don't want any starting cells for an empty interactive window.
 					result = NotebookDto.fromNotebookDataDto({ cells: [], metadata: {} });
 				} else {
-					const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
+					const dto = await this._proxy.$dataToNotebook(handle, data, resource, CancellationToken.None);
 					result = NotebookDto.fromNotebookDataDto(dto.value);
 				}
 				this._logService.trace(`[NotebookSerializer] dataToNotebook DONE after ${sw.elapsed()}ms`, {
@@ -69,9 +69,9 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				});
 				return result;
 			},
-			notebookToData: (data: NotebookData): Promise<VSBuffer> => {
+			notebookToData: (data: NotebookData, resource?: URI): Promise<VSBuffer> => {
 				const sw = new StopWatch();
-				const result = this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
+				const result = this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), resource, CancellationToken.None);
 				this._logService.trace(`[NotebookSerializer] notebookToData DONE after ${sw.elapsed()}`, {
 					viewType,
 					extensionId: extension.id.value,
