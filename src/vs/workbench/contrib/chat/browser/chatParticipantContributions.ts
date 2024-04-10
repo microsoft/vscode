@@ -194,7 +194,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					}
 
 					const store = new DisposableStore();
-					if (providerDescriptor.isDefault && providerDescriptor.locations?.includes(ChatAgentLocation.Panel)) {
+					if (providerDescriptor.isDefault && (!providerDescriptor.locations || providerDescriptor.locations?.includes(ChatAgentLocation.Panel))) {
 						store.add(this.registerDefaultParticipantView(providerDescriptor));
 					}
 
