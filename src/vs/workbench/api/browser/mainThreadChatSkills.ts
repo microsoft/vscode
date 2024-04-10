@@ -29,7 +29,7 @@ export class MainThreadChatSkills extends Disposable implements MainThreadChatSk
 		return Array.from(this._chatSkillsService.getSkills());
 	}
 
-	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<void> {
+	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<string | undefined> {
 		return this._chatSkillsService.invokeSkill(name, parameters, token);
 	}
 

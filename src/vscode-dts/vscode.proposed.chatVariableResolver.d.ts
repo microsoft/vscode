@@ -60,7 +60,7 @@ declare module 'vscode' {
 		export const skills: ReadonlyArray<ChatSkillDescription>;
 		// Can non-chat participant AI actions invoke skills, just at any random time?
 		// For chat participants, this should be part of the request
-		export function invokeSkill(skillName: string, parameters: Object, token: CancellationToken): Thenable<any>;
+		export function invokeSkill(skillName: string, parameters: Object, token: CancellationToken): Thenable<string | undefined>;
 	}
 
 	export interface ChatSkillDescription {
@@ -75,6 +75,6 @@ declare module 'vscode' {
 		// Is output only a string, or can it be structured data?
 		// How does it ask for confirmation? This resolver would get some other resolver/accessor object that lets it ask to render some confirm dialog in chat.
 		//  - In that case, this needs to be called via the chat participant query, not via the global namespace.
-		resolve(parameters: any, token: CancellationToken): ProviderResult<any>;
+		resolve(parameters: any, token: CancellationToken): ProviderResult<string>;
 	}
 }

@@ -15,7 +15,7 @@ export interface IChatSkillData {
 }
 
 export interface IChatSkill extends IChatSkillData {
-	invoke(parameters: any, token: CancellationToken): Promise<any | undefined>;
+	invoke(parameters: any, token: CancellationToken): Promise<string | undefined>;
 }
 
 export const IChatSkillsService = createDecorator<IChatSkillsService>('IChatSkillsService');
@@ -59,7 +59,7 @@ export class ChatSkillsService implements IChatSkillsService {
 		return this._skills.values();
 	}
 
-	invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<any> {
+	invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<string | undefined> {
 		const skill = this._skills.get(name);
 		if (!skill) {
 			throw new Error(`Skill ${name} not found`);

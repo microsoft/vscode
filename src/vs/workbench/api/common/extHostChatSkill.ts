@@ -29,7 +29,7 @@ export class ExtHostChatSkills implements ExtHostChatSkillsShape {
 		});
 	}
 
-	async invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<any> {
+	async invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<string | undefined> {
 		// Making the round trip here because not all skills were necessarily registered in this EH
 		return await this._proxy.$invokeSkill(name, parameters, token);
 	}
@@ -48,15 +48,16 @@ export class ExtHostChatSkills implements ExtHostChatSkillsShape {
 		return Array.from(this._allSkills.values());
 	}
 
-	async $invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<any> {
+	async $invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<string | undefined> {
 		const item = this._registeredSkills.get(name);
 		if (!item) {
 			return;
 		}
 		try {
-			return await item.skill.resolve(parameters, token);
+			return await item.skill.resolve(parameters, token) || undefined;
 		} catch (err) {
 			onUnexpectedExternalError(err);
+			return;
 		}
 	}
 

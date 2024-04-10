@@ -1263,7 +1263,7 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 
 export interface MainThreadChatSkillsShape extends IDisposable {
 	$getSkills(): Promise<IChatSkillData[]>;
-	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
+	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<string | undefined>;
 	$registerSkill(data: IChatSkillData): void;
 	$unregisterSkill(name: string): void;
 }
@@ -1276,7 +1276,7 @@ export interface ExtHostChatVariablesShape {
 
 export interface ExtHostChatSkillsShape {
 	$acceptSkillDelta(delta: IChatSkillDelta): Promise<void>;
-	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
+	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {

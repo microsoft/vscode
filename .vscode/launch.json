@@ -19,6 +19,7 @@
 			"timeout": 0,
 			"port": 5870,
 			"outFiles": [
+				"/Users/roblou/code/vscode-copilot/dist/extension.js",
 				"${workspaceFolder}/out/**/*.js",
 				"${workspaceFolder}/extensions/*/out/**/*.js"
 			]
@@ -220,6 +221,7 @@
 			"type": "chrome",
 			"request": "launch",
 			"name": "Launch VS Code Internal",
+			"trace": true,
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -242,7 +244,8 @@
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
-				"--disable-extension=vscode.vscode-api-tests"
+				"--disable-extension=vscode.vscode-api-tests",
+				"--extensionDevelopmentPath=/Users/roblou/code/vscode-copilot",
 			],
 			"userDataDir": "${userHome}/.vscode-oss-dev",
 			"webRoot": "${workspaceFolder}",
@@ -250,9 +253,9 @@
 				"Attach to Extension Host"
 			],
 			"pauseForSourceMap": false,
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
+			// "outFiles": [
+			// 	"${workspaceFolder}/out/**/*.js"
+			// ],
 			"browserLaunchLocation": "workspace",
 			"presentation": {
 				"hidden": true,
@@ -548,7 +551,7 @@
 				"Attach to Extension Host",
 				"Attach to Shared Process",
 			],
-			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			// "preLaunchTask": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 1
