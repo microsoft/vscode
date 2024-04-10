@@ -69,7 +69,7 @@ export class ContentHoverController extends Disposable {
 		this._register(this._hoverOperation.onResult((result) => {
 			if (!this._computer.anchor) {
 				// invalid state, ignore result
-				this._disposeUnusedHoverParts(result?.value, this._currentResult?.messages);
+				this._disposeUnusedHoverParts(result.value);
 				return;
 			}
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
@@ -201,13 +201,13 @@ export class ContentHoverController extends Disposable {
 
 			if (!hoverResult.isComplete) {
 				// Instead of rendering the new partial result, we wait for the result to be complete.
-				this._disposeUnusedHoverParts(hoverResult.messages, this._currentResult?.messages);
+				this._disposeUnusedHoverParts(hoverResult.messages);
 				return;
 			}
 
 			if (this._computer.insistOnKeepingHoverVisible && hoverResult.messages.length === 0) {
 				// The hover would now hide normally, so we'll keep the previous messages
-				this._disposeUnusedHoverParts(hoverResult.messages, this._currentResult?.messages);
+				this._disposeUnusedHoverParts(hoverResult.messages);
 				return;
 			}
 		}
