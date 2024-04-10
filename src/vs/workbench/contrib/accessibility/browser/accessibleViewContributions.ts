@@ -305,7 +305,7 @@ function registerAccessibilityHelpAction(viewDescriptor: IViewDescriptor): IDisp
 	if (!helpContent) {
 		throw new Error('No help content for view');
 	}
-	return AccessibleViewAction.addImplementation(95, viewDescriptor.id, accessor => {
+	return AccessibilityHelpAction.addImplementation(95, viewDescriptor.id, accessor => {
 		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const viewsService = accessor.get(IViewsService);
 		accessibleViewService.show({
