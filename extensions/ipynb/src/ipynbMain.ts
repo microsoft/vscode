@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
 	} as vscode.NotebookDocumentContentOptions));
 
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('interactive', serializer, {
-		transientOutputs: false,
+		transientOutputs: true,
 		transientCellMetadata: useCustomPropertyInMetadata() ? {
 			breakpointMargin: true,
 			custom: false,
