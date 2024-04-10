@@ -78,12 +78,24 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 					const lineCount = model.getLineCount();
 					const editOperations: ISingleEditOperation[] = [];
 					for (let line = 1; line <= lineCount - 1; line++) {
+						/*
+						NOTE: Uncomment in order to ignore incorrect JS DOC indentation
 						const lineContent = model.getLineContent(line);
-						const trimmedLine = lineContent.trim();
-						if (trimmedLine.length === 0 || trimmedLine.startsWith('*') || trimmedLine.startsWith('/*')) {
+						const trimmedLineContent = lineContent.trim();
+						if (trimmedLineContent.length === 0 || trimmedLineContent.startsWith('*') || trimmedLineContent.startsWith('/*')) {
+							continue;
+						}
+						*/
+						const lineContent = model.getLineContent(line);
+						const trimmedLineContent = lineContent.trim();
+						if (trimmedLineContent.length === 0) {
 							continue;
 						}
 						const editOperation = getReindentEditOperations(model, languageConfigurationService, line, line + 1);
+						/*
+						NOTE: Uncomment in order to see actual incorrect indentation diff
+						model.applyEdits(editOperation);
+						*/
 						editOperations.push(...editOperation);
 					}
 					model.applyEdits(editOperations);
