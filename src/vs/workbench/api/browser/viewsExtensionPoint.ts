@@ -104,6 +104,7 @@ interface IUserFriendlyViewDescriptor {
 	group?: string;
 	remoteName?: string | string[];
 	virtualWorkspace?: string;
+	accessibilityHelpContent?: string;
 }
 
 enum InitialVisibility {
@@ -558,7 +559,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						virtualWorkspace: item.virtualWorkspace,
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
 						workspace: viewContainer?.id === REMOTE ? true : undefined,
-						weight
+						weight,
+						accessibilityHelpContent: item.accessibilityHelpContent
 					};
 
 

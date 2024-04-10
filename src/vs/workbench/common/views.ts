@@ -300,6 +300,8 @@ export interface IViewDescriptor {
 	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
+
+	readonly accessibilityHelpContent?: string;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {

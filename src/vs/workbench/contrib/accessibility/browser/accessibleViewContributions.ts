@@ -8,7 +8,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -33,6 +33,9 @@ import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Extensions, IViewDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);
@@ -273,3 +276,45 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 	}
 }
 
+export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
+	private _viewHelpDialogMap = this._register(new DisposableMap<string, IDisposable>());
+	constructor() {
+		super();
+		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
+			for (const view of e) {
+				for (const viewDescriptor of view.views) {
+					this._viewHelpDialogMap.set(viewDescriptor.id, registerAccessibilityHelpAction(viewDescriptor));
+				}
+			}
+		}));
+		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsDeregistered(e => {
+			for (const viewDescriptor of e.views) {
+				this._viewHelpDialogMap.get(viewDescriptor.id)?.dispose();
+			}
+		}));
+	}
+}
+
+function registerAccessibilityHelpAction(viewDescriptor: IViewDescriptor): IDisposable {
+	const disposables = new DisposableStore();
+	const helpContent = viewDescriptor.accessibilityHelpContent;
+	if (!helpContent) {
+		throw new Error('No help content for view');
+	}
+	disposables.add(AccessibleViewAction.addImplementation(95, viewDescriptor.id, accessor => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		const viewsService = accessor.get(IViewsService);
+		accessibleViewService.show({
+			id: viewDescriptor.id,
+			options: { type: AccessibleViewType.Help },
+			provideContent: () => helpContent,
+			onClose: () => viewsService.openView(viewDescriptor.id),
+		});
+		return true;
+	}));
+	return {
+		dispose: () => {
+			disposables.dispose();
+		}
+	};
+}

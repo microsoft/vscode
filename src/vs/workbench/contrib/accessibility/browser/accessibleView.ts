@@ -50,6 +50,15 @@ const enum DIMENSIONS {
 	MAX_WIDTH = 600
 }
 
+type AccessibleViewContentProvider = IAccessibleContentProvider | IAccessibleExtensionContentProvider;
+
+export interface IAccessibleExtensionContentProvider {
+	id: string;
+	options: IAccessibleViewOptions;
+	onClose(): void;
+	provideContent(): string;
+}
+
 export interface IAccessibleContentProvider {
 	id: AccessibleViewProviderId;
 	verbositySettingKey: AccessibilityVerbositySettingId;
@@ -78,7 +87,7 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
-	show(provider: IAccessibleContentProvider, position?: Position): void;
+	show(provider: AccessibleViewContentProvider, position?: Position): void;
 	showLastProvider(id: AccessibleViewProviderId): void;
 	showAccessibleViewHelp(): void;
 	next(): void;
