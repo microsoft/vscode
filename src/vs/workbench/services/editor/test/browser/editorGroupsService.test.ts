@@ -1021,6 +1021,32 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isEmpty, true);
 	});
 
+	test('closeAllEditors (modified editor)', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+
+		const inputDirty = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		inputDirty.dirty = true;
+		const inputInactive = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([
+			{ editor: inputDirty, options: { pinned: true, sticky: true } },
+			{ editor: inputInactive }
+		]);
+
+		assert.strictEqual(group.count, 2);
+
+		await group.closeAllEditors({ excludeModified: true });
+
+		assert.strictEqual(group.count, 1);
+		assert.strictEqual(group.getEditorByIndex(0), inputDirty);
+
+		await group.closeAllEditors();
+
+		assert.strictEqual(group.isEmpty, true);
+	});
+
 	test('moveEditor (same group)', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
