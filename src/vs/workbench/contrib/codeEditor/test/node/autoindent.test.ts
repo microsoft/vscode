@@ -15,6 +15,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ILanguageConfiguration, LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/common/languageConfigurationExtensionPoint';
 import { parse } from 'vs/base/common/json';
 import { IRange } from 'vs/editor/common/core/range';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 
 function getIRange(range: IRange): IRange {
@@ -75,17 +76,19 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 					};
 					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 					const lineCount = model.getLineCount();
-					// const editOperations: ISingleEditOperation[] = [];
-					// for (let line = 1; line <= lineCount - 1; line++) {
-					// 	// skip empty lines so that we don't put at zero
-					// 	if (line > 1 && model.getLineContent(line - 1).length === 0) {
-					// 		continue;
-					// 	}
-					// 	editOperations.push(...getReindentEditOperations(model, languageConfigurationService, line, line + 1));
-					// }
-					const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, lineCount);
+					const editOperations: ISingleEditOperation[] = [];
+					for (let line = 1; line <= lineCount - 1; line++) {
+						const lineContent = model.getLineContent(line);
+						const trimmedLine = lineContent.trim();
+						if (trimmedLine.length === 0 || trimmedLine.startsWith('*') || trimmedLine.startsWith('/*')) {
+							continue;
+						}
+						const editOperation = getReindentEditOperations(model, languageConfigurationService, line, line + 1);
+						editOperations.push(...editOperation);
+					}
 					model.applyEdits(editOperations);
-					model.applyEdits(trimTrailingWhitespace(model, [], true));
+					const trimTrailingWhitespaceEditOperations = trimTrailingWhitespace(model, [], true);
+					model.applyEdits(trimTrailingWhitespaceEditOperations);
 					fs.writeFileSync(pathName, model.getValue());
 				}
 			}
