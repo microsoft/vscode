@@ -3,18 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
-import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
-import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * A special class used to denoting a telemetry value which should not be clean.
@@ -22,36 +19,24 @@ import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, IT
  * NOTE: This is used as an API type as well, and should not be changed.
  */
 export class TelemetryTrustedValue<T> {
+	// This is merely used as an identifier as the instance will be lost during serialization over the exthost
+	public readonly isTrustedTelemetryValue = true;
 	constructor(public readonly value: T) { }
 }
 
 export class NullTelemetryServiceShape implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.NONE;
+	readonly sessionId = 'someValue.sessionId';
+	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
+	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
-
-	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
-	}
-	publicLogError(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as ITelemetryData);
-	}
-
+	publicLog() { }
+	publicLog2() { }
+	publicLogError() { }
+	publicLogError2() { }
 	setExperimentProperty() { }
-	telemetryLevel = TelemetryLevel.NONE;
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId',
-			firstSessionDate: 'someValue.firstSessionDate'
-		});
-	}
 }
 
 export const NullTelemetryService = new NullTelemetryServiceShape();
@@ -68,7 +53,7 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 	}
 }
 
-export const telemetryLogChannelId = 'telemetryLog';
+export const telemetryLogId = 'telemetry';
 export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
 
 export interface ITelemetryAppender {
@@ -94,33 +79,6 @@ export interface URIDescriptor {
 	path?: string;
 }
 
-export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
-	// Debounce the event by 1000 ms and merge all affected keys into one event
-	const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
-		const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
-		return { ...cur, affectedKeys: newAffectedKeys };
-	}, 1000, true);
-
-	return debouncedConfigService(event => {
-		if (event.source !== ConfigurationTarget.DEFAULT) {
-			type UpdateConfigurationClassification = {
-				owner: 'lramos15, sbatten';
-				comment: 'Event which fires when user updates telemetry configuration';
-				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
-				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
-			};
-			type UpdateConfigurationEvent = {
-				configurationSource: string;
-				configurationKeys: string[];
-			};
-			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
-				configurationSource: ConfigurationTargetToString(event.source),
-				configurationKeys: flattenKeys(event.affectedKeys)
-			});
-		}
-	});
-}
-
 /**
  * Determines whether or not we support logging telemetry.
  * This checks if the product is capable of collecting telemetry but not whether or not it can send it
@@ -136,7 +94,7 @@ export function supportsTelemetry(productService: IProductService, environmentSe
 	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
 		return true;
 	}
-	return !(environmentService.disableTelemetry || !productService.enableTelemetry || environmentService.extensionTestsLocationURI);
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
 }
 
 /**
@@ -147,6 +105,10 @@ export function supportsTelemetry(productService: IProductService, environmentSe
  * @returns True if telemetry is actually disabled and we're only logging for debug purposes
  */
 export function isLoggingOnly(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// If we're testing an extension, log telemetry for debug purposes
+	if (environmentService.extensionTestsLocationURI) {
+		return true;
+	}
 	// Logging only mode is only for OSS
 	if (environmentService.isBuilt) {
 		return false;
@@ -276,24 +238,6 @@ function flatten(obj: any, result: { [key: string]: any }, order: number = 0, pr
 	}
 }
 
-function flattenKeys(value: Object | undefined): string[] {
-	if (!value) {
-		return [];
-	}
-	const result: string[] = [];
-	flatKeys(result, '', value);
-	return result;
-}
-
-function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
-	if (value && typeof value === 'object' && !Array.isArray(value)) {
-		Object.keys(value)
-			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
-	} else {
-		result.push(prefix);
-	}
-}
-
 /**
  * Whether or not this is an internal user
  * @param productService The product service
@@ -384,18 +328,18 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 		return property;
 	}
 
-	const value = property.toLowerCase();
-
 	const userDataRegexes = [
 		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
 		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
-		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
+		{ label: 'GitHub Token', regex: /(gh[psuro]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/ },
+		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
+		{ label: 'CLI Credentials', regex: /((login|psexec|(certutil|psexec)\.exe).{1,50}(\s-u(ser(name)?)?\s+.{3,100})?\s-(admin|user|vm|root)?p(ass(word)?)?\s+["']?[^$\-\/\s]|(^|[\s\r\n\\])net(\.exe)?.{1,5}(user\s+|share\s+\/user:| user -? secrets ? set) \s + [^ $\s \/])/ },
 		{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches @*.site
 	];
 
 	// Check for common user data in the telemetry events
 	for (const secretRegex of userDataRegexes) {
-		if (secretRegex.regex.test(value)) {
+		if (secretRegex.regex.test(property)) {
 			return `<REDACTED: ${secretRegex.label}>`;
 		}
 	}
@@ -414,7 +358,7 @@ export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]):
 	return cloneAndChange(data, value => {
 
 		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it
-		if (value instanceof TelemetryTrustedValue) {
+		if (value instanceof TelemetryTrustedValue || Object.hasOwnProperty.call(value, 'isTrustedTelemetryValue')) {
 			return value.value;
 		}
 

@@ -22,7 +22,8 @@ interface MdServerInitializationOptions extends LsConfiguration { }
 const organizeLinkDefKind = 'source.organizeLinkDefinitions';
 
 export async function startVsCodeServer(connection: Connection) {
-	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
+	const configurationManager = new ConfigurationManager(connection);
+	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console), configurationManager);
 
 	const parser = new class implements md.IMdParser {
 		slugifier = md.githubSlugifier;
@@ -41,7 +42,7 @@ export async function startVsCodeServer(connection: Connection) {
 		return workspace;
 	};
 
-	return startServer(connection, { documents, notebooks, logger, parser, workspaceFactory });
+	return startServer(connection, { documents, notebooks, configurationManager, logger, parser, workspaceFactory });
 }
 
 type WorkspaceFactory = (config: {
@@ -53,6 +54,7 @@ type WorkspaceFactory = (config: {
 export async function startServer(connection: Connection, serverConfig: {
 	documents: TextDocuments<md.ITextDocument>;
 	notebooks?: NotebookDocuments<md.ITextDocument>;
+	configurationManager: ConfigurationManager;
 	logger: md.ILogger;
 	parser: md.IMdParser;
 	workspaceFactory: WorkspaceFactory;
@@ -62,7 +64,6 @@ export async function startServer(connection: Connection, serverConfig: {
 	let mdLs: md.IMdLanguageService | undefined;
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const configurationManager = new ConfigurationManager(connection);
 		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
 
 		const mdConfig = getLsConfiguration(initOptions ?? {});
@@ -74,7 +75,7 @@ export async function startServer(connection: Connection, serverConfig: {
 			logger: serverConfig.logger,
 			...mdConfig,
 			get preferredMdPathExtensionStyle() {
-				switch (configurationManager.getSettings()?.markdown.preferredMdPathExtensionStyle) {
+				switch (serverConfig.configurationManager.getSettings()?.markdown.preferredMdPathExtensionStyle) {
 					case 'includeExtension': return md.PreferredMdPathExtensionStyle.includeExtension;
 					case 'removeExtension': return md.PreferredMdPathExtensionStyle.removeExtension;
 					case 'auto':
@@ -84,9 +85,9 @@ export async function startServer(connection: Connection, serverConfig: {
 			}
 		});
 
-		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
-		registerDocumentHighlightSupport(connection, documents, mdLs, configurationManager);
-		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
+		registerCompletionsSupport(connection, documents, mdLs, serverConfig.configurationManager);
+		registerDocumentHighlightSupport(connection, documents, mdLs, serverConfig.configurationManager);
+		registerValidateSupport(connection, workspace, documents, mdLs, serverConfig.configurationManager, serverConfig.logger);
 
 		return {
 			capabilities: {
@@ -96,11 +97,19 @@ export async function startServer(connection: Connection, serverConfig: {
 					interFileDependencies: true,
 					workspaceDiagnostics: false,
 				},
-				codeActionProvider: { resolveProvider: true },
+				codeActionProvider: {
+					resolveProvider: true,
+					codeActionKinds: [
+						organizeLinkDefKind,
+						'quickfix',
+						'refactor',
+					]
+				},
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
+				hoverProvider: true,
 				referencesProvider: true,
 				renameProvider: { prepareProvider: true, },
 				selectionRangeProvider: true,
@@ -210,7 +219,7 @@ export async function startServer(connection: Connection, serverConfig: {
 			const action: lsp.CodeAction = {
 				title: l10n.t("Organize link definitions"),
 				kind: organizeLinkDefKind,
-				data: <OrganizeLinkActionData>{ uri: document.uri }
+				data: { uri: document.uri } satisfies OrganizeLinkActionData,
 			};
 			return [action];
 		}
@@ -238,6 +247,15 @@ export async function startServer(connection: Connection, serverConfig: {
 		return codeAction;
 	});
 
+	connection.onHover(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return null;
+		}
+
+		return mdLs!.getHover(document, params.position, token);
+	});
+
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {
 		return mdLs!.getFileReferences(URI.parse(params.uri), token);
 	}));
@@ -252,6 +270,26 @@ export async function startServer(connection: Connection, serverConfig: {
 			edit: result.edit,
 			participatingRenames: result.participatingRenames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() }))
 		};
+	}));
+
+	connection.onRequest(protocol.prepareUpdatePastedLinks, (async (params, token: CancellationToken) => {
+		const document = documents.get(params.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		return mdLs!.prepareUpdatePastedLinks(document, params.ranges, token);
+	}));
+
+	connection.onRequest(protocol.getUpdatePastedLinksEdit, (async (params, token: CancellationToken) => {
+		const document = documents.get(params.pasteIntoDoc);
+		if (!document) {
+			return undefined;
+		}
+
+		// TODO: Figure out why range types are lying
+		const edits = params.edits.map((edit: any) => lsp.TextEdit.replace(lsp.Range.create(edit.range[0].line, edit.range[0].character, edit.range[1].line, edit.range[1].character), edit.newText));
+		return mdLs!.getUpdatePastedLinksEdit(document, edits, params.metadata, token);
 	}));
 
 	connection.onRequest(protocol.resolveLinkTarget, (async (params, token: CancellationToken) => {

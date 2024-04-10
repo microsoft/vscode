@@ -8,6 +8,11 @@ export interface ILocalizeInfo {
 	comment: string[];
 }
 
+export interface ILocalizedString {
+	original: string;
+	value: string;
+}
+
 function _format(message: string, args: any[]): string {
 	let result: string;
 	if (args.length === 0) {
@@ -23,6 +28,14 @@ function _format(message: string, args: any[]): string {
 
 export function localize(data: ILocalizeInfo | string, message: string, ...args: any[]): string {
 	return _format(message, args);
+}
+
+export function localize2(data: ILocalizeInfo | string, message: string, ...args: any[]): ILocalizedString {
+	const res = _format(message, args);
+	return {
+		original: res,
+		value: res
+	};
 }
 
 export function getConfiguredDefaultLocale(_: string) {

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { illegalArgument, illegalState } from 'vs/base/common/errors';
+import { illegalState } from 'vs/base/common/errors';
+import { localize } from 'vs/nls';
 
 export const enum TokenType {
 	LParen,
@@ -34,8 +35,8 @@ export type Token =
 	| { type: TokenType.LParen; offset: number }
 	| { type: TokenType.RParen; offset: number }
 	| { type: TokenType.Neg; offset: number }
-	| { type: TokenType.Eq; offset: number }
-	| { type: TokenType.NotEq; offset: number }
+	| { type: TokenType.Eq; offset: number; isTripleEq: boolean }
+	| { type: TokenType.NotEq; offset: number; isTripleEq: boolean }
 	| { type: TokenType.Lt; offset: number }
 	| { type: TokenType.LtEq; offset: number }
 	| { type: TokenType.Gt; offset: number }
@@ -58,8 +59,6 @@ type TokenTypeWithoutLexeme =
 	TokenType.LParen |
 	TokenType.RParen |
 	TokenType.Neg |
-	TokenType.Eq |
-	TokenType.NotEq |
 	TokenType.Lt |
 	TokenType.LtEq |
 	TokenType.Gt |
@@ -73,6 +72,32 @@ type TokenTypeWithoutLexeme =
 	TokenType.Or |
 	TokenType.EOF;
 
+/**
+ * Example:
+ * `foo == bar'` - note how single quote doesn't have a corresponding closing quote,
+ * so it's reported as unexpected
+ */
+export type LexingError = {
+	offset: number; /** note that this doesn't take into account escape characters from the original encoding of the string, e.g., within an extension manifest file's JSON encoding  */
+	lexeme: string;
+	additionalInfo?: string;
+};
+
+function hintDidYouMean(...meant: string[]) {
+	switch (meant.length) {
+		case 1:
+			return localize('contextkey.scanner.hint.didYouMean1', "Did you mean {0}?", meant[0]);
+		case 2:
+			return localize('contextkey.scanner.hint.didYouMean2', "Did you mean {0} or {1}?", meant[0], meant[1]);
+		case 3:
+			return localize('contextkey.scanner.hint.didYouMean3', "Did you mean {0}, {1} or {2}?", meant[0], meant[1], meant[2]);
+		default: // we just don't expect that many
+			return undefined;
+	}
+}
+
+const hintDidYouForgetToOpenOrCloseQuote = localize('contextkey.scanner.hint.didYouForgetToOpenOrCloseQuote', "Did you forget to open or close the quote?");
+const hintDidYouForgetToEscapeSlash = localize('contextkey.scanner.hint.didYouForgetToEscapeSlash', "Did you forget to escape the '/' (slash) character? Put two backslashes before it to escape, e.g., '\\\\/\'.");
 
 /**
  * A simple scanner for context keys.
@@ -83,41 +108,13 @@ type TokenTypeWithoutLexeme =
  * const scanner = new Scanner().reset('resourceFileName =~ /docker/ && !config.docker.enabled');
  * const tokens = [...scanner];
  * if (scanner.errorTokens.length > 0) {
- *     scanner.errorTokens.forEach(token => console.error(Scanner.reportError(token)));
+ *     scanner.errorTokens.forEach(err => console.error(`Unexpected token at ${err.offset}: ${err.lexeme}\nHint: ${err.additional}`));
  * } else {
  *     // process tokens
  * }
  * ```
  */
 export class Scanner {
-
-	/**
-	 * Provides an error message for the given error token.
-	 *
-	 * @throws Error if the token is not an error token
-	 */
-	static reportError(token: Token): string {
-		if (token.type !== TokenType.Error) { throw illegalArgument(`expected an error token but got ${JSON.stringify(token)}`); }
-
-		switch (token.lexeme) {
-			case '=': return `Unexpected token '${token.lexeme}' at offset ${token.offset}. Did you mean '==' or '=~'?`;
-			case '&': return `Unexpected token '${token.lexeme}' at offset ${token.offset}. Did you mean '&&'?`;
-			case '|': return `Unexpected token '${token.lexeme}' at offset ${token.offset}. Did you mean '||'?`;
-			default: {
-				const lexeme = token.lexeme;
-
-				if (lexeme && lexeme.length > 1 && lexeme.startsWith(`'`)) {
-					return `Unexpected token '${token.lexeme}' at offset ${token.offset}. Did you forget to close the string?`;
-				}
-
-				if (lexeme && lexeme.length > 1 && lexeme.endsWith(`'`)) {
-					return `Unexpected token '${token.lexeme}' at offset ${token.offset}. Did you forget to open the string?`;
-				}
-
-				return `Unexpected token '${token.lexeme}' at offset ${token.offset}`;
-			}
-		}
-	}
 
 	static getLexeme(token: Token): string {
 		switch (token.type) {
@@ -128,9 +125,9 @@ export class Scanner {
 			case TokenType.Neg:
 				return '!';
 			case TokenType.Eq:
-				return '==';
+				return token.isTripleEq ? '===' : '==';
 			case TokenType.NotEq:
-				return '!=';
+				return token.isTripleEq ? '!==' : '!=';
 			case TokenType.Lt:
 				return '<';
 			case TokenType.LtEq:
@@ -181,10 +178,10 @@ export class Scanner {
 	private _start: number = 0;
 	private _current: number = 0;
 	private _tokens: Token[] = [];
-	private _errorTokens: Token[] = [];
+	private _errors: LexingError[] = [];
 
-	get errorTokens(): Readonly<Token[]> {
-		return this._errorTokens;
+	get errors(): Readonly<LexingError[]> {
+		return this._errors;
 	}
 
 	reset(value: string) {
@@ -193,7 +190,7 @@ export class Scanner {
 		this._start = 0;
 		this._current = 0;
 		this._tokens = [];
-		this._errorTokens = [];
+		this._errors = [];
 
 		return this;
 	}
@@ -209,7 +206,12 @@ export class Scanner {
 				case CharCode.CloseParen: this._addToken(TokenType.RParen); break;
 
 				case CharCode.ExclamationMark:
-					this._addToken(this._match(CharCode.Equals) ? TokenType.NotEq : TokenType.Neg);
+					if (this._match(CharCode.Equals)) {
+						const isTripleEq = this._match(CharCode.Equals); // eat last `=` if `!==`
+						this._tokens.push({ type: TokenType.NotEq, offset: this._start, isTripleEq });
+					} else {
+						this._addToken(TokenType.Neg);
+					}
 					break;
 
 				case CharCode.SingleQuote: this._quotedString(); break;
@@ -217,11 +219,12 @@ export class Scanner {
 
 				case CharCode.Equals:
 					if (this._match(CharCode.Equals)) { // support `==`
-						this._addToken(TokenType.Eq);
+						const isTripleEq = this._match(CharCode.Equals); // eat last `=` if `===`
+						this._tokens.push({ type: TokenType.Eq, offset: this._start, isTripleEq });
 					} else if (this._match(CharCode.Tilde)) {
 						this._addToken(TokenType.RegexOp);
 					} else {
-						this._error();
+						this._error(hintDidYouMean('==', '=~'));
 					}
 					break;
 
@@ -233,7 +236,7 @@ export class Scanner {
 					if (this._match(CharCode.Ampersand)) {
 						this._addToken(TokenType.And);
 					} else {
-						this._error();
+						this._error(hintDidYouMean('&&'));
 					}
 					break;
 
@@ -241,11 +244,11 @@ export class Scanner {
 					if (this._match(CharCode.Pipe)) {
 						this._addToken(TokenType.Or);
 					} else {
-						this._error();
+						this._error(hintDidYouMean('||'));
 					}
 					break;
 
-				// TODO@ulugbekna: 1) I don't think we need to handle whitespace here, 2) if we do, we should reconsider what characters we consider whitespace, including unicode, nbsp, etc.
+				// TODO@ulugbekna: 1) rewrite using a regex 2) reconsider what characters are considered whitespace, including unicode, nbsp, etc.
 				case CharCode.Space:
 				case CharCode.CarriageReturn:
 				case CharCode.Tab:
@@ -287,13 +290,15 @@ export class Scanner {
 		this._tokens.push({ type, offset: this._start });
 	}
 
-	private _error() {
-		const errToken = { type: TokenType.Error, offset: this._start, lexeme: this._input.substring(this._start, this._current) };
-		this._errorTokens.push(errToken);
+	private _error(additional?: string) {
+		const offset = this._start;
+		const lexeme = this._input.substring(this._start, this._current);
+		const errToken: Token = { type: TokenType.Error, offset: this._start, lexeme };
+		this._errors.push({ offset, lexeme, additionalInfo: additional });
 		this._tokens.push(errToken);
 	}
 
-	// u - unicode, y - sticky
+	// u - unicode, y - sticky // TODO@ulugbekna: we accept double quotes as part of the string rather than as a delimiter (to preserve old parser's behavior)
 	private stringRe = /[a-zA-Z0-9_<>\-\./\\:\*\?\+\[\]\^,#@;"%\$\p{L}-]+/uy;
 	private _string() {
 		this.stringRe.lastIndex = this._start;
@@ -317,7 +322,7 @@ export class Scanner {
 		}
 
 		if (this._isAtEnd()) {
-			this._error();
+			this._error(hintDidYouForgetToOpenOrCloseQuote);
 			return;
 		}
 
@@ -341,7 +346,7 @@ export class Scanner {
 		while (true) {
 			if (p >= this._input.length) {
 				this._current = p;
-				this._error();
+				this._error(hintDidYouForgetToEscapeSlash);
 				return;
 			}
 
@@ -362,7 +367,7 @@ export class Scanner {
 			p++;
 		}
 
-		// Consume flags
+		// Consume flags // TODO@ulugbekna: use regex instead
 		while (p < this._input.length && Scanner._regexFlags.has(this._input.charCodeAt(p))) {
 			p++;
 		}

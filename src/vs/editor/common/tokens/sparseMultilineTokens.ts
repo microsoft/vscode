@@ -431,18 +431,10 @@ class SparseMultilineTokensStorage {
 				// 3a, 3b, 3c
 				if (tokenDeltaLine === endDeltaLine && tokenEndCharacter > endCharacter) {
 					// 3c. The token starts inside the deletion range, and ends after the deletion range
-					// => the token moves left and shrinks
-					if (tokenDeltaLine === startDeltaLine) {
-						// the deletion started on the same line as the token
-						// => the token moves left and shrinks
-						tokenStartCharacter = startCharacter;
-						tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
-					} else {
-						// the deletion started on a line above the token
-						// => the token moves to the beginning of the line
-						tokenStartCharacter = 0;
-						tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
-					}
+					// => the token moves to continue right after the deletion
+					tokenDeltaLine = startDeltaLine;
+					tokenStartCharacter = startCharacter;
+					tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
 				} else {
 					// 3a. The token is inside the deletion range
 					// 3b. The token starts inside the deletion range, and ends at the same position as the deletion range

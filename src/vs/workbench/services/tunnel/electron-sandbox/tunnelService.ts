@@ -7,7 +7,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITunnelService, AbstractTunnelService, RemoteTunnel, TunnelPrivacyId, isPortPrivileged } from 'vs/platform/tunnel/common/tunnel';
+import { ITunnelService, AbstractTunnelService, RemoteTunnel, TunnelPrivacyId, isPortPrivileged, ITunnelProvider, isTunnelProvider } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
@@ -79,19 +79,19 @@ export class TunnelService extends AbstractTunnelService {
 		return isPortPrivileged(port, this.defaultTunnelHost, OS, this._nativeWorkbenchEnvironmentService.os.release);
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localHost: string, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(addressOrTunnelProvider: IAddressProvider | ITunnelProvider, remoteHost: string, remotePort: number, localHost: string, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | string | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
 			return existing.value;
 		}
 
-		if (this._tunnelProvider) {
-			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, privacy, protocol);
+		if (isTunnelProvider(addressOrTunnelProvider)) {
+			return this.createWithProvider(addressOrTunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, privacy, protocol);
 		} else {
 			this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
 
-			const tunnel = this._createSharedProcessTunnel(addressProvider, remoteHost, remotePort, localHost, localPort, elevateIfNeeded);
+			const tunnel = this._createSharedProcessTunnel(addressOrTunnelProvider, remoteHost, remotePort, localHost, localPort, elevateIfNeeded);
 			this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created without provider.');
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			return tunnel;

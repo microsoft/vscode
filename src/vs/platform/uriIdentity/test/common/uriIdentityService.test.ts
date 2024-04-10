@@ -9,6 +9,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('URI Identity', function () {
 
@@ -37,6 +38,12 @@ suite('URI Identity', function () {
 			['foo', FileSystemProviderCapabilities.None]
 		])));
 	});
+
+	teardown(function () {
+		_service.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertCanonical(input: URI, expected: URI, service: UriIdentityService = _service) {
 		const actual = service.asCanonicalUri(input);
@@ -95,4 +102,14 @@ suite('URI Identity', function () {
 		assertCanonical(URI.parse('foo://bar/BAZZ#DDD'), b.with({ fragment: 'DDD' })); // lower-case path, but fragment is kept
 	});
 
+	test.skip('[perf] CPU pegged after some builds #194853', function () {
+
+		const n = 100 + (2 ** 16);
+		for (let i = 0; i < n; i++) {
+			const uri = URI.parse(`foo://bar/${i}`);
+			const uri2 = _service.asCanonicalUri(uri);
+
+			assert.ok(uri2);
+		}
+	});
 });

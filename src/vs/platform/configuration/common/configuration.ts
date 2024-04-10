@@ -68,9 +68,12 @@ export interface IConfigurationChangeEvent {
 	readonly change: IConfigurationChange;
 
 	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
+}
 
-	// Following data is used for telemetry
-	readonly sourceConfig: any;
+export interface IInspectValue<T> {
+	readonly value?: T;
+	readonly override?: T;
+	readonly overrides?: { readonly identifiers: string[]; readonly value: T }[];
 }
 
 export interface IConfigurationValue<T> {
@@ -86,17 +89,26 @@ export interface IConfigurationValue<T> {
 	readonly policyValue?: T;
 	readonly value?: T;
 
-	readonly default?: { value?: T; override?: T };
-	readonly application?: { value?: T; override?: T };
-	readonly user?: { value?: T; override?: T };
-	readonly userLocal?: { value?: T; override?: T };
-	readonly userRemote?: { value?: T; override?: T };
-	readonly workspace?: { value?: T; override?: T };
-	readonly workspaceFolder?: { value?: T; override?: T };
-	readonly memory?: { value?: T; override?: T };
+	readonly default?: IInspectValue<T>;
+	readonly application?: IInspectValue<T>;
+	readonly user?: IInspectValue<T>;
+	readonly userLocal?: IInspectValue<T>;
+	readonly userRemote?: IInspectValue<T>;
+	readonly workspace?: IInspectValue<T>;
+	readonly workspaceFolder?: IInspectValue<T>;
+	readonly memory?: IInspectValue<T>;
 	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
+}
+
+export function isConfigured<T>(configValue: IConfigurationValue<T>): configValue is IConfigurationValue<T> & { value: T } {
+	return configValue.applicationValue !== undefined ||
+		configValue.userValue !== undefined ||
+		configValue.userLocalValue !== undefined ||
+		configValue.userRemoteValue !== undefined ||
+		configValue.workspaceValue !== undefined ||
+		configValue.workspaceFolderValue !== undefined;
 }
 
 export interface IConfigurationUpdateOptions {
@@ -121,7 +133,7 @@ export interface IConfigurationService {
 	 * Fetches the value of the section for the given overrides.
 	 * Value can be of native type or an object keyed off the section name.
 	 *
-	 * @param section - Section of the configuraion. Can be `null` or `undefined`.
+	 * @param section - Section of the configuration. Can be `null` or `undefined`.
 	 * @param overrides - Overrides that has to be applied while fetching
 	 *
 	 */
@@ -139,7 +151,7 @@ export interface IConfigurationService {
 	 *
 	 * Passing a resource through overrides will update the configuration in the workspace folder containing that resource.
 	 *
-	 * *Note 1:* Updating configuraiton to a default value will remove the configuration from the requested target. If not target is passed, it will be removed from all writeable targets.
+	 * *Note 1:* Updating configuration to a default value will remove the configuration from the requested target. If not target is passed, it will be removed from all writeable targets.
 	 *
 	 * *Note 2:* Use `undefined` value to remove the configuration from the given target. If not target is passed, it will be removed from all writeable targets.
 	 *
@@ -217,6 +229,10 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 				obj = curr[s] = Object.create(null);
 				break;
 			case 'object':
+				if (obj === null) {
+					conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is null`);
+					return;
+				}
 				break;
 			default:
 				conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is ${JSON.stringify(obj)}`);

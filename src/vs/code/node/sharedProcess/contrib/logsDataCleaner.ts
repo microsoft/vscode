@@ -6,7 +6,9 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, dirname, join } from 'vs/base/common/path';
+import { Schemas } from 'vs/base/common/network';
+import { join } from 'vs/base/common/path';
+import { basename, dirname } from 'vs/base/common/resources';
 import { Promises } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -29,9 +31,8 @@ export class LogsDataCleaner extends Disposable {
 		this.logService.trace('[logs cleanup]: Starting to clean up old logs.');
 
 		try {
-			const currentLog = basename(this.environmentService.logsPath);
-			const logsRoot = dirname(this.environmentService.logsPath);
-
+			const currentLog = basename(this.environmentService.logsHome);
+			const logsRoot = dirname(this.environmentService.logsHome.with({ scheme: Schemas.file })).fsPath;
 			const logFiles = await Promises.readdir(logsRoot);
 
 			const allSessions = logFiles.filter(logFile => /^\d{8}T\d{6}$/.test(logFile));

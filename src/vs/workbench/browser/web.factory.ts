@@ -14,6 +14,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -144,9 +145,22 @@ export namespace window {
 
 		return workbench.window.withProgress(options, task);
 	}
+
+	export async function createTerminal(options: IEmbedderTerminalOptions): Promise<void> {
+		const workbench = await workbenchPromise.p;
+		workbench.window.createTerminal(options);
+	}
 }
 
 export namespace workspace {
+
+	/**
+	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.didResolveRemoteAuthority}
+	 */
+	export async function didResolveRemoteAuthority() {
+		const workbench = await workbenchPromise.p;
+		await workbench.workspace.didResolveRemoteAuthority();
+	}
 
 	/**
 	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.openTunnel}

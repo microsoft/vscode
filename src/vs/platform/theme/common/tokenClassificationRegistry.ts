@@ -579,7 +579,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 	registry.registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
 	registry.registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
 	registry.registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
-	registry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
+	registry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are read-only."), undefined);
 
 
 	registerTokenStyleDefault('variable.readonly', [['variable.other.constant']]);

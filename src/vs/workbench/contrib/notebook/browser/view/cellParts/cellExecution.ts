@@ -15,7 +15,7 @@ import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/co
 const UPDATE_EXECUTION_ORDER_GRACE_PERIOD = 200;
 
 export class CellExecutionPart extends CellContentPart {
-	private kernelDisposables = this._register(new DisposableStore());
+	private readonly kernelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
@@ -50,11 +50,11 @@ export class CellExecutionPart extends CellContentPart {
 			// If the executionOrder was just cleared, and the cell is executing, wait just a bit before clearing the view to avoid flashing
 			if (typeof internalMetadata.executionOrder !== 'number' && !forceClear && !!this._notebookExecutionStateService.getCellExecution(this.currentCell!.uri)) {
 				const renderingCell = this.currentCell;
-				this.cellDisposables.add(disposableTimeout(() => {
+				disposableTimeout(() => {
 					if (this.currentCell === renderingCell) {
 						this.updateExecutionOrder(this.currentCell!.internalMetadata, true);
 					}
-				}, UPDATE_EXECUTION_ORDER_GRACE_PERIOD));
+				}, UPDATE_EXECUTION_ORDER_GRACE_PERIOD, this.cellDisposables);
 				return;
 			}
 

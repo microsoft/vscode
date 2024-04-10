@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -21,10 +21,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.revealInOS',
-			title: {
-				value: isWindows ? localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? localize('revealInMac', "Reveal in Finder") : localize('openContainer', "Open Containing Folder"),
-				original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder'
-			},
+			title: isWindows ? localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? localize2('revealInMac', "Reveal in Finder") : localize2('openContainer', "Open Containing Folder"),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '4_reveal',
@@ -39,7 +36,7 @@ registerAction2(class extends Action2 {
 
 		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
 		if (entry) {
-			await nativeHostService.showItemInFolder(entry.location.fsPath);
+			await nativeHostService.showItemInFolder(entry.location.with({ scheme: Schemas.file }).fsPath);
 		}
 	}
 });

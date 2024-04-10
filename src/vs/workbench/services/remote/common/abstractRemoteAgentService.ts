@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, ManagementPersistentConnection, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentManagement, IConnectionOptions, ManagementPersistentConnection, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -19,17 +19,17 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
 	declare readonly _serviceBrand: undefined;
 
-	public readonly socketFactory: ISocketFactory;
 	private readonly _connection: IRemoteAgentConnection | null;
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
-		socketFactory: ISocketFactory,
+		@IRemoteSocketFactoryService private readonly remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
@@ -38,9 +38,8 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		@ILogService logService: ILogService
 	) {
 		super();
-		this.socketFactory = socketFactory;
 		if (this._environmentService.remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, productService.quality, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, productService.quality, this.remoteSocketFactoryService, this._remoteAuthorityResolverService, signService, logService));
 		} else {
 			this._connection = null;
 		}
@@ -150,7 +149,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
 		private readonly _quality: string | undefined,
-		private readonly _socketFactory: ISocketFactory,
+		private readonly _remoteSocketFactoryService: IRemoteSocketFactoryService,
 		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		private readonly _signService: ISignService,
 		private readonly _logService: ILogService
@@ -196,7 +195,6 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		const options: IConnectionOptions = {
 			commit: this._commit,
 			quality: this._quality,
-			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {
 					if (firstCall) {
@@ -205,9 +203,10 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 						this._onReconnecting.fire(undefined);
 					}
 					const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
+					return { connectTo: authority.connectTo, connectionToken: authority.connectionToken };
 				}
 			},
+			remoteSocketFactoryService: this._remoteSocketFactoryService,
 			signService: this._signService,
 			logService: this._logService,
 			ipcLogger: false ? new IPCLogger(`Local \u2192 Remote`, `Remote \u2192 Local`) : null

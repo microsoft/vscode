@@ -20,11 +20,12 @@ import { ByteSize } from 'vs/platform/files/common/files';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { mainWindow } from 'vs/base/browser/window';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -65,7 +66,7 @@ interface IProcessRowTemplateData {
 	readonly name: HTMLElement;
 }
 
-class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError>  {
+class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
 	hasChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError): boolean {
 		if (isRemoteDiagnosticError(element)) {
 			return false;
@@ -163,7 +164,7 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 
 
 class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTemplateData> {
-	constructor(private platform: string, private totalMem: number, private mapPidToWindowTitle: Map<number, string>) { }
+	constructor(private platform: string, private totalMem: number, private mapPidToName: Map<number, string>) { }
 
 	templateId: string = 'process';
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
@@ -179,12 +180,12 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		const { element } = node;
 
-		let name = element.name;
-		if (name === 'window') {
-			const windowTitle = this.mapPidToWindowTitle.get(element.pid);
-			name = windowTitle !== undefined ? `${name} (${this.mapPidToWindowTitle.get(element.pid)})` : name;
-		}
 		const pid = element.pid.toFixed(0);
+
+		let name = element.name;
+		if (this.mapPidToName.has(element.pid)) {
+			name = this.mapPidToName.get(element.pid)!;
+		}
 
 		templateData.name.textContent = name;
 		templateData.name.title = element.cmd;
@@ -230,7 +231,7 @@ function isProcessItem(item: any): item is ProcessItem {
 class ProcessExplorer {
 	private lastRequestTime: number;
 
-	private mapPidToWindowTitle = new Map<number, string>();
+	private mapPidToName = new Map<number, string>();
 
 	private nativeHostService: INativeHostService;
 
@@ -243,10 +244,12 @@ class ProcessExplorer {
 		this.applyStyles(data.styles);
 		this.setEventHandlers(data);
 
-		// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
-		ipcRenderer.on('vscode:windowsInfoResponse', (event: unknown, windows: any[]) => {
-			this.mapPidToWindowTitle = new Map<number, string>();
-			windows.forEach(window => this.mapPidToWindowTitle.set(window.pid, window.title));
+		ipcRenderer.on('vscode:pidToNameResponse', (event: unknown, pidToNames: [number, string][]) => {
+			this.mapPidToName.clear();
+
+			for (const [pid, name] of pidToNames) {
+				this.mapPidToName.set(pid, name);
+			}
 		});
 
 		ipcRenderer.on('vscode:listProcessesResponse', async (event: unknown, processRoots: MachineProcessInformation[]) => {
@@ -260,19 +263,19 @@ class ProcessExplorer {
 				await this.createProcessTree(processRoots);
 			} else {
 				this.tree.setInput({ processes: { processRoots } });
-				this.tree.layout(window.innerHeight, window.innerWidth);
+				this.tree.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 			}
 
 			this.requestProcessList(0);
 		});
 
 		this.lastRequestTime = Date.now();
-		ipcRenderer.send('vscode:windowsInfoRequest');
+		ipcRenderer.send('vscode:pidToNameRequest');
 		ipcRenderer.send('vscode:listProcesses');
 	}
 
 	private setEventHandlers(data: ProcessExplorerData): void {
-		document.onkeydown = (e: KeyboardEvent) => {
+		mainWindow.document.onkeydown = (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
 
 			// Cmd/Ctrl + w closes issue window
@@ -285,18 +288,18 @@ class ProcessExplorer {
 
 			// Cmd/Ctrl + zooms in
 			if (cmdOrCtrlKey && e.keyCode === 187) {
-				zoomIn();
+				zoomIn(mainWindow);
 			}
 
 			// Cmd/Ctrl - zooms out
 			if (cmdOrCtrlKey && e.keyCode === 189) {
-				zoomOut();
+				zoomOut(mainWindow);
 			}
 		};
 	}
 
 	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
-		const container = document.getElementById('process-list');
+		const container = mainWindow.document.getElementById('process-list');
 		if (!container) {
 			return;
 		}
@@ -304,7 +307,7 @@ class ProcessExplorer {
 		const { totalmem } = await this.nativeHostService.getOSStatistics();
 
 		const renderers = [
-			new ProcessRenderer(this.data.platform, totalmem, this.mapPidToWindowTitle),
+			new ProcessRenderer(this.data.platform, totalmem, this.mapPidToName),
 			new ProcessHeaderTreeRenderer(),
 			new MachineRenderer(),
 			new ErrorRenderer()
@@ -340,7 +343,7 @@ class ProcessExplorer {
 			});
 
 		this.tree.setInput({ processes: { processRoots } });
-		this.tree.layout(window.innerHeight, window.innerWidth);
+		this.tree.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 		this.tree.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.KeyE && event.altKey) {
@@ -354,11 +357,11 @@ class ProcessExplorer {
 			}
 		});
 
-		container.style.height = `${window.innerHeight}px`;
+		container.style.height = `${mainWindow.innerHeight}px`;
 
-		window.addEventListener('resize', () => {
-			container.style.height = `${window.innerHeight}px`;
-			this.tree?.layout(window.innerHeight, window.innerWidth);
+		mainWindow.addEventListener('resize', () => {
+			container.style.height = `${mainWindow.innerHeight}px`;
+			this.tree?.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 		});
 	}
 
@@ -474,7 +477,7 @@ class ProcessExplorer {
 		styleElement.textContent = content.join('\n');
 
 		if (styles.color) {
-			document.body.style.color = styles.color;
+			mainWindow.document.body.style.color = styles.color;
 		}
 	}
 
@@ -484,6 +487,7 @@ class ProcessExplorer {
 
 		if (isLocal) {
 			items.push({
+				accelerator: 'Alt+E',
 				label: localize('killProcess', "Kill Process"),
 				click: () => {
 					this.nativeHostService.killProcess(pid, 'SIGTERM');
@@ -513,7 +517,7 @@ class ProcessExplorer {
 					selectionPids.length = 0;
 					selectionPids.push(pid);
 				}
-				const rows = selectionPids?.map(e => document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				const rows = selectionPids?.map(e => mainWindow.document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
 				if (rows) {
 					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
 					this.nativeHostService.writeClipboardText(text.join('\n'));
@@ -524,7 +528,7 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copyAll', "Copy All"),
 			click: () => {
-				const processList = document.getElementById('process-list');
+				const processList = mainWindow.document.getElementById('process-list');
 				if (processList) {
 					this.nativeHostService.writeClipboardText(processList.innerText);
 				}
@@ -555,7 +559,7 @@ class ProcessExplorer {
 
 			// Wait at least a second between requests.
 			if (waited > 1000) {
-				ipcRenderer.send('vscode:windowsInfoRequest');
+				ipcRenderer.send('vscode:pidToNameRequest');
 				ipcRenderer.send('vscode:listProcesses');
 			} else {
 				this.requestProcessList(waited);
@@ -589,9 +593,9 @@ function createCodiconStyleSheet() {
 
 export function startup(configuration: ProcessExplorerWindowConfiguration): void {
 	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
-	document.body.classList.add(platformClass); // used by our fonts
+	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 	createCodiconStyleSheet();
-	applyZoom(configuration.data.zoomLevel);
+	applyZoom(configuration.data.zoomLevel, mainWindow);
 
 	new ProcessExplorer(configuration.windowId, configuration.data);
 }

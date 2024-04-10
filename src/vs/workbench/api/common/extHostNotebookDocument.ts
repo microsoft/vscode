@@ -7,7 +7,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { NotebookRange } from 'vs/workbench/api/common/extHostTypes';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -33,15 +33,14 @@ class RawContentChangeEvent {
 
 export class ExtHostCell {
 
-	static asModelAddData(notebook: vscode.NotebookDocument, cell: extHostProtocol.NotebookCellDto): IExtHostModelAddedData {
+	static asModelAddData(cell: extHostProtocol.NotebookCellDto): extHostProtocol.IModelAddedData {
 		return {
 			EOL: cell.eol,
 			lines: cell.source,
 			languageId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
-			versionId: 1,
-			notebook
+			versionId: 1
 		};
 	}
 
@@ -132,7 +131,7 @@ export class ExtHostCell {
 					const compressed = notebookCommon.compressOutputItemStreams(mimeOutputs.get(mime)!);
 					output.items.push({
 						mime,
-						data: compressed.buffer
+						data: compressed.data.buffer
 					});
 				});
 			}
@@ -184,6 +183,10 @@ export class ExtHostNotebookDocument {
 
 	dispose() {
 		this._disposed = true;
+	}
+
+	get versionId(): number {
+		return this._versionId;
 	}
 
 	get apiNotebook(): vscode.NotebookDocument {
@@ -352,7 +355,7 @@ export class ExtHostNotebookDocument {
 		}
 
 		const contentChangeEvents: RawContentChangeEvent[] = [];
-		const addedCellDocuments: IExtHostModelAddedData[] = [];
+		const addedCellDocuments: extHostProtocol.IModelAddedData[] = [];
 		const removedCellDocuments: URI[] = [];
 
 		splices.reverse().forEach(splice => {
@@ -361,7 +364,7 @@ export class ExtHostNotebookDocument {
 
 				const extCell = new ExtHostCell(this, this._textDocumentsAndEditors, cell);
 				if (!initialization) {
-					addedCellDocuments.push(ExtHostCell.asModelAddData(this.apiNotebook, cell));
+					addedCellDocuments.push(ExtHostCell.asModelAddData(cell));
 				}
 				return extCell;
 			});

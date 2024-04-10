@@ -27,11 +27,11 @@ import { getVirtualWorkspaceAuthority } from 'vs/platform/workspace/common/virtu
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
-	private static readonly ID = 'timeline.localHistory';
+	static readonly ID = 'workbench.contrib.localHistoryTimeline';
 
 	private static readonly LOCAL_HISTORY_ENABLED_SETTINGS_KEY = 'workbench.localHistory.enabled';
 
-	readonly id = LocalHistoryTimeline.ID;
+	readonly id = 'timeline.localHistory';
 
 	readonly label = localize('localHistory', "Local History");
 
@@ -96,7 +96,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
-			id: LocalHistoryTimeline.ID,
+			id: this.id,
 			uri: entry?.workingCopy.resource,
 			reset: true // there is no other way to indicate that items might have been replaced/removed
 		});
@@ -142,7 +142,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		}
 
 		return {
-			source: LocalHistoryTimeline.ID,
+			source: this.id,
 			items
 		};
 	}
@@ -152,7 +152,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			handle: entry.id,
 			label: SaveSourceRegistry.getSourceLabel(entry.source),
 			tooltip: new MarkdownString(`$(history) ${getLocalHistoryDateFormatter().format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
-			source: LocalHistoryTimeline.ID,
+			source: this.id,
 			timestamp: entry.timestamp,
 			themeIcon: LOCAL_HISTORY_ICON_ENTRY,
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,

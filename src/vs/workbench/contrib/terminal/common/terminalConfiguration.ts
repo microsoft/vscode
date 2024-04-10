@@ -5,12 +5,14 @@
 
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import product from 'vs/platform/product/common/product';
+import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -28,6 +30,8 @@ terminalTitle += terminalDescriptors;
 
 let terminalDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
 terminalDescription += terminalDescriptors;
+
+export const defaultTerminalFontSize = isMacintosh ? 12 : 14;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -106,11 +110,6 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
-		[TerminalSettingId.TabFocusMode]: {
-			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation."),
-			type: 'boolean',
-			default: false
-		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
 			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
@@ -152,9 +151,15 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.EnableMultiLinePasteWarning]: {
-			markdownDescription: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal. The dialog does not show when:\n\n- Bracketed paste mode is enabled (the shell supports multi-line paste natively)\n- The paste is handled by the shell's readline (in the case of pwsh)"),
-			type: 'boolean',
-			default: true
+			markdownDescription: localize('terminal.integrated.enableMultiLinePasteWarning', "Controls whether to show a warning dialog when pasting multiple lines into the terminal."),
+			type: 'string',
+			enum: ['auto', 'always', 'never'],
+			markdownEnumDescriptions: [
+				localize('terminal.integrated.enableMultiLinePasteWarning.auto', "Enable the warning but do not show it when:\n\n- Bracketed paste mode is enabled (the shell supports multi-line paste natively)\n- The paste is handled by the shell's readline (in the case of pwsh)"),
+				localize('terminal.integrated.enableMultiLinePasteWarning.always', "Always show the warning if the text contains a new line."),
+				localize('terminal.integrated.enableMultiLinePasteWarning.never', "Never show the warning.")
+			],
+			default: 'auto'
 		},
 		[TerminalSettingId.DrawBoldTextInBrightColors]: {
 			description: localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
@@ -174,7 +179,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
-			default: isMacintosh ? 12 : 14,
+			default: defaultTerminalFontSize,
 			minimum: 6,
 			maximum: 100
 		},
@@ -259,9 +264,14 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.CursorStyle]: {
-			description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor."),
-			enum: [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
-			default: TerminalCursorStyle.BLOCK
+			description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor when the terminal is focused."),
+			enum: ['block', 'line', 'underline'],
+			default: 'block'
+		},
+		[TerminalSettingId.CursorStyleInactive]: {
+			description: localize('terminal.integrated.cursorStyleInactive', "Controls the style of terminal cursor when the terminal is not focused."),
+			enum: ['outline', 'block', 'line', 'underline', 'none'],
+			default: 'outline'
 		},
 		[TerminalSettingId.CursorWidth]: {
 			markdownDescription: localize('terminal.integrated.cursorWidth', "Controls the width of the cursor when {0} is set to {1}.", '`#terminal.integrated.cursorStyle#`', '`line`'),
@@ -269,7 +279,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 1
 		},
 		[TerminalSettingId.Scrollback]: {
-			description: localize('terminal.integrated.scrollback', "Controls the maximum number of lines the terminal keeps in its buffer."),
+			description: localize('terminal.integrated.scrollback', "Controls the maximum number of lines the terminal keeps in its buffer. We pre-allocate memory based on this value in order to ensure a smooth experience. As such, as the value increases, so will the amount of memory."),
 			type: 'number',
 			default: 1000
 		},
@@ -299,7 +309,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
 			'default': ' - ',
-			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {0}.", `\`${TerminalSettingId.TerminalTitle}\``, `\`${TerminalSettingId.TerminalDescription}\``)
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {1}.", `\`#${TerminalSettingId.TerminalTitle}#\``, `\`#${TerminalSettingId.TerminalDescription}#\``)
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
@@ -323,6 +333,16 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: isMacintosh ? 'selectWord' : isWindows ? 'copyPaste' : 'default',
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
+		},
+		[TerminalSettingId.MiddleClickBehavior]: {
+			type: 'string',
+			enum: ['default', 'paste'],
+			enumDescriptions: [
+				localize('terminal.integrated.middleClickBehavior.default', "The platform default to focus the terminal. On Linux this will also paste the selection."),
+				localize('terminal.integrated.middleClickBehavior.paste', "Paste on middle click."),
+			],
+			default: 'default',
+			description: localize('terminal.integrated.middleClickBehavior', "Controls how terminal reacts to middle click.")
 		},
 		[TerminalSettingId.Cwd]: {
 			restricted: true,
@@ -355,7 +375,12 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
-			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled. This shows up as a visual bell next to the terminal's name."),
+			markdownDeprecationMessage: localize('terminal.integrated.enableBell', "This is now deprecated. Instead use the `terminal.integrated.enableVisualBell` and `accessibility.signals.terminalBell` settings."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.EnableVisualBell]: {
+			description: localize('terminal.integrated.enableVisualBell', "Controls whether the visual terminal bell is enabled. This shows up next to the terminal's name."),
 			type: 'boolean',
 			default: false
 		},
@@ -422,7 +447,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'warnonly'
 		},
 		[TerminalSettingId.EnvironmentChangesRelaunch]: {
-			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),
+			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extensions want to contribute to their environment and have not been interacted with yet."),
 			type: 'boolean',
 			default: true
 		},
@@ -448,10 +473,10 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.WordSeparators]: {
-			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double-click to select word feature."),
+			markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
 			type: 'string',
 			// allow-any-unicode-next-line
-			default: ' ()[]{}\',"`─‘’'
+			default: ' ()[]{}\',"`─‘’“”|'
 		},
 		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in terminals. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
@@ -463,6 +488,21 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace.")
 			],
 			default: 'on'
+		},
+		[TerminalSettingId.AllowedLinkSchemes]: {
+			description: localize('terminal.integrated.allowedLinkSchemes', "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."),
+			type: 'array',
+			items: {
+				type: 'string'
+			},
+			default: [
+				'file',
+				'http',
+				'https',
+				'mailto',
+				'vscode',
+				'vscode-insiders',
+			]
 		},
 		[TerminalSettingId.UnicodeVersion]: {
 			type: 'string',
@@ -503,16 +543,13 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.LocalEchoStyle]: {
 			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
 			default: 'dim',
-			oneOf: [
+			anyOf: [
 				{
-					type: 'string',
-					default: 'dim',
-					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted'],
+					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted', '#ff0000'],
 				},
 				{
 					type: 'string',
 					format: 'color-hex',
-					default: '#ff0000',
 				}
 			]
 		},
@@ -532,10 +569,26 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'onExit'
 		},
+		[TerminalSettingId.HideOnStartup]: {
+			description: localize('terminal.integrated.hideOnStartup', "Whether to hide the terminal view on startup, avoiding creating a terminal when there are no persistent sessions."),
+			type: 'string',
+			enum: ['never', 'whenEmpty', 'always'],
+			markdownEnumDescriptions: [
+				localize('hideOnStartup.never', "Never hide the terminal view on startup."),
+				localize('hideOnStartup.whenEmpty', "Only hide the terminal when there are no persistent sessions restored."),
+				localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
+			],
+			default: 'never'
+		},
 		[TerminalSettingId.CustomGlyphs]: {
-			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer."),
+			markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
 			default: true
+		},
+		[TerminalSettingId.RescaleOverlappingGlyphs]: {
+			markdownDescription: localize('terminal.integrated.rescaleOverlappingGlyphs', "Whether to rescale glyphs horizontally that are a single cell wide but have glyphs that would overlap following cell(s). This typically happens for ambiguous width characters (eg. the roman numeral characters U+2160+) which aren't featured in monospace fonts. Emoji glyphs are never rescaled."),
+			type: 'boolean',
+			default: product.quality !== 'stable'
 		},
 		[TerminalSettingId.AutoReplies]: {
 			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that, when encountered in the terminal, will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "Y\\r"`', '`"\\r"`'),
@@ -551,7 +604,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
 			type: 'boolean',
 			default: true
 		},
@@ -578,12 +631,69 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
 			type: 'boolean',
-			default: false
+			default: false,
+			markdownDeprecationMessage: localize('suggestEnabled.deprecated', 'This is an experimental setting and may break the terminal! Use at your own risk.')
 		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.IgnoreBracketedPasteMode]: {
+			markdownDescription: localize('terminal.integrated.ignoreBracketedPasteMode', "Controls whether the terminal will ignore bracketed paste mode even if the terminal was put into the mode, omitting the {0} and {1} sequences when pasting. This is useful when the shell is not respecting the mode which can happen in sub-shells for example.", '`\\x1b[200~`', '`\\x1b[201~`'),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.EnableImages]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.FocusAfterRun]: {
+			markdownDescription: localize('terminal.integrated.focusAfterRun', "Controls whether the terminal, accessible buffer, or neither will be focused after `Terminal: Run Selected Text In Active Terminal` has been run."),
+			enum: ['terminal', 'accessible-buffer', 'none'],
+			default: 'none',
+			tags: ['accessibility'],
+			markdownEnumDescriptions: [
+				localize('terminal.integrated.focusAfterRun.terminal', "Always focus the terminal."),
+				localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
+				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
+			]
+		},
+		[TerminalSettingId.AccessibleViewPreserveCursorPosition]: {
+			markdownDescription: localize('terminal.integrated.accessibleViewPreserveCursorPosition', "Preserve the cursor position on reopen of the terminal's accessible view rather than setting it to the bottom of the buffer."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.AccessibleViewFocusOnCommandExecution]: {
+			markdownDescription: localize('terminal.integrated.accessibleViewFocusOnCommandExecution', "Focus the terminal accessible view when a command is executed."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.StickyScrollEnabled]: {
+			markdownDescription: localize('terminal.integrated.stickyScroll.enabled', "Shows the current command at the top of the terminal."),
+			type: 'boolean',
+			default: product.quality !== 'stable'
+		},
+		[TerminalSettingId.StickyScrollMaxLineCount]: {
+			markdownDescription: localize('terminal.integrated.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show. Sticky scroll lines will never exceed 40% of the viewport regardless of this setting."),
+			type: 'number',
+			default: 5,
+			minimum: 1,
+			maximum: 10
+		},
+		[TerminalSettingId.MouseWheelZoom]: {
+			markdownDescription: isMacintosh
+				? localize('terminal.integrated.mouseWheelZoom.mac', "Zoom the font of the terminal when using mouse wheel and holding `Cmd`.")
+				: localize('terminal.integrated.mouseWheelZoom', "Zoom the font of the terminal when using mouse wheel and holding `Ctrl`."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.ExperimentalInlineChat]: {
+			markdownDescription: localize('terminal.integrated.experimentalInlineChat', "Whether to enable the upcoming experimental inline terminal chat UI."),
+			type: 'boolean',
+			default: true
 		}
 	}
 };
@@ -592,3 +702,19 @@ export function registerTerminalConfiguration() {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(terminalConfiguration);
 }
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: TerminalSettingId.EnableBell,
+		migrateFn: (enableBell, accessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
+			if (announcement !== undefined && typeof announcement !== 'string') {
+				announcement = announcement ? 'auto' : 'off';
+			}
+			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);
+			configurationKeyValuePairs.push([TerminalSettingId.EnableBell, { value: undefined }]);
+			configurationKeyValuePairs.push([TerminalSettingId.EnableVisualBell, { value: enableBell }]);
+			return configurationKeyValuePairs;
+		}
+	}]);

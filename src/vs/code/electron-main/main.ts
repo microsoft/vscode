@@ -13,10 +13,10 @@ import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { basename, join, resolve } from 'vs/base/common/path';
+import { basename, resolve } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
@@ -70,6 +70,8 @@ import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-
 import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
 
 /**
  * The main VS Code entry point.
@@ -131,10 +133,10 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { id: 'mainLog', name: localize('mainLog', "Main") });
+				bufferLogService.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
 				// Lifecycle
-				once(lifecycleMainService.onWillShutdown)(evt => {
+				Event.once(lifecycleMainService.onWillShutdown)(evt => {
 					fileService.dispose();
 					configurationService.dispose();
 					evt.join('instanceLockfile', FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
@@ -162,7 +164,7 @@ class CodeMain {
 		services.set(IEnvironmentMainService, environmentMainService);
 
 		// Logger
-		const loggerService = new LoggerMainService(getLogLevel(environmentMainService));
+		const loggerService = new LoggerMainService(getLogLevel(environmentMainService), environmentMainService.logsHome);
 		services.set(ILoggerMainService, loggerService);
 
 		// Log: We need to buffer the spdlog logs until we are sure
@@ -190,6 +192,10 @@ class CodeMain {
 		// User Data Profiles
 		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService);
 		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
+
+		// Use FileUserDataProvider for user data to
+		// enable atomic read / write operations.
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, userDataProfilesMainService, uriIdentityService, logService));
 
 		// Policy
 		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(logService, productService.win32RegValueName))
@@ -244,12 +250,12 @@ class CodeMain {
 
 			// Environment service (paths)
 			Promise.all<string | undefined>([
-				environmentMainService.extensionsPath,
-				environmentMainService.codeCachePath,
-				environmentMainService.logsPath,
-				userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath,
-				environmentMainService.workspaceStorageHome.fsPath,
-				environmentMainService.localHistoryHome.fsPath,
+				this.allowWindowsUNCPath(environmentMainService.extensionsPath), // enable extension paths on UNC drives...
+				environmentMainService.codeCachePath,							 // ...other user-data-derived paths should already be enlisted from `main.js`
+				environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+				userDataProfilesMainService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath,
+				environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath,
+				environmentMainService.localHistoryHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
@@ -264,6 +270,17 @@ class CodeMain {
 		userDataProfilesMainService.init();
 	}
 
+	private allowWindowsUNCPath(path: string): string {
+		if (isWindows) {
+			const host = getUNCHost(path);
+			if (host) {
+				addUNCHostToAllowlist(host);
+			}
+		}
+
+		return path;
+	}
+
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
 
 		// Try to setup a server for running. If that succeeds it means
@@ -274,7 +291,7 @@ class CodeMain {
 			mark('code/willStartMainServer');
 			mainProcessNodeIpcServer = await nodeIPCServe(environmentMainService.mainIPCHandle);
 			mark('code/didStartMainServer');
-			once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
+			Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
@@ -382,7 +399,7 @@ class CodeMain {
 
 		// Print --status usage info
 		if (environmentMainService.args.status) {
-			logService.warn(`Warning: The --status argument can only be used if ${productService.nameShort} is already running. Please run it again after {0} has started.`);
+			console.log(localize('statusWarning', "Warning: The --status argument can only be used if {0} is already running. Please run it again after {0} has started.", productService.nameShort));
 
 			throw new ExpectedError('Terminating...');
 		}

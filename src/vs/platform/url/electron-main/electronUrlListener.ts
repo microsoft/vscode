@@ -6,7 +6,7 @@
 import { app, Event as ElectronEvent } from 'electron';
 import { disposableTimeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -26,12 +26,10 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
  *            that calls VSCode with the `open-url` command line argument
  *            (https://github.com/microsoft/vscode/pull/56727)
  */
-export class ElectronURLListener {
+export class ElectronURLListener extends Disposable {
 
 	private uris: IProtocolUrl[] = [];
 	private retryCount = 0;
-	private flushDisposable: IDisposable = Disposable.None;
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		initialProtocolUrls: IProtocolUrl[] | undefined,
@@ -41,6 +39,8 @@ export class ElectronURLListener {
 		productService: IProductService,
 		private readonly logService: ILogService
 	) {
+		super();
+
 		if (initialProtocolUrls) {
 			logService.trace('ElectronURLListener initialUrisToHandle:', initialProtocolUrls.map(url => url.originalUrl));
 
@@ -64,7 +64,7 @@ export class ElectronURLListener {
 				return url;
 			});
 
-		this.disposables.add(onOpenElectronUrl(url => {
+		this._register(onOpenElectronUrl(url => {
 			const uri = this.uriFromRawUrl(url);
 			if (!uri) {
 				return;
@@ -85,7 +85,7 @@ export class ElectronURLListener {
 		} else {
 			logService.trace('ElectronURLListener: waiting for window to be ready to handle URLs...');
 
-			Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush, this, this.disposables);
+			this._register(Event.once(windowsMainService.onDidSignalReadyWindow)(() => this.flush()));
 		}
 	}
 
@@ -124,11 +124,6 @@ export class ElectronURLListener {
 		}
 
 		this.uris = uris;
-		this.flushDisposable = disposableTimeout(() => this.flush(), 500);
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		this.flushDisposable.dispose();
+		disposableTimeout(() => this.flush(), 500, this._store);
 	}
 }

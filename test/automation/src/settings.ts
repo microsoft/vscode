@@ -8,8 +8,9 @@ import { Editors } from './editors';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
-export class SettingsEditor {
+const SEARCH_BOX = '.settings-editor .suggest-input-container .monaco-editor textarea';
 
+export class SettingsEditor {
 	constructor(private code: Code, private editors: Editors, private editor: Editor, private quickaccess: QuickAccess) { }
 
 	/**
@@ -52,5 +53,25 @@ export class SettingsEditor {
 	async openUserSettingsFile(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.openSettingsJson');
 		await this.editor.waitForEditorFocus('settings.json', 1);
+	}
+
+	async openUserSettingsUI(): Promise<void> {
+		await this.quickaccess.runCommand('workbench.action.openSettings2');
+		await this.code.waitForActiveElement(SEARCH_BOX);
+	}
+
+	async searchSettingsUI(query: string): Promise<void> {
+		await this.openUserSettingsUI();
+
+		await this.code.waitAndClick(SEARCH_BOX);
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+a');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+a');
+		}
+		await this.code.dispatchKeybinding('Delete');
+		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
+		await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor textarea', query);
+		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => results?.length === 1 && results[0].textContent.includes('Found'));
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, AnyInputDto, TabInputKind, TabModelOperationKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, AnyInputDto, TabInputKind, TabModelOperationKind, TextDiffInputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -24,6 +24,9 @@ import { isEqual } from 'vs/base/common/resources';
 import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
+import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -46,13 +49,21 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEditorService editorService: IEditorService,
+		@ILogService private readonly _logService: ILogService,
+		@IEditorService editorService: IEditorService
 	) {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
 		// Main listener which responds to events from the editor service
-		this._dispoables.add(editorService.onDidEditorsChange((event) => this._updateTabsModel(event)));
+		this._dispoables.add(editorService.onDidEditorsChange((event) => {
+			try {
+				this._updateTabsModel(event);
+			} catch {
+				this._logService.error('Failed to update model, rebuilding');
+				this._createTabsModel();
+			}
+		}));
 
 		// Structural group changes (add, remove, move, etc) are difficult to patch.
 		// Since they happen infrequently we just rebuild the entire model
@@ -182,6 +193,30 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			};
 		}
 
+		if (editor instanceof ChatEditorInput) {
+			return {
+				kind: TabInputKind.ChatEditorInput,
+			};
+		}
+
+		if (editor instanceof MultiDiffEditorInput) {
+			const diffEditors: TextDiffInputDto[] = [];
+			for (const resource of (editor?.initialResources ?? [])) {
+				if (resource.original && resource.modified) {
+					diffEditors.push({
+						kind: TabInputKind.TextDiffInput,
+						original: resource.original,
+						modified: resource.modified
+					});
+				}
+			}
+
+			return {
+				kind: TabInputKind.MultiDiffEditorInput,
+				diffEditors
+			};
+		}
+
 		return { kind: TabInputKind.UnknownInput };
 	}
 
@@ -234,7 +269,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabModelOperationKind.TAB_UPDATE
 			});
 		} else {
-			console.error('Invalid model for label change, rebuilding');
+			this._logService.error('Invalid model for label change, rebuilding');
 			this._createTabsModel();
 		}
 	}
@@ -339,7 +374,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		// Something wrong with the model state so we rebuild
 		if (!tabInfo) {
-			console.error('Invalid model for dirty change, rebuilding');
+			this._logService.error('Invalid model for dirty change, rebuilding');
 			this._createTabsModel();
 			return;
 		}
@@ -365,7 +400,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tab = tabInfo?.tab;
 		// Something wrong with the model state so we rebuild
 		if (!group || !tab) {
-			console.error('Invalid model for sticky change, rebuilding');
+			this._logService.error('Invalid model for sticky change, rebuilding');
 			this._createTabsModel();
 			return;
 		}
@@ -392,7 +427,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tab = tabInfo?.tab;
 		// Something wrong with the model state so we rebuild
 		if (!group || !tab) {
-			console.error('Invalid model for sticky change, rebuilding');
+			this._logService.error('Invalid model for sticky change, rebuilding');
 			this._createTabsModel();
 			return;
 		}
@@ -410,7 +445,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tabs = this._groupLookup.get(groupId)?.tabs;
 		// Something wrong with the model state so we rebuild
 		if (!tabs) {
-			console.error('Invalid model for move change, rebuilding');
+			this._logService.error('Invalid model for move change, rebuilding');
 			this._createTabsModel();
 			return;
 		}
@@ -436,6 +471,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 * Builds the model from scratch based on the current state of the editor service.
 	 */
 	private _createTabsModel(): void {
+		if (this._editorGroupsService.groups.length === 0) {
+			return; // skip this invalid state, it may happen when the entire editor area is transitioning to other state ("editor working sets")
+		}
+
 		this._tabGroupModel = [];
 		this._groupLookup.clear();
 		this._tabInfoLookup.clear();
@@ -536,6 +575,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 					this._onDidTabPreviewChange(groupId, event.editorIndex, event.editor);
 					break;
 				}
+			case GroupModelChangeKind.EDITOR_TRANSIENT:
+				// Currently not exposed in the API
+				break;
 			case GroupModelChangeKind.EDITOR_MOVE:
 				if (isGroupEditorMoveEvent(event) && event.editor && event.editorIndex !== undefined && event.oldEditorIndex !== undefined) {
 					this._onDidTabMove(groupId, event.editorIndex, event.oldEditorIndex, event.editor);
@@ -566,7 +608,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			if (viewColumn === SIDE_GROUP) {
 				direction = preferredSideBySideGroupDirection(this._configurationService);
 			}
-			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], direction, undefined);
+			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], direction);
 		} else {
 			targetGroup = this._editorGroupsService.getGroup(groupId);
 		}

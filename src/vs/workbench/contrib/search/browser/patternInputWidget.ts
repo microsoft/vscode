@@ -19,6 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export interface IOptions {
 	placeholder?: string;
@@ -114,6 +115,10 @@ export class PatternInputWidget extends Widget {
 
 	clearHistory(): void {
 		this.inputBox.clearHistory();
+	}
+
+	prependHistory(history: string[]): void {
+		this.inputBox.prependHistory(history);
 	}
 
 	clear(): void {
@@ -215,6 +220,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
+			hoverDelegate: getDefaultHoverDelegate('element'),
 			...defaultToggleStyles
 		}));
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
@@ -267,6 +273,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			actionClassName: 'useExcludesAndIgnoreFiles',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
+			hoverDelegate: getDefaultHoverDelegate('element'),
 			...defaultToggleStyles
 		}));
 		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {

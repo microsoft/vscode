@@ -80,7 +80,7 @@ export class Terminal {
 
 	async runCommand(commandId: TerminalCommandId, expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		const keepOpen = commandId === TerminalCommandId.Join;
-		await this.quickaccess.runCommand(commandId, keepOpen);
+		await this.quickaccess.runCommand(commandId, { keepOpen });
 		if (keepOpen) {
 			await this.code.dispatchKeybinding('enter');
 			await this.quickinput.waitForQuickInputClosed();
@@ -99,15 +99,15 @@ export class Terminal {
 				// after 2 seconds.
 				await Promise.race([
 					this.code.waitForElements(Selector.Xterm, true, e => e.length === 0),
-					new Promise<void>(r => setTimeout(r, 2000))
+					this.code.wait(2000)
 				]);
 				break;
 		}
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
-		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
-		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
+		const keepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
+		await this.quickaccess.runCommand(commandId, { keepOpen });
 		// Running the command should hide the quick input in the following frame, this next wait
 		// ensures that the quick input is opened again before proceeding to avoid a race condition
 		// where the enter keybinding below would close the quick input if it's triggered before the
@@ -140,6 +140,28 @@ export class Terminal {
 	async createTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		await this.runCommand(TerminalCommandId.CreateNew, expectedLocation);
 		await this._waitForTerminal(expectedLocation);
+	}
+
+	/**
+	 * Creates an empty terminal by opening a regular terminal and resetting its state such that it
+	 * essentially acts like an Pseudoterminal extension API-based terminal. This can then be paired
+	 * with `TerminalCommandIdWithValue.WriteDataToTerminal` to make more reliable tests.
+	 */
+	async createEmptyTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
+		await this.createTerminal(expectedLocation);
+
+		// Run a command to ensure the shell has started, this is used to ensure the shell's data
+		// does not leak into the "empty terminal"
+		await this.runCommandInTerminal('echo "initialized"');
+		await this.waitForTerminalText(buffer => buffer.some(line => line.startsWith('initialized')));
+
+		// Erase all content and reset cursor to top
+		await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
+
+		// Force windows pty mode off; assume all sequences are rendered in correct position
+		if (process.platform === 'win32') {
+			await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('P;IsWindows=False')}`);
+		}
 	}
 
 	async assertEditorGroupCount(count: number): Promise<void> {
@@ -288,4 +310,20 @@ export class Terminal {
 		await this.code.waitForElement(Selector.XtermFocused);
 		await this.code.waitForTerminalBuffer(expectedLocation === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
+}
+
+function vsc(data: string) {
+	return setTextParams(`633;${data}`);
+}
+
+function setTextParams(data: string) {
+	return osc(`${data}\\x07`);
+}
+
+function osc(data: string) {
+	return `\\x1b]${data}`;
+}
+
+function csi(data: string) {
+	return `\\x1b[${data}`;
 }

@@ -28,18 +28,19 @@ export class QuickInputBox extends Disposable {
 		super();
 		this.container = dom.append(this.parent, $('.quick-input-box'));
 		this.findInput = this._register(new FindInput(this.container, undefined, { label: '', inputBoxStyles, toggleStyles }));
+		const input = this.findInput.inputBox.inputElement;
+		input.role = 'combobox';
+		input.ariaHasPopup = 'menu';
+		input.ariaAutoComplete = 'list';
+		input.ariaExpanded = 'true';
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
-		return dom.addDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			handler(new StandardKeyboardEvent(e));
-		});
+		return dom.addStandardDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.KEY_DOWN, handler);
 	};
 
 	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
-		return dom.addDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			handler(new StandardMouseEvent(e));
-		});
+		return dom.addStandardDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.MOUSE_DOWN, handler);
 	};
 
 	onDidChange = (handler: (event: string) => void): IDisposable => {
@@ -58,6 +59,10 @@ export class QuickInputBox extends Disposable {
 		this.findInput.inputBox.select(range);
 	}
 
+	getSelection(): IRange | null {
+		return this.findInput.inputBox.getSelection();
+	}
+
 	isSelectionAtEnd(): boolean {
 		return this.findInput.inputBox.isSelectionAtEnd();
 	}
@@ -72,14 +77,6 @@ export class QuickInputBox extends Disposable {
 
 	set placeholder(placeholder: string) {
 		this.findInput.inputBox.setPlaceHolder(placeholder);
-	}
-
-	get ariaLabel() {
-		return this.findInput.inputBox.getAriaLabel();
-	}
-
-	set ariaLabel(ariaLabel: string) {
-		this.findInput.inputBox.setAriaLabel(ariaLabel);
 	}
 
 	get password() {

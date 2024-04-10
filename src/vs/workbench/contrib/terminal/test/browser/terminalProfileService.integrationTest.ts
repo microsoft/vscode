@@ -3,33 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalConfiguration, ITerminalBackend, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Codicon } from 'vs/base/common/codicons';
 import { deepStrictEqual } from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { IProfileQuickPickItem, TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IPickOptions, IQuickInputService, Omit, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { Codicon } from 'vs/base/common/codicons';
+import { Emitter } from 'vs/base/common/event';
+import { isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IPickOptions, IQuickInputService, Omit, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IExtensionTerminalProfile, ITerminalBackend, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IProfileQuickPickItem, TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
+import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
+import { ITerminalConfiguration, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 
-class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService>{
+class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService> {
 	hasRefreshedProfiles: Promise<void> | undefined;
 	override refreshAvailableProfiles(): void {
 		this.hasRefreshedProfiles = this._refreshAvailableProfilesNow();
@@ -43,7 +42,7 @@ class TestTerminalProfileService extends TerminalProfileService implements Parti
 	}
 }
 
-class MockTerminalProfileService implements Partial<ITerminalProfileService>{
+class MockTerminalProfileService implements Partial<ITerminalProfileService> {
 	hasRefreshedProfiles: Promise<void> | undefined;
 	_defaultProfileName: string | undefined;
 	availableProfiles?: ITerminalProfile[] | undefined = [];
@@ -90,7 +89,6 @@ class TestTerminalExtensionService extends TestExtensionService {
 class TestTerminalContributionService implements ITerminalContributionService {
 	_serviceBrand: undefined;
 	terminalProfiles: readonly IExtensionTerminalProfile[] = [];
-	terminalQuickFixes: Promise<ITerminalCommandSelector[]> = Promise.resolve([]);
 	setProfiles(profiles: IExtensionTerminalProfile[]): void {
 		this.terminalProfiles = profiles;
 	}
@@ -146,6 +144,8 @@ const powershellPick = { label: 'Powershell', profile: powershellProfile, profil
 const jsdebugPick = { label: 'Javascript Debug Terminal', profile: jsdebugProfile, profileName: jsdebugProfile.title };
 
 suite('TerminalProfileService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let configurationService: TestConfigurationService;
 	let terminalInstanceService: TestTerminalInstanceService;
 	let terminalProfileService: TestTerminalProfileService;
@@ -155,18 +155,23 @@ suite('TerminalProfileService', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
+		configurationService = new TestConfigurationService({
+			files: {},
+			terminal: {
+				integrated: defaultTerminalConfig
+			}
+		});
+		instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService
+		}, store);
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
 		environmentService = { remoteAuthority: undefined } as IWorkbenchEnvironmentService;
-		instantiationService = new TestInstantiationService();
 
 		const themeService = new TestThemeService();
 		const terminalContributionService = new TestTerminalContributionService();
-		const contextKeyService = new MockContextKeyService();
 
-		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IExtensionService, extensionService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -175,7 +180,7 @@ suite('TerminalProfileService', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(IThemeService, themeService);
 
-		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
+		terminalProfileService = store.add(instantiationService.createInstance(TestTerminalProfileService));
 
 		//reset as these properties are changed in each test
 		powershellProfile = {
@@ -203,6 +208,7 @@ suite('TerminalProfileService', () => {
 		}
 		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
 	});
+
 	suite('Contributed Profiles', () => {
 		test('should filter out contributed profiles set to null (Linux)', async () => {
 			remoteAgentService.setEnvironment(OperatingSystem.Linux);
@@ -262,7 +268,7 @@ suite('TerminalProfileService', () => {
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
 		environmentService = { remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
-		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
+		terminalProfileService = store.add(instantiationService.createInstance(TestTerminalProfileService));
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(terminalProfileService.availableProfiles, []);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
@@ -275,7 +281,7 @@ suite('TerminalProfileService', () => {
 	test('should fire onDidChangeAvailableProfiles only when available profiles have changed via user config', async () => {
 		powershellProfile.icon = Codicon.lightBulb;
 		let calls: ITerminalProfile[][] = [];
-		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
+		store.add(terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e)));
 		await configurationService.setUserConfiguration('terminal', {
 			integrated: {
 				profiles: {
@@ -300,7 +306,7 @@ suite('TerminalProfileService', () => {
 		powershellProfile.isDefault = false;
 		terminalInstanceService.setProfiles(undefined, [powershellProfile]);
 		const calls: ITerminalProfile[][] = [];
-		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
+		store.add(terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e)));
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(calls, [
 			[powershellProfile]
@@ -312,7 +318,7 @@ suite('TerminalProfileService', () => {
 	test('should call refreshAvailableProfiles _onDidChangeExtensions', async () => {
 		extensionService._onDidChangeExtensions.fire();
 		const calls: ITerminalProfile[][] = [];
-		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
+		store.add(terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e)));
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(calls, [
 			[powershellProfile]

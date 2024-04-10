@@ -9,26 +9,26 @@ import { URI } from 'vs/base/common/uri';
 import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { FileAccess, AppResourcePath } from 'vs/base/common/network';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IStorageData {
-	dontShowPrompt: boolean;
-	commit: string | undefined;
+	readonly dontShowPrompt: boolean;
+	readonly commit: string | undefined;
 }
 
 class IntegrityStorage {
+
 	private static readonly KEY = 'integrityService';
 
-	private storageService: IStorageService;
 	private value: IStorageData | null;
 
-	constructor(storageService: IStorageService) {
-		this.storageService = storageService;
+	constructor(private readonly storageService: IStorageService) {
 		this.value = this._read();
 	}
 
@@ -37,6 +37,7 @@ class IntegrityStorage {
 		if (!jsonValue) {
 			return null;
 		}
+
 		try {
 			return JSON.parse(jsonValue);
 		} catch (err) {
@@ -58,66 +59,45 @@ export class IntegrityService implements IIntegrityService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _storage: IntegrityStorage;
-	private _isPurePromise: Promise<IntegrityTestResult>;
+	private readonly _storage = new IntegrityStorage(this.storageService);
+
+	private readonly _isPurePromise = this._isPure();
+	isPure(): Promise<IntegrityTestResult> {
+		return this._isPurePromise;
+	}
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@IChecksumService private readonly checksumService: IChecksumService
+		@IChecksumService private readonly checksumService: IChecksumService,
+		@ILogService private readonly logService: ILogService
 	) {
-		this._storage = new IntegrityStorage(storageService);
-
-		this._isPurePromise = this._isPure();
-
-		this.isPure().then(r => {
-			if (r.isPure) {
-				return; // all is good
-			}
-
-			this._prompt();
-		});
+		this._compute();
 	}
 
-	private _prompt(): void {
+	private async _compute(): Promise<void> {
+		const { isPure } = await this.isPure();
+		if (isPure) {
+			return; // all is good
+		}
+
+		this.logService.warn(`
+
+----------------------------------------------
+***	Installation has been modified on disk ***
+----------------------------------------------
+
+`);
+
 		const storedData = this._storage.get();
 		if (storedData?.dontShowPrompt && storedData.commit === this.productService.commit) {
 			return; // Do not prompt
 		}
 
-		const checksumFailMoreInfoUrl = this.productService.checksumFailMoreInfoUrl;
-		const message = localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort);
-		if (checksumFailMoreInfoUrl) {
-			this.notificationService.prompt(
-				Severity.Warning,
-				message,
-				[
-					{
-						label: localize('integrity.moreInformation', "More Information"),
-						run: () => this.openerService.open(URI.parse(checksumFailMoreInfoUrl))
-					},
-					{
-						label: localize('integrity.dontShowAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this._storage.set({ dontShowPrompt: true, commit: this.productService.commit })
-					}
-				],
-				{ sticky: true }
-			);
-		} else {
-			this.notificationService.notify({
-				severity: Severity.Warning,
-				message,
-				sticky: true
-			});
-		}
-	}
-
-	isPure(): Promise<IntegrityTestResult> {
-		return this._isPurePromise;
+		this._showNotification();
 	}
 
 	private async _isPure(): Promise<IntegrityTestResult> {
@@ -136,7 +116,7 @@ export class IntegrityService implements IIntegrityService {
 		}
 
 		return {
-			isPure: isPure,
+			isPure,
 			proof: allResults
 		};
 	}
@@ -160,6 +140,39 @@ export class IntegrityService implements IIntegrityService {
 			expected: expected,
 			isPure: (actual === expected)
 		};
+	}
+
+	private _showNotification(): void {
+		const checksumFailMoreInfoUrl = this.productService.checksumFailMoreInfoUrl;
+		const message = localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort);
+		if (checksumFailMoreInfoUrl) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				message,
+				[
+					{
+						label: localize('integrity.moreInformation', "More Information"),
+						run: () => this.openerService.open(URI.parse(checksumFailMoreInfoUrl))
+					},
+					{
+						label: localize('integrity.dontShowAgain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => this._storage.set({ dontShowPrompt: true, commit: this.productService.commit })
+					}
+				],
+				{
+					sticky: true,
+					priority: NotificationPriority.URGENT
+				}
+			);
+		} else {
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message,
+				sticky: true,
+				priority: NotificationPriority.URGENT
+			});
+		}
 	}
 }
 

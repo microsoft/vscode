@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.20.0"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -81,7 +82,11 @@
           "meta.embedded.block.typescriptreact": "typescriptreact",
           "meta.embedded.block.csharp": "csharp",
           "meta.embedded.block.fsharp": "fsharp"
-        }
+        },
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
       }
     ],
     "snippets": [

@@ -7,9 +7,8 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -20,9 +19,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, PartialExcept } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -46,12 +46,31 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { PANEL_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from 'vs/workbench/common/theme';
+
+export enum ViewPaneShowActions {
+	/** Show the actions when the view is hovered. This is the default behavior. */
+	Default,
+
+	/** Always shows the actions when the view is expanded */
+	WhenExpanded,
+
+	/** Always shows the actions */
+	Always,
+}
 
 export interface IViewPaneOptions extends IPaneOptions {
-	id: string;
-	showActionsAlways?: boolean;
-	titleMenuId?: MenuId;
-	donotForwardArgs?: boolean;
+	readonly id: string;
+	readonly showActions?: ViewPaneShowActions;
+	readonly titleMenuId?: MenuId;
+	readonly donotForwardArgs?: boolean;
+	// The title of the container pane when it is merged with the view container
+	readonly singleViewPaneContainerTitle?: string;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -77,36 +96,94 @@ interface IItem {
 	visible: boolean;
 }
 
-class ViewWelcomeController {
+interface IViewWelcomeDelegate {
+	readonly id: string;
+	readonly onDidChangeViewWelcomeState: Event<void>;
+	shouldShowWelcome(): boolean;
+}
 
-	private _onDidChange = new Emitter<void>();
-	readonly onDidChange = this._onDidChange.event;
+class ViewWelcomeController {
 
 	private defaultItem: IItem | undefined;
 	private items: IItem[] = [];
-	get contents(): IViewContentDescriptor[] {
-		const visibleItems = this.items.filter(v => v.visible);
 
-		if (visibleItems.length === 0 && this.defaultItem) {
-			return [this.defaultItem.descriptor];
-		}
+	get enabled(): boolean { return this._enabled; }
+	private _enabled: boolean = false;
+	private element: HTMLElement | undefined;
+	private scrollableElement: DomScrollableElement | undefined;
 
-		return visibleItems.map(v => v.descriptor);
-	}
-
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
+	private readonly enabledDisposables = this.disposables.add(new DisposableStore());
+	private readonly renderDisposables = this.disposables.add(new DisposableStore());
 
 	constructor(
-		private id: string,
+		private readonly container: HTMLElement,
+		private readonly delegate: IViewWelcomeDelegate,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IOpenerService protected openerService: IOpenerService,
+		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
-		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
+		this.disposables.add(Event.runAndSubscribe(this.delegate.onDidChangeViewWelcomeState, () => this.onDidChangeViewWelcomeState()));
+		this.disposables.add(lifecycleService.onWillShutdown(() => this.dispose())); // Fixes https://github.com/microsoft/vscode/issues/208878
+	}
+
+	layout(height: number, width: number) {
+		if (!this._enabled) {
+			return;
+		}
+
+		this.element!.style.height = `${height}px`;
+		this.element!.style.width = `${width}px`;
+		this.element!.classList.toggle('wide', width > 640);
+		this.scrollableElement!.scanDomNode();
+	}
+
+	focus() {
+		if (!this._enabled) {
+			return;
+		}
+
+		this.element!.focus();
+	}
+
+	private onDidChangeViewWelcomeState(): void {
+		const enabled = this.delegate.shouldShowWelcome();
+
+		if (this._enabled === enabled) {
+			return;
+		}
+
+		this._enabled = enabled;
+
+		if (!enabled) {
+			this.enabledDisposables.clear();
+			return;
+		}
+
+		this.container.classList.add('welcome');
+		const viewWelcomeContainer = append(this.container, $('.welcome-view'));
+		this.element = $('.welcome-view-content', { tabIndex: 0 });
+		this.scrollableElement = new DomScrollableElement(this.element, { alwaysConsumeMouseWheel: true, horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Visible, });
+		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
+
+		this.enabledDisposables.add(toDisposable(() => {
+			this.container.classList.remove('welcome');
+			this.scrollableElement!.dispose();
+			viewWelcomeContainer.remove();
+			this.scrollableElement = undefined;
+			this.element = undefined;
+		}));
+
+		this.contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.enabledDisposables);
+		Event.chain(viewsRegistry.onDidChangeViewWelcomeContent, $ => $.filter(id => id === this.delegate.id))
+			(this.onDidChangeViewWelcomeContent, this, this.enabledDisposables);
 		this.onDidChangeViewWelcomeContent();
 	}
 
 	private onDidChangeViewWelcomeContent(): void {
-		const descriptors = viewsRegistry.getViewWelcomeContent(this.id);
+		const descriptors = viewsRegistry.getViewWelcomeContent(this.delegate.id);
 
 		this.items = [];
 
@@ -119,7 +196,7 @@ class ViewWelcomeController {
 			}
 		}
 
-		this._onDidChange.fire();
+		this.render();
 	}
 
 	private onDidChangeContext(): void {
@@ -141,8 +218,88 @@ class ViewWelcomeController {
 		}
 
 		if (didChange) {
-			this._onDidChange.fire();
+			this.render();
 		}
+	}
+
+	private render(): void {
+		this.renderDisposables.clear();
+		this.element!.innerText = '';
+
+		const contents = this.getContentDescriptors();
+
+		if (contents.length === 0) {
+			this.container.classList.remove('welcome');
+			this.scrollableElement!.scanDomNode();
+			return;
+		}
+
+		for (const { content, precondition } of contents) {
+			const lines = content.split('\n');
+
+			for (let line of lines) {
+				line = line.trim();
+
+				if (!line) {
+					continue;
+				}
+
+				const linkedText = parseLinkedText(line);
+
+				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+					const node = linkedText.nodes[0];
+					const buttonContainer = append(this.element!, $('.button-container'));
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
+					button.label = node.label;
+					button.onDidClick(_ => {
+						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.delegate.id, uri: node.href });
+						this.openerService.open(node.href, { allowCommands: true });
+					}, null, this.renderDisposables);
+					this.renderDisposables.add(button);
+
+					if (precondition) {
+						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+						updateEnablement();
+
+						const keys = new Set(precondition.keys());
+						const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+						onDidChangeContext(updateEnablement, null, this.renderDisposables);
+					}
+				} else {
+					const p = append(this.element!, $('p'));
+
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.renderDisposables.add(this.instantiationService.createInstance(Link, p, node, {}));
+
+							if (precondition && node.href.startsWith('command:')) {
+								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
+								updateEnablement();
+
+								const keys = new Set(precondition.keys());
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, this.renderDisposables);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		this.container.classList.add('welcome');
+		this.scrollableElement!.scanDomNode();
+	}
+
+	private getContentDescriptors(): IViewContentDescriptor[] {
+		const visibleItems = this.items.filter(v => v.visible);
+
+		if (visibleItems.length === 0 && this.defaultItem) {
+			return [this.defaultItem.descriptor];
+		}
+
+		return visibleItems.map(v => v.descriptor);
 	}
 
 	dispose(): void {
@@ -182,23 +339,27 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
+	private _singleViewPaneContainerTitle: string | undefined;
+	public get singleViewPaneContainerTitle(): string | undefined {
+		return this._singleViewPaneContainerTitle;
+	}
+
 	readonly menuActions: CompositeMenuActions;
 
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
 
 	private toolbar?: WorkbenchToolBar;
-	private readonly showActionsAlways: boolean = false;
+	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
+	private titleContainerHover?: IUpdatableHover;
 	private titleDescriptionContainer?: HTMLElement;
+	private titleDescriptionContainerHover?: IUpdatableHover;
 	private iconContainer?: HTMLElement;
+	private iconContainerHover?: IUpdatableHover;
 	protected twistiesContainer?: HTMLElement;
-
-	private bodyContainer!: HTMLElement;
-	private viewWelcomeContainer!: HTMLElement;
-	private viewWelcomeDisposable: IDisposable = Disposable.None;
-	private viewWelcomeController: ViewWelcomeController;
+	private viewWelcomeController!: ViewWelcomeController;
 
 	protected readonly scopedContextKeyService: IContextKeyService;
 
@@ -213,23 +374,23 @@ export abstract class ViewPane extends Pane implements IView {
 		@IOpenerService protected openerService: IOpenerService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
+		@IHoverService protected readonly hoverService: IHoverService
 	) {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
-		this.showActionsAlways = !!options.showActionsAlways;
+		this._singleViewPaneContainerTitle = options.singleViewPaneContainerTitle;
+		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this.scopedContextKeyService.createKey('view', this.id);
 		const viewLocationKey = this.scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!));
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
 
-		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
+		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
-
-		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
 	override get headerVisible(): boolean {
@@ -264,10 +425,7 @@ export abstract class ViewPane extends Pane implements IView {
 		if (changed) {
 			this._onDidChangeBodyVisibility.fire(expanded);
 		}
-		if (this.twistiesContainer) {
-			this.twistiesContainer.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!expanded)));
-			this.twistiesContainer.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(expanded)));
-		}
+		this.updateTwistyIcon();
 		return changed;
 	}
 
@@ -283,15 +441,16 @@ export abstract class ViewPane extends Pane implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		this.twistiesContainer = append(container, $(ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))));
+		this.twistiesContainer = append(container, $(`.twisty-container${ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))}`));
 
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
-		actions.classList.toggle('show', this.showActionsAlways);
+		actions.classList.toggle('show-always', this.showActions === ViewPaneShowActions.Always);
+		actions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
 		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: action => this.getActionViewItem(action),
+			actionViewItemProvider: (action, options) => this.getActionViewItem(action, options),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: true,
@@ -314,6 +473,18 @@ export abstract class ViewPane extends Pane implements IView {
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
+	}
+
+	protected override updateHeader(): void {
+		super.updateHeader();
+		this.updateTwistyIcon();
+	}
+
+	private updateTwistyIcon(): void {
+		if (this.twistiesContainer) {
+			this.twistiesContainer.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!this._expanded)));
+			this.twistiesContainer.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(this._expanded)));
+		}
 	}
 
 	protected getTwistyIcon(expanded: boolean): ThemeIcon {
@@ -366,13 +537,14 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		const calculatedTitle = this.calculateTitle(title);
-		this.titleContainer = append(container, $('h3.title', { title: calculatedTitle }, calculatedTitle));
+		this.titleContainer = append(container, $('h3.title', {}, calculatedTitle));
+		this.titleContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
 
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
 		}
 
-		this.iconContainer.title = calculatedTitle;
+		this.iconContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
 		this.iconContainer.setAttribute('aria-label', calculatedTitle);
 	}
 
@@ -380,11 +552,11 @@ export abstract class ViewPane extends Pane implements IView {
 		const calculatedTitle = this.calculateTitle(title);
 		if (this.titleContainer) {
 			this.titleContainer.textContent = calculatedTitle;
-			this.titleContainer.setAttribute('title', calculatedTitle);
+			this.titleContainerHover?.update(calculatedTitle);
 		}
 
 		if (this.iconContainer) {
-			this.iconContainer.title = calculatedTitle;
+			this.iconContainerHover?.update(calculatedTitle);
 			this.iconContainer.setAttribute('aria-label', calculatedTitle);
 		}
 
@@ -395,10 +567,11 @@ export abstract class ViewPane extends Pane implements IView {
 	private setTitleDescription(description: string | undefined) {
 		if (this.titleDescriptionContainer) {
 			this.titleDescriptionContainer.textContent = description ?? '';
-			this.titleDescriptionContainer.setAttribute('title', description ?? '');
+			this.titleDescriptionContainerHover?.update(description ?? '');
 		}
 		else if (description && this.titleContainer) {
-			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', { title: description }, description));
+			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
+			this.titleDescriptionContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
 	}
 
@@ -422,31 +595,12 @@ export abstract class ViewPane extends Pane implements IView {
 		return title;
 	}
 
-	private scrollableElement!: DomScrollableElement;
-
 	protected renderBody(container: HTMLElement): void {
-		this.bodyContainer = container;
-
-		const viewWelcomeContainer = append(container, $('.welcome-view'));
-		this.viewWelcomeContainer = $('.welcome-view-content', { tabIndex: 0 });
-		this.scrollableElement = this._register(new DomScrollableElement(this.viewWelcomeContainer, {
-			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Visible,
-		}));
-
-		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
-
-		const onViewWelcomeChange = Event.any(this.viewWelcomeController.onDidChange, this.onDidChangeViewWelcomeState);
-		this._register(onViewWelcomeChange(this.updateViewWelcome, this));
-		this.updateViewWelcome();
+		this.viewWelcomeController = this._register(this.instantiationService.createInstance(ViewWelcomeController, container, this));
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		this.viewWelcomeContainer.style.height = `${height}px`;
-		this.viewWelcomeContainer.style.width = `${width}px`;
-		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
-		this.scrollableElement.scanDomNode();
+		this.viewWelcomeController.layout(height, width);
 	}
 
 	onDidScrollRoot() {
@@ -462,12 +616,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (this.progressIndicator === undefined) {
 			const that = this;
-			this.progressIndicator = new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+			this.progressIndicator = this._register(new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
 				constructor() {
 					super(that.id, that.isBodyVisible());
 					this._register(that.onDidChangeBodyVisibility(isVisible => isVisible ? this.onScopeOpened(that.id) : this.onScopeClosed(that.id)));
 				}
-			}());
+			}()));
 		}
 		return this.progressIndicator;
 	}
@@ -476,21 +630,13 @@ export abstract class ViewPane extends Pane implements IView {
 		return this.viewDescriptorService.getViewContainerByViewId(this.id)!.id;
 	}
 
-	protected getBackgroundColor(): string {
-		switch (this.viewDescriptorService.getViewLocationById(this.id)) {
-			case ViewContainerLocation.Panel:
-				return PANEL_BACKGROUND;
-			case ViewContainerLocation.Sidebar:
-			case ViewContainerLocation.AuxiliaryBar:
-				return SIDE_BAR_BACKGROUND;
-		}
-
-		return SIDE_BAR_BACKGROUND;
+	protected getLocationBasedColors(): IViewPaneLocationColors {
+		return getLocationBasedViewColors(this.viewDescriptorService.getViewLocationById(this.id));
 	}
 
 	focus(): void {
-		if (this.shouldShowWelcome()) {
-			this.viewWelcomeContainer.focus();
+		if (this.viewWelcomeController.enabled) {
+			this.viewWelcomeController.focus();
 		} else if (this.element) {
 			this.element.focus();
 			this._onDidFocus.fire();
@@ -553,89 +699,6 @@ export abstract class ViewPane extends Pane implements IView {
 		// Subclasses to implement for saving state
 	}
 
-	private updateViewWelcome(): void {
-		this.viewWelcomeDisposable.dispose();
-
-		if (!this.shouldShowWelcome()) {
-			this.bodyContainer.classList.remove('welcome');
-			this.viewWelcomeContainer.innerText = '';
-			this.scrollableElement.scanDomNode();
-			return;
-		}
-
-		const contents = this.viewWelcomeController.contents;
-
-		if (contents.length === 0) {
-			this.bodyContainer.classList.remove('welcome');
-			this.viewWelcomeContainer.innerText = '';
-			this.scrollableElement.scanDomNode();
-			return;
-		}
-
-		const disposables = new DisposableStore();
-		this.bodyContainer.classList.add('welcome');
-		this.viewWelcomeContainer.innerText = '';
-
-		for (const { content, precondition } of contents) {
-			const lines = content.split('\n');
-
-			for (let line of lines) {
-				line = line.trim();
-
-				if (!line) {
-					continue;
-				}
-
-				const linkedText = parseLinkedText(line);
-
-				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
-					const node = linkedText.nodes[0];
-					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
-					button.label = node.label;
-					button.onDidClick(_ => {
-						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
-						this.openerService.open(node.href, { allowCommands: true });
-					}, null, disposables);
-					disposables.add(button);
-
-					if (precondition) {
-						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
-						updateEnablement();
-
-						const keys = new Set();
-						precondition.keys().forEach(key => keys.add(key));
-						const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-						onDidChangeContext(updateEnablement, null, disposables);
-					}
-				} else {
-					const p = append(this.viewWelcomeContainer, $('p'));
-
-					for (const node of linkedText.nodes) {
-						if (typeof node === 'string') {
-							append(p, document.createTextNode(node));
-						} else {
-							const link = disposables.add(this.instantiationService.createInstance(Link, p, node, {}));
-
-							if (precondition && node.href.startsWith('command:')) {
-								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
-								updateEnablement();
-
-								const keys = new Set();
-								precondition.keys().forEach(key => keys.add(key));
-								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-								onDidChangeContext(updateEnablement, null, disposables);
-							}
-						}
-					}
-				}
-			}
-		}
-
-		this.scrollableElement.scanDomNode();
-		this.viewWelcomeDisposable = disposables;
-	}
-
 	shouldShowWelcome(): boolean {
 		return false;
 	}
@@ -666,8 +729,9 @@ export abstract class FilterViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
 	}
 
@@ -708,6 +772,42 @@ export abstract class FilterViewPane extends ViewPane {
 
 	protected abstract layoutBodyContent(height: number, width: number): void;
 
+}
+
+export interface IViewPaneLocationColors {
+	background: string;
+	listOverrideStyles: PartialExcept<IListStyles, 'listBackground' | 'treeStickyScrollBackground'>;
+}
+
+export function getLocationBasedViewColors(location: ViewContainerLocation | null): IViewPaneLocationColors {
+	let background, stickyScrollBackground, stickyScrollBorder, stickyScrollShadow;
+
+	switch (location) {
+		case ViewContainerLocation.Panel:
+			background = PANEL_BACKGROUND;
+			stickyScrollBackground = PANEL_STICKY_SCROLL_BACKGROUND;
+			stickyScrollBorder = PANEL_STICKY_SCROLL_BORDER;
+			stickyScrollShadow = PANEL_STICKY_SCROLL_SHADOW;
+			break;
+
+		case ViewContainerLocation.Sidebar:
+		case ViewContainerLocation.AuxiliaryBar:
+		default:
+			background = SIDE_BAR_BACKGROUND;
+			stickyScrollBackground = SIDE_BAR_STICKY_SCROLL_BACKGROUND;
+			stickyScrollBorder = SIDE_BAR_STICKY_SCROLL_BORDER;
+			stickyScrollShadow = SIDE_BAR_STICKY_SCROLL_SHADOW;
+	}
+
+	return {
+		background,
+		listOverrideStyles: {
+			listBackground: background,
+			treeStickyScrollBackground: stickyScrollBackground,
+			treeStickyScrollBorder: stickyScrollBorder,
+			treeStickyScrollShadow: stickyScrollShadow
+		}
+	};
 }
 
 export abstract class ViewAction<T extends IView> extends Action2 {

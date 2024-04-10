@@ -9,9 +9,9 @@ import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, determineExtensionHostKinds, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { IReadOnlyExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, determineExtensionHostKinds } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 
@@ -30,13 +30,17 @@ export class ExtensionRunningLocationTracker {
 	}
 
 	constructor(
-		private readonly _registry: ExtensionDescriptionRegistry,
+		private readonly _registry: IReadOnlyExtensionDescriptionRegistry,
 		private readonly _extensionHostKindPicker: IExtensionHostKindPicker,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) { }
+
+	public set(extensionId: ExtensionIdentifier, runningLocation: ExtensionRunningLocation) {
+		this._runningLocation.set(extensionId, runningLocation);
+	}
 
 	public readExtensionKinds(extensionDescription: IExtensionDescription): ExtensionKind[] {
 		if (extensionDescription.isUnderDevelopment && this._environmentService.extensionDevelopmentKind) {
@@ -50,15 +54,15 @@ export class ExtensionRunningLocationTracker {
 		return this._runningLocation.get(extensionId) || null;
 	}
 
-	public filterByRunningLocation(extensions: IExtensionDescription[], desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
+	public filterByRunningLocation(extensions: readonly IExtensionDescription[], desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
 		return filterExtensionDescriptions(extensions, this._runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
 	}
 
-	public filterByExtensionHostKind(extensions: IExtensionDescription[], desiredExtensionHostKind: ExtensionHostKind): IExtensionDescription[] {
+	public filterByExtensionHostKind(extensions: readonly IExtensionDescription[], desiredExtensionHostKind: ExtensionHostKind): IExtensionDescription[] {
 		return filterExtensionDescriptions(extensions, this._runningLocation, extRunningLocation => extRunningLocation.kind === desiredExtensionHostKind);
 	}
 
-	public filterByExtensionHostManager(extensions: IExtensionDescription[], extensionHostManager: IExtensionHostManager): IExtensionDescription[] {
+	public filterByExtensionHostManager(extensions: readonly IExtensionDescription[], extensionHostManager: IExtensionHostManager): IExtensionDescription[] {
 		return filterExtensionDescriptions(extensions, this._runningLocation, extRunningLocation => extensionHostManager.representsRunningLocation(extRunningLocation));
 	}
 
@@ -144,7 +148,7 @@ export class ExtensionRunningLocationTracker {
 				}
 				const group = groups.get(extensionId);
 				if (!group) {
-					this._logService.info(`Ignoring configured affinity for '${extensionId}' because the extension is unknown or cannot execute for extension host kind: ${extensionHostKindToString(extensionHostKind)}.`);
+					// The extension is not known or cannot execute for this extension host kind
 					continue;
 				}
 
@@ -196,10 +200,14 @@ export class ExtensionRunningLocationTracker {
 	}
 
 	public computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): ExtensionIdentifierMap<ExtensionRunningLocation | null> {
-		return this._doComputeRunningLocation(localExtensions, remoteExtensions, isInitialAllocation).runningLocation;
+		return this._doComputeRunningLocation(this._runningLocation, localExtensions, remoteExtensions, isInitialAllocation).runningLocation;
 	}
 
-	private _doComputeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>; maxLocalProcessAffinity: number; maxLocalWebWorkerAffinity: number } {
+	private _doComputeRunningLocation(existingRunningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>, localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>; maxLocalProcessAffinity: number; maxLocalWebWorkerAffinity: number } {
+		// Skip extensions that have an existing running location
+		localExtensions = localExtensions.filter(extension => !existingRunningLocation.has(extension.identifier));
+		remoteExtensions = remoteExtensions.filter(extension => !existingRunningLocation.has(extension.identifier));
+
 		const extensionHostKinds = determineExtensionHostKinds(
 			localExtensions,
 			remoteExtensions,
@@ -247,11 +255,18 @@ export class ExtensionRunningLocationTracker {
 			result.set(extension.identifier, new LocalWebWorkerRunningLocation(affinity));
 		}
 
+		// Add extensions that already have an existing running location
+		for (const [extensionIdKey, runningLocation] of existingRunningLocation) {
+			if (runningLocation) {
+				result.set(extensionIdKey, runningLocation);
+			}
+		}
+
 		return { runningLocation: result, maxLocalProcessAffinity: maxAffinity, maxLocalWebWorkerAffinity: maxLocalWebWorkerAffinity };
 	}
 
 	public initializeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[]): void {
-		const { runningLocation, maxLocalProcessAffinity, maxLocalWebWorkerAffinity } = this._doComputeRunningLocation(localExtensions, remoteExtensions, true);
+		const { runningLocation, maxLocalProcessAffinity, maxLocalWebWorkerAffinity } = this._doComputeRunningLocation(this._runningLocation, localExtensions, remoteExtensions, true);
 		this._runningLocation = runningLocation;
 		this._maxLocalProcessAffinity = maxLocalProcessAffinity;
 		this._maxLocalWebWorkerAffinity = maxLocalWebWorkerAffinity;
@@ -311,14 +326,14 @@ export class ExtensionRunningLocationTracker {
 	}
 }
 
-export function filterExtensionDescriptions(extensions: IExtensionDescription[], runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>, predicate: (extRunningLocation: ExtensionRunningLocation) => boolean): IExtensionDescription[] {
+export function filterExtensionDescriptions(extensions: readonly IExtensionDescription[], runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>, predicate: (extRunningLocation: ExtensionRunningLocation) => boolean): IExtensionDescription[] {
 	return extensions.filter((ext) => {
 		const extRunningLocation = runningLocation.get(ext.identifier);
 		return extRunningLocation && predicate(extRunningLocation);
 	});
 }
 
-export function filterExtensionIdentifiers(extensions: ExtensionIdentifier[], runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>, predicate: (extRunningLocation: ExtensionRunningLocation) => boolean): ExtensionIdentifier[] {
+export function filterExtensionIdentifiers(extensions: readonly ExtensionIdentifier[], runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>, predicate: (extRunningLocation: ExtensionRunningLocation) => boolean): ExtensionIdentifier[] {
 	return extensions.filter((ext) => {
 		const extRunningLocation = runningLocation.get(ext);
 		return extRunningLocation && predicate(extRunningLocation);

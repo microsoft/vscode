@@ -16,9 +16,12 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -58,7 +61,7 @@ export class NotebookStatusBarController extends Disposable {
 	}
 
 	private _updateVisibleCells(e: ICellVisibilityChangeEvent): void {
-		const vm = this._notebookEditor._getViewModel();
+		const vm = this._notebookEditor.getViewModel();
 		if (!vm) {
 			return;
 		}
@@ -102,7 +105,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	private _currentItemIds: string[] = [];
 
 	private _showedExecutingStateTime: number | undefined;
-	private _clearExecutingStateTimer = this._register(new MutableDisposable());
+	private readonly _clearExecutingStateTimer = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
@@ -112,8 +115,8 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 		super();
 
 		this._update();
-		this._register(this._executionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this._cell.uri)) {
+		this._register(this._executionStateService.onDidChangeExecution(e => {
+			if (e.type === NotebookExecutionType.cell && e.affectsCell(this._cell.uri)) {
 				this._update();
 			}
 		}));
@@ -153,49 +156,49 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 			}
 		}
 
-		const item = this._getItemForState(runState, this._cell.internalMetadata);
-		return item ? [item] : [];
+		const items = this._getItemForState(runState, this._cell.internalMetadata);
+		return items;
 	}
 
-	private _getItemForState(runState: INotebookCellExecution | undefined, internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem | undefined {
+	private _getItemForState(runState: INotebookCellExecution | undefined, internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem[] {
 		const state = runState?.state;
 		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
-			return <INotebookCellStatusBarItem>{
+			return [<INotebookCellStatusBarItem>{
 				text: `$(${successStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconSuccess),
 				tooltip: localize('notebook.cell.status.success', "Success"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			};
+			}];
 		} else if (!state && lastRunSuccess === false) {
-			return <INotebookCellStatusBarItem>{
+			return [{
 				text: `$(${errorStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconError),
 				tooltip: localize('notebook.cell.status.failed', "Failed"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			};
+			}];
 		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
-			return <INotebookCellStatusBarItem>{
+			return [<INotebookCellStatusBarItem>{
 				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			};
+			}];
 		} else if (state === NotebookCellExecutionState.Executing) {
 			const icon = runState?.didPause ?
 				executingStateIcon :
 				ThemeIcon.modify(executingStateIcon, 'spin');
-			return <INotebookCellStatusBarItem>{
+			return [<INotebookCellStatusBarItem>{
 				text: `$(${icon.id})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			};
+			}];
 		}
 
-		return;
+		return [];
 	}
 
 	override dispose() {
@@ -309,6 +312,8 @@ class TimerCellStatusBarItem extends Disposable {
 				renderTimes += `- [${rendererInfo?.displayName ?? key}](command:workbench.action.openIssueReporter?${args}) ${formatCellDuration(renderDuration[key])}\n`;
 			}
 
+			renderTimes += `\n*${localize('notebook.cell.statusBar.timerTooltip.reportIssueFootnote', "Use the links above to file an issue using the issue reporter.")}*\n`;
+
 			tooltip = {
 				value: localize('notebook.cell.statusBar.timerTooltip', "**Last Execution** {0}\n\n**Execution Time** {1}\n\n**Overhead Time** {2}\n\n**Render Times**\n\n{3}", lastExecution, formatCellDuration(executionDuration), formatCellDuration(timerDuration - executionDuration), renderTimes),
 				isTrusted: true
@@ -319,7 +324,7 @@ class TimerCellStatusBarItem extends Disposable {
 		return <INotebookCellStatusBarItem>{
 			text: formatCellDuration(duration, false),
 			alignment: CellStatusbarAlignment.Left,
-			priority: Number.MAX_SAFE_INTEGER - 1,
+			priority: Number.MAX_SAFE_INTEGER - 5,
 			tooltip
 		};
 	}
@@ -329,5 +334,62 @@ class TimerCellStatusBarItem extends Disposable {
 
 		this._deferredUpdate?.dispose();
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
+	}
+}
+
+export class DiagnosticCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.statusBar.diagtnostic';
+
+	constructor(
+		notebookEditor: INotebookEditor,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super();
+		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) =>
+			cell instanceof CodeCellViewModel ?
+				instantiationService.createInstance(DiagnosticCellStatusBarItem, vm, cell) :
+				Disposable.None
+		));
+	}
+}
+registerNotebookContribution(DiagnosticCellStatusBarContrib.id, DiagnosticCellStatusBarContrib);
+
+
+class DiagnosticCellStatusBarItem extends Disposable {
+	private _currentItemIds: string[] = [];
+
+	constructor(
+		private readonly _notebookViewModel: INotebookViewModel,
+		private readonly cell: CodeCellViewModel,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
+	) {
+		super();
+		this._update();
+		this._register(this.cell.cellDiagnostics.onDidDiagnosticsChange(() => this._update()));
+	}
+
+	private async _update() {
+		let item: INotebookCellStatusBarItem | undefined;
+
+		if (!!this.cell.cellDiagnostics.ErrorDetails) {
+			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
+			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
+
+			item = {
+				text: `$(sparkle)`,
+				tooltip,
+				alignment: CellStatusbarAlignment.Left,
+				command: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
+				priority: Number.MAX_SAFE_INTEGER - 1
+			};
+		}
+
+		const items = item ? [item] : [];
+		this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items }]);
+	}
+
+	override dispose() {
+		super.dispose();
+		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items: [] }]);
 	}
 }

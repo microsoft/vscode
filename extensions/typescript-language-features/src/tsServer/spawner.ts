@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { Logger } from '../logging/logger';
+import { TelemetryReporter } from '../logging/telemetry';
+import Tracer from '../logging/tracer';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
-import API from '../utils/api';
-import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
-import { Logger } from '../utils/logger';
+import { memoize } from '../utils/memoize';
 import { isWeb, isWebAndHasSharedArrayBuffers } from '../utils/platform';
-import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
-import { PluginManager } from '../utils/plugins';
-import { TelemetryReporter } from '../utils/telemetry';
-import Tracer from '../utils/tracer';
+import { API } from './api';
 import { ILogDirectoryProvider } from './logDirectoryProvider';
+import { TypeScriptPluginPathsProvider } from './pluginPathsProvider';
+import { PluginManager } from './plugins';
 import { GetErrRoutingTsServer, ITypeScriptServer, SingleTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerLog, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
-import { memoize } from '../utils/memoize';
+import { NodeVersionManager } from './nodeManager';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -44,6 +45,7 @@ export class TypeScriptServerSpawner {
 	public constructor(
 		private readonly _versionProvider: ITypeScriptVersionProvider,
 		private readonly _versionManager: TypeScriptVersionManager,
+		private readonly _nodeVersionManager: NodeVersionManager,
 		private readonly _logDirectoryProvider: ILogDirectoryProvider,
 		private readonly _pluginPathsProvider: TypeScriptPluginPathsProvider,
 		private readonly _logger: Logger,
@@ -160,7 +162,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, tsServerLog);
+		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, this._nodeVersionManager, tsServerLog);
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new SingleTsServer(
@@ -232,7 +234,7 @@ export class TypeScriptServerSpawner {
 					tsServerLog = { type: 'file', uri: logFilePath };
 
 					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-					args.push('--logFile', logFilePath.path);
+					args.push('--logFile', logFilePath.fsPath);
 				}
 			}
 		}
@@ -268,6 +270,10 @@ export class TypeScriptServerSpawner {
 		args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
 
 		args.push('--noGetErrOnBackgroundUpdate');
+
+		if (apiVersion.gte(API.v544) && configuration.useVsCodeWatcher) {
+			args.push('--canUseWatchEvents');
+		}
 
 		args.push('--validateDefaultNpmLocation');
 

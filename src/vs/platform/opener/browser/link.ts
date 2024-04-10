@@ -12,6 +12,10 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import 'vs/css!./link';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export interface ILinkDescriptor {
 	readonly label: string | HTMLElement;
@@ -22,12 +26,16 @@ export interface ILinkDescriptor {
 
 export interface ILinkOptions {
 	readonly opener?: (href: string) => void;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly textLinkForeground?: string;
 }
 
 export class Link extends Disposable {
 
 	private el: HTMLAnchorElement;
+	private hover?: IUpdatableHover;
+	private hoverDelegate: IHoverDelegate;
+
 	private _enabled: boolean = true;
 
 	get enabled(): boolean {
@@ -68,9 +76,7 @@ export class Link extends Disposable {
 			this.el.tabIndex = link.tabIndex;
 		}
 
-		if (typeof link.title !== 'undefined') {
-			this.el.title = link.title;
-		}
+		this.setTooltip(link.title);
 
 		this._link = link;
 	}
@@ -79,6 +85,7 @@ export class Link extends Disposable {
 		container: HTMLElement,
 		private _link: ILinkDescriptor,
 		options: ILinkOptions = {},
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService
 	) {
 		super();
@@ -86,17 +93,19 @@ export class Link extends Disposable {
 		this.el = append(container, $('a.monaco-link', {
 			tabIndex: _link.tabIndex ?? 0,
 			href: _link.href,
-			title: _link.title
 		}, _link.label));
+
+		this.hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
+		this.setTooltip(_link.title);
 
 		this.el.setAttribute('role', 'button');
 
 		const onClickEmitter = this._register(new DomEmitter(this.el, 'click'));
 		const onKeyPress = this._register(new DomEmitter(this.el, 'keypress'));
-		const onEnterPress = Event.chain(onKeyPress.event)
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.keyCode === KeyCode.Enter)
-			.event;
+		const onEnterPress = Event.chain(onKeyPress.event, $ =>
+			$.map(e => new StandardKeyboardEvent(e))
+				.filter(e => e.keyCode === KeyCode.Enter)
+		);
 		const onTap = this._register(new DomEmitter(this.el, TouchEventType.Tap)).event;
 		this._register(Gesture.addTarget(this.el));
 		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress, onTap);
@@ -116,5 +125,15 @@ export class Link extends Disposable {
 		}));
 
 		this.enabled = true;
+	}
+
+	private setTooltip(title: string | undefined): void {
+		if (this.hoverDelegate.showNativeHover) {
+			this.el.title = title ?? '';
+		} else if (!this.hover && title) {
+			this.hover = this._register(this._hoverService.setupUpdatableHover(this.hoverDelegate, this.el, title));
+		} else if (this.hover) {
+			this.hover.update(title);
+		}
 	}
 }

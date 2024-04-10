@@ -257,7 +257,7 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 	}
 }
 
-class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | ReferenceItem>{
+class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | ReferenceItem> {
 
 	private readonly _listener: vscode.Disposable;
 	private readonly _onDidChange = new vscode.EventEmitter<FileItem | ReferenceItem | undefined>();

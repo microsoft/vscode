@@ -456,21 +456,22 @@ export class DiagnosticsService implements IDiagnosticsService {
 	}
 
 	private formatProcessList(info: IMainProcessDiagnostics, rootProcess: ProcessItem): string {
-		const mapPidToWindowTitle = new Map<number, string>();
-		info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
+		const mapProcessToName = new Map<number, string>();
+		info.windows.forEach(window => mapProcessToName.set(window.pid, `window [${window.id}] (${window.title})`));
+		info.pidToNames.forEach(({ pid, name }) => mapProcessToName.set(pid, name));
 
 		const output: string[] = [];
 
 		output.push('CPU %\tMem MB\t   PID\tProcess');
 
 		if (rootProcess) {
-			this.formatProcessItem(info.mainPID, mapPidToWindowTitle, output, rootProcess, 0);
+			this.formatProcessItem(info.mainPID, mapProcessToName, output, rootProcess, 0);
 		}
 
 		return output.join('\n');
 	}
 
-	private formatProcessItem(mainPid: number, mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
+	private formatProcessItem(mainPid: number, mapProcessToName: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
 		const isRoot = (indent === 0);
 
 		// Format name with indent
@@ -478,10 +479,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 		if (isRoot) {
 			name = item.pid === mainPid ? `${this.productService.applicationName} main` : 'remote agent';
 		} else {
-			name = `${'  '.repeat(indent)} ${item.name}`;
-
-			if (item.name === 'window') {
-				name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
+			if (mapProcessToName.has(item.pid)) {
+				name = mapProcessToName.get(item.pid)!;
+			} else {
+				name = `${'  '.repeat(indent)} ${item.name}`;
 			}
 		}
 
@@ -490,7 +491,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
-			item.children.forEach(child => this.formatProcessItem(mainPid, mapPidToWindowTitle, output, child, indent + 1));
+			item.children.forEach(child => this.formatProcessItem(mainPid, mapProcessToName, output, child, indent + 1));
 		}
 	}
 
@@ -538,8 +539,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 					owner: 'lramos15';
 					comment: 'Helps us gain insights into what type of files are being used in a workspace';
 					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the session.' };
-					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The type of file' };
-					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many types of that file are present' };
+					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of file' };
+					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How many types of that file are present' };
 				};
 				type WorkspaceStatsFileEvent = {
 					rendererSessionId: string;

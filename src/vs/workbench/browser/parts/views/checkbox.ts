@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import type { IHoverService } from 'vs/platform/hover/browser/hover';
 import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ITreeItem, ITreeItemCheckboxState } from 'vs/workbench/common/views';
 
@@ -25,13 +28,19 @@ export class TreeItemCheckbox extends Disposable {
 	public toggle: Toggle | undefined;
 	private checkboxContainer: HTMLDivElement;
 	public isDisposed = false;
+	private hover: IUpdatableHover | undefined;
 
 	public static readonly checkboxClass = 'custom-view-tree-node-item-checkbox';
 
 	private readonly _onDidChangeState = new Emitter<boolean>();
 	readonly onDidChangeState: Event<boolean> = this._onDidChangeState.event;
 
-	constructor(container: HTMLElement, private checkboxStateHandler: CheckboxStateHandler) {
+	constructor(
+		container: HTMLElement,
+		private checkboxStateHandler: CheckboxStateHandler,
+		private readonly hoverDelegate: IHoverDelegate,
+		private readonly hoverService: IHoverService
+	) {
 		super();
 		this.checkboxContainer = <HTMLDivElement>container;
 	}
@@ -52,12 +61,14 @@ export class TreeItemCheckbox extends Disposable {
 		if (node.checkbox) {
 			this.toggle = new Toggle({
 				isChecked: node.checkbox.isChecked,
-				title: this.createCheckboxTitle(node.checkbox),
+				title: '',
 				icon: node.checkbox.isChecked ? Codicon.check : undefined,
 				...defaultToggleStyles
 			});
-
+			this.setHover(node.checkbox);
+			this.setAccessibilityInformation(node.checkbox);
 			this.toggle.domNode.classList.add(TreeItemCheckbox.checkboxClass);
+			this.toggle.domNode.tabIndex = 1;
 			DOM.append(this.checkboxContainer, this.toggle.domNode);
 			this.registerListener(node);
 		}
@@ -73,18 +84,39 @@ export class TreeItemCheckbox extends Disposable {
 		}
 	}
 
+	private setHover(checkbox: ITreeItemCheckboxState) {
+		if (this.toggle) {
+			if (!this.hover) {
+				this.hover = this._register(this.hoverService.setupUpdatableHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox)));
+			} else {
+				this.hover.update(checkbox.tooltip);
+			}
+		}
+	}
+
 	private setCheckbox(node: ITreeItem) {
 		if (this.toggle && node.checkbox) {
 			node.checkbox.isChecked = this.toggle.checked;
 			this.toggle.setIcon(this.toggle.checked ? Codicon.check : undefined);
-			this.toggle.setTitle(this.createCheckboxTitle(node.checkbox));
+			this.setHover(node.checkbox);
+
+			this.setAccessibilityInformation(node.checkbox);
 			this.checkboxStateHandler.setCheckboxState(node);
 		}
 	}
 
-	private createCheckboxTitle(checkbox: ITreeItemCheckboxState) {
+	private checkboxHoverContent(checkbox: ITreeItemCheckboxState): string {
 		return checkbox.tooltip ? checkbox.tooltip :
 			checkbox.isChecked ? localize('checked', 'Checked') : localize('unchecked', 'Unchecked');
+	}
+
+	private setAccessibilityInformation(checkbox: ITreeItemCheckboxState) {
+		if (this.toggle && checkbox.accessibilityInformation) {
+			this.toggle.domNode.ariaLabel = checkbox.accessibilityInformation.label;
+			if (checkbox.accessibilityInformation.role) {
+				this.toggle.domNode.role = checkbox.accessibilityInformation.role;
+			}
+		}
 	}
 
 	private removeCheckbox() {

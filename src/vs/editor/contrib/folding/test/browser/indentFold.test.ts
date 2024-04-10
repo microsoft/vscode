@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -12,6 +13,8 @@ interface IndentRange {
 }
 
 suite('Indentation Folding', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function r(start: number, end: number): IndentRange {
 		return { start, end };
 	}

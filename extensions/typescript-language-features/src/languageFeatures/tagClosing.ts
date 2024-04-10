@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { API } from '../tsServer/api';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { Condition, conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
+import { Condition, conditionalRegistration, requireMinVersion } from './util/dependentRegistration';
 import { Disposable } from '../utils/dispose';
-import { DocumentSelector } from '../utils/documentSelector';
-import { LanguageDescription } from '../utils/languageDescription';
-import * as typeConverters from '../utils/typeConverters';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { LanguageDescription } from '../configuration/languageDescription';
+import * as typeConverters from '../typeConverters';
 
 class TagClosing extends Disposable {
 	public static readonly minVersion = API.v300;

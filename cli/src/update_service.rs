@@ -3,27 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::path::Path;
+use std::{ffi::OsStr, fmt, path::Path};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
 	debug, log, options, spanf,
 	util::{
-		errors::{AnyError, UnsupportedPlatformError, UpdatesNotConfigured, WrappedError},
-		http::{SimpleHttp, SimpleResponse},
+		errors::{AnyError, CodeError, WrappedError},
+		http::{BoxedHttp, SimpleResponse},
 		io::ReportCopyProgress,
+		tar, zipper,
 	},
 };
 
 /// Implementation of the VS Code Update service for use in the CLI.
+#[derive(Clone)]
 pub struct UpdateService {
-	client: Box<dyn SimpleHttp + Send + Sync + 'static>,
+	client: BoxedHttp,
 	log: log::Logger,
 }
 
 /// Describes a specific release, can be created manually or returned from the update service.
+#[derive(Clone, Eq, PartialEq)]
 pub struct Release {
 	pub name: String,
 	pub platform: Platform,
@@ -52,12 +55,13 @@ fn quality_download_segment(quality: options::Quality) -> &'static str {
 	}
 }
 
+fn get_update_endpoint() -> Result<&'static str, CodeError> {
+	VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(|| CodeError::UpdatesNotConfigured("no service url"))
+}
+
 impl UpdateService {
-	pub fn new(log: log::Logger, http: impl SimpleHttp + Send + Sync + 'static) -> Self {
-		UpdateService {
-			client: Box::new(http),
-			log,
-		}
+	pub fn new(log: log::Logger, http: BoxedHttp) -> Self {
+		UpdateService { client: http, log }
 	}
 
 	pub async fn get_release_by_semver_version(
@@ -67,11 +71,10 @@ impl UpdateService {
 		quality: options::Quality,
 		version: &str,
 	) -> Result<Release, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
-			.ok_or(UnsupportedPlatformError())?;
+			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/versions/{}/{}/{}",
 			update_endpoint,
@@ -109,11 +112,10 @@ impl UpdateService {
 		target: TargetKind,
 		quality: options::Quality,
 	) -> Result<Release, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
-			.ok_or(UnsupportedPlatformError())?;
+			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/latest/{}/{}",
 			update_endpoint,
@@ -145,12 +147,11 @@ impl UpdateService {
 
 	/// Gets the download stream for the release.
 	pub async fn get_download_stream(&self, release: &Release) -> Result<SimpleResponse, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = release
 			.target
 			.download_segment(release.platform)
-			.ok_or(UnsupportedPlatformError())?;
+			.ok_or_else(|| CodeError::UnsupportedPlatform(release.platform.to_string()))?;
 
 		let download_url = format!(
 			"{}/commit:{}/{}/{}",
@@ -177,14 +178,9 @@ pub fn unzip_downloaded_release<T>(
 where
 	T: ReportCopyProgress,
 {
-	#[cfg(any(target_os = "windows", target_os = "macos"))]
-	{
-		use crate::util::zipper;
+	if compressed_file.extension() == Some(OsStr::new("zip")) {
 		zipper::unzip_file(compressed_file, target_dir, reporter)
-	}
-	#[cfg(target_os = "linux")]
-	{
-		use crate::util::tar;
+	} else {
 		tar::decompress_tarball(compressed_file, target_dir, reporter)
 	}
 }
@@ -208,13 +204,16 @@ impl TargetKind {
 	}
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Platform {
 	LinuxAlpineX64,
 	LinuxAlpineARM64,
 	LinuxX64,
+	LinuxX64Legacy,
 	LinuxARM64,
+	LinuxARM64Legacy,
 	LinuxARM32,
+	LinuxARM32Legacy,
 	DarwinX64,
 	DarwinARM64,
 	WindowsX64,
@@ -241,8 +240,11 @@ impl Platform {
 			Platform::LinuxAlpineARM64 => "server-alpine-arm64",
 			Platform::LinuxAlpineX64 => "server-linux-alpine",
 			Platform::LinuxX64 => "server-linux-x64",
+			Platform::LinuxX64Legacy => "server-linux-legacy-x64",
 			Platform::LinuxARM64 => "server-linux-arm64",
+			Platform::LinuxARM64Legacy => "server-linux-legacy-arm64",
 			Platform::LinuxARM32 => "server-linux-armhf",
+			Platform::LinuxARM32Legacy => "server-linux-legacy-armhf",
 			Platform::DarwinX64 => "server-darwin",
 			Platform::DarwinARM64 => "server-darwin-arm64",
 			Platform::WindowsX64 => "server-win32-x64",
@@ -257,8 +259,11 @@ impl Platform {
 			Platform::LinuxAlpineARM64 => "cli-alpine-arm64",
 			Platform::LinuxAlpineX64 => "cli-alpine-x64",
 			Platform::LinuxX64 => "cli-linux-x64",
+			Platform::LinuxX64Legacy => "cli-linux-x64",
 			Platform::LinuxARM64 => "cli-linux-arm64",
+			Platform::LinuxARM64Legacy => "cli-linux-arm64",
 			Platform::LinuxARM32 => "cli-linux-armhf",
+			Platform::LinuxARM32Legacy => "cli-linux-armhf",
 			Platform::DarwinX64 => "cli-darwin-x64",
 			Platform::DarwinARM64 => "cli-darwin-arm64",
 			Platform::WindowsARM64 => "cli-win32-arm64",
@@ -304,5 +309,25 @@ impl Platform {
 		} else {
 			None
 		}
+	}
+}
+
+impl fmt::Display for Platform {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		f.write_str(match self {
+			Platform::LinuxAlpineARM64 => "LinuxAlpineARM64",
+			Platform::LinuxAlpineX64 => "LinuxAlpineX64",
+			Platform::LinuxX64 => "LinuxX64",
+			Platform::LinuxX64Legacy => "LinuxX64Legacy",
+			Platform::LinuxARM64 => "LinuxARM64",
+			Platform::LinuxARM64Legacy => "LinuxARM64Legacy",
+			Platform::LinuxARM32 => "LinuxARM32",
+			Platform::LinuxARM32Legacy => "LinuxARM32Legacy",
+			Platform::DarwinX64 => "DarwinX64",
+			Platform::DarwinARM64 => "DarwinARM64",
+			Platform::WindowsX64 => "WindowsX64",
+			Platform::WindowsX86 => "WindowsX86",
+			Platform::WindowsARM64 => "WindowsARM64",
+		})
 	}
 }
