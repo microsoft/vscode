@@ -277,6 +277,7 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 }
 
 export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
+	static ID = 'extensionAccessibilityHelpDialogContribution';
 	private _viewHelpDialogMap = this._register(new DisposableMap<string, IDisposable>());
 	constructor() {
 		super();
