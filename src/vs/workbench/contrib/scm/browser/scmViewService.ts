@@ -17,6 +17,7 @@ import { basename } from 'vs/base/common/resources';
 import { binarySearch } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -159,6 +160,7 @@ export class SCMViewService implements ISCMViewService {
 	constructor(
 		@ISCMService scmService: ISCMService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -184,6 +186,14 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		storageService.onWillSaveState(this.onWillSaveState, this, this.disposables);
+
+		// Maintain repository selection when the extension host restarts.
+		// Extension host is restarted after installing an extension update
+		// or during a profile switch.
+		extensionService.onWillStop(() => {
+			this.onWillSaveState();
+			this.didFinishLoading = false;
+		}, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -197,7 +207,7 @@ export class SCMViewService implements ISCMViewService {
 
 		let removed: Iterable<ISCMRepository> = Iterable.empty();
 
-		if (this.previousState) {
+		if (this.previousState && !this.didFinishLoading) {
 			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
 
 			if (index === -1) {
@@ -375,9 +385,9 @@ export class SCMViewService implements ISCMViewService {
 
 		const all = this.repositories.map(r => getProviderStorageKey(r.provider));
 		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.provider)));
-		const raw = JSON.stringify({ all, sortKey: this._repositoriesSortKey, visible });
+		this.previousState = { all, sortKey: this._repositoriesSortKey, visible };
 
-		this.storageService.store('scm:view:visibleRepositories', raw, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store('scm:view:visibleRepositories', JSON.stringify(this.previousState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	@debounce(5000)
@@ -391,7 +401,6 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		this.didFinishLoading = true;
-		this.previousState = undefined;
 	}
 
 	dispose(): void {

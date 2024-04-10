@@ -281,9 +281,14 @@ declare module 'vscode' {
 		kind: 'bug';
 	}
 
+	export interface ChatEditorAction {
+		kind: 'editor';
+		accepted: boolean;
+	}
+
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
 	}
 
 	export interface ChatVariableValue {

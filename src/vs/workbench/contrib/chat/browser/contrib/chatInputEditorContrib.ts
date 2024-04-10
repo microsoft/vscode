@@ -138,7 +138,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder ?? defaultAgent?.description ?? '',
+							contentText: viewModel.inputPlaceholder || (defaultAgent?.description ?? ''),
 							color: this.getPlaceholderColor()
 						}
 					}
