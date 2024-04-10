@@ -644,7 +644,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				response = new EmptyResponse();
 			} else {
 				const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-				const replyResponse = response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId);
+				const replyResponse = response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId, undefined);
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);
 				}
@@ -747,7 +747,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-		const response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), [], request.requestId);
+		const response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), [], request.requestId, undefined);
 		const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, response.raw, token);
 		if (followups && this._widget) {
 			const widget = this._widget;

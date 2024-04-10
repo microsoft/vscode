@@ -38,7 +38,7 @@ import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionPrompt } f
 import { IInlineChatSessionService } from './inlineChatSessionService';
 import { EditModeStrategy, IEditObserver, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
-import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StashedSession } from './inlineChatSession';
 import { IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -1108,19 +1108,16 @@ export class InlineChatController implements IEditorContribution {
 		this._strategy?.toggleDiff?.();
 	}
 
-	feedbackLast(kind: InlineChatResponseFeedbackKind) {
-		if (this._session?.lastExchange?.response instanceof ReplyResponse) {
-			this._session.provider.handleInlineChatResponseFeedback?.(this._session.session, this._session.lastExchange.response.raw, kind);
-			switch (kind) {
-				case InlineChatResponseFeedbackKind.Helpful:
-					this._ctxLastFeedbackKind.set('helpful');
-					break;
-				case InlineChatResponseFeedbackKind.Unhelpful:
-					this._ctxLastFeedbackKind.set('unhelpful');
-					break;
-				default:
-					break;
-			}
+	reportBug() {
+		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
+			const response = this._session.lastExchange.response.chatResponse;
+			this._chatService.notifyUserAction({
+				sessionId: response.session.sessionId,
+				requestId: response.requestId,
+				agentId: response.agent?.id,
+				result: response.result,
+				action: { kind: 'bug' }
+			});
 			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
@@ -1132,8 +1129,18 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	acceptSession(): void {
-		if (this._session?.lastExchange?.response instanceof ReplyResponse) {
-			this._session.provider.handleInlineChatResponseFeedback?.(this._session.session, this._session.lastExchange.response.raw, InlineChatResponseFeedbackKind.Accepted);
+		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
+			const response = this._session?.lastExchange?.response.chatResponse;
+			this._chatService.notifyUserAction({
+				sessionId: response.session.sessionId,
+				requestId: response.requestId,
+				agentId: response.agent?.id,
+				result: response.result,
+				action: {
+					kind: 'inlineChat',
+					action: 'accepted'
+				}
+			});
 		}
 		this._messages.fire(Message.ACCEPT_SESSION);
 	}
@@ -1154,8 +1161,18 @@ export class InlineChatController implements IEditorContribution {
 			const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 			result = this._session.asChangedText(diff?.changes ?? []);
 
-			if (this._session.lastExchange?.response instanceof ReplyResponse) {
-				this._session.provider.handleInlineChatResponseFeedback?.(this._session.session, this._session.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
+			if (this._session.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
+				const response = this._session?.lastExchange?.response.chatResponse;
+				this._chatService.notifyUserAction({
+					sessionId: response.session.sessionId,
+					requestId: response.requestId,
+					agentId: response.agent?.id,
+					result: response.result,
+					action: {
+						kind: 'inlineChat',
+						action: 'discarded'
+					}
+				});
 			}
 		}
 
