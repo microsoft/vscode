@@ -350,7 +350,7 @@ export class ChatService extends Disposable implements IChatService {
 				// Should have been registered during activation above!
 				throw new ErrorNoTelemetry('No default agent registered');
 			}
-			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(token) ?? undefined;
+			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(model.initialLocation, token) ?? undefined;
 			const welcomeModel = welcomeMessage && this.instantiationService.createInstance(
 				ChatWelcomeMessageModel,
 				welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item),
