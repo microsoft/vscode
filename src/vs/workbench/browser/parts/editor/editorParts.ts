@@ -8,7 +8,7 @@ import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, Gro
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorPart, IEditorPartUIState, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { EditorPart, IEditorPartUIState, IEditorWorkingSetMainState, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -297,20 +297,13 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private async applyState(state: IEditorPartsUIState): Promise<void> {
 
-		// Close all editors and auxiliary parts first
+		// Close all auxiliary parts first
 		for (const part of this.parts) {
 			if (part === this.mainPart) {
 				continue; // main part takes care on its own
 			}
 
-			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				const closed = await group.closeAllEditors();
-				if (!closed) {
-					return;
-				}
-			}
-
-			(part as unknown as IAuxiliaryEditorPart).close(false);
+			(part as unknown as IAuxiliaryEditorPart).close();
 		}
 
 		// Restore auxiliary state
