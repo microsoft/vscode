@@ -297,12 +297,21 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private async applyState(state: IEditorPartsUIState): Promise<void> {
 
-		// Close all auxiliary parts first
+		// Close all non-modified editors of auxiliary parts first
 		for (const part of this.parts) {
 			if (part === this.mainPart) {
 				continue; // main part takes care on its own
 			}
 
+			// Close all opened non-modified editors and dispose groups
+			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				const closed = await group.closeAllEditors({ excludeModified: true });
+				if (!closed) {
+					return;
+				}
+			}
+
+			// Close auxiliary part (this moves modified editors to the main part)
 			(part as unknown as IAuxiliaryEditorPart).close();
 		}
 

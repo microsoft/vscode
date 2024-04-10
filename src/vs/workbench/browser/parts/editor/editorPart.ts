@@ -1339,10 +1339,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	async applyState(state: IEditorPartUIState): Promise<void> {
 
-		// Close all opened editors and dispose groups
+		// Close all non-modified editors and dispose groups
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			await group.closeAllEditors({ excludeModified: true });
+			const closed = await group.closeAllEditors({ excludeModified: true });
+			if (!closed) {
+				return;
+			}
 		}
 		this.disposeGroups();
 
