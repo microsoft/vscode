@@ -38,6 +38,7 @@ export const enum SearchCommandIds {
 	ToggleSearchOnTypeActionId = 'workbench.action.toggleSearchOnType',
 	CollapseSearchResultsActionId = 'search.action.collapseSearchResults',
 	ExpandSearchResultsActionId = 'search.action.expandSearchResults',
+	ExpandRecursivelyCommandId = 'search.action.expandRecursively',
 	ClearSearchResultsActionId = 'search.action.clearSearchResults',
 	ViewAsTreeActionId = 'search.action.viewAsTree',
 	ViewAsListActionId = 'search.action.viewAsList',
@@ -77,4 +78,5 @@ export const SearchContext = {
 	ViewHasSomeCollapsibleKey: new RawContextKey<boolean>('viewHasSomeCollapsibleResult', false),
 	InTreeViewKey: new RawContextKey<boolean>('inTreeView', false),
 	AIResultsVisibleKey: new RawContextKey<boolean>('AIResultsVisibleKey', false),
+	hasAIResultProvider: new RawContextKey<boolean>('hasAIResultProviderKey', false),
 };

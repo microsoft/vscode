@@ -111,7 +111,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 
 		// Focus action
 		const that = this;
-		registerAction2(class FocusTitleBar extends Action2 {
+		this._register(registerAction2(class FocusTitleBar extends Action2 {
 
 			constructor() {
 				super({
@@ -125,7 +125,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 			run(): void {
 				that.getPartByDocument(getActiveDocument()).focus();
 			}
-		});
+		}));
 	}
 
 	//#region Auxiliary Titlebar Parts
@@ -235,8 +235,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private lastLayoutDimensions: Dimension | undefined;
 
 	private actionToolBar!: WorkbenchToolBar;
-	private actionToolBarDisposable = this._register(new DisposableStore());
-	private editorActionsChangeDisposable = this._register(new DisposableStore());
+	private readonly actionToolBarDisposable = this._register(new DisposableStore());
+	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
 	private actionToolBarElement!: HTMLElement;
 
 	private layoutToolbarMenu: IMenu | undefined;
@@ -728,7 +728,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get activityActionsEnabled(): boolean {
-		return !this.isAuxiliary && this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
+		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		return !this.isAuxiliary && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM);
 	}
 
 	get hasZoomableElements(): boolean {

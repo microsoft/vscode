@@ -75,7 +75,7 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 
 	get text(): string {
-		return `${chatAgentLeader}${this.agent.id}`;
+		return `${chatAgentLeader}${this.agent.name}`;
 	}
 
 	get promptText(): string {
@@ -92,6 +92,8 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 			editorRange: this.editorRange,
 			agent: {
 				id: this.agent.id,
+				name: this.agent.name,
+				description: this.agent.description,
 				metadata: this.agent.metadata
 			}
 		};
@@ -167,10 +169,19 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestVariablePart).variableArg
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
+				let agent = (part as ChatRequestAgentPart).agent;
+				if (!('name' in agent)) {
+					// Port old format
+					agent = {
+						...(agent as any),
+						name: (agent as any).id
+					};
+				}
+
 				return new ChatRequestAgentPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestAgentPart).agent
+					agent
 				);
 			} else if (part.kind === ChatRequestAgentSubcommandPart.Kind) {
 				return new ChatRequestAgentSubcommandPart(
@@ -196,4 +207,10 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 			}
 		})
 	};
+}
+
+export function extractAgentAndCommand(parsed: IParsedChatRequest): { agentPart: ChatRequestAgentPart | undefined; commandPart: ChatRequestAgentSubcommandPart | undefined } {
+	const agentPart = parsed.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
+	const commandPart = parsed.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
+	return { agentPart, commandPart };
 }

@@ -33,30 +33,30 @@ export function createInstanceCapabilityEventMultiplexer<T extends TerminalCapab
 	}
 
 	// Added capabilities
-	const addCapabilityMultiplexer = new DynamicListEventMultiplexer(
+	const addCapabilityMultiplexer = store.add(new DynamicListEventMultiplexer(
 		currentInstances,
 		onAddInstance,
 		onRemoveInstance,
 		instance => Event.map(instance.capabilities.onDidAddCapability, changeEvent => ({ instance, changeEvent }))
-	);
-	addCapabilityMultiplexer.event(e => {
+	));
+	store.add(addCapabilityMultiplexer.event(e => {
 		if (e.changeEvent.id === capabilityId) {
 			addCapability(e.instance, e.changeEvent.capability);
 		}
-	});
+	}));
 
 	// Removed capabilities
-	const removeCapabilityMultiplexer = new DynamicListEventMultiplexer(
+	const removeCapabilityMultiplexer = store.add(new DynamicListEventMultiplexer(
 		currentInstances,
 		onAddInstance,
 		onRemoveInstance,
 		instance => instance.capabilities.onDidRemoveCapability
-	);
-	removeCapabilityMultiplexer.event(e => {
+	));
+	store.add(removeCapabilityMultiplexer.event(e => {
 		if (e.id === capabilityId) {
 			capabilityListeners.deleteAndDispose(e.capability);
 		}
-	});
+	}));
 
 	return {
 		dispose: () => store.dispose(),

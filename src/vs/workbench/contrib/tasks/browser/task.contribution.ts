@@ -70,7 +70,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	private _registerListeners(): void {
 		let promise: Promise<void> | undefined = undefined;
 		let resolve: (value?: void | Thenable<void>) => void;
-		this._taskService.onDidStateChange(event => {
+		this._register(this._taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
 				this._updateRunningTasksStatus();
 			}
@@ -116,7 +116,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 					promise = undefined;
 				});
 			}
-		});
+		}));
 	}
 
 	private async _updateRunningTasksStatus(): Promise<void> {

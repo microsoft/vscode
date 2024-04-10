@@ -6,7 +6,7 @@
 import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
-import { Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
+import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -29,8 +29,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -84,15 +86,6 @@ export interface ITerminalInstanceService {
 
 	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
 	didRegisterBackend(remoteAuthority?: string): void;
-}
-
-export interface ITerminalConfigHelper {
-	config: ITerminalConfiguration;
-	panelContainer: HTMLElement | undefined;
-
-	configFontIsMonospace(): boolean;
-	getFont(w: Window): ITerminalFont;
-	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
 export const enum Direction {
@@ -248,7 +241,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
 	readonly detachedInstances: Iterable<IDetachedTerminalInstance>;
-	readonly configHelper: ITerminalConfigHelper;
 	readonly defaultLocation: TerminalLocation;
 
 	readonly isProcessSupportRegistered: boolean;
@@ -267,6 +259,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 
 	// Multiplexed events
+	readonly onAnyInstanceData: Event<{ instance: ITerminalInstance; data: string }>;
 	readonly onAnyInstanceDataInput: Event<ITerminalInstance>;
 	readonly onAnyInstanceIconChange: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	readonly onAnyInstanceMaximumDimensionsChange: Event<ITerminalInstance>;
@@ -341,7 +334,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * instances and removing old instances as needed.
 	 * @param getEvent Maps the instance to the event.
 	 */
-	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): Event<T>;
+	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): DynamicListEventMultiplexer<ITerminalInstance, T>;
 
 	/**
 	 * Creates a capability event listener that listens to capabilities on all instances,
@@ -351,6 +344,28 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
+
+/**
+ * A service that provides convenient access to the terminal configuration and derived values.
+ */
+export interface ITerminalConfigurationService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * A typed and partially validated representation of the terminal configuration.
+	 */
+	readonly config: Readonly<ITerminalConfiguration>;
+
+	/**
+	 * Fires when something within the terminal configuration changes.
+	 */
+	readonly onConfigChanged: Event<void>;
+
+	setPanelContainer(panelContainer: HTMLElement): void;
+	configFontIsMonospace(): boolean;
+	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
+}
+
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
 }

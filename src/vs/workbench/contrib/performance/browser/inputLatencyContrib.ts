@@ -30,7 +30,12 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 			this._setupListener();
 		}, 60000));
 
-		this._setupListener();
+
+		// Only log 1% of users selected randomly to reduce the volume of data
+		if (Math.random() <= 0.01) {
+			this._setupListener();
+		}
+
 	}
 
 	private _setupListener(): void {
@@ -46,9 +51,9 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 		type InputLatencyStatisticFragment = {
 			owner: 'tyriar';
 			comment: 'Represents a set of statistics collected about input latencies';
-			average: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took to execute.'; isMeasurement: true };
-			max: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The maximum time it took to execute.'; isMeasurement: true };
-			min: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The minimum time it took to execute.'; isMeasurement: true };
+			average: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took to execute.' };
+			max: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The maximum time it took to execute.' };
+			min: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The minimum time it took to execute.' };
 		};
 
 		type PerformanceInputLatencyClassification = {
@@ -58,7 +63,7 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 			input: InputLatencyStatisticFragment;
 			render: InputLatencyStatisticFragment;
 			total: InputLatencyStatisticFragment;
-			sampleCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of samples measured.' };
+			sampleCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of samples measured.' };
 		};
 
 		type PerformanceInputLatencyEvent = inputLatency.IInputLatencyMeasurements;

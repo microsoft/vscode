@@ -189,8 +189,8 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 	}
 
 	private _registerActions(): void {
-		registerAction2(SignOutOfAccountAction);
-		registerAction2(ManageTrustedExtensionsForAccountAction);
+		this._register(registerAction2(SignOutOfAccountAction));
+		this._register(registerAction2(ManageTrustedExtensionsForAccountAction));
 	}
 }
 

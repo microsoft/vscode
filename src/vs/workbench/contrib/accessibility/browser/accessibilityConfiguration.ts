@@ -13,7 +13,6 @@ import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/wor
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
-import { soundFeatureBase } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -22,6 +21,8 @@ export const accessibleViewVerbosityEnabled = new RawContextKey<boolean>('access
 export const accessibleViewGoToSymbolSupported = new RawContextKey<boolean>('accessibleViewGoToSymbolSupported', false, true);
 export const accessibleViewOnLastLine = new RawContextKey<boolean>('accessibleViewOnLastLine', false, true);
 export const accessibleViewCurrentProviderId = new RawContextKey<string>('accessibleViewCurrentProviderId', undefined, undefined);
+export const accessibleViewInCodeBlock = new RawContextKey<boolean>('accessibleViewInCodeBlock', undefined, undefined);
+export const accessibleViewContainsCodeBlocks = new RawContextKey<boolean>('accessibleViewContainsCodeBlocks', undefined, undefined);
 
 /**
  * Miscellaneous settings tagged with accessibility and implemented in the accessibility contrib but
@@ -45,6 +46,7 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditor = 'accessibility.verbosity.diffEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
+	TerminalChat = 'accessibility.verbosity.terminalChat',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook',
@@ -52,11 +54,13 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
-	Comments = 'accessibility.verbosity.comments'
+	Comments = 'accessibility.verbosity.comments',
+	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
 }
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
+	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	Chat = 'panelChat',
@@ -90,6 +94,17 @@ export const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNo
 	type: 'object'
 });
 
+export const soundFeatureBase: IConfigurationPropertySchema = {
+	'type': 'string',
+	'enum': ['auto', 'on', 'off'],
+	'default': 'auto',
+	'enumDescriptions': [
+		localize('sound.enabled.auto', "Enable sound when a screen reader is attached."),
+		localize('sound.enabled.on', "Enable sound."),
+		localize('sound.enabled.off', "Disable sound.")
+	],
+	tags: ['accessibility'],
+};
 
 const signalFeatureBase: IConfigurationPropertySchema = {
 	'type': 'object',
@@ -123,6 +138,7 @@ const defaultNoAnnouncement: IConfigurationPropertySchema = {
 
 const configuration: IConfigurationNode = {
 	...accessibilityConfigurationNodeBase,
+	scope: ConfigurationScope.RESOURCE,
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
 			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),
@@ -166,6 +182,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.DiffEditorActive]: {
+			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {
@@ -551,7 +571,20 @@ const configuration: IConfigurationNode = {
 				'sound': {
 					'description': localize('accessibility.signals.voiceRecordingStarted.sound', "Plays a sound when the voice recording has started."),
 					...soundFeatureBase,
-					'default': 'on'
+				},
+			},
+			'default': {
+				'sound': 'on'
+			}
+		},
+		'accessibility.signals.voiceRecordingStopped': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.voiceRecordingStopped', "Indicates when the voice recording has stopped."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceRecordingStopped.sound', "Plays a sound when the voice recording has stopped."),
+					...soundFeatureBase,
+					default: 'off'
 				},
 			}
 		},
@@ -688,7 +721,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	) {
 		super();
 
-		this._register(Event.runAndSubscribe(speechService.onDidRegisterSpeechProvider, () => this.updateConfiguration()));
+		this._register(Event.runAndSubscribe(speechService.onDidChangeHasSpeechProvider, () => this.updateConfiguration()));
 	}
 
 	private updateConfiguration(): void {

@@ -218,7 +218,7 @@ export async function showRunRecentQuickPick(
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
 	});
 	const outputProvider = instantiationService.createInstance(TerminalOutputProvider);
-	const quickPick = quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
+	const quickPick = quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>();
 	const originalItems = items;
 	quickPick.items = [...originalItems];
 	quickPick.sortByLabel = false;
@@ -258,6 +258,39 @@ export async function showRunRecentQuickPick(
 			await instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, filterMode, value);
 		}
 	});
+	let terminalScrollStateSaved = false;
+	function restoreScrollState() {
+		terminalScrollStateSaved = false;
+		instance.xterm?.markTracker.restoreScrollState();
+		instance.xterm?.markTracker.clear();
+	}
+	quickPick.onDidChangeActive(async () => {
+		const xterm = instance.xterm;
+		if (!xterm) {
+			return;
+		}
+		const [item] = quickPick.activeItems;
+		if ('command' in item && item.command && item.command.marker) {
+			if (!terminalScrollStateSaved) {
+				xterm.markTracker.saveScrollState();
+				terminalScrollStateSaved = true;
+			}
+			const promptRowCount = item.command.getPromptRowCount();
+			const commandRowCount = item.command.getCommandRowCount();
+			xterm.markTracker.revealRange({
+				start: {
+					x: 1,
+					y: item.command.marker.line - (promptRowCount - 1) + 1
+				},
+				end: {
+					x: instance.cols,
+					y: item.command.marker.line + (commandRowCount - 1) + 1
+				}
+			});
+		} else {
+			restoreScrollState();
+		}
+	});
 	quickPick.onDidAccept(async () => {
 		const result = quickPick.activeItems[0];
 		let text: string;
@@ -271,7 +304,9 @@ export async function showRunRecentQuickPick(
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
+		restoreScrollState();
 	});
+	quickPick.onDidHide(() => restoreScrollState());
 	if (value) {
 		quickPick.value = value;
 	}

@@ -8,15 +8,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { annotateVulnerabilitiesInText } from 'vs/workbench/contrib/chat/common/annotations';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTextEdit, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
 
@@ -49,7 +47,6 @@ export interface IChatSessionInitEvent {
 export interface IChatViewModel {
 	readonly model: IChatModel;
 	readonly initState: ChatModelInitState;
-	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
@@ -69,6 +66,7 @@ export interface IChatRequestViewModel {
 	readonly avatarIcon?: URI | ThemeIcon;
 	readonly message: IParsedChatRequest | IChatFollowup;
 	readonly messageText: string;
+	readonly attempt: number;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -95,7 +93,7 @@ export interface IChatProgressMessageRenderData {
 	isLast: boolean;
 }
 
-export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton;
+export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEdit;
 export interface IChatResponseRenderData {
 	renderedParts: IChatRenderData[];
 }
@@ -112,13 +110,13 @@ export interface IChatResponseViewModel {
 	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
-	readonly providerId: string;
 	/** The ID of the associated IChatRequestViewModel */
 	readonly requestId: string;
 	readonly username: string;
 	readonly avatarIcon?: URI | ThemeIcon;
 	readonly agent?: IChatAgentData;
 	readonly slashCommand?: IChatAgentCommand;
+	readonly agentOrSlashCommandDetected: boolean;
 	readonly response: IResponse;
 	readonly usedContext: IChatUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
@@ -176,10 +174,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		return this._model.requestInProgress;
 	}
 
-	get providerId() {
-		return this._model.providerId;
-	}
-
 	get initState() {
 		return this._model.initState;
 	}
@@ -188,7 +182,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		private readonly _model: IChatModel,
 		public readonly codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -240,7 +233,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private onAddResponse(responseModel: IChatResponseModel) {
 		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
 		this._register(response.onDidChange(() => {
-			this.updateCodeBlockTextModels(response);
+			if (response.isComplete) {
+				this.updateCodeBlockTextModels(response);
+			}
 			return this._onDidChange.fire(null);
 		}));
 		this._items.push(response);
@@ -258,39 +253,20 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			.forEach((item: ChatResponseViewModel) => item.dispose());
 	}
 
-	private updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
-		const content = isRequestVM(model) ? model.messageText : model.response.asString();
-		const renderer = new marked.Renderer();
+	updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
+		let content: string;
+		if (isRequestVM(model)) {
+			content = model.messageText;
+		} else {
+			content = annotateVulnerabilitiesInText(model.response.value).map(x => x.content.value).join('');
+		}
 
 		let codeBlockIndex = 0;
+		const renderer = new marked.Renderer();
 		renderer.code = (value, languageId) => {
 			languageId ??= '';
 			const newText = this.fixCodeText(value, languageId);
-			const textModel = this.codeBlockModelCollection.getOrCreate(model.id, codeBlockIndex++);
-			textModel.then(ref => {
-				const model = ref.object.textEditorModel;
-				if (languageId) {
-					const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
-					if (vscodeLanguageId && vscodeLanguageId !== ref.object.textEditorModel.getLanguageId()) {
-						ref.object.textEditorModel.setLanguage(vscodeLanguageId);
-					}
-				}
-
-				const currentText = ref.object.textEditorModel.getValue(EndOfLinePreference.LF);
-				if (newText === currentText) {
-					return;
-				}
-
-				if (newText.startsWith(currentText)) {
-					const text = newText.slice(currentText.length);
-					const lastLine = model.getLineCount();
-					const lastCol = model.getLineMaxColumn(lastLine);
-					model.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
-				} else {
-					// console.log(`Failed to optimize setText`);
-					model.setValue(newText);
-				}
-			});
+			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text: newText, languageId });
 			return '';
 		};
 
@@ -361,10 +337,14 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this.message.text;
 	}
 
+	get attempt() {
+		return this._model.attempt;
+	}
+
 	currentRenderedHeight: number | undefined;
 
 	constructor(
-		readonly _model: IChatRequestModel,
+		private readonly _model: IChatRequestModel,
 	) { }
 }
 
@@ -380,10 +360,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get dataId() {
 		return this._model.id + `_${this._modelChangeCount}` + `_${ChatModelInitState[this._model.session.initState]}`;
-	}
-
-	get providerId() {
-		return this._model.providerId;
 	}
 
 	get sessionId() {
@@ -404,6 +380,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get slashCommand() {
 		return this._model.slashCommand;
+	}
+
+	get agentOrSlashCommandDetected() {
+		return this._model.agentOrSlashCommandDetected;
 	}
 
 	get response(): IResponse {

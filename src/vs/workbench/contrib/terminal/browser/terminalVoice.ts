@@ -67,9 +67,8 @@ export class TerminalVoiceSession extends Disposable {
 	private readonly _disposables: DisposableStore;
 	constructor(
 		@ISpeechService private readonly _speechService: ISpeechService,
-		@ITerminalService readonly _terminalService: ITerminalService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IInstantiationService readonly _instantationService: IInstantiationService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
@@ -77,7 +76,7 @@ export class TerminalVoiceSession extends Disposable {
 		this._disposables = this._register(new DisposableStore());
 	}
 
-	start(): void {
+	async start(): Promise<void> {
 		this.stop();
 		let voiceTimeout = this.configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
 		if (!isNumber(voiceTimeout) || voiceTimeout < 0) {
@@ -89,7 +88,7 @@ export class TerminalVoiceSession extends Disposable {
 		}, voiceTimeout));
 		this._cancellationTokenSource = new CancellationTokenSource();
 		this._register(toDisposable(() => this._cancellationTokenSource?.dispose(true)));
-		const session = this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token);
+		const session = await this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token, 'terminal');
 
 		this._disposables.add(session.onDidChange((e) => {
 			if (this._cancellationTokenSource?.token.isCancellationRequested) {
@@ -97,7 +96,6 @@ export class TerminalVoiceSession extends Disposable {
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
-					// TODO: play start audio cue
 					if (!this._decoration) {
 						this._createDecoration();
 					}
@@ -117,7 +115,6 @@ export class TerminalVoiceSession extends Disposable {
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
-					// TODO: play stop audio cue
 					this.stop();
 					break;
 			}

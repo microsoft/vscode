@@ -18,7 +18,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -30,8 +30,8 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatFileCreationWidget';
 import { HunkInformation, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatZoneWidget } from './inlineChatZoneWidget';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { HunkState } from './inlineChatSession';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -140,6 +140,7 @@ export abstract class EditModeStrategy {
 export class PreviewStrategy extends EditModeStrategy {
 
 	private readonly _ctxDocumentChanged: IContextKey<boolean>;
+	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 
 	constructor(
 		session: Session,
@@ -147,6 +148,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
 
@@ -158,10 +160,13 @@ export class PreviewStrategy extends EditModeStrategy {
 				this._ctxDocumentChanged.set(session.hasChangedText);
 			}
 		}, undefined, this._store);
+
+		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 	}
 
 	override dispose(): void {
 		this._ctxDocumentChanged.reset();
+		this._previewZone.rawValue?.dispose();
 		super.dispose();
 	}
 
@@ -213,10 +218,10 @@ export class PreviewStrategy extends EditModeStrategy {
 			this._zone.widget.hideEditsPreview();
 		}
 
-		if (response.untitledTextModel) {
-			this._zone.widget.showCreatePreview(response.untitledTextModel);
+		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
+			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
-			this._zone.widget.hideCreatePreview();
+			this._previewZone.rawValue?.hide();
 		}
 	}
 
@@ -261,6 +266,10 @@ export class LiveStrategy extends EditModeStrategy {
 		overviewRuler: {
 			position: OverviewRulerLane.Full,
 			color: themeColorFromId(overviewRulerInlineChatDiffInserted),
+		},
+		minimap: {
+			position: MinimapPosition.Inline,
+			color: themeColorFromId(minimapInlineChatDiffInserted),
 		}
 	});
 
@@ -448,7 +457,7 @@ export class LiveStrategy extends EditModeStrategy {
 									data.viewZoneId = undefined;
 								}
 							});
-							this._ctxCurrentChangeShowsDiff.set(typeof data?.viewZoneId === 'number');
+							this._ctxCurrentChangeShowsDiff.set(typeof data?.viewZoneId === 'string');
 							scrollState.restore(this._editor);
 						};
 
@@ -546,7 +555,7 @@ export class LiveStrategy extends EditModeStrategy {
 				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
 				const remainingHunks = this._session.hunkData.pending;
-				this._updateSummaryMessage(remainingHunks);
+				this._updateSummaryMessage(remainingHunks, this._session.hunkData.size);
 
 
 				const mode = this._configService.getValue<'on' | 'off' | 'auto'>(InlineChatConfigKeys.AccessibleDiffView);
@@ -582,16 +591,28 @@ export class LiveStrategy extends EditModeStrategy {
 		return renderHunks()?.position;
 	}
 
-	protected _updateSummaryMessage(hunkCount: number) {
+	private _updateSummaryMessage(remaining: number, total: number) {
+
+		const needsReview = this._configService.getValue<boolean>(InlineChatConfigKeys.AcceptedOrDiscardBeforeSave);
 		let message: string;
-		if (hunkCount === 0) {
-			message = localize('change.0', "Nothing changed");
-		} else if (hunkCount === 1) {
-			message = localize('change.1', "1 change");
+		if (total === 0) {
+			message = localize('change.0', "Nothing changed.");
+		} else if (remaining === 1) {
+			message = needsReview
+				? localize('review.1', "$(info) Accept or Discard 1 change.")
+				: localize('change.1', "1 change");
 		} else {
-			message = localize('lines.NM', "{0} changes", hunkCount);
+			message = needsReview
+				? localize('review.N', "$(info) Accept or Discard {0} changes.", remaining)
+				: localize('change.N', "{0} changes", total);
 		}
-		this._zone.widget.updateStatus(message);
+
+		let title: string | undefined;
+		if (needsReview) {
+			title = localize('review', "Review (accept or discard) all changes before continuing.");
+		}
+
+		this._zone.widget.updateStatus(message, { title });
 	}
 
 	hasFocus(): boolean {

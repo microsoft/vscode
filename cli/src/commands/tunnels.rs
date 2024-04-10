@@ -50,7 +50,11 @@ use crate::{
 		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
 	},
 	util::{
-		app_lock::AppMutex, command::new_std_command, errors::{wrap, AnyError, CodeError}, machine::canonical_exe, prereqs::PreReqChecker
+		app_lock::AppMutex,
+		command::new_std_command,
+		errors::{wrap, AnyError, CodeError},
+		machine::canonical_exe,
+		prereqs::PreReqChecker,
 	},
 };
 use crate::{
@@ -151,8 +155,9 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		code_server_args: (&ctx.args).into(),
 	};
 
-	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, args.on_socket) {
-		(_, true) => {
+	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, &args.on_host, args.on_socket)
+	{
+		(_, _, true) => {
 			let socket = get_socket_name();
 			let listener = listen_socket_rw_stream(&socket)
 				.await
@@ -164,8 +169,14 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 
 			Box::new(listener)
 		}
-		(Some(p), _) => {
-			let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), p);
+		(Some(_), _, _) | (_, Some(_), _) => {
+			let addr = SocketAddr::new(
+				args.on_host
+					.as_ref()
+					.map(|h| h.parse().map_err(CodeError::InvalidHostAddress))
+					.unwrap_or(Ok(IpAddr::V4(Ipv4Addr::LOCALHOST)))?,
+				args.on_port.unwrap_or_default(),
+			);
 			let listener = tokio::net::TcpListener::bind(addr)
 				.await
 				.map_err(|e| wrap(e, "error listening on port"))?;
@@ -227,8 +238,7 @@ pub async fn service(
 			// likewise for license consent
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
-			let current_exe =
-				canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+			let current_exe = canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
 			manager
 				.register(
@@ -404,7 +414,8 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
-	let csa = (&args).into();
+	let mut csa = (&args).into();
+	gateway_args.apply_to_server_args(&mut csa);
 	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 
@@ -494,7 +505,12 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	b64::URL_SAFE_NO_PAD.encode(result)
+	let mut result = b64::URL_SAFE_NO_PAD.encode(result);
+	if result.starts_with('-') {
+		result.insert(0, 'a'); // avoid arg parsing issue
+	}
+
+	result
 }
 
 async fn serve_with_csa(

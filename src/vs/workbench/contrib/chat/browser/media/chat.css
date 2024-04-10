@@ -166,6 +166,11 @@
 	background-color: var(--vscode-chat-list-background);
 }
 
+.interactive-item-container.interactive-request .header .monaco-toolbar {
+	/* Take the partially-transparent background color override for request rows */
+	background-color: inherit;
+}
+
 .interactive-item-container .header .monaco-toolbar .checked.action-label,
 .interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
@@ -338,15 +343,18 @@
 	display: flex;
 	box-sizing: border-box;
 	cursor: text;
-	margin: 0px 20px;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
-	align-items: center;
+	align-items: flex-end;
 	justify-content: space-between;
+}
+
+.interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
+	margin-bottom: 0;
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -374,6 +382,14 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	height: 22px;
+
+	/* It's bottom-aligned, make it appear centered within the container */
+	margin-bottom: 7px;
+}
+
+.interactive-session .interactive-input-part .interactive-execute-toolbar .monaco-action-bar .actions-container {
+	display: flex;
+	gap: 4px;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
@@ -417,9 +433,22 @@
 }
 
 .interactive-session .interactive-input-part {
+	margin: 0px 20px;
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
+}
+
+.interactive-session .interactive-input-part.compact {
+	margin: 0;
+	padding: 6px 0px;
+}
+
+.interactive-session .chat-implicit-context {
+	padding: 8px 8px 13px;
+	margin-bottom: -5px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
+	border-radius: 6px 6px 0px 0px;
 }
 
 .interactive-session-followups {
@@ -441,10 +470,6 @@
 
 .interactive-item-container .interactive-response-followups .monaco-button {
 	padding: 4px 8px;
-}
-
-.interactive-session .interactive-input-part .interactive-input-followups {
-	margin: 0px 20px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
@@ -490,10 +515,11 @@
 
 .quick-input-widget .interactive-session .interactive-input-part {
 	padding: 8px 6px 6px 6px;
+	margin: 0 3px;
 }
 
 .quick-input-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
-	bottom: 1px;
+	margin-bottom: 1px;
 }
 
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {

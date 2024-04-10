@@ -37,6 +37,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 	constructor(
 		private viewDescriptorService: IViewDescriptorService,
 		private targetContainerLocation: ViewContainerLocation,
+		private orientation: ActionsOrientation,
 		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | null>,
 		private moveComposite: (from: string, to: string, before?: Before2D) => void,
 		private getItems: () => ICompositeBarItem[]
@@ -93,7 +94,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		}
 
 		const items = this.getItems();
-		const before = this.targetContainerLocation === ViewContainerLocation.Panel ? before2d?.horizontallyBefore : before2d?.verticallyBefore;
+		const before = this.orientation === ActionsOrientation.HORIZONTAL ? before2d?.horizontallyBefore : before2d?.verticallyBefore;
 		return items.filter(item => item.visible).findIndex(item => item.id === targetId) + (before ? 0 : 1);
 	}
 

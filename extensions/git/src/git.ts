@@ -1161,6 +1161,10 @@ export class Repository {
 			args.push(`-n${options?.maxEntries ?? 32}`);
 		}
 
+		if (options?.author) {
+			args.push(`--author="${options.author}"`);
+		}
+
 		if (options?.path) {
 			args.push('--', options.path);
 		}
@@ -2521,7 +2525,7 @@ export class Repository {
 		// On Windows and macOS ref names are case insensitive so we add --ignore-case
 		// to handle the scenario where the user switched to a branch with incorrect
 		// casing
-		if (isWindows || isMacintosh) {
+		if (this.git.compareGitVersionTo('2.12') !== -1 && (isWindows || isMacintosh)) {
 			args.push('--ignore-case');
 		}
 

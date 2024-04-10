@@ -137,6 +137,7 @@ export interface ITerminalConfiguration {
 	macOptionClickForcesSelection: boolean;
 	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
+	middleClickBehavior: 'default' | 'paste';
 	cursorBlinking: boolean;
 	cursorStyle: 'block' | 'underline' | 'line';
 	cursorStyleInactive: 'outline' | 'block' | 'underline' | 'line' | 'none';
@@ -175,6 +176,7 @@ export interface ITerminalConfiguration {
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
+	allowedLinkSchemes: string[];
 	unicodeVersion: '6' | '11';
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
@@ -204,6 +206,7 @@ export interface ITerminalConfiguration {
 	enableImages: boolean;
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
+	rescaleOverlappingGlyphs: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -649,7 +652,18 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel',
 	'notification.acceptPrimaryAction',
-	'runCommands'
+	'runCommands',
+	'workbench.action.terminal.chat.start',
+	'workbench.action.terminal.chat.close',
+	'workbench.action.terminal.chat.discard',
+	'workbench.action.terminal.chat.makeRequest',
+	'workbench.action.terminal.chat.cancel',
+	'workbench.action.terminal.chat.feedbackHelpful',
+	'workbench.action.terminal.chat.feedbackUnhelpful',
+	'workbench.action.terminal.chat.feedbackReportIssue',
+	'workbench.action.terminal.chat.runCommand',
+	'workbench.action.terminal.chat.insertCommand',
+	'workbench.action.terminal.chat.viewInChat',
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
