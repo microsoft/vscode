@@ -7,30 +7,49 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/145234
 
-	// TODO: Add missing docs
-	// TODO: Review and polish up all docs
+	/**
+	 * A command that was executed in a terminal.
+	 */
 	export interface TerminalShellExecution {
 		/**
-		 * The full command line that was executed, including both the command and arguments. The
-		 * {@link TerminalShellExecutionCommandLineConfidence confidence} of this value depends on
-		 * the specific shell's shell integration implementation. This value may become more
-		 * accurate after {@link onDidEndTerminalShellExecution} is fired.
+		 * The command line that was executed. The {@link TerminalShellExecutionCommandLineConfidence confidence}
+		 * of this value depends on the specific shell's shell integration implementation. This
+		 * value may become more accurate after {@link window.onDidEndTerminalShellExecution} is
+		 * fired.
+		 *
+		 * @example
+		 * // Log the details of the command line on start and end
+		 * window.onDidStartTerminalShellExecution(event => {
+		 *   const commandLine = event.execution.commandLine;
+		 *   console.log(`Command started\n${summarizeCommandLine(commandLine)}`);
+		 * });
+		 * window.onDidEndTerminalShellExecution(event => {
+		 *   const commandLine = event.execution.commandLine;
+		 *   console.log(`Command ended\n${summarizeCommandLine(commandLine)}`);
+		 * });
+		 * function summarizeCommandLine(commandLine: TerminalShellExecutionCommandLine) {
+		 *   return [
+		 *     `  Command line: ${command.ommandLine.value}`,
+		 *     `  Confidence: ${command.ommandLine.confidence}`,
+		 *     `  Trusted: ${command.ommandLine.isTrusted}
+		 *   ].join('\n');
+		 * }
 		 */
 		readonly commandLine: TerminalShellExecutionCommandLine;
 
 		/**
 		 * The working directory that was reported by the shell when this command executed. This
-		 * will be a {@link Uri} if the path reported by the shell can reliably be mapped to the
-		 * connected machine. This requires the shell integration to support working directory
-		 * reporting.
+		 * {@link Uri} may represent a file on another machine (eg. ssh into another machine). This
+		 * requires the shell integration to support working directory reporting.
 		 */
 		readonly cwd: Uri | undefined;
 
 		/**
 		 * Creates a stream of raw data (including escape sequences) that is written to the
-		 * terminal. This will only include data that was written after `stream` was called for the
-		 * first time, ie. you must call `dataStream` immediately after the command is executed via
-		 * {@link executeCommand} or {@link onDidStartTerminalShellExecution} to not miss any data.
+		 * terminal. This will only include data that was written after `readData` was called for
+		 * the first time, ie. you must call `readData` immediately after the command is executed
+		 * via {@link TerminalShellIntegration.executeCommand} or
+		 * {@link window.onDidStartTerminalShellExecution} to not miss any data.
 		 *
 		 * @example
 		 * // Log all data written to the terminal for a command
@@ -50,24 +69,25 @@ declare module 'vscode' {
 		/**
 		 * The full command line that was executed, including both the command and its arguments.
 		 */
-		value: string;
+		readonly value: string;
 
 		/**
 		 * Whether the command line value came from a trusted source and is therefore safe to
 		 * execute without user additional confirmation, such as a notification that asks "Do you
-		 * want to execute (command)?".
+		 * want to execute (command)?". This verification is likely only needed if you are going to
+		 * execute the command again.
 		 *
-		 * This is false when the command line was reported explicitly by the shell integration
-		 * script (ie. {@link TerminalShellExecutionCommandLineConfidence.High high confidence}),
-		 * but did not include a nonce for verification.
+		 * This is `true` only when the command line was reported explicitly by the shell
+		 * integration script (ie. {@link TerminalShellExecutionCommandLineConfidence.High high confidence})
+		 * and it used a nonce for verification.
 		 */
-		isTrusted: boolean;
+		readonly isTrusted: boolean;
 
 		/**
 		 * The confidence of the command line value which is determined by how the value was
 		 * obtained. This depends upon the implementation of the shell integration script.
 		 */
-		confidence: TerminalShellExecutionCommandLineConfidence;
+		readonly confidence: TerminalShellExecutionCommandLineConfidence;
 	}
 
 	/**
@@ -95,7 +115,8 @@ declare module 'vscode' {
 
 		/**
 		 * The command line value confidence is high. This means that the value was explicitly sent
-		 * from the shell integration script.
+		 * from the shell integration script or the command was executed via the
+		 * {@link TerminalShellIntegration.executeCommand} API.
 		 */
 		High = 2
 	}
@@ -103,7 +124,7 @@ declare module 'vscode' {
 	export interface Terminal {
 		/**
 		 * An object that contains [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)-powered
-		 * features for the terminal. This will always be undefined immediately after the terminal
+		 * features for the terminal. This will always be `undefined` immediately after the terminal
 		 * is created. Listen to {@link window.onDidActivateTerminalShellIntegration} to be notified
 		 * when shell integration is activated for a terminal.
 		 *
@@ -114,10 +135,14 @@ declare module 'vscode' {
 		readonly shellIntegration: TerminalShellIntegration | undefined;
 	}
 
+	/**
+	 * [Shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)-powered capabilities owned by a terminal.
+	 */
 	export interface TerminalShellIntegration {
 		/**
-		 * The current working directory of the terminal. This will be a {@link Uri} if the path
-		 * reported by the shell can reliably be mapped to the connected machine.
+		 * The current working directory of the terminal. This {@link Uri} may represent a file on
+		 * another machine (eg. ssh into another machine). This requires the shell integration to
+		 * support working directory reporting.
 		 */
 		readonly cwd: Uri | undefined;
 
