@@ -154,7 +154,6 @@ export class InlineCompletionsController extends Disposable {
 			this.updateObservables(tx, getReason(e))
 		)));
 
-
 		this._register(editor.onDidChangeCursorPosition(e => transaction(tx => {
 			/** @description InlineCompletionsController.onDidChangeCursorPosition */
 			this.updateObservables(tx, VersionIdChangeReason.Other);
