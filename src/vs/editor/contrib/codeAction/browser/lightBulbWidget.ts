@@ -68,7 +68,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		super();
 
 		this._domNode = dom.$('div.lightBulbWidget');
-
+		this._domNode.role = 'menu';
 		this._register(Gesture.ignoreTarget(this._domNode));
 
 		this._editor.addContentWidget(this);

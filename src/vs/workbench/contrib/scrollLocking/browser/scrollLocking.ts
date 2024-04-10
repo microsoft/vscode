@@ -12,7 +12,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorPane, IEditorPaneScrollPosition, isEditorPaneWithScrolling } from 'vs/workbench/common/editor';
-import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { ReentrancyBarrier } from 'vs/base/common/controlFlow';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
@@ -25,7 +25,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 	private readonly syncScrollDispoasbles = this._register(new DisposableStore());
 	private readonly paneDisposables = new DisposableStore();
 
-	private statusBarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly statusBarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private isActive: boolean = false;
 
@@ -75,7 +75,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 
 			this.paneInitialScrollTop.set(pane, pane.getScrollPosition());
 			this.paneDisposables.add(pane.onDidChangeScroll(() =>
-				this._reentrancyBarrier.runExclusively(() => {
+				this._reentrancyBarrier.runExclusivelyOrSkip(() => {
 					this.onDidEditorPaneScroll(pane);
 				})
 			));

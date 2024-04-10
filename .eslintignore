@@ -33,3 +33,4 @@
 **/test/unit/assert.js
 **/test/automation/out/**
 **/typings/**
+!.vscode

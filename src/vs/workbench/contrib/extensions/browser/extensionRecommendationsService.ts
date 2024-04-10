@@ -33,7 +33,7 @@ import { isString } from 'vs/base/common/types';
 type IgnoreRecommendationClassification = {
 	owner: 'sandy081';
 	comment: 'Report when a recommendation is ignored';
-	recommendationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Reason why extension is recommended' };
+	recommendationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Reason why extension is recommended' };
 	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Id of the extension recommendation that is being ignored' };
 };
 

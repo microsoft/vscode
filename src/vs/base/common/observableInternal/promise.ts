@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import { autorun } from 'vs/base/common/observableInternal/autorun';
 import { IObservable, IReader, observableValue, transaction } from './base';
-import { Derived, defaultEqualityComparer, derived } from 'vs/base/common/observableInternal/derived';
+import { Derived, derived } from 'vs/base/common/observableInternal/derived';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
+import { strictEquals } from 'vs/base/common/equals';
 
 export class ObservableLazy<T> {
 	private readonly _value = observableValue<T | undefined>(this, undefined);
@@ -118,9 +119,13 @@ export class ObservableLazyPromise<T> {
 /**
  * Resolves the promise when the observables state matches the predicate.
  */
+export function waitForState<T>(observable: IObservable<T | null | undefined>): Promise<T>;
 export function waitForState<T, TState extends T>(observable: IObservable<T>, predicate: (state: T) => state is TState, isError?: (state: T) => boolean | unknown | undefined): Promise<TState>;
 export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean, isError?: (state: T) => boolean | unknown | undefined): Promise<T>;
-export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean, isError?: (state: T) => boolean | unknown | undefined): Promise<T> {
+export function waitForState<T>(observable: IObservable<T>, predicate?: (state: T) => boolean, isError?: (state: T) => boolean | unknown | undefined): Promise<T> {
+	if (!predicate) {
+		predicate = state => state !== null && state !== undefined;
+	}
 	return new Promise((resolve, reject) => {
 		let isImmediateRun = true;
 		let shouldDispose = false;
@@ -181,6 +186,6 @@ export function derivedWithCancellationToken<T>(computeFnOrOwner: ((reader: IRea
 		}, undefined,
 		undefined,
 		() => cancellationTokenSource?.dispose(),
-		defaultEqualityComparer,
+		strictEquals,
 	);
 }

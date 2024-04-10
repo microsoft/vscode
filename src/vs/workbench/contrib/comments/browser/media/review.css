@@ -386,7 +386,7 @@
 	margin-right: 12px;
 }
 
-.review-widget .body .comment-form .monaco-text-button,
+.review-widget .body .comment-form .form-actions .monaco-text-button,
 .review-widget .body .edit-container .monaco-text-button {
 	width: auto;
 	padding: 4px 10px;

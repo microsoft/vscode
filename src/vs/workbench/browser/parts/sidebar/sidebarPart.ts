@@ -31,6 +31,7 @@ import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/comm
 import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
 import { localize2 } from 'vs/nls';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -70,6 +71,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -92,6 +94,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			contextMenuService,
 			layoutService,
 			keybindingService,
+			hoverService,
 			instantiationService,
 			themeService,
 			viewDescriptorService,

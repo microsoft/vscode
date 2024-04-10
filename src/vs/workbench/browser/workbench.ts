@@ -43,8 +43,9 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mainWindow } from 'vs/base/browser/window';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IWorkbenchOptions {
 
@@ -151,12 +152,14 @@ export class Workbench extends Layout {
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
 				const hostService = accessor.get(IHostService);
+				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
 
 				// Default Hover Delegate must be registered before creating any workbench/layout components
 				// as these possibly will use the default hover delegate
 				setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
+				setBaseLayerHoverDelegate(hoverService);
 
 				// Layout
 				this.initLayout(accessor);

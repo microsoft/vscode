@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { NullCommandService } from 'vs/platform/commands/test/common/nullCommandService';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 // --- service instances
@@ -30,7 +30,7 @@ suite('MenuService', function () {
 	let testMenuId: MenuId;
 
 	setup(function () {
-		menuService = new MenuService(NullCommandService, new InMemoryStorageService());
+		menuService = new MenuService(NullCommandService, new MockKeybindingService(), new InMemoryStorageService());
 		testMenuId = new MenuId(`testo/${generateUuid()}`);
 		disposables.clear();
 	});

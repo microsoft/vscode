@@ -17,7 +17,7 @@ import { UriList } from '../../util/uriList';
  */
 class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
-	public static readonly kind = vscode.DocumentPasteEditKind.Empty.append('markdown', 'link');
+	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link');
 
 	public static readonly pasteMimeTypes = [Mime.textPlain];
 
@@ -61,8 +61,8 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
 		if (!(await shouldInsertMarkdownLinkByDefault(this._parser, document, pasteUrlSetting, ranges, token))) {
 			pasteEdit.yieldTo = [
-				vscode.DocumentPasteEditKind.Empty.append('text'),
-				vscode.DocumentPasteEditKind.Empty.append('uri')
+				vscode.DocumentDropOrPasteEditKind.Empty.append('text'),
+				vscode.DocumentDropOrPasteEditKind.Empty.append('uri')
 			];
 		}
 

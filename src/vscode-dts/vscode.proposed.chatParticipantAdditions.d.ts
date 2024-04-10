@@ -5,6 +5,45 @@
 
 declare module 'vscode' {
 
+	/**
+	 * The location at which the chat is happening.
+	 */
+	export enum ChatLocation {
+		/**
+		 * The chat panel
+		 */
+		Panel = 1,
+		/**
+		 * Terminal inline chat
+		 */
+		Terminal = 2,
+		/**
+		 * Notebook inline chat
+		 */
+		Notebook = 3,
+		/**
+		 * Code editor inline chat
+		 */
+		Editor = 4
+	}
+
+	export interface ChatRequest {
+		/**
+		 * The attempt number of the request. The first request has attempt number 0.
+		 */
+		readonly attempt: number;
+
+		/**
+		 * If automatic command detection is enabled.
+		 */
+		readonly enableCommandDetection: boolean;
+
+		/**
+		 * The location at which the chat is happening. This will always be one of the supported values
+		 */
+		readonly location: ChatLocation;
+	}
+
 	export interface ChatParticipant {
 		onDidPerformAction: Event<ChatUserActionEvent>;
 		supportIssueReporting?: boolean;
@@ -122,6 +161,18 @@ declare module 'vscode' {
 		ranges: Range[];
 	}
 
+	export class ChatResponseTextEditPart {
+		uri: Uri;
+		edits: TextEdit[];
+		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
+	}
+
+	export interface ChatResponseStream {
+		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
+
+		push(part: ChatResponsePart | ChatResponseTextEditPart): ChatResponseStream;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
@@ -230,9 +281,14 @@ declare module 'vscode' {
 		kind: 'bug';
 	}
 
+	export interface ChatEditorAction {
+		kind: 'editor';
+		accepted: boolean;
+	}
+
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
 	}
 
 	export interface ChatVariableValue {

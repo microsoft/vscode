@@ -32,7 +32,7 @@ import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { CodeActionKind, CompletionList, Disposable, DocumentPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
+import { CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
@@ -581,7 +581,7 @@ class DocumentPasteEditProvider {
 		});
 
 		const edits = await this._provider.provideDocumentPasteEdits(doc, vscodeRanges, dataTransfer, {
-			only: context.only ? new DocumentPasteEditKind(context.only) : undefined,
+			only: context.only ? new DocumentDropOrPasteEditKind(context.only) : undefined,
 			triggerKind: context.triggerKind,
 		}, token);
 		if (!edits || token.isCancellationRequested) {
@@ -1956,7 +1956,9 @@ class TypeHierarchyAdapter {
 	}
 }
 
-class DocumentOnDropEditAdapter {
+class DocumentDropEditAdapter {
+
+	private readonly _cache = new Cache<vscode.DocumentDropEdit>('DocumentDropEdit');
 
 	constructor(
 		private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape,
@@ -1966,7 +1968,7 @@ class DocumentOnDropEditAdapter {
 		private readonly _extension: IExtensionDescription,
 	) { }
 
-	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto[] | undefined> {
+	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentDropEditDto[] | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
 		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (id) => {
@@ -1978,13 +1980,33 @@ class DocumentOnDropEditAdapter {
 			return undefined;
 		}
 
-		return asArray(edits).map((edit): extHostProtocol.IDocumentOnDropEditDto => ({
+		const editsArray = asArray(edits);
+		const cacheId = this._cache.add(editsArray);
+
+		return editsArray.map((edit, i): extHostProtocol.IDocumentDropEditDto => ({
+			_cacheId: [cacheId, i],
 			title: edit.title ?? localize('defaultDropLabel', "Drop using '{0}' extension", this._extension.displayName || this._extension.name),
 			kind: edit.kind?.value,
 			yieldTo: edit.yieldTo?.map(x => x.value),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		}));
+	}
+
+	async resolveDropEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
+		const [sessionId, itemId] = id;
+		const item = this._cache.get(sessionId, itemId);
+		if (!item || !this._provider.resolveDocumentDropEdit) {
+			return {}; // this should not happen...
+		}
+
+		const resolvedItem = (await this._provider.resolveDocumentDropEdit(item, token)) ?? item;
+		const additionalEdit = resolvedItem.additionalEdit ? typeConvert.WorkspaceEdit.from(resolvedItem.additionalEdit, undefined) : undefined;
+		return { additionalEdit };
+	}
+
+	releaseDropEdits(id: number): any {
+		this._cache.delete(id);
 	}
 }
 
@@ -2036,7 +2058,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentOnDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
+	| DocumentDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
 
 class AdapterData {
 	constructor(
@@ -2704,16 +2726,27 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider, metadata?: vscode.DocumentDropEditProviderMetadata) {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
+		this._adapter.set(handle, new AdapterData(new DocumentDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
 
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), isProposedApiEnabled(extension, 'documentPaste') && metadata ? {
+			supportsResolve: !!provider.resolveDocumentDropEdit,
+			dropMimeTypes: metadata.dropMimeTypes,
+		} : undefined);
 
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto[] | undefined> {
-		return this._withAdapter(handle, DocumentOnDropEditAdapter, adapter =>
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentDropEditDto[] | undefined> {
+		return this._withAdapter(handle, DocumentDropEditAdapter, adapter =>
 			Promise.resolve(adapter.provideDocumentOnDropEdits(requestId, URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
+	}
+
+	$resolveDropEdit(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
+		return this._withAdapter(handle, DocumentDropEditAdapter, adapter => adapter.resolveDropEdit(id, token), {}, undefined);
+	}
+
+	$releaseDropEdits(handle: number, cacheId: number): void {
+		this._withAdapter(handle, DocumentDropEditAdapter, adapter => Promise.resolve(adapter.releaseDropEdits(cacheId)), undefined, undefined);
 	}
 
 	// --- mapped edits

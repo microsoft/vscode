@@ -56,6 +56,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const ItemHeight = 22;
 
@@ -268,11 +269,12 @@ export class TimelinePane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
-		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.commands = this._register(this.instantiationService.createInstance(TimelinePaneCommands, this));
 
@@ -935,9 +937,7 @@ export class TimelinePane extends ViewPane {
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			multipleSelectionSupport: false,
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 		});
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
@@ -1228,7 +1228,7 @@ const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timeline
 const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
 
 class TimelinePaneCommands extends Disposable {
-	private sourceDisposables: DisposableStore;
+	private readonly sourceDisposables: DisposableStore;
 
 	constructor(
 		private readonly pane: TimelinePane,

@@ -12,7 +12,7 @@ import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, o
 import { URI } from 'vs/base/common/uri';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { appendRemoveOnDispose, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
+import { appendRemoveOnDispose, applyStyle, prependRemoveOnDispose } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from 'vs/editor/browser/widget/diffEditor/utils/editorGutter';
 import { ActionRunnerWithContext } from 'vs/editor/browser/widget/multiDiffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -38,7 +38,7 @@ export class DiffEditorGutter extends Disposable {
 
 	public readonly width = derived(this, reader => this._hasActions.read(reader) ? width : 0);
 
-	private readonly elements = h('div.gutter@gutter', { style: { position: 'absolute', height: '100%', width: width + 'px', zIndex: '0' } }, []);
+	private readonly elements = h('div.gutter@gutter', { style: { position: 'absolute', height: '100%', width: width + 'px' } }, []);
 
 	constructor(
 		diffEditorRoot: HTMLDivElement,
@@ -50,7 +50,7 @@ export class DiffEditorGutter extends Disposable {
 	) {
 		super();
 
-		this._register(appendRemoveOnDispose(diffEditorRoot, this.elements.root));
+		this._register(prependRemoveOnDispose(diffEditorRoot, this.elements.root));
 
 		this._register(addDisposableListener(this.elements.root, 'click', () => {
 			this._editors.modified.focus();

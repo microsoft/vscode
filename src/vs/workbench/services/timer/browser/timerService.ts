@@ -636,7 +636,7 @@ export abstract class AbstractTimerService implements ITimerService {
 			comment: 'Information about a performance marker';
 			source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
 			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
-			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The absolute timestamp (unix time)' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The absolute timestamp (unix time)' };
 		};
 
 		for (const mark of marks) {

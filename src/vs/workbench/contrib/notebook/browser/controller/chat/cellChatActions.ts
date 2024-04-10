@@ -39,7 +39,8 @@ registerAction2(class extends NotebookAction {
 					group: 'navigation',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.negate()
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -64,7 +65,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -105,7 +107,8 @@ registerAction2(class extends NotebookAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -134,7 +137,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -164,7 +168,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -186,7 +191,8 @@ registerAction2(class extends NotebookAction {
 					group: 'navigation',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -206,7 +212,8 @@ registerAction2(class extends NotebookAction {
 					id: MENU_CELL_CHAT_WIDGET,
 					group: 'navigation',
 					order: 2
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -253,7 +260,8 @@ registerAction2(class extends NotebookAction {
 						order: 0,
 						when: CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.OnlyMessages),
 					}
-				]
+				],
+				f1: false
 			});
 	}
 
@@ -278,7 +286,8 @@ registerAction2(class extends NotebookAction {
 					id: MENU_CELL_CHAT_WIDGET_STATUS,
 					group: 'main',
 					order: 1
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -298,7 +307,8 @@ registerAction2(class extends NotebookAction {
 				group: 'inline',
 				order: 1,
 				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
+			},
+			f1: false
 		});
 	}
 
@@ -318,7 +328,8 @@ registerAction2(class extends NotebookAction {
 				group: 'inline',
 				order: 2,
 				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
+			},
+			f1: false
 		});
 	}
 
@@ -338,7 +349,8 @@ registerAction2(class extends NotebookAction {
 				group: 'inline',
 				order: 3,
 				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
+			},
+			f1: false
 		});
 	}
 
@@ -535,6 +547,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -558,6 +571,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -581,6 +595,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -600,7 +615,8 @@ registerAction2(class extends NotebookAction {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
 					weight: KeybindingWeight.EditorCore + 10,
 					primary: KeyCode.UpArrow,
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -620,7 +636,8 @@ registerAction2(class extends NotebookAction {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
 					weight: KeybindingWeight.EditorCore + 10,
 					primary: KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -646,7 +663,8 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_CELL_GENERATED_BY_CHAT,
 						ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
 					)
-				}
+				},
+				f1: false
 			});
 	}
 

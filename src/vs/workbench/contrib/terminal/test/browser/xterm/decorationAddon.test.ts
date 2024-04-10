@@ -3,29 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { notEqual, strictEqual, throws } from 'assert';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { notEqual, strictEqual, throws } from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('DecorationAddon', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let decorationAddon: DecorationAddon;
 	let xterm: RawXtermTerminal;
-	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
@@ -39,40 +32,31 @@ suite('DecorationAddon', () => {
 			}
 		}
 
-		instantiationService = new TestInstantiationService();
-		const configurationService = new TestConfigurationService({
-			workbench: {
-				hover: { delay: 5 },
-			},
-			terminal: {
-				integrated: {
-					shellIntegration: {
-						decorationsEnabled: 'both'
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				files: {},
+				workbench: {
+					hover: { delay: 5 },
+				},
+				terminal: {
+					integrated: {
+						shellIntegration: {
+							decorationsEnabled: 'both'
+						}
 					}
 				}
-			}
-		});
-		instantiationService.stub(IThemeService, new TestThemeService());
-		xterm = new TestTerminal({
+			})
+		}, store);
+		xterm = store.add(new TestTerminal({
 			allowProposedApi: true,
 			cols: 80,
 			rows: 30
-		});
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
-		instantiationService.stub(ILogService, NullLogService);
-		const capabilities = new TerminalCapabilityStore();
-		capabilities.add(TerminalCapability.CommandDetection, instantiationService.createInstance(CommandDetectionCapability, xterm));
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		decorationAddon = instantiationService.createInstance(DecorationAddon, capabilities);
+		}));
+		const capabilities = store.add(new TerminalCapabilityStore());
+		capabilities.add(TerminalCapability.CommandDetection, store.add(instantiationService.createInstance(CommandDetectionCapability, xterm)));
+		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, capabilities));
 		xterm.loadAddon(decorationAddon);
 	});
-
-	teardown(() => {
-		instantiationService.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('registerDecoration', () => {
 		test('should throw when command has no marker', async () => {

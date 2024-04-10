@@ -9,7 +9,7 @@ declare module 'vscode' {
 
 	export interface ChatWelcomeMessageProvider {
 		provideWelcomeMessage(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatFollowup[]>;
+		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
 	export interface ChatRequesterInformation {
