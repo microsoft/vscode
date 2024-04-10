@@ -63,7 +63,7 @@
   },
   "optionalDependencies": {
     "tree-sitter": "^0.20.5",
-    "tree-sitter-typescript": "^0.20.3",
+    "tree-sitter-typescript": "^0.20.5",
     "vscode-gulp-watch": "^5.0.3"
   }
 }
