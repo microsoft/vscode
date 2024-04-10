@@ -104,6 +104,7 @@ steps:
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
       echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
     env:
+      DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build
 
