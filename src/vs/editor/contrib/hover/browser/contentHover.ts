@@ -69,7 +69,7 @@ export class ContentHoverController extends Disposable {
 		this._register(this._hoverOperation.onResult((result) => {
 			if (!this._computer.anchor) {
 				// invalid state, ignore result
-				this._disposeHoverParts(result.value);
+				this._disposeUnusedHoverParts(result?.value, this._currentResult?.messages);
 				return;
 			}
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
@@ -169,16 +169,10 @@ export class ContentHoverController extends Disposable {
 			return;
 		}
 		if (hoverResult && hoverResult.messages.length === 0) {
-			this._disposeHoverParts(hoverResult.messages);
+			this._disposeUnusedHoverParts(hoverResult.messages);
 			hoverResult = null;
 		}
-		// Dispose current result hover parts if not contained in the new result
-		this._currentResult?.messages.forEach(hoverPart => {
-			const currentHoverResultContainsPart = hoverResult?.messages.includes(hoverPart);
-			if (!currentHoverResultContainsPart) {
-				hoverPart.dispose();
-			}
-		});
+		this._disposeUnusedHoverParts(this._currentResult?.messages, hoverResult?.messages);
 		this._currentResult = hoverResult;
 		if (this._currentResult) {
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
@@ -207,13 +201,13 @@ export class ContentHoverController extends Disposable {
 
 			if (!hoverResult.isComplete) {
 				// Instead of rendering the new partial result, we wait for the result to be complete.
-				this._disposeHoverParts(hoverResult.messages);
+				this._disposeUnusedHoverParts(hoverResult.messages, this._currentResult?.messages);
 				return;
 			}
 
 			if (this._computer.insistOnKeepingHoverVisible && hoverResult.messages.length === 0) {
 				// The hover would now hide normally, so we'll keep the previous messages
-				this._disposeHoverParts(hoverResult.messages);
+				this._disposeUnusedHoverParts(hoverResult.messages, this._currentResult?.messages);
 				return;
 			}
 		}
@@ -221,8 +215,13 @@ export class ContentHoverController extends Disposable {
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _disposeHoverParts(hoverParts: IHoverPart[]) {
-		hoverParts.forEach(hoverPart => hoverPart.dispose());
+	private _disposeUnusedHoverParts(hoverPartsToDispose: IHoverPart[] | undefined, currentHoverParts: IHoverPart[] | undefined = undefined) {
+		hoverPartsToDispose?.forEach(hoverPart => {
+			const currentHoverPartsContainPart = currentHoverParts?.includes(hoverPart);
+			if (!currentHoverPartsContainPart) {
+				hoverPart.dispose();
+			}
+		});
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
