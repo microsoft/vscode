@@ -20,7 +20,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
+import { FocusedViewContext, NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { IAccessibleViewService, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -314,5 +314,5 @@ function registerAccessibilityHelpAction(viewDescriptor: IViewDescriptor): IDisp
 			onClose: () => viewsService.openView(viewDescriptor.id),
 		});
 		return true;
-	});
+	}, FocusedViewContext.isEqualTo(viewDescriptor.id));
 }
