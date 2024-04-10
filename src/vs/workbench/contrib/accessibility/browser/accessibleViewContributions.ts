@@ -281,12 +281,12 @@ export class CommentAccessibleViewContribution extends Disposable {
 					},
 					next(): void {
 						commentsView.focus();
-						commentsView.focusNext();
+						commentsView.focusNextNode();
 						renderAccessibleView();
 					},
 					previous(): void {
 						commentsView.focus();
-						commentsView.focusPrevious();
+						commentsView.focusPreviousNode();
 						renderAccessibleView();
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Comments,

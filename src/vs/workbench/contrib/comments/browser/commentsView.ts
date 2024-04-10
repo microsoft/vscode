@@ -86,26 +86,40 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		return this.getScreenReaderInfoForNode(focused);
 	}
 
-	focusNext(): void {
-		const focused = this.tree?.getFocus()?.[0];
-		let next = this.tree?.navigate(focused).next();
+	focusNextNode(): void {
+		if (!this.tree) {
+			return;
+		}
+		const focused = this.tree.getFocus()?.[0];
+		if (!focused) {
+			return;
+		}
+		let next = this.tree.navigate(focused).next();
 		while (next && !(next instanceof CommentNode)) {
-			next = this.tree?.navigate(next).next();
+			next = this.tree.navigate(next).next();
 		}
-		if (next) {
-			this.tree?.setFocus([next]);
+		if (!next) {
+			return;
 		}
+		this.tree.setFocus([next]);
 	}
 
-	focusPrevious(): void {
-		const focused = this.tree?.getFocus()?.[0];
-		let previous = this.tree?.navigate(focused).previous();
+	focusPreviousNode(): void {
+		if (!this.tree) {
+			return;
+		}
+		const focused = this.tree.getFocus()?.[0];
+		if (!focused) {
+			return;
+		}
+		let previous = this.tree.navigate(focused).previous();
 		while (previous && !(previous instanceof CommentNode)) {
-			previous = this.tree?.navigate(previous).previous();
+			previous = this.tree.navigate(previous).previous();
 		}
-		if (previous) {
-			this.tree?.setFocus([previous]);
+		if (!previous) {
+			return;
 		}
+		this.tree.setFocus([previous]);
 	}
 
 	constructor(
