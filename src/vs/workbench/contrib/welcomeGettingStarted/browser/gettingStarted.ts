@@ -174,7 +174,7 @@ export class GettingStartedPage extends EditorPane {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IWorkbenchThemeService public override readonly themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected override readonly themeService: IWorkbenchThemeService,
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
