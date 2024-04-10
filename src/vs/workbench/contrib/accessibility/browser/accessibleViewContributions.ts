@@ -8,7 +8,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -283,25 +283,28 @@ export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
 			for (const view of e) {
 				for (const viewDescriptor of view.views) {
-					this._viewHelpDialogMap.set(viewDescriptor.id, registerAccessibilityHelpAction(viewDescriptor));
+					if (viewDescriptor.accessibilityHelpContent) {
+						this._viewHelpDialogMap.set(viewDescriptor.id, registerAccessibilityHelpAction(viewDescriptor));
+					}
 				}
 			}
 		}));
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsDeregistered(e => {
 			for (const viewDescriptor of e.views) {
-				this._viewHelpDialogMap.get(viewDescriptor.id)?.dispose();
+				if (viewDescriptor.accessibilityHelpContent) {
+					this._viewHelpDialogMap.get(viewDescriptor.id)?.dispose();
+				}
 			}
 		}));
 	}
 }
 
 function registerAccessibilityHelpAction(viewDescriptor: IViewDescriptor): IDisposable {
-	const disposables = new DisposableStore();
 	const helpContent = viewDescriptor.accessibilityHelpContent;
 	if (!helpContent) {
 		throw new Error('No help content for view');
 	}
-	disposables.add(AccessibleViewAction.addImplementation(95, viewDescriptor.id, accessor => {
+	return AccessibleViewAction.addImplementation(95, viewDescriptor.id, accessor => {
 		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const viewsService = accessor.get(IViewsService);
 		accessibleViewService.show({
@@ -311,10 +314,5 @@ function registerAccessibilityHelpAction(viewDescriptor: IViewDescriptor): IDisp
 			onClose: () => viewsService.openView(viewDescriptor.id),
 		});
 		return true;
-	}));
-	return {
-		dispose: () => {
-			disposables.dispose();
-		}
-	};
+	});
 }
