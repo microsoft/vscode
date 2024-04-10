@@ -59,7 +59,7 @@ class BridgeAgent implements IChatAgentImplementation {
 		return data;
 	}
 
-	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
+	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, _history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 
 		if (token.isCancellationRequested) {
 			return {};
@@ -129,7 +129,9 @@ class BridgeAgent implements IChatAgentImplementation {
 
 				const markdownContents = result.message ?? new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
 
-				response = this._instaService.createInstance(ReplyResponse, result, markdownContents, session.textModelN.uri, modelAltVersionIdNow, progressEdits, request.requestId);
+				const chatModelRequest = session.chatModel.getRequests().find(candidate => candidate.id === request.requestId);
+
+				response = this._instaService.createInstance(ReplyResponse, result, markdownContents, session.textModelN.uri, modelAltVersionIdNow, progressEdits, request.requestId, chatModelRequest?.response);
 
 			} else {
 				response = new EmptyResponse();
@@ -141,9 +143,6 @@ class BridgeAgent implements IChatAgentImplementation {
 
 		this._postLastResponse({ id: request.requestId, response });
 
-		// TODO@jrieken
-		// result?.placeholder
-		// result?.wholeRange
 
 		return {
 			metadata: {
@@ -315,18 +314,19 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			}
 
 			if (otherEditorAgent) {
-				brigdeAgent.clear();
-				_logService.debug(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
+				bridgeStore.clear();
+				_logService.info(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
+
 			} else if (!myEditorAgent) {
-				brigdeAgent.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions, data => {
+				bridgeStore.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions, data => {
 					this._lastResponsesFromBridgeAgent.set(data.id, data.response);
 				}));
-				_logService.debug(`ADDED bridge agent "${agentData.id}"`);
+				_logService.info(`ADDED bridge agent "${agentData.id}"`);
 			}
 		};
 
 		this._store.add(this._chatAgentService.onDidChangeAgents(() => addOrRemoveBridgeAgent()));
-		const brigdeAgent = this._store.add(new MutableDisposable());
+		const bridgeStore = this._store.add(new MutableDisposable());
 		addOrRemoveBridgeAgent();
 
 
@@ -465,7 +465,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							session.textModelN.uri,
 							modelAltVersionIdNow,
 							[],
-							e.request.id
+							e.request.id,
+							e.request.response
 						);
 					}
 				}
@@ -475,20 +476,32 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}));
 
 		store.add(this._chatService.onDidPerformUserAction(e => {
-			if (e.sessionId !== chatModel.sessionId || e.action.kind !== 'vote') {
+			if (e.sessionId !== chatModel.sessionId) {
 				return;
 			}
 
 			// TODO@jrieken VALIDATE candidate is proper, e.g check with `session.exchanges`
 			const request = chatModel.getRequests().find(request => request.id === e.requestId);
 			const candidate = request?.response?.result?.metadata?.inlineChatResponse;
-			if (candidate) {
-				provider.handleInlineChatResponseFeedback?.(
-					rawSession,
-					candidate,
-					e.action.direction === InteractiveSessionVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful
-				);
+
+			if (!candidate) {
+				return;
 			}
+
+			let kind: InlineChatResponseFeedbackKind | undefined;
+			if (e.action.kind === 'vote') {
+				kind = e.action.direction === InteractiveSessionVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful;
+			} else if (e.action.kind === 'bug') {
+				kind = InlineChatResponseFeedbackKind.Bug;
+			} else if (e.action.kind === 'inlineChat') {
+				kind = e.action.action === 'accepted' ? InlineChatResponseFeedbackKind.Accepted : InlineChatResponseFeedbackKind.Undone;
+			}
+
+			if (!kind) {
+				return;
+			}
+
+			provider.handleInlineChatResponseFeedback?.(rawSession, candidate, kind);
 		}));
 
 		store.add(this._inlineChatService.onDidChangeProviders(e => {

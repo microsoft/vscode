@@ -32,7 +32,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
@@ -323,6 +323,7 @@ export class ReplyResponse {
 		readonly modelAltVersionId: number,
 		progressEdits: TextEdit[][],
 		readonly requestId: string,
+		readonly chatResponse: IChatResponseModel | undefined,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
