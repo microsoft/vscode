@@ -30,7 +30,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ClickAction, KeyDownAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { createHoverProviderResultPromise } from 'vs/editor/contrib/hover/browser/getHover';
+import { createHoverProviderResultsPromise } from 'vs/editor/contrib/hover/browser/getHover';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
@@ -165,7 +165,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	private async _getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider<DisposableHover>>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): Promise<MarkdownHover[]> {
 		const position = anchor.range.getStartPosition();
-		const hoverProviderResults = await createHoverProviderResultPromise(hoverProviderRegistry, model, position, token);
+		const hoverProviderResults = await createHoverProviderResultsPromise(hoverProviderRegistry, model, position, token);
 		const markdownHovers = hoverProviderResults.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const range = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
@@ -239,26 +239,6 @@ class RenderedHoverParts extends Disposable {
 		});
 	}
 
-	private _renderMarkdownContent(
-		markdownContent: IMarkdownString[],
-		onFinishedRendering: () => void
-	): RenderedHoverPart {
-		const renderedMarkdown = $('div.hover-row');
-		renderedMarkdown.tabIndex = 0;
-		const renderedMarkdownContents = $('div.hover-row-contents');
-		renderedMarkdown.appendChild(renderedMarkdownContents);
-		const disposables = new DisposableStore();
-		disposables.add(renderMarkdownInContainer(
-			this._editor,
-			renderedMarkdownContents,
-			markdownContent,
-			this._languageService,
-			this._openerService,
-			onFinishedRendering,
-		));
-		return { renderedMarkdown, disposables };
-	}
-
 	private _renderHoverPart(
 		hoverPartIndex: number,
 		hoverContents: IMarkdownString[],
@@ -304,6 +284,26 @@ class RenderedHoverParts extends Disposable {
 			}
 		}));
 		return { renderedMarkdown, disposables, hoverSource };
+	}
+
+	private _renderMarkdownContent(
+		markdownContent: IMarkdownString[],
+		onFinishedRendering: () => void
+	): RenderedHoverPart {
+		const renderedMarkdown = $('div.hover-row');
+		renderedMarkdown.tabIndex = 0;
+		const renderedMarkdownContents = $('div.hover-row-contents');
+		renderedMarkdown.appendChild(renderedMarkdownContents);
+		const disposables = new DisposableStore();
+		disposables.add(renderMarkdownInContainer(
+			this._editor,
+			renderedMarkdownContents,
+			markdownContent,
+			this._languageService,
+			this._openerService,
+			onFinishedRendering,
+		));
+		return { renderedMarkdown, disposables };
 	}
 
 	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, actionEnabled: boolean): DisposableStore {

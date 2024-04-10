@@ -38,7 +38,7 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 	return undefined;
 }
 
-export async function createHoverProviderResultPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult<DisposableHover>[]> {
+export async function createHoverProviderResultsPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult<DisposableHover>[]> {
 	const providers = registry.ordered(model);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
 	const hoverProviderResults = await Promises.settled(promises);
@@ -52,7 +52,7 @@ export async function createHoverProviderResultPromise(registry: LanguageFeature
 }
 
 export async function getHoverProviderResultsPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult<Hover>[]> {
-	const hoverProviderResults = await createHoverProviderResultPromise(registry, model, position, token);
+	const hoverProviderResults = await createHoverProviderResultsPromise(registry, model, position, token);
 	return hoverProviderResults.map(item => item.convertDisposableHoverToHover());
 }
 
