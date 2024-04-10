@@ -12,7 +12,7 @@ import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/e
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowState, defaultAuxWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, WindowMode, defaultAuxWindowState } from 'vs/platform/window/electron-main/window';
 import { WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
@@ -109,6 +109,12 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 					break;
 				case 'top':
 					windowState.y = parseInt(value, 10);
+					break;
+				case 'window-maximized':
+					windowState.mode = WindowMode.Maximized;
+					break;
+				case 'window-fullscreen':
+					windowState.mode = WindowMode.Fullscreen;
 					break;
 			}
 		}

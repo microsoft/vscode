@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.89.0",
-  "distro": "5d6fc3dbed8cca40552e99cf8a9e80b6f4b08399",
+  "distro": "25df1b5602ba46d6b0f618dd227963d1163c83df",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -208,7 +208,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.5.0-dev.20240401",
+    "typescript": "^5.5.0-dev.20240408",
     "typescript-formatter": "7.1.0",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",

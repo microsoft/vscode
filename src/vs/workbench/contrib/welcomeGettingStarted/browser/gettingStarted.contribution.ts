@@ -44,6 +44,9 @@ registerAction2(class extends Action2 {
 				id: MenuId.MenubarHelpMenu,
 				group: '1_welcome',
 				order: 1,
+			},
+			metadata: {
+				description: localize2('minWelcomeDescription', 'Opens a Walkthrough to help you get started in VS Code.')
 			}
 		});
 	}

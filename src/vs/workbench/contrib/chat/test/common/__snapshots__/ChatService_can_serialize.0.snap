@@ -3,6 +3,7 @@
   requesterAvatarIconUri: undefined,
   responderUsername: "test",
   responderAvatarIconUri: undefined,
+  initialLocation: "panel",
   welcomeMessage: undefined,
   requests: [  ]
 }

@@ -50,7 +50,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 
-		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, undefined));
+		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
 
 		const scopedInstaService = instaService.createChild(
 			new ServiceCollection([
@@ -68,6 +68,7 @@ export class InlineChatContentWidget implements IContentWidget {
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
 				renderStyle: 'compact',
 				renderInputOnTop: true,
+				renderFollowups: true,
 				supportsFileReferences: false,
 				menus: {
 					telemetrySource: 'inlineChat-content'

@@ -2001,6 +2001,12 @@ export enum TerminalExitReason {
 	Extension = 4
 }
 
+export enum TerminalShellExecutionCommandLineConfidence {
+	Low = 0,
+	Medium = 1,
+	High = 2
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,

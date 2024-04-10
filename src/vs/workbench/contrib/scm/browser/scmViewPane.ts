@@ -3093,7 +3093,9 @@ export class SCMViewPane extends ViewPane {
 		} else if (isSCMResource(e.element)) {
 			if (e.element.command?.id === API_OPEN_EDITOR_COMMAND_ID || e.element.command?.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
 				if (isPointerEvent(e.browserEvent) && e.browserEvent.button === 1) {
-					await OpenScmGroupAction.openMultiFileDiffEditor(e.element.resourceGroup, this.editorService, {
+					const resourceGroup = e.element.resourceGroup;
+					const title = `${resourceGroup.provider.label}: ${resourceGroup.label}`;
+					await OpenScmGroupAction.openMultiFileDiffEditor(this.editorService, title, resourceGroup.provider.rootUri, resourceGroup.id, {
 						...e.editorOptions,
 						viewState: {
 							revealData: {

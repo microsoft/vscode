@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands } from 'vscode';
-import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
+import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
 
 suite('chat', () => {
 
@@ -28,11 +28,12 @@ suite('chat', () => {
 		return deferred;
 	}
 
-	function setupParticipant(): Event<{ request: ChatRequest; context: ChatContext }> {
+	function setupParticipant(second?: boolean): Event<{ request: ChatRequest; context: ChatContext }> {
 		const emitter = new EventEmitter<{ request: ChatRequest; context: ChatContext }>();
 		disposables.push(emitter);
 
-		const participant = chat.createChatParticipant('api-test.participant', (request, context, _progress, _token) => {
+		const id = second ? 'api-test.participant2' : 'api-test.participant';
+		const participant = chat.createChatParticipant(id, (request, context, _progress, _token) => {
 			emitter.fire({ request, context });
 		});
 		participant.isDefault = true;
@@ -100,5 +101,26 @@ suite('chat', () => {
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 		const result = await deferred.p;
 		assert.deepStrictEqual(result.metadata, { key: 'value' });
+	});
+
+	test('isolated participant history', async () => {
+		const onRequest = setupParticipant();
+		const onRequest2 = setupParticipant(true);
+
+		commands.executeCommand('workbench.action.chat.open', { query: '@participant hi' });
+		await asPromise(onRequest);
+
+		// Request is still being handled at this point, wait for it to end
+		setTimeout(() => {
+			commands.executeCommand('workbench.action.chat.open', { query: '@participant2 hi' });
+		}, 0);
+		const request2 = await asPromise(onRequest2);
+		assert.strictEqual(request2.context.history.length, 0);
+
+		setTimeout(() => {
+			commands.executeCommand('workbench.action.chat.open', { query: '@participant2 hi' });
+		}, 0);
+		const request3 = await asPromise(onRequest2);
+		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 });
