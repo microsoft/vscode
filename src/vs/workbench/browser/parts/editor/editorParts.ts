@@ -303,19 +303,6 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 				continue; // main part takes care on its own
 			}
 
-			for (const group of part.groups) {
-				for (const editor of group.editors) {
-					if (editor.isModified()) {
-						group.moveEditor(editor, this.mainPart.activeGroup);
-					}
-				}
-
-				const closed = await group.closeAllEditors();
-				if (!closed) {
-					return;
-				}
-			}
-
 			(part as unknown as IAuxiliaryEditorPart).close();
 		}
 
@@ -376,8 +363,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 
 		// Apply state
-		await this.mainPart.applyState(workingSetState.main);
 		await this.applyState(workingSetState.auxiliary);
+		await this.mainPart.applyState(workingSetState.main);
 
 		// Restore Focus
 		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
