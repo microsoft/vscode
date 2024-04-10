@@ -17,6 +17,7 @@ import { parse } from 'vs/base/common/json';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { execSync } from 'child_process';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -59,22 +60,22 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 		function walkDirectoryAndReindent(directory: string, languageId: string) {
 			const files = fs.readdirSync(directory, { withFileTypes: true });
-			const directoriesFromWhichToContinue: string[] = [];
+			const directoriesToRecurseOn: string[] = [];
 			for (const file of files) {
 				if (file.isDirectory()) {
-					directoriesFromWhichToContinue.push(path.join(directory, file.name));
+					directoriesToRecurseOn.push(path.join(directory, file.name));
 				} else {
-					const pathName = path.join(directory, file.name);
-					const fileType = path.extname(pathName);
-					if (fileType !== '.ts') {
+					const filePathName = path.join(directory, file.name);
+					const fileExtension = path.extname(filePathName);
+					if (fileExtension !== '.ts') {
 						continue;
 					}
-					const fileContents = fs.readFileSync(pathName).toString();
-					const options: IRelaxedTextModelCreationOptions = {
+					const fileContents = fs.readFileSync(filePathName).toString();
+					const modelOptions: IRelaxedTextModelCreationOptions = {
 						tabSize: 4,
 						insertSpaces: false
 					};
-					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, modelOptions));
 					const lineCount = model.getLineCount();
 					const editOperations: ISingleEditOperation[] = [];
 					for (let line = 1; line <= lineCount - 1; line++) {
@@ -99,17 +100,18 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 						editOperations.push(...editOperation);
 					}
 					model.applyEdits(editOperations);
-					const trimTrailingWhitespaceEditOperations = trimTrailingWhitespace(model, [], true);
-					model.applyEdits(trimTrailingWhitespaceEditOperations);
-					fs.writeFileSync(pathName, model.getValue());
+					model.applyEdits(trimTrailingWhitespace(model, [], true));
+					fs.writeFileSync(filePathName, model.getValue());
 				}
 			}
-			for (const directory of directoriesFromWhichToContinue) {
+			for (const directory of directoriesToRecurseOn) {
 				walkDirectoryAndReindent(directory, languageId);
 			}
 		}
 
 		walkDirectoryAndReindent('/Users/aiday/Desktop/Test/vscode-test', 'ts-test');
+		const output = execSync('cd /Users/aiday/Desktop/Test/vscode-test && git diff --shortstat', { encoding: 'utf-8' });
+		console.log('\ngit diff --shortstat:\n', output);
 	});
 
 	/*
