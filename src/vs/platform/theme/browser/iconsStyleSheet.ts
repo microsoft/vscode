@@ -51,7 +51,7 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 					);
 					rules.push(`.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; font-family: ${asCSSPropertyValue(fontContribution.id)}; }`);
 				} else {
-					rootAttribs.push(`${contentVar}: '${definition.fontCharacter}';`);
+					rootAttribs.push(`${contentVar}: '${definition.fontCharacter}'; font-family: 'codicon';`);
 					rules.push(`.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; }`);
 				}
 			}
