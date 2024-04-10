@@ -12,11 +12,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { NotebookFindInputFilterButton } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 import * as nls from 'vs/nls';
+import { IFindInputToggleOpts } from 'vs/base/browser/ui/findinput/findInputToggles';
+import { Codicon } from 'vs/base/common/codicons';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { Emitter } from 'vs/base/common/event';
+
+const NLS_AI_TOGGLE_LABEL = nls.localize('aiDescription', "Use AI");
 
 export class SearchFindInput extends ContextScopedFindInput {
 	private _findFilter: NotebookFindInputFilterButton;
+	private _aiButton: AIToggle;
 	private _filterChecked: boolean = false;
-	private _visible: boolean = false;
+	private readonly _onDidChangeAIToggle = this._register(new Emitter<boolean>());
+	public readonly onDidChangeAIToggle = this._onDidChangeAIToggle.event;
 
 	constructor(
 		container: HTMLElement | null,
@@ -26,6 +35,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 		readonly contextMenuService: IContextMenuService,
 		readonly instantiationService: IInstantiationService,
 		readonly filters: NotebookFindFilters,
+		shouldShowAIButton: boolean, // caller responsible for updating this when it changes,
 		filterStartVisiblitity: boolean
 	) {
 		super(container, contextViewProvider, options, contextKeyService);
@@ -37,29 +47,69 @@ export class SearchFindInput extends ContextScopedFindInput {
 				options,
 				nls.localize('searchFindInputNotebookFilter.label', "Notebook Find Filters")
 			));
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
+
+		this._aiButton = this._register(
+			new AIToggle({
+				appendTitle: '',
+				isChecked: false,
+				...options.toggleStyles
+			}));
+
+		this.setAdditionalToggles([this._aiButton]);
+
+		this._updatePadding();
+
 		this.controls.appendChild(this._findFilter.container);
 		this._findFilter.container.classList.add('monaco-custom-toggle');
-
 		this.filterVisible = filterStartVisiblitity;
+		// ensure that ai button is visible if it should be
+		this.sparkleVisible = shouldShowAIButton;
+
+		this._register(this._aiButton.onChange(() => {
+			if (this._aiButton.checked) {
+				this.regex?.disable();
+				this.wholeWords?.disable();
+				this.caseSensitive?.disable();
+				this._findFilter.disable();
+			} else {
+				this.regex?.enable();
+				this.wholeWords?.enable();
+				this.caseSensitive?.enable();
+				this._findFilter.enable();
+			}
+		}));
 	}
 
-	set filterVisible(show: boolean) {
-		this._findFilter.container.style.display = show ? '' : 'none';
-		this._visible = show;
-		this.updateStyles();
+	private _updatePadding() {
+		this.inputBox.paddingRight =
+			(this.caseSensitive?.width() ?? 0) +
+			(this.wholeWords?.width() ?? 0) +
+			(this.regex?.width() ?? 0) +
+			(this._findFilter.visible ? this._findFilter.width() : 0) +
+			(this._aiButton.visible ? this._aiButton.width() : 0);
+	}
+
+	set sparkleVisible(visible: boolean) {
+		this._aiButton.visible = visible;
+		this._updatePadding();
+	}
+
+	set filterVisible(visible: boolean) {
+		this._findFilter.visible = visible;
+		this.updateFilterStyles();
+		this._updatePadding();
 	}
 
 	override setEnabled(enabled: boolean) {
 		super.setEnabled(enabled);
-		if (enabled && (!this._filterChecked || !this._visible)) {
+		if (enabled && (!this._filterChecked || !this._findFilter.visible)) {
 			this.regex?.enable();
 		} else {
 			this.regex?.disable();
 		}
 	}
 
-	updateStyles() {
+	updateFilterStyles() {
 		// filter is checked if it's in a non-default state
 		this._filterChecked =
 			!this.filters.markupInput ||
@@ -68,7 +118,32 @@ export class SearchFindInput extends ContextScopedFindInput {
 			!this.filters.codeOutput;
 
 		// TODO: find a way to express that searching notebook output and markdown preview don't support regex.
-
 		this._findFilter.applyStyles(this._filterChecked);
+	}
+
+	get isAIEnabled() {
+		return this._aiButton.checked;
+	}
+}
+
+class AIToggle extends Toggle {
+	constructor(opts: IFindInputToggleOpts) {
+		super({
+			icon: Codicon.sparkle,
+			title: NLS_AI_TOGGLE_LABEL + opts.appendTitle,
+			isChecked: opts.isChecked,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionForeground: opts.inputActiveOptionForeground,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
+		});
+	}
+
+	set visible(visible: boolean) {
+		this.domNode.style.display = visible ? '' : 'none';
+	}
+
+	get visible() {
+		return this.domNode.style.display !== 'none';
 	}
 }

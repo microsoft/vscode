@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isAbsolute } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -43,6 +43,14 @@ interface IWatchRequest {
 	readonly correlationId?: number;
 }
 
+export interface IWatchRequestWithCorrelation extends IWatchRequest {
+	readonly correlationId: number;
+}
+
+export function isWatchRequestWithCorrelation(request: IWatchRequest): request is IWatchRequestWithCorrelation {
+	return typeof request.correlationId === 'number';
+}
+
 export interface INonRecursiveWatchRequest extends IWatchRequest {
 
 	/**
@@ -71,7 +79,7 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 
 export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
-interface IWatcher {
+export interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events
@@ -112,6 +120,20 @@ interface IWatcher {
 
 export interface IRecursiveWatcher extends IWatcher {
 	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IRecursiveWatcherWithSubscribe extends IRecursiveWatcher {
+
+	/**
+	 * Subscribe to file events for the given path. The callback is called
+	 * whenever a file event occurs for the path. I fthe watcher failed,
+	 * the error parameter is set to `true`.
+	 *
+	 * @returns an `IDisposable` to stop listening to events or `undefined`
+	 * if no events can be watched for the path given the current set of
+	 * recursive watch requests.
+	 */
+	subscribe(path: string, callback: (error: boolean, change?: IFileChange) => void): IDisposable | undefined;
 }
 
 export interface IRecursiveWatcherOptions {

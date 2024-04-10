@@ -42,6 +42,7 @@ import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQui
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -171,7 +172,8 @@ export class AccessibleView extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService
 	) {
 		super();
 
@@ -318,10 +320,10 @@ export class AccessibleView extends Disposable {
 
 		if (position) {
 			// Context view takes time to show up, so we need to wait for it to show up before we can set the position
-			setTimeout(() => {
+			queueMicrotask(() => {
 				this._editorWidget.revealLine(position.lineNumber);
 				this._editorWidget.setSelection({ startLineNumber: position.lineNumber, startColumn: position.column, endLineNumber: position.lineNumber, endColumn: position.column });
-			}, 10);
+			});
 		}
 
 		if (symbol && this._currentProvider) {
@@ -337,6 +339,9 @@ export class AccessibleView extends Disposable {
 		if (provider.options.id) {
 			// only cache a provider with an ID so that it will eventually be cleared.
 			this._lastProvider = provider;
+		}
+		if (provider.id === AccessibleViewProviderId.Chat) {
+			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
 		}
 	}
 
@@ -667,19 +672,23 @@ export class AccessibleView extends Disposable {
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
 			id: lastProvider.id,
 			provideContent: () => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-			onClose: () => this.show(lastProvider),
+			onClose: () => {
+				this._contextViewService.hideContextView();
+				// HACK: Delay to allow the context view to hide #207638
+				queueMicrotask(() => this.show(lastProvider));
+			},
 			options: { type: AccessibleViewType.Help },
 			verbositySettingKey: lastProvider.verbositySettingKey
 		};
 		this._contextViewService.hideContextView();
 		// HACK: Delay to allow the context view to hide #186514
-		setTimeout(() => this.show(accessibleViewHelpProvider, undefined, true), 100);
+		queueMicrotask(() => this.show(accessibleViewHelpProvider, undefined, true));
 	}
 
 	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
 		const navigationHint = this._getNavigationHint();
 		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
-		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab)).");
+		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab).");
 		const chatHints = this._getChatHints();
 
 		let hint = localize('intro', "In the accessible view, you can:\n");
@@ -715,7 +724,7 @@ export class AccessibleView extends Disposable {
 		if (insertIntoNewFileKb) {
 			hint += localize('insertIntoNewFile', " - Insert the code block into a new file ({0}).\n", insertIntoNewFileKb);
 		} else {
-			hint += localize('insertIntoNewFileNoKb', " - Insert the code block into a new file by configuring a keybinding for the Chat: Insert at Cursor command.\n");
+			hint += localize('insertIntoNewFileNoKb', " - Insert the code block into a new file by configuring a keybinding for the Chat: Insert into New File command.\n");
 		}
 		if (runInTerminalKb) {
 			hint += localize('runInTerminal', " - Run the code block in the terminal ({0}).\n", runInTerminalKb);
@@ -756,7 +765,7 @@ export class AccessibleView extends Disposable {
 		let goToSymbolHint = '';
 		if (providerHasSymbols) {
 			if (goToSymbolKb) {
-				goToSymbolHint = localize('goToSymbolHint', 'Go to a symbol ({0})', goToSymbolKb);
+				goToSymbolHint = localize('goToSymbolHint', 'Go to a symbol ({0}).', goToSymbolKb);
 			} else {
 				goToSymbolHint = localize('goToSymbolHintNoKb', 'To go to a symbol, configure a keybinding for the command Go To Symbol in Accessible View');
 			}

@@ -57,6 +57,9 @@ import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { Mutable } from 'vs/base/common/types';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -79,6 +82,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(ILogService, NullLogService);
 
 	instantiationService.stub(IWorkspaceContextService, new TestContextService());
+	instantiationService.stub(IFileService, disposables.add(new FileService(new NullLogService())));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IProgressService, ProgressService);
 	instantiationService.stub(IProductService, {});
@@ -95,8 +99,9 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		onDidUpdateExtensionMetadata: Event.None,
 		onDidChangeProfile: Event.None,
 		async getInstalled() { return []; },
+		async getInstalledWorkspaceExtensions() { return []; },
 		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
-		async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
+		async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
 			local.publisherId = metadata.publisherId!;
@@ -1441,7 +1446,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, `Please restart extensions to enable this extension.`);
+		assert.strictEqual(testObject.tooltip, `Please reload window to enable this extension.`);
 	});
 
 	test('Test Runtime State when ui extension is disabled on remote server and installed in local server', async () => {
@@ -1480,7 +1485,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, `Please restart extensions to enable this extension.`);
+		assert.strictEqual(testObject.tooltip, `Please reload window to enable this extension.`);
 	});
 
 	test('Test Runtime State for remote ui extension is disabled when it is installed and enabled in local server', async () => {
@@ -2633,7 +2638,7 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 		getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 		canInstall: async (extension: IGalleryExtension) => { return true; },
 		installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-		updateMetadata: async (local: ILocalExtension, metadata: Partial<Metadata>) => {
+		updateMetadata: async (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
 			local.publisherId = metadata.publisherId!;

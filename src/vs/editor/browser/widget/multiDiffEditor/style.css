@@ -7,7 +7,7 @@
 	background: var(--vscode-multiDiffEditor-background);
 	overflow-y: hidden;
 
-	.focused {
+	.active {
 		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);
 	}
 

@@ -7,10 +7,11 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { localize2, localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { TextCompareEditorVisibleContext, TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
+import { TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveCompareEditorCanSwapContext } from 'vs/workbench/common/contextkeys';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -226,6 +227,6 @@ export function registerDiffEditorCommands(): void {
 			title: localize2('swapDiffSides', "Swap Left and Right Editor Side"),
 			category: localize('compare', "Compare")
 		},
-		when: TextCompareEditorActiveContext
+		when: ContextKeyExpr.and(TextCompareEditorActiveContext, ActiveCompareEditorCanSwapContext)
 	});
 }

@@ -66,11 +66,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this.repository.HEAD.name ?? ''}`,
-			label: this.repository.HEAD.name ?? '',
+			name: this.repository.HEAD.name ?? '',
 			base: this.repository.HEAD.upstream ?
 				{
 					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-					label: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+					name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				} : undefined
 		};
 
@@ -101,8 +101,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return {
 				id: commit.hash,
 				parentIds: commit.parents,
-				label: emojify(subject),
-				description: commit.authorName,
+				message: emojify(subject),
+				author: commit.authorName,
 				icon: new ThemeIcon('git-commit'),
 				timestamp: commit.authorDate?.getTime(),
 				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
@@ -119,7 +119,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		const allChanges = await this.repository.diffBetweenShortStat(historyItemParentId, historyItemId);
-		return { id: historyItemId, parentIds: [historyItemParentId], label: '', statistics: allChanges };
+		return { id: historyItemId, parentIds: [historyItemParentId], message: '', statistics: allChanges };
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItemChange[]> {

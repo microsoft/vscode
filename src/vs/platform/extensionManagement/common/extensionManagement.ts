@@ -227,6 +227,8 @@ export interface IGalleryExtension {
 	supportLink?: string;
 }
 
+export type InstallSource = 'gallery' | 'vsix' | 'resource';
+
 export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
@@ -245,19 +247,21 @@ export type Metadata = Partial<IGalleryMetadata & {
 	hasPreReleaseVersion: boolean;
 	installedTimestamp: number;
 	pinned: boolean;
+	source: InstallSource;
 }>;
 
 export interface ILocalExtension extends IExtension {
+	isWorkspaceScoped: boolean;
 	isMachineScoped: boolean;
 	isApplicationScoped: boolean;
 	publisherId: string | null;
-	publisherDisplayName: string | null;
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
 	hasPreReleaseVersion: boolean;
 	preRelease: boolean;
 	updated: boolean;
 	pinned: boolean;
+	source: InstallSource;
 }
 
 export const enum SortBy {
@@ -372,6 +376,7 @@ export interface InstallExtensionEvent {
 	readonly source: URI | IGalleryExtension;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;
+	readonly workspaceScoped?: boolean;
 }
 
 export interface InstallExtensionResult {
@@ -383,12 +388,14 @@ export interface InstallExtensionResult {
 	readonly context?: IStringDictionary<any>;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;
+	readonly workspaceScoped?: boolean;
 }
 
 export interface UninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;
+	readonly workspaceScoped?: boolean;
 }
 
 export interface DidUninstallExtensionEvent {
@@ -396,6 +403,7 @@ export interface DidUninstallExtensionEvent {
 	readonly error?: string;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;
+	readonly workspaceScoped?: boolean;
 }
 
 export enum ExtensionManagementErrorCode {
@@ -450,6 +458,7 @@ export class ExtensionGalleryError extends Error {
 
 export type InstallOptions = {
 	isBuiltin?: boolean;
+	isWorkspaceScoped?: boolean;
 	isMachineScoped?: boolean;
 	isApplicationScoped?: boolean;
 	pinned?: boolean;

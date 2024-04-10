@@ -26,7 +26,8 @@ export enum SpeechToTextStatus {
 	Started = 1,
 	Recognizing = 2,
 	Recognized = 3,
-	Stopped = 4
+	Stopped = 4,
+	Error = 5
 }
 
 export interface ISpeechToTextEvent {
@@ -168,7 +169,8 @@ export const SPEECH_LANGUAGES = {
 		name: localize('speechLanguage.sv-SE', "Swedish (Sweden)")
 	},
 	['tr-TR']: {
-		name: localize('speechLanguage.tr-TR', "Turkish (Turkey)")
+		// allow-any-unicode-next-line
+		name: localize('speechLanguage.tr-TR', "Turkish (Türkiye)")
 	},
 	['zh-CN']: {
 		name: localize('speechLanguage.zh-CN', "Chinese (Simplified, China)")

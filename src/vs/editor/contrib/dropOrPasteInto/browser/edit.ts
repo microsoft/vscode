@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { DocumentOnDropEdit, DocumentPasteEdit, DropYieldTo, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentDropEdit, DocumentPasteEdit, DropYieldTo, WorkspaceEdit } from 'vs/editor/common/languages';
 import { Range } from 'vs/editor/common/core/range';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
@@ -14,7 +14,7 @@ import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
  * Given a {@link DropOrPasteEdit} and set of ranges, creates a {@link WorkspaceEdit} that applies the insert text from
  * the {@link DropOrPasteEdit} at each range plus any additional edits.
  */
-export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], edit: DocumentPasteEdit | DocumentOnDropEdit): WorkspaceEdit {
+export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], edit: DocumentPasteEdit | DocumentDropEdit): WorkspaceEdit {
 	// If the edit insert text is empty, skip applying at each range
 	if (typeof edit.insertText === 'string' ? edit.insertText === '' : edit.insertText.snippet === '') {
 		return {
@@ -42,7 +42,7 @@ export function sortEditsByYieldTo<T extends {
 		if ('mimeType' in yTo) {
 			return yTo.mimeType === other.handledMimeType;
 		}
-		return !!other.kind && other.kind.contains(new HierarchicalKind(yTo.kind));
+		return !!other.kind && yTo.kind.contains(other.kind);
 	}
 
 	// Build list of nodes each node yields to

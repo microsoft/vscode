@@ -34,7 +34,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	declare readonly _serviceBrand: undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
 	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[]; possibleSessions: AuthenticationSession[] } }>();
-	private _accountBadgeDisposable = this._register(new MutableDisposable());
+	private readonly _accountBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,

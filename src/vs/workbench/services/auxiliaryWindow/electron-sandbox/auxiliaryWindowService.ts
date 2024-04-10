@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { AuxiliaryWindow, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -19,9 +20,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { getZoomLevel } from 'vs/base/browser/browser';
+import { getZoomLevel, isFullscreen } from 'vs/base/browser/browser';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isMacintosh } from 'vs/base/common/platform';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -31,6 +33,8 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
 	private skipUnloadConfirmation = false;
 
+	private maximized = false;
+
 	constructor(
 		window: CodeWindow,
 		container: HTMLElement,
@@ -39,9 +43,40 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService);
+
+		if (!isMacintosh) {
+			// For now, limit this to platforms that have clear maximised
+			// transitions (Windows, Linux) via window buttons.
+			this.handleMaximizedState();
+		}
+	}
+
+	private handleMaximizedState(): void {
+		(async () => {
+			this.maximized = await this.nativeHostService.isMaximized({ targetWindowId: this.window.vscodeWindowId });
+		})();
+
+		this._register(this.nativeHostService.onDidMaximizeWindow(windowId => {
+			if (windowId === this.window.vscodeWindowId) {
+				this.maximized = true;
+			}
+		}));
+
+		this._register(this.nativeHostService.onDidUnmaximizeWindow(windowId => {
+			if (windowId === this.window.vscodeWindowId) {
+				this.maximized = false;
+			}
+		}));
+	}
+
+	protected override async handleVetoBeforeClose(e: BeforeUnloadEvent, veto: string): Promise<void> {
+		this.preventUnload(e);
+
+		await this.dialogService.error(veto, localize('backupErrorDetails', "Try saving or reverting the editors with unsaved changes first and then try again."));
 	}
 
 	protected override async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
@@ -49,14 +84,28 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 			return;
 		}
 
-		e.preventDefault();
-		e.returnValue = true;
+		this.preventUnload(e);
 
 		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeAuxiliaryWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
 		if (confirmed) {
 			this.skipUnloadConfirmation = true;
 			this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });
 		}
+	}
+
+	protected override preventUnload(e: BeforeUnloadEvent): void {
+		e.preventDefault();
+		e.returnValue = true;
+	}
+
+	override createState(): IAuxiliaryWindowOpenOptions {
+		const state = super.createState();
+		const fullscreen = isFullscreen(this.window);
+		return {
+			...state,
+			bounds: this.maximized ? undefined : state.bounds, // ignore if maximized (fullscreen is not yet supported!)
+			mode: this.maximized ? AuxiliaryWindowMode.Maximized : fullscreen ? AuxiliaryWindowMode.Fullscreen : AuxiliaryWindowMode.Normal
+		};
 	}
 }
 
@@ -99,7 +148,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	}
 
 	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier,): AuxiliaryWindow {
-		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService);
+		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService, this.dialogService);
 	}
 }
 

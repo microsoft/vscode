@@ -38,7 +38,6 @@ export interface NativeParsedArgs {
 	add?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
@@ -140,4 +139,5 @@ export interface NativeParsedArgs {
 	'log-net-log'?: string;
 	'vmodule'?: string;
 	'disable-dev-shm-usage'?: boolean;
+	'ozone-platform'?: string;
 }

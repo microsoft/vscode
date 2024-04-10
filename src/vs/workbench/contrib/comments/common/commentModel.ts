@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadState } from 'vs/editor/common/languages';
+import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
 
 export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IRange> {
 	uniqueOwner: string;
@@ -19,6 +19,7 @@ export class CommentNode {
 	public readonly threadId: string;
 	public readonly range: IRange | undefined;
 	public readonly threadState: CommentThreadState | undefined;
+	public readonly threadRelevance: CommentThreadApplicability | undefined;
 	public readonly contextValue: string | undefined;
 	public readonly controllerHandle: number;
 	public readonly threadHandle: number;
@@ -32,6 +33,7 @@ export class CommentNode {
 		this.threadId = thread.threadId;
 		this.range = thread.range;
 		this.threadState = thread.state;
+		this.threadRelevance = thread.applicability;
 		this.contextValue = thread.contextValue;
 		this.controllerHandle = thread.controllerHandle;
 		this.threadHandle = thread.commentThreadHandle;

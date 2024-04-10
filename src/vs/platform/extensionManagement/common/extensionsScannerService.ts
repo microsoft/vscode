@@ -46,6 +46,7 @@ interface IRelaxedScannedExtension {
 	manifest: IRelaxedExtensionManifest;
 	location: URI;
 	targetPlatform: TargetPlatform;
+	publisherDisplayName?: string;
 	metadata: Metadata | undefined;
 	isValid: boolean;
 	validations: readonly [Severity, string][];
@@ -127,6 +128,7 @@ export interface IExtensionsScannerService {
 	scanExtensionsUnderDevelopment(scanOptions: ScanOptions, existingExtensions: IScannedExtension[]): Promise<IScannedExtension[]>;
 	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension | null>;
 	scanOneOrMultipleExtensions(extensionLocation: URI, extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]>;
+	scanMultipleExtensions(extensionLocations: URI[], extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]>;
 
 	scanMetadata(extensionLocation: URI): Promise<Metadata | undefined>;
 	updateMetadata(extensionLocation: URI, metadata: Partial<Metadata>): Promise<void>;
@@ -248,6 +250,15 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	async scanOneOrMultipleExtensions(extensionLocation: URI, extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]> {
 		const extensionsScannerInput = await this.createExtensionScannerInput(extensionLocation, false, extensionType, true, scanOptions.language, true, undefined, scanOptions.productVersion ?? this.getProductVersion());
 		const extensions = await this.extensionsScanner.scanOneOrMultipleExtensions(extensionsScannerInput);
+		return this.applyScanOptions(extensions, extensionType, scanOptions, true);
+	}
+
+	async scanMultipleExtensions(extensionLocations: URI[], extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]> {
+		const extensions: IRelaxedScannedExtension[] = [];
+		await Promise.all(extensionLocations.map(async extensionLocation => {
+			const scannedExtensions = await this.scanOneOrMultipleExtensions(extensionLocation, extensionType, scanOptions);
+			extensions.push(...scannedExtensions);
+		}));
 		return this.applyScanOptions(extensions, extensionType, scanOptions, true);
 	}
 
@@ -642,13 +653,14 @@ class ExtensionsScanner extends Disposable {
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
-				const extension = {
+				const extension: IRelaxedScannedExtension = {
 					type,
 					identifier,
 					manifest,
 					location: input.location,
 					isBuiltin,
 					targetPlatform: metadata?.targetPlatform ?? TargetPlatform.UNDEFINED,
+					publisherDisplayName: metadata?.publisherDisplayName,
 					metadata,
 					isValid: true,
 					validations: []
@@ -969,6 +981,7 @@ export function toExtensionDescription(extension: IScannedExtension, isUnderDeve
 		extensionLocation: extension.location,
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
+		publisherDisplayName: extension.publisherDisplayName,
 		...extension.manifest,
 	};
 }

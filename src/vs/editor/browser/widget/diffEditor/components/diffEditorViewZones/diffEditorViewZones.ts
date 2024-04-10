@@ -312,7 +312,7 @@ export class DiffEditorViewZones extends Disposable {
 						}
 
 						let marginDomNode: HTMLElement | undefined = undefined;
-						if (a.diff && a.diff.modified.isEmpty && this._options.shouldRenderRevertArrows.read(reader)) {
+						if (a.diff && a.diff.modified.isEmpty && this._options.shouldRenderOldRevertArrows.read(reader)) {
 							marginDomNode = createViewZoneMarginArrow();
 						}
 

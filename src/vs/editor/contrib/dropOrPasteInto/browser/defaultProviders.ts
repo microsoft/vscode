@@ -14,16 +14,16 @@ import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { DocumentOnDropEdit, DocumentOnDropEditProvider, DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind } from 'vs/editor/common/languages';
+import { DocumentDropEdit, DocumentDropEditProvider, DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
-abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvider {
+abstract class SimplePasteAndDropProvider implements DocumentDropEditProvider, DocumentPasteEditProvider {
 
-	abstract readonly kind: string;
+	abstract readonly kind: HierarchicalKind;
 	abstract readonly dropMimeTypes: readonly string[] | undefined;
 	abstract readonly pasteMimeTypes: readonly string[];
 
@@ -39,7 +39,7 @@ abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider,
 		};
 	}
 
-	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit[] | undefined> {
+	async provideDocumentDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentDropEdit[] | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
 		return edit ? [{ insertText: edit.insertText, title: edit.title, kind: edit.kind, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo }] : undefined;
 	}
@@ -47,9 +47,13 @@ abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider,
 	protected abstract getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
-class DefaultTextProvider extends SimplePasteAndDropProvider {
+export class DefaultTextPasteOrDropEditProvider extends SimplePasteAndDropProvider {
 
-	readonly kind = 'text';
+	static readonly id = 'text';
+	static readonly kind = new HierarchicalKind('text.plain');
+
+	readonly id = DefaultTextPasteOrDropEditProvider.id;
+	readonly kind = DefaultTextPasteOrDropEditProvider.kind;
 	readonly dropMimeTypes = [Mimes.text];
 	readonly pasteMimeTypes = [Mimes.text];
 
@@ -70,14 +74,14 @@ class DefaultTextProvider extends SimplePasteAndDropProvider {
 			handledMimeType: Mimes.text,
 			title: localize('text.label', "Insert Plain Text"),
 			insertText,
-			kind: new HierarchicalKind(this.kind),
+			kind: this.kind,
 		};
 	}
 }
 
 class PathProvider extends SimplePasteAndDropProvider {
 
-	readonly kind = 'uri';
+	readonly kind = new HierarchicalKind('uri.absolute');
 	readonly dropMimeTypes = [Mimes.uriList];
 	readonly pasteMimeTypes = [Mimes.uriList];
 
@@ -116,14 +120,14 @@ class PathProvider extends SimplePasteAndDropProvider {
 			handledMimeType: Mimes.uriList,
 			insertText,
 			title: label,
-			kind: new HierarchicalKind(this.kind),
+			kind: this.kind,
 		};
 	}
 }
 
 class RelativePathProvider extends SimplePasteAndDropProvider {
 
-	readonly kind = 'relativePath';
+	readonly kind = new HierarchicalKind('uri.relative');
 	readonly dropMimeTypes = [Mimes.uriList];
 	readonly pasteMimeTypes = [Mimes.uriList];
 
@@ -154,7 +158,7 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 			title: entries.length > 1
 				? localize('defaultDropProvider.uriList.relativePaths', "Insert Relative Paths")
 				: localize('defaultDropProvider.uriList.relativePath', "Insert Relative Path"),
-			kind: new HierarchicalKind(this.kind),
+			kind: this.kind,
 		};
 	}
 }
@@ -168,7 +172,7 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 	private readonly _yieldTo = [{ mimeType: Mimes.text }];
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
-		if (context.triggerKind !== DocumentPasteTriggerKind.PasteAs && context.only?.contains(this.kind)) {
+		if (context.triggerKind !== DocumentPasteTriggerKind.PasteAs && !context.only?.contains(this.kind)) {
 			return;
 		}
 
@@ -215,9 +219,9 @@ export class DefaultDropProvidersFeature extends Disposable {
 	) {
 		super();
 
-		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultTextProvider()));
-		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new PathProvider()));
-		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
+		this._register(languageFeaturesService.documentDropEditProvider.register('*', new DefaultTextPasteOrDropEditProvider()));
+		this._register(languageFeaturesService.documentDropEditProvider.register('*', new PathProvider()));
+		this._register(languageFeaturesService.documentDropEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
 	}
 }
 
@@ -228,7 +232,7 @@ export class DefaultPasteProvidersFeature extends Disposable {
 	) {
 		super();
 
-		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextProvider()));
+		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextPasteOrDropEditProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PasteHtmlProvider()));
