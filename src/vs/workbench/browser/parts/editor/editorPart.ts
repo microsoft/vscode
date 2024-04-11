@@ -1342,16 +1342,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		};
 	}
 
-	async applyState(state: IEditorPartUIState): Promise<void> {
-
-		// Before disposing groups, try to close as many editors as
-		// possible, but skip over those that would trigger a dialog
-		// (for example when being dirty). This is to be able to later
-		// restore these editors after state has been applied.
-		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-		for (const group of groups) {
-			await group.closeAllEditors({ excludeConfirming: true });
+	applyState(state: IEditorPartUIState | 'empty'): Promise<void> {
+		if (state === 'empty') {
+			return this.doApplyEmptyState();
+		} else {
+			return this.doApplyState(state);
 		}
+	}
+
+	private async doApplyState(state: IEditorPartUIState): Promise<void> {
+		const groups = await this.doPrepareApplyState();
 		const resumeEvents = this.disposeGroups(true /* suspress events for the duration of applying state */);
 
 		// MRU
@@ -1373,6 +1373,27 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 					editor, options: { pinned: true, preserveFocus: true, inactive: true }
 				}))
 		);
+	}
+
+	private async doApplyEmptyState(): Promise<void> {
+		await this.doPrepareApplyState();
+
+		this.mergeAllGroups(this.activeGroup);
+	}
+
+	private async doPrepareApplyState(): Promise<IEditorGroupView[]> {
+
+		// Before disposing groups, try to close as many editors as
+		// possible, but skip over those that would trigger a dialog
+		// (for example when being dirty). This is to be able to later
+		// restore these editors after state has been applied.
+
+		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+		for (const group of groups) {
+			await group.closeAllEditors({ excludeConfirming: true });
+		}
+
+		return groups;
 	}
 
 	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {

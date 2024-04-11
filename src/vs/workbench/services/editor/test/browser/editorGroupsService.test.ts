@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, createEditorPart, ITestInstantiationService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
+import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -18,6 +18,7 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { IGroupModelChangeEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 suite('EditorGroupsService', () => {
 
@@ -42,6 +43,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	async function createPart(instantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[TestEditorPart, TestInstantiationService]> {
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -1915,12 +1917,10 @@ suite('EditorGroupsService', () => {
 	test('working sets - create / apply state', async function () {
 		const [part] = await createPart();
 
-		const group = part.activeGroup;
-
 		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
 
-		const pane1 = await group.openEditor(input, { pinned: true });
+		const pane1 = await part.activeGroup.openEditor(input, { pinned: true });
 		const pane2 = await part.sideGroup.openEditor(input2, { pinned: true });
 
 		const state = part.createState();
@@ -1934,6 +1934,39 @@ suite('EditorGroupsService', () => {
 		await part.applyState(state);
 
 		assert.strictEqual(part.count, 2);
+
+		assert.strictEqual(part.groups[0].contains(input), true);
+		assert.strictEqual(part.groups[1].contains(input2), true);
+
+		for (const group of part.groups) {
+			await group.closeAllEditors();
+		}
+
+		const emptyState = part.createState();
+
+		await part.applyState(emptyState);
+		assert.strictEqual(part.count, 1);
+
+		const input3 = createTestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
+		input3.dirty = true;
+		await part.activeGroup.openEditor(input3, { pinned: true });
+
+		await part.applyState(emptyState);
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.groups[0].contains(input3), true); // dirty editors enforce to be there even when state is empty
+
+		await part.applyState('empty');
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.groups[0].contains(input3), true); // dirty editors enforce to be there even when state is empty
+
+		input3.dirty = false;
+
+		await part.applyState('empty');
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.activeGroup.isEmpty, true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
