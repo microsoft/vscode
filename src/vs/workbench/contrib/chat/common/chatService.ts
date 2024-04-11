@@ -89,11 +89,6 @@ export interface IChatAgentDetection {
 	kind: 'agentDetection';
 }
 
-export interface IChatContent {
-	content: string;
-	kind: 'content';
-}
-
 export interface IChatMarkdownContent {
 	content: IMarkdownString;
 	kind: 'markdownContent';
@@ -132,7 +127,6 @@ export interface IChatTextEdit {
 }
 
 export type IChatProgress =
-	| IChatContent
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData

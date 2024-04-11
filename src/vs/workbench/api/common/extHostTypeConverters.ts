@@ -2542,13 +2542,13 @@ export namespace ChatResponsePart {
 		} else if (part instanceof types.ChatResponseMarkdownWithVulnerabilitiesPart) {
 			return ChatResponseMarkdownWithVulnerabilitiesPart.from(part);
 		} else if (part instanceof types.ChatResponseDetectedParticipantPart) {
-
+			return ChatResponseDetectedParticipantPart.from(part);
 		}
-		return {
-			kind: 'content',
-			content: ''
-		};
 
+		return {
+			kind: 'markdownContent',
+			content: MarkdownString.from('')
+		};
 	}
 
 	export function to(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart | undefined {

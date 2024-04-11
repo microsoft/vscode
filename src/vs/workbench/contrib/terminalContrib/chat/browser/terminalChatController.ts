@@ -272,9 +272,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				return;
 			}
 
-			if (progress.kind === 'content') {
-				responseContent += progress.content;
-			} else if (progress.kind === 'markdownContent') {
+			if (progress.kind === 'markdownContent') {
 				responseContent += progress.content.value;
 			}
 			if (this._currentRequest) {

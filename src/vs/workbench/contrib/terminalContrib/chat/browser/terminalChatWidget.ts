@@ -179,7 +179,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	updateProgress(progress?: IChatProgress): void {
-		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
+		this._inlineChatWidget.updateProgress(progress?.kind === 'markdownContent');
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
