@@ -37,6 +37,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesRegistryExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -168,6 +169,10 @@ const viewDescriptor: IJSONSchema = {
 		initialSize: {
 			type: 'number',
 			description: localize('vscode.extension.contributs.view.size', "The initial size of the view. The size will behave like the css 'flex' property, and will set the initial size when the view is first shown. In the side bar, this is the height of the view. This value is only respected when the same extension owns both the view and the view container."),
+		},
+		accessibilityHelpContent: {
+			type: 'string',
+			description: localize('vscode.extension.contributes.view.accessibilityHelpContent', "When the accessibility help dialog is invoked in this view, this content will be presented to the user as a markdown string.")
 		}
 	}
 };
@@ -539,6 +544,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						}
 					}
 
+					let accessibilityHelpContent;
+					if (isProposedApiEnabled(extension.description, 'contribAccessibilityHelpContent') && item.accessibilityHelpContent) {
+						accessibilityHelpContent = new MarkdownString(item.accessibilityHelpContent);
+					}
+
 					const viewDescriptor: ICustomViewDescriptor = {
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
@@ -560,7 +570,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
 						workspace: viewContainer?.id === REMOTE ? true : undefined,
 						weight,
-						accessibilityHelpContent: item.accessibilityHelpContent
+						accessibilityHelpContent
 					};
 
 

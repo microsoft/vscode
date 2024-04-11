@@ -10,6 +10,7 @@ import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from 'v
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isBoolean, isString } from 'vs/base/common/types';
 import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -103,6 +104,7 @@ export interface IWorkbenchThemeService extends IThemeService {
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 
 	hasUpdatedDefaultThemes(): boolean;
+	getPreferredColorScheme(): ColorScheme | undefined;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;

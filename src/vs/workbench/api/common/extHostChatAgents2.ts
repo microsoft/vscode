@@ -375,13 +375,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return items.map(typeConvert.ChatAgentCompletionItem.from);
 	}
 
-	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
+	async $provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
 
-		return await agent.provideWelcomeMessage(token);
+		return await agent.provideWelcomeMessage(typeConvert.ChatLocation.to(location), token);
 	}
 
 	async $provideSampleQuestions(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<IChatFollowup[] | undefined> {
@@ -453,11 +453,11 @@ class ExtHostChatAgent {
 			.filter(f => !(f && 'message' in f));
 	}
 
-	async provideWelcomeMessage(token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
+	async provideWelcomeMessage(location: vscode.ChatLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
 		if (!this._welcomeMessageProvider) {
 			return [];
 		}
-		const content = await this._welcomeMessageProvider.provideWelcomeMessage(token);
+		const content = await this._welcomeMessageProvider.provideWelcomeMessage(location, token);
 		if (!content) {
 			return [];
 		}
