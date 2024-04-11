@@ -8,6 +8,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IndentAction, CompleteEnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { getIndentationAtPosition, getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { getStrippedLineForLineAndTokens } from 'vs/editor/common/languages/autoIndent';
 
 export function getEnterAction(
 	autoIndent: EditorAutoIndentStrategy,
@@ -15,6 +17,8 @@ export function getEnterAction(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ): CompleteEnterAction | null {
+	console.log('getEnterAction');
+
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 	const richEditSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId);
 	if (!richEditSupport) {
@@ -22,28 +26,81 @@ export function getEnterAction(
 	}
 
 	const scopedLineText = scopedLineTokens.getLineContent();
-	const beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+	const indexOfCursor = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+	const beforeEnterText = scopedLineText.substring(0, indexOfCursor);
+
+	const firstTokenIndex = scopedLineTokens.firstTokenIndex;
+	const lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(indexOfCursor) + 1;
+	const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
+	const language = initialTokens.getLanguageId(firstTokenIndex);
+	const firstCharOffset = scopedLineTokens.firstCharOffset;
+
+	const beforeEnterTokens = new ScopedLineTokens(
+		initialTokens,
+		language,
+		firstTokenIndex,
+		lastTokenIndex,
+		firstCharOffset,
+		indexOfCursor
+	);
+	const strippedBeforeEnterText = getStrippedLineForLineAndTokens(languageConfigurationService, language, beforeEnterText, beforeEnterTokens);
 
 	// selection support
 	let afterEnterText: string;
+	let afterEnterTokens: ScopedLineTokens;
+
 	if (range.isEmpty()) {
-		afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		afterEnterText = scopedLineText.substring(indexOfCursor);
+
+		const lastScopedCharOffset = scopedLineText.length - 1;
+		const firstTokenIndex = scopedLineTokens.findTokenIndexAtOffset(indexOfCursor);
+		const lastTokenIndex = scopedLineTokens.findTokenIndexAtOffset(lastScopedCharOffset);
+		const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
+		const language = initialTokens.getLanguageId(firstTokenIndex);
+		const lastCharOffset = scopedLineTokens.firstCharOffset + lastScopedCharOffset;
+		afterEnterTokens = new ScopedLineTokens(
+			initialTokens,
+			language,
+			firstTokenIndex,
+			lastTokenIndex,
+			indexOfCursor,
+			lastCharOffset
+		);
 	} else {
 		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-		afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		const endScopedLineText = endScopedLineTokens.getLineContent();
+		afterEnterText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+
+		const lastScopedCharOffset = endScopedLineText.length - 1;
+		const firstTokenIndex = endScopedLineTokens.findTokenIndexAtOffset(indexOfCursor);
+		const lastTokenIndex = endScopedLineTokens.findTokenIndexAtOffset(lastScopedCharOffset);
+		const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
+		const language = initialTokens.getLanguageId(firstTokenIndex);
+		const lastCharOffset = scopedLineTokens.firstCharOffset + lastScopedCharOffset;
+		afterEnterTokens = new ScopedLineTokens(
+			initialTokens,
+			language,
+			firstTokenIndex,
+			lastTokenIndex,
+			indexOfCursor,
+			lastCharOffset
+		);
 	}
 
-	let previousLineText = '';
+	const strippedAfterEnterText = getStrippedLineForLineAndTokens(languageConfigurationService, language, afterEnterText, afterEnterTokens);
+
+	let strippedPreviousLineText = '';
 	if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 		// This is not the first line and the entire line belongs to this mode
 		const oneLineAboveScopedLineTokens = getScopedLineTokens(model, range.startLineNumber - 1);
 		if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
 			// The line above ends with text belonging to the same mode
-			previousLineText = oneLineAboveScopedLineTokens.getLineContent();
+			const previousLineText = oneLineAboveScopedLineTokens.getLineContent();
+			strippedPreviousLineText = getStrippedLineForLineAndTokens(languageConfigurationService, language, previousLineText, oneLineAboveScopedLineTokens);
 		}
 	}
 
-	const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
+	const enterResult = richEditSupport.onEnter(autoIndent, strippedPreviousLineText, strippedBeforeEnterText, strippedAfterEnterText);
 	if (!enterResult) {
 		return null;
 	}

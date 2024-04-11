@@ -7,7 +7,7 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IndentAction } from 'vs/editor/common/languages/languageConfiguration';
-import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -37,6 +37,8 @@ export interface IIndentConverter {
  * else: nearest preceding line of the same language
  */
 function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
+	console.log('getPrecedingValidLine');
+
 	const languageId = model.tokenization.getLanguageIdAtPosition(lineNumber, 0);
 	if (lineNumber > 1) {
 		let lastLineNumber: number;
@@ -48,8 +50,6 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 			}
 			const text = model.getLineContent(lastLineNumber);
 
-			// TODO: skip line if entirely contained in comment or string
-			// TODO: just means they are ignored when calculating the preceding valid line
 			const tokens = model.tokenization.getLineTokens(lastLineNumber);
 			const numberOfTokens = tokens.getCount();
 
@@ -79,6 +79,11 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 					break;
 				}
 			}
+
+			console.log('lastLineNumber : ', lastLineNumber);
+			console.log('entirelyInComment : ', entirelyInComment);
+			console.log('entirelyInString : ', entirelyInString);
+			console.log('entirelyInRegex : ', entirelyInRegex);
 			//
 
 			if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '' || entirelyInComment || entirelyInString || entirelyInRegex) {
@@ -531,7 +536,7 @@ function getStrippedLine(languageConfigurationService: ILanguageConfigurationSer
 	return strippedLineContent;
 }
 
-function getStrippedLineForLineAndTokens(languageConfigurationService: ILanguageConfigurationService, languageId: string, line: string, tokens: LineTokens): string {
+export function getStrippedLineForLineAndTokens(languageConfigurationService: ILanguageConfigurationService, languageId: string, line: string, tokens: LineTokens | ScopedLineTokens): string {
 
 	console.log('getStrippedLineForLineAndTokens');
 
@@ -588,7 +593,7 @@ function getStrippedLineForLineAndTokens(languageConfigurationService: ILanguage
 			console.log('modifiedString : ', modifiedString);
 			offset += substringOfToken.length - modifiedString.length;
 			console.log('offset : ', offset);
-			res = res.substring(0, offset + startOffset) + modifiedString + res.substring(offset + endOffset + 1);
+			res = res.substring(0, offset + startOffset) + modifiedString + res.substring(offset + endOffset);
 			console.log('res : ', res);
 		}
 	}

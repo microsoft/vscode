@@ -36,7 +36,7 @@ export class ScopedLineTokens {
 
 	public readonly languageId: string;
 	private readonly _actual: LineTokens;
-	private readonly _firstTokenIndex: number;
+	public readonly firstTokenIndex: number;
 	private readonly _lastTokenIndex: number;
 	public readonly firstCharOffset: number;
 	private readonly _lastCharOffset: number;
@@ -51,7 +51,7 @@ export class ScopedLineTokens {
 	) {
 		this._actual = actual;
 		this.languageId = languageId;
-		this._firstTokenIndex = firstTokenIndex;
+		this.firstTokenIndex = firstTokenIndex;
 		this._lastTokenIndex = lastTokenIndex;
 		this.firstCharOffset = firstCharOffset;
 		this._lastCharOffset = lastCharOffset;
@@ -67,16 +67,26 @@ export class ScopedLineTokens {
 		return actualLineContent.substring(0, this.firstCharOffset + offset);
 	}
 
-	public getTokenCount(): number {
-		return this._lastTokenIndex - this._firstTokenIndex;
+	public getCount(): number {
+		return this._lastTokenIndex - this.firstTokenIndex;
 	}
 
 	public findTokenIndexAtOffset(offset: number): number {
-		return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this._firstTokenIndex;
+		return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this.firstTokenIndex;
 	}
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
-		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
+		return this._actual.getStandardTokenType(tokenIndex + this.firstTokenIndex);
+	}
+
+	public getStartOffset(tokenIndex: number): number {
+		const offsetOnLine = this._actual.getStartOffset(tokenIndex + this.firstTokenIndex);
+		return offsetOnLine - this.firstCharOffset;
+	}
+
+	public getEndOffset(tokenIndex: number): number {
+		const offsetOnLine = this._actual.getEndOffset(tokenIndex + this.firstTokenIndex);
+		return offsetOnLine - this.firstCharOffset;
 	}
 }
 

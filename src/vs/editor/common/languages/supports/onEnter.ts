@@ -50,6 +50,11 @@ export class OnEnterSupport {
 	}
 
 	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+
+		console.log('previousLineText : ', previousLineText);
+		console.log('beforeEnterText : ', beforeEnterText);
+		console.log('afterEnterText : ', afterEnterText);
+
 		// (1): `regExpRules`
 		if (autoIndent >= EditorAutoIndentStrategy.Advanced) {
 			for (let i = 0, len = this._regExpRules.length; i < len; i++) {
