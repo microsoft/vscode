@@ -24,7 +24,6 @@ const noop = () => {
 */
 export const pendingNotebookCellModelUpdates = new WeakMap<NotebookDocument, Set<Thenable<void>>>();
 export function activate(context: ExtensionContext) {
-	// context.subscriptions.push(debounceOnDidChangeNotebookDocument());
 	workspace.onDidChangeNotebookDocument(onDidChangeNotebookCells, undefined, context.subscriptions);
 	workspace.onWillSaveNotebookDocument(waitForPendingModelUpdates, undefined, context.subscriptions);
 }
