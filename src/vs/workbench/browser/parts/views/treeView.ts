@@ -20,7 +20,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, isMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
@@ -72,6 +72,9 @@ import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndServ
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import { parseLinkedText } from 'vs/base/common/linkedText';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class TreeViewPane extends ViewPane {
 
@@ -183,8 +186,10 @@ function isTreeCommandEnabled(treeCommand: TreeCommand, contextKeyService: ICont
 	return true;
 }
 
-function isRenderedMessageValue(messageValue: string | IMarkdownRenderResult | undefined): messageValue is IMarkdownRenderResult {
-	return !!messageValue && typeof messageValue !== 'string' && 'element' in messageValue && 'dispose' in messageValue;
+interface RenderedMessage { element: HTMLElement; disposables: DisposableStore }
+
+function isRenderedMessageValue(messageValue: string | RenderedMessage | undefined): messageValue is RenderedMessage {
+	return !!messageValue && typeof messageValue !== 'string' && 'element' in messageValue && 'disposables' in messageValue;
 }
 
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
@@ -209,7 +214,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private focused: boolean = false;
 	private domNode!: HTMLElement;
 	private treeContainer: HTMLElement | undefined;
-	private _messageValue: string | { element: HTMLElement; dispose: () => void } | undefined;
+	private _messageValue: string | { element: HTMLElement; disposables: DisposableStore } | undefined;
 	private _canSelectMany: boolean = false;
 	private _manuallyManageCheckboxes: boolean = false;
 	private messageElement: HTMLElement | undefined;
@@ -268,7 +273,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 		this.root = new Root();
@@ -824,14 +830,59 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.updateContentAreas();
 	}
 
+	private processMessage(message: IMarkdownString, disposables: DisposableStore): HTMLElement {
+		const lines = message.value.split('\n');
+		const result: (IMarkdownRenderResult | HTMLElement)[] = [];
+		let hasFoundButton = false;
+		for (const line of lines) {
+			const linkedText = parseLinkedText(line);
+
+			if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+				const node = linkedText.nodes[0];
+				const buttonContainer = document.createElement('div');
+				buttonContainer.classList.add('button-container');
+				const button = new Button(buttonContainer, { title: node.title, secondary: hasFoundButton, supportIcons: true, ...defaultButtonStyles });
+				button.label = node.label;
+				button.onDidClick(_ => {
+					this.openerService.open(node.href, { allowCommands: true });
+				}, null, disposables);
+				disposables.add(button);
+				hasFoundButton = true;
+				result.push(buttonContainer);
+			} else {
+				hasFoundButton = false;
+				const rendered = this.markdownRenderer!.render(new MarkdownString(line, { isTrusted: message.isTrusted, supportThemeIcons: message.supportThemeIcons, supportHtml: message.supportHtml }));
+				result.push(rendered.element);
+				disposables.add(rendered);
+			}
+		}
+
+		const container = document.createElement('div');
+		container.classList.add('rendered-message');
+		for (const child of result) {
+			if (child instanceof HTMLElement) {
+				container.appendChild(child);
+			} else {
+				container.appendChild(child.element);
+			}
+		}
+		return container;
+	}
+
 	private showMessage(message: string | IMarkdownString): void {
 		if (isRenderedMessageValue(this._messageValue)) {
-			this._messageValue.dispose();
+			this._messageValue.disposables.dispose();
 		}
 		if (isMarkdownString(message) && !this.markdownRenderer) {
 			this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 		}
-		this._messageValue = isMarkdownString(message) ? this.markdownRenderer!.render(message) : message;
+		if (isMarkdownString(message)) {
+			const disposables = new DisposableStore();
+			const renderedMessage = this.processMessage(message, disposables);
+			this._messageValue = { element: renderedMessage, disposables };
+		} else {
+			this._messageValue = message;
+		}
 		if (!this.messageElement) {
 			return;
 		}
@@ -1585,8 +1636,9 @@ export class CustomTreeView extends AbstractTreeView {
 		@IActivityService activityService: IActivityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
+		@IOpenerService openerService: IOpenerService
 	) {
-		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService, logService);
+		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService, logService, openerService);
 	}
 
 	protected activate() {
