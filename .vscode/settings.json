@@ -1,6 +1,6 @@
 {
 	"editor.insertSpaces": false,
-	"files.trimTrailingWhitespace": true,
+	"files.trimTrailingWhitespace": false,
 	"files.exclude": {
 		".git": true,
 		".build": true,

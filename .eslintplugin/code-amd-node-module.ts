@@ -29,6 +29,7 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 		} catch (e) {
 			console.error(e);
 			throw e;
+				
 		}
 
 
