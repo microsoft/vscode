@@ -1909,5 +1909,29 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isPinned(input2), true);
 	});
 
+	test('working sets - create / apply state', async function () {
+		const [part] = await createPart();
+
+		const group = part.activeGroup;
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		const pane1 = await group.openEditor(input, { pinned: true });
+		const pane2 = await part.sideGroup.openEditor(input2, { pinned: true });
+
+		const state = part.createState();
+
+		await pane2?.group.closeAllEditors();
+		await pane1?.group.closeAllEditors();
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.activeGroup.isEmpty, true);
+
+		await part.applyState(state);
+
+		assert.strictEqual(part.count, 2);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
