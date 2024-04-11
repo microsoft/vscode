@@ -13,7 +13,7 @@ import { CHAT_VIEW_ID, IChatWidgetService } from 'vs/workbench/contrib/chat/brow
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_HAS_DEFAULT_AGENT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -30,7 +30,7 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInEditor`,
 				title: localize2('chat.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				menu: {
 					id: MenuId.ViewTitle,
@@ -52,7 +52,7 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInNewWindow`,
 				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				menu: {
 					id: MenuId.ViewTitle,
@@ -74,7 +74,7 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInSidebar`,
 				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				menu: [{
 					id: MenuId.EditorTitle,

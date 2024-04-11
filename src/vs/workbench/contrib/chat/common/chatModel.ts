@@ -394,6 +394,7 @@ export interface IChatModel {
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
 	readonly initState: ChatModelInitState;
+	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
 	readonly welcomeMessage: IChatWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
@@ -427,6 +428,7 @@ export interface ISerializableChatRequestData {
 }
 
 export interface IExportableChatData {
+	initialLocation: ChatAgentLocation | undefined;
 	welcomeMessage: (string | IChatFollowup[])[] | undefined;
 	requests: ISerializableChatRequestData[];
 	requesterUsername: string;
@@ -573,8 +575,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		return ChatModel.getDefaultTitle(this._requests);
 	}
 
+	get initialLocation() {
+		return this._initialLocation;
+	}
+
 	constructor(
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
+		private readonly _initialLocation: ChatAgentLocation,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -790,6 +797,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			requesterAvatarIconUri: this.requesterAvatarIconUri,
 			responderUsername: this.responderUsername,
 			responderAvatarIconUri: this.responderAvatarIcon,
+			initialLocation: this.initialLocation,
 			welcomeMessage: this._welcomeMessage?.content.map(c => {
 				if (Array.isArray(c)) {
 					return c;
@@ -823,7 +831,17 @@ export class ChatModel extends Disposable implements IChatModel {
 					vote: r.response?.vote,
 					agent: r.response?.agent ?
 						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
-						{ id: r.response.agent.id, name: r.response.agent.name, description: r.response.agent.description, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
+						{
+							id: r.response.agent.id,
+							name: r.response.agent.name,
+							description: r.response.agent.description,
+							extensionId: r.response.agent.extensionId,
+							metadata: r.response.agent.metadata,
+							slashCommands: [],
+							locations: r.response.agent.locations,
+							isDefault: r.response.agent.isDefault,
+							extensionPublisher: r.response.agent.extensionPublisher
+						}
 						: undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
@@ -886,10 +904,16 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 }
 
-export function getHistoryEntriesFromModel(model: IChatModel): IChatAgentHistoryEntry[] {
+export function getHistoryEntriesFromModel(model: IChatModel, forAgentId: string | undefined): IChatAgentHistoryEntry[] {
 	const history: IChatAgentHistoryEntry[] = [];
 	for (const request of model.getRequests()) {
 		if (!request.response) {
+			continue;
+		}
+
+		if (forAgentId && forAgentId !== request.response.agent?.id) {
+			// An agent only gets to see requests that were sent to this agent.
+			// The default agent (the undefined case) gets to see all of them.
 			continue;
 		}
 

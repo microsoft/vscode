@@ -50,6 +50,19 @@
 	color: var(--vscode-textLink-foreground);
 }
 
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .rendered-message {
+	width: 100%;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .button-container {
+	width: 100%;
+	max-width: 300px;
+	margin: auto;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .button-container:not(:last-child) {
+	padding-bottom: 8px;
+}
 .monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
 	display: none;
 }

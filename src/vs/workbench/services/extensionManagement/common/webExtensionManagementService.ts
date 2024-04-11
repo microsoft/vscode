@@ -227,7 +227,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		isMachineScoped: !!metadata.isMachineScoped,
 		isApplicationScoped: !!metadata.isApplicationScoped,
 		publisherId: metadata.publisherId || null,
-		publisherDisplayName: metadata.publisherDisplayName || null,
+		publisherDisplayName: metadata.publisherDisplayName,
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
 		hasPreReleaseVersion: !!metadata.hasPreReleaseVersion,

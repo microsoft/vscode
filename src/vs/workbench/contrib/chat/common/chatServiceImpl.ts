@@ -177,6 +177,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		let allSessions: (ChatModel | ISerializableChatData)[] = Array.from(this._sessionModels.values())
+			.filter(session => session.initialLocation === ChatAgentLocation.Panel)
 			.filter(session => session.getRequests().length > 0);
 		allSessions = allSessions.concat(
 			Object.values(this._persistedSessions)
@@ -319,23 +320,17 @@ export class ChatService extends Disposable implements IChatService {
 		this.saveState();
 	}
 
-	startSession(token: CancellationToken): ChatModel {
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel {
 		this.trace('startSession');
-		return this._startSession(undefined, token);
+		return this._startSession(undefined, location, token);
 	}
 
-	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, token: CancellationToken): ChatModel {
-		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory);
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, token: CancellationToken): ChatModel {
+		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
 		return model;
 	}
-
-	// TODO, when default agent shows up?
-	// private reinitializeModel(model: ChatModel): void {
-	// 	this.trace('reinitializeModel', `Start reinit`);
-	// 	this.initializeSession(model, CancellationToken.None);
-	// }
 
 	private async initializeSession(model: ChatModel, token: CancellationToken): Promise<void> {
 		try {
@@ -343,23 +338,23 @@ export class ChatService extends Disposable implements IChatService {
 			model.startInitialize();
 
 			await this.extensionService.whenInstalledExtensionsRegistered();
-			const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
+			const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(model.initialLocation) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
 			if (!defaultAgentData) {
 				throw new ErrorNoTelemetry('No default agent contributed');
 			}
 
 			await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
 
-			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+			const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
 			if (!defaultAgent) {
 				// Should have been registered during activation above!
 				throw new ErrorNoTelemetry('No default agent registered');
 			}
-			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(token) ?? undefined;
+			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(model.initialLocation, token) ?? undefined;
 			const welcomeModel = welcomeMessage && this.instantiationService.createInstance(
 				ChatWelcomeMessageModel,
 				welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item),
-				await defaultAgent.provideSampleQuestions?.(token) ?? []
+				await defaultAgent.provideSampleQuestions?.(model.initialLocation, token) ?? []
 			);
 
 			model.initialize(welcomeModel);
@@ -391,11 +386,11 @@ export class ChatService extends Disposable implements IChatService {
 			this._transferredSessionData = undefined;
 		}
 
-		return this._startSession(sessionData, CancellationToken.None);
+		return this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, CancellationToken.None);
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
-		return this._startSession(data, CancellationToken.None);
+		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, CancellationToken.None);
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
@@ -411,7 +406,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const location = options?.location ?? ChatAgentLocation.Panel;
+		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
 		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
@@ -424,10 +419,6 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
-
-		const location = options?.location ?? ChatAgentLocation.Panel;
-		const attempt = options?.attempt ?? 0;
-		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
 
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 		if (!request.trim()) {
@@ -447,6 +438,9 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
+		const location = options?.location ?? model.initialLocation;
+		const attempt = options?.attempt ?? 0;
+		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
 
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location, options?.parserContext);
@@ -522,7 +516,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const agent = (agentPart?.agent ?? defaultAgent)!;
 					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
-					const history = getHistoryEntriesFromModel(model);
+					const history = getHistoryEntriesFromModel(model, agentPart?.agent.id);
 
 					const initVariableData: IChatRequestVariableData = { variables: [] };
 					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command);
@@ -671,7 +665,9 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		this._persistedSessions[sessionId] = model.toJSON();
+		if (model.initialLocation === ChatAgentLocation.Panel) {
+			this._persistedSessions[sessionId] = model.toJSON();
+		}
 
 		this._sessionModels.deleteAndDispose(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();

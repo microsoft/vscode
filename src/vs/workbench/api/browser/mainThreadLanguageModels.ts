@@ -60,7 +60,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				} finally {
 					this._pendingProgress.delete(requestId);
 				}
-			}
+			},
+			provideTokenCount: (str, token) => {
+				return this._proxy.$provideTokenLength(handle, str, token);
+			},
 		}));
 		if (metadata.auth) {
 			dipsosables.add(this._registerAuthenticationProvider(metadata.extension, metadata.auth));
@@ -117,6 +120,11 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		});
 
 		return task;
+	}
+
+
+	$countTokens(provider: string, value: string, token: CancellationToken): Promise<number> {
+		return this._chatProviderService.computeTokenLength(provider, value, token);
 	}
 
 	private _registerAuthenticationProvider(extension: ExtensionIdentifier, auth: { providerLabel: string; accountLabel?: string | undefined }): IDisposable {

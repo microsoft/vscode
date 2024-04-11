@@ -289,7 +289,11 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'content' });
 				}
 
-				const variableText = Array.from(chatVariablesService.getVariables())
+				const variables = [
+					...chatVariablesService.getVariables(),
+					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
+				];
+				const variableText = variables
 					.map(v => `* \`${chatVariableLeader}${v.name}\` - ${v.description}`)
 					.join('\n');
 				progress.report({ content: '\n' + variableText, kind: 'content' });

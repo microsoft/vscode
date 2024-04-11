@@ -297,7 +297,7 @@ export function registerChatTitleActions() {
 			}
 			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
 			if (request) {
-				await chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: widget.location });
+				await chatService.resendRequest(request, { noCommandDetection: false, attempt: request.attempt + 1, location: widget.location, implicitVariablesEnabled: true });
 			}
 		}
 	});
@@ -333,7 +333,7 @@ export function registerChatTitleActions() {
 			}
 			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
 			if (request) {
-				await chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: widget.location });
+				await chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: widget.location, implicitVariablesEnabled: true });
 			}
 		}
 	});

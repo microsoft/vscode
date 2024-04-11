@@ -215,7 +215,12 @@ export interface IChatBugReportAction {
 	kind: 'bug';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction;
+export interface IChatInlineChatCodeAction {
+	kind: 'inlineChat';
+	action: 'accepted' | 'discarded';
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
@@ -279,7 +284,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(token: CancellationToken): ChatModel | undefined;
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;

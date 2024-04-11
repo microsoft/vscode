@@ -232,6 +232,17 @@ declare module 'vscode' {
 		// TODO@API SYNC or ASYNC?
 		// TODO@API future
 		// retrieveQuota(languageModelId: string): { remaining: number; resets: Date };
+
+		// TODO@API SHOULD THIS BE in vscode.lm?
+		// TODO@API should this check for access/permissions?
+		/**
+		 *
+		 * Compute the token length for the given text
+		 * @param languageModelId
+		 * @param text
+		 * @param token
+		 */
+		computeTokenLength(languageModelId: string, text: string, token?: CancellationToken): Thenable<number>;
 	}
 
 	export interface ExtensionContext {

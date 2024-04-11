@@ -420,14 +420,16 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
-	font-family: 'codicon';
+	/* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	content: var(--vscode-icon-pinned-dirty-content);
+	font-family: var(--vscode-icon-pinned-dirty-font-family);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
-	font-family: 'codicon';
+	/* use `circle-filled` icon unicode for dirty indication */
+	content: var(--vscode-icon-circle-filled-content);
+	font-family: var(--vscode-icon-circle-filled-font-family);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,

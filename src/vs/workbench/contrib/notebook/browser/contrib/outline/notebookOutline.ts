@@ -50,6 +50,7 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { IOutlinePane } from 'vs/workbench/contrib/outline/browser/outline';
 import { Codicon } from 'vs/base/common/codicons';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NotebookOutlineConstants } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 
 class NotebookOutlineTemplate {
 
@@ -160,7 +161,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			const scopedContextKeyService = template.elementDisposables.add(this._contextKeyService.createScoped(template.container));
 			NotebookOutlineContext.CellKind.bindTo(scopedContextKeyService).set(isCodeCell ? CellKind.Code : CellKind.Markup);
 			NotebookOutlineContext.CellHasChildren.bindTo(scopedContextKeyService).set(length > 0);
-			NotebookOutlineContext.CellHasHeader.bindTo(scopedContextKeyService).set(node.element.level !== 7);
+			NotebookOutlineContext.CellHasHeader.bindTo(scopedContextKeyService).set(node.element.level !== NotebookOutlineConstants.NonHeaderOutlineLevel);
 			NotebookOutlineContext.OutlineElementTarget.bindTo(scopedContextKeyService).set(this._target);
 			this.setupFolding(isCodeCell, nbViewModel, scopedContextKeyService, template, nbCell);
 
@@ -428,14 +429,14 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			if (entry.cell.cellKind === CellKind.Markup) {
 				if (!showMarkdownHeadersOnly) {
 					yield entry;
-				} else if (entry.level < 7) {
+				} else if (entry.level < NotebookOutlineConstants.NonHeaderOutlineLevel) {
 					yield entry;
 				}
 
 			} else if (showCodeCells && entry.cell.cellKind === CellKind.Code) {
 				if (showCodeCellSymbols) {
 					yield entry;
-				} else if (entry.level === 7) {
+				} else if (entry.level === NotebookOutlineConstants.NonHeaderOutlineLevel) {
 					yield entry;
 				}
 			}

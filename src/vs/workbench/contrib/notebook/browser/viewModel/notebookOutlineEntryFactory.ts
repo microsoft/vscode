@@ -16,6 +16,10 @@ import { IRange } from 'vs/editor/common/core/range';
 import { SymbolKind } from 'vs/editor/common/languages';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
+export const enum NotebookOutlineConstants {
+	NonHeaderOutlineLevel = 7,
+}
+
 type entryDesc = {
 	name: string;
 	range: IRange;
@@ -77,7 +81,7 @@ export class NotebookOutlineEntryFactory {
 				if (cachedEntries) {
 					// push code cell that is a parent of cached symbols if we are targeting the outlinePane
 					if (target === OutlineTarget.OutlinePane) {
-						entries.push(new OutlineEntry(index++, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
+						entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 					}
 					cachedEntries.forEach((cached) => {
 						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.range, cached.kind));
@@ -90,7 +94,7 @@ export class NotebookOutlineEntryFactory {
 					// empty or just whitespace
 					preview = localize('empty', "empty cell");
 				}
-				entries.push(new OutlineEntry(index++, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
+				entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 			}
 		}
 
