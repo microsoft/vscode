@@ -1342,7 +1342,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		// Close all non-modified editors and dispose groups
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			const closed = await group.closeAllEditors({ excludeModified: true });
+			const closed = await group.closeAllEditors({ excludeModified: true }); // TODO change this to exclude editors that bring up confirm dialog!!!	
 			if (!closed) {
 				return;
 			}
@@ -1361,7 +1361,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				.flatMap(group => group.editors)
 				.filter(editor => this.editorPartsView.groups.every(groupView => !groupView.contains(editor)))
 				.map(editor => ({
-					editor, options: { inactive: true }
+					editor, options: { pinned: true, preserveFocus: true, inactive: true }
 				})));
 	}
 
