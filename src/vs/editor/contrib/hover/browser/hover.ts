@@ -179,41 +179,34 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hideWidgets();
 	}
 
-	private _isMouseOverWidget(mouseEvent: IEditorMouseEvent): boolean {
+	private _isMouseOverHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
 
-		const target = mouseEvent.target;
 		const sticky = this._hoverSettings.sticky;
-		if (
-			sticky
-			&& target.type === MouseTargetType.CONTENT_WIDGET
-			&& target.detail === ContentHoverWidget.ID
-		) {
-			// mouse moved on top of content hover widget
-			return true;
+
+		const isMouseOnMarginHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
+			const target = mouseEvent.target;
+			return sticky
+				&& target.type === MouseTargetType.OVERLAY_WIDGET
+				&& target.detail === MarginHoverWidget.ID;
 		}
-		if (
-			sticky
-			&& this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement)
-			&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed
-		) {
-			// selected text within content hover widget
-			return true;
+		const isMouseOnContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
+			const target = mouseEvent.target;
+			const isMouseOnContentHoverWidget = target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID;
+			const isColorPickerVisible = this._contentWidget?.isColorPickerVisible;
+			return isMouseOnContentHoverWidget && (sticky || isColorPickerVisible);
 		}
-		if (
-			!sticky
-			&& target.type === MouseTargetType.CONTENT_WIDGET
-			&& target.detail === ContentHoverWidget.ID
-			&& this._contentWidget?.isColorPickerVisible
-		) {
-			// though the hover is not sticky, the color picker is sticky
-			return true;
+		// TODO@aiday-mar verify if the following is necessary code
+		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
+			return sticky
+				&& this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement)
+				&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed
 		}
+
 		if (
-			sticky
-			&& target.type === MouseTargetType.OVERLAY_WIDGET
-			&& target.detail === MarginHoverWidget.ID
+			isMouseOnMarginHoverWidget(mouseEvent, sticky)
+			|| isMouseOnContentHoverWidget(mouseEvent, sticky)
+			|| isTextSelectedWithinContentHoverWidget(mouseEvent, sticky)
 		) {
-			// mouse moved on top of overlay hover widget
 			return true;
 		}
 		return false;
@@ -232,7 +225,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
+		const mouseIsOverWidget = this._isMouseOverHoverWidget(mouseEvent);
 		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
 		if (mouseIsOverWidget) {
 			this._reactToEditorMouseMoveRunner.cancel();
