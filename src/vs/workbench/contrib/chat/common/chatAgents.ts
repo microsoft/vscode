@@ -63,7 +63,7 @@ export interface IChatAgentData {
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
-	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined>;
+	provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined>;
 	provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
 
@@ -335,9 +335,9 @@ export class MergedChatAgent implements IChatAgent {
 		return [];
 	}
 
-	provideWelcomeMessage(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> {
+	provideWelcomeMessage(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> {
 		if (this.impl.provideWelcomeMessage) {
-			return this.impl.provideWelcomeMessage(token);
+			return this.impl.provideWelcomeMessage(location, token);
 		}
 
 		return undefined;

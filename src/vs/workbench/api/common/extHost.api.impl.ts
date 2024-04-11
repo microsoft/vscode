@@ -6,7 +6,7 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { Schemas, matchesScheme } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -1388,11 +1388,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerInteractiveEditorSessionProvider(provider: vscode.InteractiveEditorSessionProvider, metadata?: vscode.InteractiveEditorSessionProviderMetadata) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostInteractiveEditor.registerProvider(extension, provider, metadata);
-			},
-			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
-				// temp stub
-				checkProposedApiEnabled(extension, 'interactive');
-				return Disposable.None;
 			},
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');

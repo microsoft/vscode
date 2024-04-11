@@ -218,16 +218,18 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			}
 		}));
 
-		this.configuration = {
-			// Intentionally pick a larger delay for triggering backups when
-			// we are connected to a remote. This saves us repeated roundtrips
-			// to the remote server when the content changes because the
-			// remote hosts the extension of the notebook with the contents truth
-			backupDelay: 10000
-		};
+		const saveWithReducedCommunication = this._configurationService.getValue(NotebookSetting.remoteSaving);
+
+		if (saveWithReducedCommunication || _notebookModel.uri.scheme === Schemas.vscodeRemote) {
+			this.configuration = {
+				// Intentionally pick a larger delay for triggering backups to allow auto-save
+				// to complete first on the optimized save path
+				backupDelay: 10000
+			};
+		}
 
 		// Override save behavior to avoid transferring the buffer across the wire 3 times
-		if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
+		if (saveWithReducedCommunication) {
 			this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
 				const serializer = await this.getNotebookSerializer();
 

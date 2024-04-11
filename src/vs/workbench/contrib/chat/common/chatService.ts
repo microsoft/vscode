@@ -215,7 +215,12 @@ export interface IChatBugReportAction {
 	kind: 'bug';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction;
+export interface IChatInlineChatCodeAction {
+	kind: 'inlineChat';
+	action: 'accepted' | 'discarded';
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;

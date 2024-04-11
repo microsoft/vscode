@@ -177,6 +177,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		let allSessions: (ChatModel | ISerializableChatData)[] = Array.from(this._sessionModels.values())
+			.filter(session => session.initialLocation === ChatAgentLocation.Panel)
 			.filter(session => session.getRequests().length > 0);
 		allSessions = allSessions.concat(
 			Object.values(this._persistedSessions)
@@ -337,19 +338,19 @@ export class ChatService extends Disposable implements IChatService {
 			model.startInitialize();
 
 			await this.extensionService.whenInstalledExtensionsRegistered();
-			const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(model.initialLocation);
+			const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(model.initialLocation) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
 			if (!defaultAgentData) {
 				throw new ErrorNoTelemetry('No default agent contributed');
 			}
 
 			await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
 
-			const defaultAgent = this.chatAgentService.getDefaultAgent(model.initialLocation);
+			const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
 			if (!defaultAgent) {
 				// Should have been registered during activation above!
 				throw new ErrorNoTelemetry('No default agent registered');
 			}
-			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(token) ?? undefined;
+			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(model.initialLocation, token) ?? undefined;
 			const welcomeModel = welcomeMessage && this.instantiationService.createInstance(
 				ChatWelcomeMessageModel,
 				welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item),
@@ -664,7 +665,9 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		this._persistedSessions[sessionId] = model.toJSON();
+		if (model.initialLocation === ChatAgentLocation.Panel) {
+			this._persistedSessions[sessionId] = model.toJSON();
+		}
 
 		this._sessionModels.deleteAndDispose(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
