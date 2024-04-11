@@ -616,6 +616,9 @@ export function registerChatCodeCompareBlockActions() {
 		}
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
+
+			const editorService = accessor.get(IEditorService);
+
 			const model = context.diffEditor.getModel();
 			if (!model) {
 				return;
@@ -635,6 +638,12 @@ export function registerChatCodeCompareBlockActions() {
 			model.original.pushStackElement();
 			model.original.pushEditOperations(null, edits, () => null);
 			model.original.pushStackElement();
+
+
+			await editorService.openEditor({
+				resource: model.original.uri,
+				options: { revealIfVisible: true },
+			});
 		}
 	});
 
