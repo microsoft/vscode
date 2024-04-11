@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
+import { Disposable, ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
 import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId, sortObjectPropertiesRecursively } from './serializers';
 import { CellMetadata, useCustomPropertyInMetadata } from './common';
 import { getNotebookMetadata } from './notebookSerializer';
@@ -28,8 +28,57 @@ export function activate(context: ExtensionContext) {
 	workspace.onWillSaveNotebookDocument(waitForPendingModelUpdates, undefined, context.subscriptions);
 }
 
+type NotebookDocumentChangeEventEx = Omit<NotebookDocumentChangeEvent, 'metadata'>;
+let mergedEvents: NotebookDocumentChangeEventEx | undefined;
+let timer: NodeJS.Timeout;
+
+function triggerDebouncedNotebookDocumentChangeEvent() {
+	if (timer) {
+		clearTimeout(timer);
+	}
+	if (!mergedEvents) {
+		return;
+	}
+	const args = mergedEvents;
+	mergedEvents = undefined;
+	onDidChangeNotebookCells(args);
+}
+
+export function debounceOnDidChangeNotebookDocument() {
+	const disposable = workspace.onDidChangeNotebookDocument(e => {
+		if (!isSupportedNotebook(e.notebook)) {
+			return;
+		}
+		if (!mergedEvents) {
+			mergedEvents = e;
+		} else if (mergedEvents.notebook === e.notebook) {
+			// Same notebook, we can merge the updates.
+			mergedEvents = {
+				cellChanges: e.cellChanges.concat(mergedEvents.cellChanges),
+				contentChanges: e.contentChanges.concat(mergedEvents.contentChanges),
+				notebook: e.notebook
+			};
+		} else {
+			// Different notebooks, we cannot merge the updates.
+			// Hence we need to process the previous notebook and start a new timer for the new notebook.
+			triggerDebouncedNotebookDocumentChangeEvent();
+			// Start a new timer for the new notebook.
+			mergedEvents = e;
+		}
+		if (timer) {
+			clearTimeout(timer);
+		}
+		timer = setTimeout(triggerDebouncedNotebookDocumentChangeEvent, 200);
+	});
+
+
+	return Disposable.from(disposable, new Disposable(() => {
+		clearTimeout(timer);
+	}));
+}
+
 function isSupportedNotebook(notebook: NotebookDocument) {
-	return notebook.notebookType === 'jupyter-notebook' || notebook.notebookType === 'interactive';
+	return notebook.notebookType === 'jupyter-notebook';
 }
 
 function waitForPendingModelUpdates(e: NotebookDocumentWillSaveEvent) {
@@ -37,6 +86,7 @@ function waitForPendingModelUpdates(e: NotebookDocumentWillSaveEvent) {
 		return;
 	}
 
+	triggerDebouncedNotebookDocumentChangeEvent();
 	const promises = pendingNotebookCellModelUpdates.get(e.notebook);
 	if (!promises) {
 		return;
@@ -78,7 +128,7 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 	promise.then(clean, clean);
 }
 
-function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
+function onDidChangeNotebookCells(e: NotebookDocumentChangeEventEx) {
 	if (!isSupportedNotebook(e.notebook)) {
 		return;
 	}

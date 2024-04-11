@@ -103,6 +103,16 @@ export interface IWorkbench {
 		 * `ExtensionTerminalOptions` in the extension API.
 		 */
 		createTerminal(options: IEmbedderTerminalOptions): Promise<void>;
+
+		/**
+		 * Show an information message to users. Optionally provide an array of items which will be presented as
+		 * clickable buttons.
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
+		showInformationMessage<T extends string>(message: string, ...items: T[]): Promise<T | undefined>;
 	};
 
 	workspace: {
