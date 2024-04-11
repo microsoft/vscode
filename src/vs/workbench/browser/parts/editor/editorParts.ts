@@ -24,6 +24,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
 	readonly mru: number[];
+	// main state is managed by the main part
 }
 
 interface IAuxiliaryEditorPartState extends IAuxiliaryWindowOpenOptions {
@@ -297,22 +298,20 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private async applyState(state: IEditorPartsUIState): Promise<void> {
 
-		// Close all non-modified editors of auxiliary parts first
+		// Before closing windows, try to close as many editors as
+		// possible, but skip over those that would trigger a dialog
+		// (for example when being dirty). This is to be able to have
+		// them merge into the main part.
 		for (const part of this.parts) {
 			if (part === this.mainPart) {
 				continue; // main part takes care on its own
 			}
 
-			// Close all opened non-modified editors and dispose groups
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				const closed = await group.closeAllEditors({ excludeConfirming: true });
-				if (!closed) {
-					return;
-				}
+				await group.closeAllEditors({ excludeConfirming: true });
 			}
 
-			// Close auxiliary part (this moves modified editors to the main part)
-			(part as unknown as IAuxiliaryEditorPart).close();
+			(part as unknown as IAuxiliaryEditorPart).close(); // will move remaining editors to main part
 		}
 
 		// Restore auxiliary state
@@ -372,8 +371,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 
 		// Apply state
-		await this.applyState(workingSetState.auxiliary);
 		await this.mainPart.applyState(workingSetState.main);
+		await this.applyState(workingSetState.auxiliary);
 
 		// Restore Focus
 		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
