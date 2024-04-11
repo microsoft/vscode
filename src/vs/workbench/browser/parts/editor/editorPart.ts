@@ -1356,7 +1356,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.doApplyGridState(state.serializedGrid, state.activeGroup);
 
 		// Restore editors that were not closed before and are now opened now
-		this.activeGroup.openEditors(
+		await this.activeGroup.openEditors(
 			groups
 				.flatMap(group => group.editors)
 				.filter(editor => this.editorPartsView.groups.every(groupView => !groupView.contains(editor)))
