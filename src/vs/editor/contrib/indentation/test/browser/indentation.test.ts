@@ -24,7 +24,7 @@ import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
 import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
 
-enum Language {
+export enum Language {
 	TypeScript,
 	Ruby,
 	PHP,
@@ -44,7 +44,7 @@ function testIndentationToTabsCommand(lines: string[], selection: Selection, tab
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
 }
 
-function registerLanguage(instantiationService: TestInstantiationService, languageId: string, language: Language, disposables: DisposableStore) {
+export function registerLanguage(instantiationService: TestInstantiationService, languageId: string, language: Language, disposables: DisposableStore) {
 	const languageService = instantiationService.get(ILanguageService);
 	registerLanguageConfiguration(instantiationService, languageId, language, disposables);
 	disposables.add(languageService.registerLanguage({ id: languageId }));

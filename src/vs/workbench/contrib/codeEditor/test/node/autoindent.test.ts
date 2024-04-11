@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getReindentEditOperations } from 'vs/editor/contrib/indentation/common/indentation';
@@ -28,6 +28,21 @@ function getIRange(range: IRange): IRange {
 	};
 }
 
+function registerLanguage(languageConfigurationService: ILanguageConfigurationService, languageId: string): IDisposable {
+	let configPath: string;
+	switch (languageId) {
+		case 'ts-test':
+			configPath = path.join('extensions', 'typescript-basics', 'language-configuration.json');
+			break;
+		default:
+			throw new Error('Unknown languageId');
+	}
+	const configString = fs.readFileSync(configPath).toString();
+	const config = <ILanguageConfiguration>parse(configString, []);
+	const configParsed = LanguageConfigurationFileHandler.extractValidConfig(languageId, config);
+	return languageConfigurationService.register(languageId, configParsed);
+}
+
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	const languageId = 'ts-test';
@@ -40,11 +55,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		const configPath = path.join('extensions', 'typescript-basics', 'language-configuration.json');
-		const configString = fs.readFileSync(configPath).toString();
-		const config = <ILanguageConfiguration>parse(configString, []);
-		const configParsed = LanguageConfigurationFileHandler.extractValidConfig(languageId, config);
-		disposables.add(languageConfigurationService.register(languageId, configParsed));
+		disposables.add(registerLanguage(languageConfigurationService, languageId));
 	});
 
 	teardown(() => {
@@ -54,9 +65,9 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Test which can be ran to find cases of incorrect indentation...
-	test('Find Cases of Incorrect Indentation with the Reindent Lines Command', () => {
+	test.skip('Find Cases of Incorrect Indentation with the Reindent Lines Command', () => {
 
-		// ./scripts/test.sh --inspect --grep='Find Cases of Incorrect Indentation' --timeout=15000
+		// ./scripts/test.sh --inspect --grep='Find Cases of Incorrect Indentation with the Reindent Lines Command' --timeout=15000
 
 		function walkDirectoryAndReindent(directory: string, languageId: string) {
 			const files = fs.readdirSync(directory, { withFileTypes: true });
@@ -134,20 +145,37 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 						insertSpaces: false
 					};
 					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-					const lineCount = model.getLineCount();
+					withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+						const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+						disposables.add(registerLanguage(languageConfigurationService, languageId));
 
-					const editOperations: ISingleEditOperation[] = [];
-					for (let line = 1; line <= lineCount - 1; line++) {
-						// skip empty lines so that we don't put at zero
-						if (line > 1 && model.getLineContent(line - 1).length === 0) {
-							continue;
+						const lineCount = model.getLineCount();
+						const editOperations: ISingleEditOperation[] = [];
+						for (let line = 1; line <= lineCount - 1; line++) {
+							if (model.getLineContent(line).length === 0) {
+								continue;
+							}
+							const column = model.getLineMaxColumn(line);
+							const range = new Range(line, column, line, column);
+							const config = new CursorConfiguration(languageId, model.getOptions(), editor.getOptions(), languageConfigurationService);
+							const command: ICommand = TypeOperations.enter(config, model, false, range, file.name);
+							const editOperation = getEditOperation(model, command);
+
+							editOperation.forEach((op) => {
+								if (op.text) {
+									op.text = op.text?.substring(1);
+								}
+								const lineNumber = op.range.startLineNumber;
+								const nextLineNumber = lineNumber + 1;
+								const range = new Range(nextLineNumber, 1, nextLineNumber, model.getLineIndentColumn(nextLineNumber));
+								op.range = range;
+							})
+							editOperations.push(...editOperation);
 						}
-						const command: ICommand = TypeOperations._enter();
-						editOperations.push(...getEditOperation(model, command));
-					}
-					model.applyEdits(editOperations);
-					model.applyEdits(trimTrailingWhitespace(model, [], true));
-					fs.writeFileSync(pathName, model.getValue());
+						model.applyEdits(editOperations);
+						model.applyEdits(trimTrailingWhitespace(model, [], true));
+						fs.writeFileSync(pathName, model.getValue());
+					});
 				}
 			}
 			for (const directory of directoriesFromWhichToContinue) {

@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -105,12 +104,11 @@ export class CursorConfiguration {
 	constructor(
 		languageId: string,
 		modelOptions: TextModelResolvedOptions,
-		configuration: IEditorConfiguration,
+		options: IComputedEditorOptions,
 		public readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._languageId = languageId;
 
-		const options = configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
 

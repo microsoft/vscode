@@ -297,7 +297,7 @@ export class TypeOperations {
 	}
 
 	// TODO: potentially make public and call this in order to construct the other test
-	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
+	public static enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range, fileName?: string): ICommand {
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
@@ -937,7 +937,7 @@ export class TypeOperations {
 		if (!isDoingComposition && ch === '\n') {
 			const commands: ICommand[] = [];
 			for (let i = 0, len = selections.length; i < len; i++) {
-				commands[i] = TypeOperations._enter(config, model, false, selections[i]);
+				commands[i] = TypeOperations.enter(config, model, false, selections[i]);
 			}
 			return new EditOperationResult(EditOperationType.TypingOther, commands, {
 				shouldPushStackElementBefore: true,
@@ -1027,7 +1027,7 @@ export class TypeOperations {
 				lineNumber--;
 				const column = model.getLineMaxColumn(lineNumber);
 
-				commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
+				commands[i] = this.enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
 			}
 		}
 		return commands;
@@ -1042,7 +1042,7 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const lineNumber = selections[i].positionLineNumber;
 			const column = model.getLineMaxColumn(lineNumber);
-			commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
+			commands[i] = this.enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
 		}
 		return commands;
 	}
@@ -1050,7 +1050,7 @@ export class TypeOperations {
 	public static lineBreakInsert(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = this._enter(config, model, true, selections[i]);
+			commands[i] = this.enter(config, model, true, selections[i]);
 		}
 		return commands;
 	}
