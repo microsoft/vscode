@@ -70,7 +70,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._commentsElement.focus();
 	}
 
-	display() {
+	async display() {
 		this._commentsElement = dom.append(this.container, dom.$('div.comments-container'));
 		this._commentsElement.setAttribute('role', 'presentation');
 		this._commentsElement.tabIndex = 0;
@@ -98,7 +98,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 				this._commentElements.push(newCommentNode);
 				this._commentsElement.appendChild(newCommentNode.domNode);
 				if (comment.mode === languages.CommentMode.Editing) {
-					newCommentNode.switchToEditMode();
+					await newCommentNode.switchToEditMode();
 				}
 			}
 		}
@@ -156,7 +156,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return;
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>, preserveFocus: boolean) {
+	async updateCommentThread(commentThread: languages.CommentThread<T>, preserveFocus: boolean) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
@@ -207,7 +207,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 				}
 
 				if (currentComment.mode === languages.CommentMode.Editing) {
-					newElement.switchToEditMode();
+					await newElement.switchToEditMode();
 					newCommentsInEditMode.push(newElement);
 				}
 			}

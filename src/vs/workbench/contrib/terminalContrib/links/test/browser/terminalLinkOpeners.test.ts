@@ -136,6 +136,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			// Set a fake detected command starting as line 0 to establish the cwd
 			commandDetection.setCommands([new TerminalCommand(xterm, {
 				command: '',
+				commandLineConfidence: 'low',
 				exitCode: 0,
 				commandStartLineContent: '',
 				markProperties: {},
@@ -277,6 +278,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([new TerminalCommand(xterm, {
 					command: '',
+					commandLineConfidence: 'low',
 					isTrusted: true,
 					cwd,
 					timestamp: 0,
@@ -538,6 +540,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					commandStartLineContent: '',
 					markProperties: {},
 					command: '',
+					commandLineConfidence: 'low',
 					isTrusted: true,
 					cwd,
 					executedX: undefined,

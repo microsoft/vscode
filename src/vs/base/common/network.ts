@@ -114,6 +114,11 @@ export namespace Schemas {
 	export const vscodeSourceControl = 'vscode-scm';
 
 	/**
+	 * Scheme used for input box for creating comments.
+	 */
+	export const commentsInput = 'comment';
+
+	/**
 	 * Scheme used for special rendering of settings in the release notes
 	 */
 	export const codeSetting = 'code-setting';

@@ -2633,6 +2633,8 @@ export namespace ChatAgentRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
+			attempt: request.attempt ?? 0,
+			enableCommandDetection: request.enableCommandDetection ?? true,
 			variables: request.variables.variables.map(ChatAgentResolvedVariable.to),
 			location: ChatLocation.to(request.location),
 		};
@@ -2695,6 +2697,8 @@ export namespace ChatAgentUserActionEvent {
 		} else if (event.action.kind === 'followUp') {
 			const followupAction: vscode.ChatFollowupAction = { kind: 'followUp', followup: ChatFollowup.to(event.action.followup) };
 			return { action: followupAction, result: ehResult };
+		} else if (event.action.kind === 'inlineChat') {
+			return { action: { kind: 'editor', accepted: event.action.action === 'accepted' }, result: ehResult };
 		} else {
 			return { action: event.action, result: ehResult };
 		}

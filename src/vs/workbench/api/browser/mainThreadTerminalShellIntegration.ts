@@ -11,6 +11,7 @@ import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape,
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { extHostNamedCustomer, type IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { TerminalShellExecutionCommandLineConfidence } from 'vs/workbench/api/common/extHostTypes';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalShellIntegration)
 export class MainThreadTerminalShellIntegration extends Disposable implements MainThreadTerminalShellIntegrationShape {
@@ -46,14 +47,14 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			}
 			// String paths are not exposed in the extension API
 			currentCommand = e.data;
-			this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, this._convertCwdToUri(e.data.cwd));
+			this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, this._convertCwdToUri(e.data.cwd));
 		}));
 
 		// onDidEndTerminalShellExecution
 		const commandDetectionEndEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished));
 		this._store.add(commandDetectionEndEvent.event(e => {
 			currentCommand = undefined;
-			this._proxy.$shellExecutionEnd(e.instance.instanceId, e.data.command, e.data.exitCode);
+			this._proxy.$shellExecutionEnd(e.instance.instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
 		}));
 
 		// onDidChangeTerminalShellIntegration via cwd
@@ -78,5 +79,17 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 	private _convertCwdToUri(cwd: string | undefined): URI | undefined {
 		return cwd ? URI.file(cwd) : undefined;
+	}
+}
+
+function convertToExtHostCommandLineConfidence(command: ITerminalCommand): TerminalShellExecutionCommandLineConfidence {
+	switch (command.commandLineConfidence) {
+		case 'high':
+			return TerminalShellExecutionCommandLineConfidence.High;
+		case 'medium':
+			return TerminalShellExecutionCommandLineConfidence.Medium;
+		case 'low':
+		default:
+			return TerminalShellExecutionCommandLineConfidence.Low;
 	}
 }

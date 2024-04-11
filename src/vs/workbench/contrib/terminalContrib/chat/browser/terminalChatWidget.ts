@@ -167,6 +167,8 @@ export class TerminalChatWidget extends Disposable {
 	addToHistory(input: string): void {
 		this._inlineChatWidget.addToHistory(input);
 		this._inlineChatWidget.saveState();
+		this._inlineChatWidget.value = input;
+		this._inlineChatWidget.selectAll(true);
 	}
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
