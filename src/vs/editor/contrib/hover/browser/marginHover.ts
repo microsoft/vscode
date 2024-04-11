@@ -103,11 +103,11 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 
 	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
 		const target = mouseEvent.target;
-		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position && target.detail.glyphMarginLane) {
+		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.detail.glyphMarginLane) {
 			this._startShowingAt(target.position.lineNumber, target.detail.glyphMarginLane);
 			return true;
 		}
-		if (target.type === MouseTargetType.GUTTER_LINE_NUMBERS && target.position) {
+		if (target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 			this._startShowingAt(target.position.lineNumber, 'lineNo');
 			return true;
 		}

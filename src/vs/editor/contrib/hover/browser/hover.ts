@@ -305,11 +305,11 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent, hoverWidgetType: HoverWidgetType): boolean {
 		const isContentWidget = hoverWidgetType === HoverWidgetType.Content;
-		const contentWidget = isContentWidget ? this._getOrCreateContentWidget() : this._getOrCreateGlyphWidget();
+		const currentWidget = isContentWidget ? this._getOrCreateContentWidget() : this._getOrCreateGlyphWidget();
 		const otherWidget = isContentWidget ? this._getOrCreateGlyphWidget() : this._getOrCreateContentWidget();
-		const showsOrWillShow = contentWidget.showsOrWillShow(mouseEvent);
+		const showsOrWillShow = currentWidget.showsOrWillShow(mouseEvent);
 		if (showsOrWillShow) {
-			otherWidget?.hide();
+			otherWidget.hide();
 		}
 		return showsOrWillShow;
 	}
