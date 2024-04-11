@@ -46,8 +46,6 @@ interface IHoverSettings {
 
 interface IHoverState {
 	mouseDown: boolean;
-	// TODO @aiday-mar maybe not needed, investigate this
-	contentHoverFocused: boolean;
 	activatedByDecoratorClick: boolean;
 }
 
@@ -66,7 +64,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _hoverSettings!: IHoverSettings;
 	private _hoverState: IHoverState = {
 		mouseDown: false,
-		contentHoverFocused: false,
 		activatedByDecoratorClick: false
 	};
 
@@ -146,17 +143,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
 			// mouse down on top of content hover widget
-			this._hoverState.contentHoverFocused = true;
 			return;
 		}
 
 		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
 			// mouse down on top of margin hover widget
 			return;
-		}
-
-		if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
-			this._hoverState.contentHoverFocused = false;
 		}
 
 		if (this._contentWidget?.widget.isResizing) {
@@ -230,9 +222,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		this._mouseMoveEvent = mouseEvent;
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
-			return;
-		}
-		if (this._hoverState.mouseDown && this._hoverState.contentHoverFocused) {
 			return;
 		}
 		const sticky = this._hoverSettings.sticky;
@@ -348,18 +337,13 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		if (
-			(
-				this._hoverState.mouseDown
-				&& this._hoverState.contentHoverFocused
-				&& this._contentWidget?.isColorPickerVisible
-			)
-			|| InlineSuggestionHintsContentWidget.dropDownVisible
-		) {
+		if ((
+			this._hoverState.mouseDown
+			&& this._contentWidget?.isColorPickerVisible
+		) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
 		this._hoverState.activatedByDecoratorClick = false;
-		this._hoverState.contentHoverFocused = false;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
 	}
