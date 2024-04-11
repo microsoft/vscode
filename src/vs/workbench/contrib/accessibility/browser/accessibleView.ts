@@ -502,7 +502,7 @@ export class AccessibleView extends Disposable {
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
 		let disableHelpHint = '';
-		if (!!value) {
+		if (provider.options.type === AccessibleViewType.Help && !!value) {
 			disableHelpHint = this._getDisableVerbosityHint(provider.verbositySettingKey);
 		}
 		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
