@@ -27,6 +27,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 type UserDataSyncConflictResource = IUserDataSyncResource & IResourcePreview;
 
@@ -50,8 +51,9 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUser
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService, hoverService, storageService);
 		this._register(this.userDataSyncService.onDidChangeConflicts(() => this.treeView.refresh()));
 		this.registerActions();
 	}

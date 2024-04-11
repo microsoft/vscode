@@ -94,7 +94,7 @@ export class OpenEditorsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IOpenerService openerService: IOpenerService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 

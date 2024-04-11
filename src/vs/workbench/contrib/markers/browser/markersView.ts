@@ -152,7 +152,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				text: panelState['filter'] || '',
 				history: panelState['filterHistory'] || []
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, storageService);
 		this.memento = memento;
 		this.panelState = panelState;
 

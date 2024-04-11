@@ -81,7 +81,7 @@ export class WebviewViewPane extends ViewPane {
 		@IActivityService private readonly activityService: IActivityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService protected override readonly storageService: IStorageService,
 		@IViewsService private readonly viewService: IViewsService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,

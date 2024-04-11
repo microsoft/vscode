@@ -121,7 +121,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		options: IViewPaneOptions,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService protected override readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IModelService private readonly modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -147,7 +147,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				text: filterText,
 				history: JSON.parse(storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[],
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, storageService);
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);

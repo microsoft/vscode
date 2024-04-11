@@ -203,7 +203,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService protected override readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
