@@ -1886,10 +1886,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
+		let editors = this.model.getEditors(EditorsOrder.SEQUENTIAL, options);
+		if (options?.excludeConfirming) {
+			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
+		}
 
 		// Close all inactive editors first
 		const editorsToClose: EditorInput[] = [];
-		for (const editor of this.model.getEditors(EditorsOrder.SEQUENTIAL, options)) {
+		for (const editor of editors) {
 			if (!this.isActive(editor)) {
 				this.doCloseInactiveEditor(editor);
 			}
