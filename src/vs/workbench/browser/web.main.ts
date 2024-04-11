@@ -206,7 +206,7 @@ export class BrowserMain extends Disposable {
 				window: {
 					withProgress: (options, task) => progressService.withProgress(options, task),
 					createTerminal: async (options) => embedderTerminalService.createTerminal(options),
-					showInformationMessage: async (message, ...items) => showMessage(Severity.Info, message, ...items),
+					showInformationMessage: (message, ...items) => showMessage(Severity.Info, message, ...items),
 				},
 				workspace: {
 					didResolveRemoteAuthority: async () => {
