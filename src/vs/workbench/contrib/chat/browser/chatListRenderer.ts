@@ -887,7 +887,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.rendererOptions.renderTextEditsAsSummary?.(textEdit.uri)) {
 			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEdit')) {
 				return {
-					element: $('.interactive-edits-summary', undefined, localize('editsSummary', "Made changes.")),
+					element: $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes.")),
 					dispose() { }
 				};
 			}
@@ -965,6 +965,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		let codeBlockIndex = 0;
 		const result = this.renderer.render(markdown, {
+			disallowRemoteImages: true,
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const index = codeBlockIndex++;

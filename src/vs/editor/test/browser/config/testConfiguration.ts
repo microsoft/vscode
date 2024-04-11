@@ -9,11 +9,12 @@ import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { TestCodeEditorCreationOptions } from 'vs/editor/test/browser/testCodeEditor';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export class TestConfiguration extends EditorConfiguration {
 
 	constructor(opts: Readonly<TestCodeEditorCreationOptions>) {
-		super(false, opts, null, new TestAccessibilityService());
+		super(false, MenuId.EditorContext, opts, null, new TestAccessibilityService());
 	}
 
 	protected override _readEnvConfiguration(): IEnvConfiguration {

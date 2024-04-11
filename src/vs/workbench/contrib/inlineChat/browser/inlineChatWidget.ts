@@ -93,7 +93,6 @@ export interface IInlineChatWidgetConstructionOptions {
 export interface IInlineChatMessage {
 	message: IMarkdownString;
 	requestId: string;
-	providerId: string;
 }
 
 export interface IInlineChatMessageAppender {
@@ -174,6 +173,7 @@ export class InlineChatWidget {
 				defaultElementHeight: 32,
 				renderStyle: 'compact',
 				renderInputOnTop: true,
+				renderFollowups: true,
 				supportsFileReferences: true,
 				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
 				rendererOptions: options.rendererOptions,
@@ -302,9 +302,9 @@ export class InlineChatWidget {
 
 		// LEGACY - default chat model
 		// this is only here for as long as we offer updateChatMessage
-		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, `inlineChatDefaultModel/${location}`, undefined));
+		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
 		this._defaultChatModel.startInitialize();
-		this._defaultChatModel.initialize({ id: 1 }, undefined);
+		this._defaultChatModel.initialize(undefined);
 		this.setChatModel(this._defaultChatModel);
 	}
 
@@ -499,7 +499,7 @@ export class InlineChatWidget {
 			return;
 		}
 
-		const chatRequest = model.addRequest({ parts: [], text: '' }, { variables: [] });
+		const chatRequest = model.addRequest({ parts: [], text: '' }, { variables: [] }, 0);
 		model.acceptResponseProgress(chatRequest, {
 			kind: 'markdownContent',
 			content: message.message

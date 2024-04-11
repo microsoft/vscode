@@ -36,6 +36,7 @@ import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 export const MIN_EDITOR_HEIGHT = 5 * 18;
@@ -82,7 +83,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 					InlineCompletionsController.ID,
 					CodeActionController.ID,
 				])
-			]
+			],
+			contextMenuId: MenuId.SimpleEditorContext
 		};
 
 		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, scopedContextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
