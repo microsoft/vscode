@@ -576,7 +576,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			textModelN = store.add(this._modelService.createModel(
 				createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
 				{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-				targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: '', query: new URLSearchParams({ id, 'textModelN': '' }).toString() })
+				targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: textModel.uri.path, query: new URLSearchParams({ id, 'textModelN': '' }).toString() })
 			));
 		} else {
 			// AI edits happen in the actual model, keep a reference but make no copy
