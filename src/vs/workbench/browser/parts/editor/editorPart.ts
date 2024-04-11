@@ -1339,13 +1339,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	async applyState(state: IEditorPartUIState): Promise<void> {
 
-		// Close all non-modified editors and dispose groups
+		// Before disposing groups, try to close as many editors as
+		// possible, but skip over those that would trigger a dialog
+		// (for example when being dirty). This is to be able to later
+		// restore these editors after state has been applied.
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			const closed = await group.closeAllEditors({ excludeConfirming: true }); // TODO change this to exclude editors that bring up confirm dialog!!!
-			if (!closed) {
-				return;
-			}
+			await group.closeAllEditors({ excludeConfirming: true });
 		}
 		this.disposeGroups();
 
@@ -1355,14 +1355,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		// Grid Widget
 		this.doApplyGridState(state.serializedGrid, state.activeGroup);
 
-		// Restore modified editors
+		// Restore editors that were not closed before and are now opened now
 		this.activeGroup.openEditors(
 			groups
 				.flatMap(group => group.editors)
 				.filter(editor => this.editorPartsView.groups.every(groupView => !groupView.contains(editor)))
 				.map(editor => ({
 					editor, options: { pinned: true, preserveFocus: true, inactive: true }
-				})));
+				}))
+		);
 	}
 
 	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
