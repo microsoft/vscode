@@ -395,12 +395,15 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(groupAddedCounter, 2);
 		assert.strictEqual(downGroup.count, 1);
 		assert.ok(downGroup.activeEditor instanceof TestFileEditorInput);
-		part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.COPY_EDITORS });
+		let res = part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.COPY_EDITORS });
+		assert.strictEqual(res, true);
 		assert.strictEqual(rightGroup.count, 1);
 		assert.ok(rightGroup.activeEditor instanceof TestFileEditorInput);
-		part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.MOVE_EDITORS });
+		res = part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.MOVE_EDITORS });
+		assert.strictEqual(res, true);
 		assert.strictEqual(rootGroup.count, 0);
-		part.mergeGroup(rootGroup, downGroup);
+		res = part.mergeGroup(rootGroup, downGroup);
+		assert.strictEqual(res, true);
 		assert.strictEqual(groupRemovedCounter, 1);
 		assert.strictEqual(rootGroupDisposed, true);
 
@@ -432,7 +435,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rootGroup.count, 1);
 
 		const result = part.mergeAllGroups(part.activeGroup);
-		assert.strictEqual(result.id, rootGroup.id);
+		assert.strictEqual(result, true);
 		assert.strictEqual(rootGroup.count, 3);
 
 		part.dispose();
@@ -1907,6 +1910,30 @@ suite('EditorGroupsService', () => {
 
 		group.focus();
 		assert.strictEqual(group.isPinned(input2), true);
+	});
+
+	test('working sets - create / apply state', async function () {
+		const [part] = await createPart();
+
+		const group = part.activeGroup;
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		const pane1 = await group.openEditor(input, { pinned: true });
+		const pane2 = await part.sideGroup.openEditor(input2, { pinned: true });
+
+		const state = part.createState();
+
+		await pane2?.group.closeAllEditors();
+		await pane1?.group.closeAllEditors();
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.activeGroup.isEmpty, true);
+
+		await part.applyState(state);
+
+		assert.strictEqual(part.count, 2);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
