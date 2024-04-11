@@ -162,16 +162,16 @@ export class BrowserMain extends Disposable {
 
 			async function showMessage<T extends string>(severity: Severity, message: string, ...items: T[]): Promise<T | undefined> {
 				const choice = new DeferredPromise<T | undefined>();
-				const thing = notificationService.prompt(severity, message, items.map(item => ({
+				const handle = notificationService.prompt(severity, message, items.map(item => ({
 					label: item,
 					run: () => choice.complete(item)
 				})));
-				const disposable = thing.onDidClose(() => {
+				const disposable = handle.onDidClose(() => {
 					choice.complete(undefined);
 					disposable.dispose();
 				});
 				const result = await choice.p;
-				thing.close();
+				handle.close();
 				return result;
 			}
 
