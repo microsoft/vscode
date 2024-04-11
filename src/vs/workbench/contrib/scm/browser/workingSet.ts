@@ -5,18 +5,12 @@
 
 import { Event } from 'vs/base/common/event';
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { getProviderKey } from 'vs/workbench/contrib/scm/browser/util';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IEditorGroupsService, IEditorWorkingSet } from 'vs/workbench/services/editor/common/editorGroupsService';
-
-function workingSetEditorFilter(editor: EditorInput): boolean {
-	return editor.resource?.scheme !== Schemas.untitled && !editor.isDirty();
-}
 
 type ISCMSerializedWorkingSet = {
 	readonly providerKey: string;
@@ -151,9 +145,9 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 		if (editorWorkingSetId) {
 			await this.editorGroupsService.applyWorkingSet(editorWorkingSetId);
 		} else if (this.configurationService.getValue<'empty' | 'current'>('scm.workingSets.default') === 'empty') {
-			await Promise.all(this.editorGroupsService.groups.map(group => {
-				return group.closeEditors(group.editors.filter(workingSetEditorFilter));
-			}));
+			for (const group of this.editorGroupsService.groups) {
+				await group.closeAllEditors({ excludeConfirming: true });
+			}
 		}
 	}
 
