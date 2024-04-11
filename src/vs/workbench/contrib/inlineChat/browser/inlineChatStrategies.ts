@@ -23,7 +23,6 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -178,7 +177,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
 
@@ -305,7 +303,6 @@ export class LiveStrategy extends EditModeStrategy {
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
 		this._ctxCurrentChangeHasDiff = CTX_INLINE_CHAT_CHANGE_HAS_DIFF.bindTo(contextKeyService);
