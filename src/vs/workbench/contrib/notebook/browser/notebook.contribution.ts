@@ -1094,5 +1094,10 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
+		[NotebookSetting.outputBackupSizeLimit]: {
+			markdownDescription: nls.localize('notebook.outputBackupSizeLimit', "The limit in kilobytes of the output size that will be backed up in the notebook editor. Anything larger will not be recovered with unsaved content if the window is closed or reloaded. This can help with performance when working with large outputs."),
+			type: 'number',
+			default: 0
+		}
 	}
 });

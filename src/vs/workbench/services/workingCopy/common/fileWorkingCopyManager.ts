@@ -390,7 +390,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		// use that to copy the contents to the target destination
 		const sourceWorkingCopy = this.get(source);
 		if (sourceWorkingCopy?.isResolved()) {
-			sourceContents = await sourceWorkingCopy.model.snapshot(CancellationToken.None);
+			sourceContents = await sourceWorkingCopy.model.snapshot(false, CancellationToken.None);
 		}
 
 		// Otherwise we resolve the contents from the underlying file

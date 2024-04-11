@@ -63,7 +63,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(false, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -84,7 +84,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(false, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 	});
@@ -119,7 +119,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(false, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -140,7 +140,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(false, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 	});
@@ -174,7 +174,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(false, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -195,7 +195,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(false, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 	});

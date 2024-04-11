@@ -813,7 +813,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Fill in content if we are resolved
 		let content: VSBufferReadableStream | undefined = undefined;
 		if (this.isResolved()) {
-			content = await raceCancellation(this.model.snapshot(token), token);
+			content = await raceCancellation(this.model.snapshot(true, token), token);
 		}
 
 		return { meta, content };
@@ -1026,7 +1026,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					else {
 
 						// Snapshot working copy model contents
-						const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
+						const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(false, saveCancellation.token), saveCancellation.token);
 
 						// It is possible that a subsequent save is cancelling this
 						// running save. As such we return early when we detect that

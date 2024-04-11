@@ -264,7 +264,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		// if any - to prevent backing up an unresolved working
 		// copy and loosing the initial value.
 		if (this.isResolved()) {
-			content = await raceCancellation(this.model.snapshot(token), token);
+			content = await raceCancellation(this.model.snapshot(true, token), token);
 		} else if (this.initialContents) {
 			content = this.initialContents.value;
 		}

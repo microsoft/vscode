@@ -74,7 +74,7 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 *
 	 * @param token support for cancellation
 	 */
-	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
+	snapshot(forBackup: boolean, token: CancellationToken): Promise<VSBufferReadableStream>;
 
 	/**
 	 * Updates the model with the provided contents. The implementation should

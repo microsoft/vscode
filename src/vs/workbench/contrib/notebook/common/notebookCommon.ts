@@ -962,6 +962,7 @@ export const NotebookSetting = {
 	notebookVariablesView: 'notebook.experimental.variablesView',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
+	outputBackupSizeLimit: 'notebook.output.backupSizeLimit',
 } as const;
 
 export const enum CellStatusbarAlignment {

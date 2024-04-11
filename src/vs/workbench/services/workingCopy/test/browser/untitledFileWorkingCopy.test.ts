@@ -42,7 +42,7 @@ export class TestUntitledFileWorkingCopyModel extends Disposable implements IUnt
 		this.throwOnSnapshot = true;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+	async snapshot(forbackup: boolean, token: CancellationToken): Promise<VSBufferReadableStream> {
 		if (this.throwOnSnapshot) {
 			throw new Error('Fail');
 		}

@@ -252,7 +252,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		return this._notebookModel;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+	async snapshot(forBackup: boolean, token: CancellationToken): Promise<VSBufferReadableStream> {
 		const serializer = await this.getNotebookSerializer();
 
 		const data: NotebookData = {
@@ -270,7 +270,22 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				internalMetadata: cell.internalMetadata
 			};
 
-			cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
+			const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
+			if (forBackup && outputSizeLimit > 0) {
+				let outputSize = 0;
+				cell.outputs.forEach(output => {
+					output.outputs.forEach(item => {
+						outputSize += item.data.byteLength;
+					});
+				});
+				if (outputSize > outputSizeLimit) {
+					cellData.outputs = [];
+				} else {
+					cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
+				}
+			} else {
+				cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
+			}
 			cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);
 
 			data.cells.push(cellData);
