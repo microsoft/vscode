@@ -166,10 +166,19 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				detectedParticipant(participant, command) {
+					throwIfDone(this.detectedParticipant);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const part = new extHostTypes.ChatResponseDetectedParticipantPart(participant, command);
+					const dto = typeConvert.ChatResponseDetectedParticipantPart.from(part);
+					_report(dto);
+					return this;
+				},
 				push(part) {
 					throwIfDone(this.push);
 
-					if (part instanceof extHostTypes.ChatResponseTextEditPart || part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart) {
+					if (part instanceof extHostTypes.ChatResponseTextEditPart || part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart || part instanceof extHostTypes.ChatResponseDetectedParticipantPart) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}
 

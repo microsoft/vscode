@@ -64,11 +64,11 @@ declare module 'vscode' {
 		readonly description: string;
 	}
 
-	// TODO@API fit this into the stream
-	export interface ChatDetectedParticipant {
+	export class ChatResponseDetectedParticipantPart {
 		participant: string;
 		// TODO@API validate this against statically-declared slash commands?
 		command?: ChatCommand;
+		constructor(participant: string, command?: ChatCommand);
 	}
 
 	export interface ChatVulnerability {
@@ -119,7 +119,8 @@ declare module 'vscode' {
 	export interface ChatResponseStream {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
-		push(part: ChatResponsePart | ChatResponseTextEditPart): ChatResponseStream;
+		detectedParticipant(participant: string, command?: ChatCommand): ChatResponseStream;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart): ChatResponseStream;
 	}
 
 	// TODO@API fit this into the stream
