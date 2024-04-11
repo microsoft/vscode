@@ -2560,21 +2560,6 @@ export namespace ChatResponsePart {
 	}
 }
 
-export namespace ChatResponseProgress {
-	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto, commandsConverter: Command.ICommandsConverter): vscode.ChatContentProgress | undefined {
-		switch (progress.kind) {
-			case 'command':
-				// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
-				return {
-					command: commandsConverter.fromInternal(progress.command) ?? { command: progress.command.id, title: progress.command.title },
-				};
-			default:
-				// Unknown type, eg something in history that was removed? Ignore
-				return undefined;
-		}
-	}
-}
-
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest): vscode.ChatRequest {
 		return {
@@ -2639,7 +2624,11 @@ export namespace ChatAgentUserActionEvent {
 
 		const ehResult = ChatAgentResult.to(result);
 		if (event.action.kind === 'command') {
-			const commandAction: vscode.ChatCommandAction = { kind: 'command', commandButton: ChatResponseProgress.toProgressContent(event.action.commandButton, commandsConverter) as vscode.ChatCommandButton };
+			const command = event.action.commandButton.command;
+			const commandButton = {
+				command: commandsConverter.fromInternal(command) ?? { command: command.id, title: command.title },
+			};
+			const commandAction: vscode.ChatCommandAction = { kind: 'command', commandButton };
 			return { action: commandAction, result: ehResult };
 		} else if (event.action.kind === 'followUp') {
 			const followupAction: vscode.ChatFollowupAction = { kind: 'followUp', followup: ChatFollowup.to(event.action.followup) };

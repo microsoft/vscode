@@ -4281,10 +4281,10 @@ export class ChatResponseMarkdownPart {
  * vulnerabilities in a seperate API proposal in a clean way.
  */
 export class ChatResponseMarkdownWithVulnerabilitiesPart {
-	value: string | vscode.MarkdownString;
+	value: vscode.MarkdownString;
 	vulnerabilities: vscode.ChatVulnerability[];
 	constructor(value: string | vscode.MarkdownString, vulnerabilities: vscode.ChatVulnerability[]) {
-		this.value = value;
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
 		this.vulnerabilities = vulnerabilities;
 	}
 }

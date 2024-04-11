@@ -78,29 +78,10 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseMarkdownWithVulnerabilitiesPart {
-		value: string | MarkdownString;
+		value: MarkdownString;
 		vulnerabilities: ChatVulnerability[];
 		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
-
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatContentProgress =
-		| ChatCommandButton;
-
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatMetadataProgress =
-		| ChatUsedContext
-		| ChatContentReference
-		| ChatProgressMessage;
-
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatProgress = ChatContentProgress | ChatMetadataProgress;
 
 	/** @deprecated */
 	export interface ChatProgressMessage {
@@ -145,10 +126,6 @@ declare module 'vscode' {
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
 	}
-
-	/** @deprecated */
-	export type ChatExtendedProgress = ChatProgress
-		| ChatDetectedParticipant;
 
 	export interface ChatParticipant {
 		/**
