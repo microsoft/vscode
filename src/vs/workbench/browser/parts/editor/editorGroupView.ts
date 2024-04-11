@@ -1867,8 +1867,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return true;
 		}
 
+		// Apply the `excludeConfirming` filter if present
+		let editors = this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options);
+		if (options?.excludeConfirming) {
+			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
+		}
+
 		// Check for confirmation and veto
-		const veto = await this.handleCloseConfirmation(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options));
+		const veto = await this.handleCloseConfirmation(editors);
 		if (veto) {
 			return false;
 		}

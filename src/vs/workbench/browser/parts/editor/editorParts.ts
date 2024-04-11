@@ -305,7 +305,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 			// Close all opened non-modified editors and dispose groups
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				const closed = await group.closeAllEditors({ excludeModified: true });
+				const closed = await group.closeAllEditors({ excludeConfirming: true });
 				if (!closed) {
 					return;
 				}

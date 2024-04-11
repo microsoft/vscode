@@ -1342,7 +1342,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		// Close all non-modified editors and dispose groups
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			const closed = await group.closeAllEditors({ excludeModified: true }); // TODO change this to exclude editors that bring up confirm dialog!!!	
+			const closed = await group.closeAllEditors({ excludeConfirming: true }); // TODO change this to exclude editors that bring up confirm dialog!!!
 			if (!closed) {
 				return;
 			}
