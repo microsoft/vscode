@@ -406,7 +406,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const location = options?.location ?? ChatAgentLocation.Panel;
+		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
 		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
