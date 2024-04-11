@@ -139,7 +139,7 @@ export class ExtHostConfigProvider {
 		this._proxy = proxy;
 		this._logService = logService;
 		this._extHostWorkspace = extHostWorkspace;
-		this._configuration = Configuration.parse(data);
+		this._configuration = Configuration.parse(data, logService);
 		this._configurationScopes = this._toMap(data.configurationScopes);
 	}
 
@@ -149,7 +149,7 @@ export class ExtHostConfigProvider {
 
 	$acceptConfigurationChanged(data: IConfigurationInitData, change: IConfigurationChange) {
 		const previous = { data: this._configuration.toData(), workspace: this._extHostWorkspace.workspace };
-		this._configuration = Configuration.parse(data);
+		this._configuration = Configuration.parse(data, this._logService);
 		this._configurationScopes = this._toMap(data.configurationScopes);
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
@@ -319,7 +319,7 @@ export class ExtHostConfigProvider {
 	}
 
 	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData; workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
-		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
+		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace, this._logService);
 		return Object.freeze({
 			affectsConfiguration: (section: string, scope?: vscode.ConfigurationScope) => event.affectsConfiguration(section, scopeToOverrides(scope))
 		});

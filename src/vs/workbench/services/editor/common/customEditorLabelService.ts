@@ -135,15 +135,15 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 			}
 
 			if (pattern.parsedPattern(relevantPath)) {
-				return this.applyTempate(pattern.template, resource);
+				return this.applyTempate(pattern.template, resource, relevantPath);
 			}
 		}
 
 		return undefined;
 	}
 
-	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|dirname\((\d+)\))\}/g;
-	private applyTempate(template: string, resource: URI): string {
+	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|dirname\(([-+]?\d+)\))\}/g;
+	private applyTempate(template: string, resource: URI, relevantPath: string): string {
 		let parsedPath: undefined | ParsedPath;
 		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, arg: string) => {
 			parsedPath = parsedPath ?? parsePath(resource.path);
@@ -154,7 +154,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 					return parsedPath.ext.slice(1);
 				default: { // dirname and dirname(arg)
 					const n = variable === 'dirname' ? 0 : parseInt(arg);
-					const nthDir = this.getNthDirname(parsedPath, n);
+					const nthDir = this.getNthDirname(relevantPath, n);
 					if (nthDir) {
 						return nthDir;
 					}
@@ -165,16 +165,21 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		});
 	}
 
-	private getNthDirname(path: ParsedPath, n: number): string | undefined {
+	private getNthDirname(path: string, n: number): string | undefined {
 		// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
-		const pathFragments = path.dir.split('/');
+		const pathFragments = path.split('/');
 
 		const length = pathFragments.length;
-		const nth = length - 1 - n;
-		if (nth < 0) {
-			return undefined;
+
+		let nthDir;
+		if (n < 0) {
+			const nth = Math.abs(n) - 1;
+			nthDir = pathFragments[nth];
+		} else {
+			const nth = length - 1 - n - 1; // -1 for the filename, -1 for 0-based index
+			nthDir = pathFragments[nth];
 		}
-		const nthDir = pathFragments[nth];
+
 		if (nthDir === undefined || nthDir === '') {
 			return undefined;
 		}

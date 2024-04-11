@@ -1761,7 +1761,7 @@ function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOpti
 
 let newWithProfileAction: IDisposable;
 
-export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
+export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): IDisposable {
 	const profileEnum = createProfileSchemaEnums(detectedProfiles);
 	newWithProfileAction?.dispose();
 	// TODO: Use new register function
@@ -1871,6 +1871,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 			}
 		}
 	});
+	return newWithProfileAction;
 }
 
 function getResourceOrActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {

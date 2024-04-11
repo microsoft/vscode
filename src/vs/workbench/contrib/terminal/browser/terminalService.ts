@@ -221,12 +221,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(this._contextKeyService);
 
-		this.onDidChangeActiveInstance(instance => {
+		this._register(this.onDidChangeActiveInstance(instance => {
 			this._terminalEditorActive.set(!!instance?.target && instance.target === TerminalLocation.Editor);
-		});
+		}));
 
-		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+		this._register(_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal')));
+		this._register(_lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 
 		this._initializePrimaryBackend();
 
@@ -536,7 +536,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			terminalIsOpenContext.set(this.instances.length > 0);
 			this._terminalCountContextKey.set(this.instances.length);
 		};
-		this.onDidChangeInstances(() => updateTerminalContextKeys());
+		this._register(this.onDidChangeInstances(() => updateTerminalContextKeys()));
 	}
 
 	async getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance> {
