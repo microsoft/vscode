@@ -1955,6 +1955,18 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(part.count, 1);
 		assert.strictEqual(part.groups[0].contains(input3), true); // dirty editors enforce to be there even when state is empty
+
+		await part.applyState('empty');
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.groups[0].contains(input3), true); // dirty editors enforce to be there even when state is empty
+
+		input3.dirty = false;
+
+		await part.applyState('empty');
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.activeGroup.isEmpty, true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -551,11 +551,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	getWorkingSets(): IEditorWorkingSet[];
 
 	/**
-	 * Applies the working set.
+	 * Applies the working set. Use `empty` to apply an empty working set.
 	 *
 	 * @returns `true` when the working set as applied.
 	 */
-	applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean>;
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean>;
 
 	/**
 	 * Deletes a working set.

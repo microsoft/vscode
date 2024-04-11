@@ -296,12 +296,13 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	private async applyState(state: IEditorPartsUIState): Promise<boolean> {
+	private async applyState(state: IEditorPartsUIState | 'empty'): Promise<boolean> {
 
 		// Before closing windows, try to close as many editors as
 		// possible, but skip over those that would trigger a dialog
 		// (for example when being dirty). This is to be able to have
 		// them merge into the main part.
+
 		for (const part of this.parts) {
 			if (part === this.mainPart) {
 				continue; // main part takes care on its own
@@ -317,8 +318,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			}
 		}
 
-		// Restore auxiliary state
-		await this.restoreState(state);
+		// Restore auxiliary state unless we are in an empty state
+		if (state !== 'empty') {
+			await this.restoreState(state);
+		}
 
 		return true;
 	}
@@ -369,8 +372,14 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	async applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> {
-		const workingSetState = this.editorWorkingSets[this.indexOfWorkingSet(workingSet) ?? -1];
+	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean> {
+		let workingSetState: IEditorWorkingSetState | 'empty' | undefined;
+		if (workingSet === 'empty') {
+			workingSetState = 'empty';
+		} else {
+			workingSetState = this.editorWorkingSets[this.indexOfWorkingSet(workingSet) ?? -1];
+		}
+
 		if (!workingSetState) {
 			return false;
 		}
@@ -379,11 +388,11 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		// editors around that need confirmation by moving them into the main part.
 		// Also, in rare cases, the auxiliary part may not be able to apply the state
 		// for certain editors that cannot move to the main part.
-		const applied = await this.applyState(workingSetState.auxiliary);
+		const applied = await this.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.auxiliary);
 		if (!applied) {
 			return false;
 		}
-		await this.mainPart.applyState(workingSetState.main);
+		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main);
 
 		// Restore Focus
 		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
