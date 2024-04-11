@@ -68,7 +68,8 @@ export function debounceOnDidChangeNotebookDocument() {
 		if (timer) {
 			clearTimeout(timer);
 		}
-		timer = setTimeout(triggerDebouncedNotebookDocumentChangeEvent, 200);
+		triggerDebouncedNotebookDocumentChangeEvent();
+		// timer = setTimeout(triggerDebouncedNotebookDocumentChangeEvent, 200);
 	});
 
 
