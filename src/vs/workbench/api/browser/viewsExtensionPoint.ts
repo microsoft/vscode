@@ -37,7 +37,6 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesRegistryExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -546,7 +545,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 					let accessibilityHelpContent;
 					if (isProposedApiEnabled(extension.description, 'contribAccessibilityHelpContent') && item.accessibilityHelpContent) {
-						accessibilityHelpContent = new MarkdownString(item.accessibilityHelpContent);
+						accessibilityHelpContent = item.accessibilityHelpContent;
 					}
 
 					const viewDescriptor: ICustomViewDescriptor = {
