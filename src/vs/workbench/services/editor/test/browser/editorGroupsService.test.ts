@@ -395,12 +395,15 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(groupAddedCounter, 2);
 		assert.strictEqual(downGroup.count, 1);
 		assert.ok(downGroup.activeEditor instanceof TestFileEditorInput);
-		part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.COPY_EDITORS });
+		let res = part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.COPY_EDITORS });
+		assert.strictEqual(res, true);
 		assert.strictEqual(rightGroup.count, 1);
 		assert.ok(rightGroup.activeEditor instanceof TestFileEditorInput);
-		part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.MOVE_EDITORS });
+		res = part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.MOVE_EDITORS });
+		assert.strictEqual(res, true);
 		assert.strictEqual(rootGroup.count, 0);
-		part.mergeGroup(rootGroup, downGroup);
+		res = part.mergeGroup(rootGroup, downGroup);
+		assert.strictEqual(res, true);
 		assert.strictEqual(groupRemovedCounter, 1);
 		assert.strictEqual(rootGroupDisposed, true);
 
@@ -432,7 +435,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rootGroup.count, 1);
 
 		const result = part.mergeAllGroups(part.activeGroup);
-		assert.strictEqual(result.id, rootGroup.id);
+		assert.strictEqual(result, true);
 		assert.strictEqual(rootGroup.count, 3);
 
 		part.dispose();

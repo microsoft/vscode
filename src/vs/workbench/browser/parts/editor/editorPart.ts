@@ -867,7 +867,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return copiedGroupView;
 	}
 
-	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView {
+	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
 
@@ -885,10 +885,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 
 		// Move/Copy editors over into target
+		let result = true;
 		if (options?.mode === MergeGroupMode.COPY_EDITORS) {
 			sourceView.copyEditors(editors, targetView);
 		} else {
-			sourceView.moveEditors(editors, targetView);
+			result = sourceView.moveEditors(editors, targetView);
 		}
 
 		// Remove source if the view is now empty and not already removed
@@ -896,21 +897,25 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			this.removeGroup(sourceView, true);
 		}
 
-		return targetView;
+		return result;
 	}
 
-	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): boolean {
 		const targetView = this.assertGroupView(target);
 
+		let result = true;
 		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (group === targetView) {
 				continue; // keep target
 			}
 
-			this.mergeGroup(group, targetView);
+			const merged = this.mergeGroup(group, targetView);
+			if (!merged) {
+				result = false;
+			}
 		}
 
-		return targetView;
+		return result;
 	}
 
 	protected assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {

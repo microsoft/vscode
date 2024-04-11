@@ -394,13 +394,17 @@ export interface IEditorGroupsContainer {
 	 * will be moved over to the target and the source group will close. Configure to
 	 * `MOVE_EDITORS_KEEP_GROUP` to prevent the source group from closing. Set to
 	 * `COPY_EDITORS` to copy the editors into the target instead of moding them.
+	 *
+	 * @returns if merging was successful
 	 */
-	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
+	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	/**
 	 * Merge all editor groups into the target one.
+	 *
+	 * @returns if merging was successful
 	 */
-	mergeAllGroups(target: IEditorGroup | GroupIdentifier): IEditorGroup;
+	mergeAllGroups(target: IEditorGroup | GroupIdentifier): boolean;
 
 	/**
 	 * Copy a group to a new group in the container.
@@ -470,8 +474,10 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	/**
 	 * Close this auxiliary editor part after moving all
 	 * editors of all groups back to the main editor part.
+	 *
+	 * @returns `false` if an editor could not be moved back.
 	 */
-	close(): void;
+	close(): boolean;
 }
 
 export interface IAuxiliaryEditorPartCreateEvent {
@@ -546,8 +552,10 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	/**
 	 * Applies the working set.
+	 *
+	 * @returns `true` when the working set as applied.
 	 */
-	applyWorkingSet(workingSet: IEditorWorkingSet): Promise<void>;
+	applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean>;
 
 	/**
 	 * Deletes a working set.

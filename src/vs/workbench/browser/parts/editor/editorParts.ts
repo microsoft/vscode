@@ -296,7 +296,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	private async applyState(state: IEditorPartsUIState): Promise<void> {
+	private async applyState(state: IEditorPartsUIState): Promise<boolean> {
 
 		// Before closing windows, try to close as many editors as
 		// possible, but skip over those that would trigger a dialog
@@ -311,11 +311,16 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 				await group.closeAllEditors({ excludeConfirming: true });
 			}
 
-			(part as unknown as IAuxiliaryEditorPart).close(); // will move remaining editors to main part
+			const closed = (part as unknown as IAuxiliaryEditorPart).close(); // will move remaining editors to main part
+			if (!closed) {
+				return false; // this indicates that closing was vetoed
+			}
 		}
 
 		// Restore auxiliary state
 		await this.restoreState(state);
+
+		return true;
 	}
 
 	//#endregion
@@ -364,15 +369,20 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	async applyWorkingSet(workingSet: IEditorWorkingSet): Promise<void> {
+	async applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> {
 		const workingSetState = this.editorWorkingSets[this.indexOfWorkingSet(workingSet) ?? -1];
 		if (!workingSetState) {
-			return;
+			return false;
 		}
 
 		// Apply state: begin with auxiliary windows first because it helps to keep
 		// editors around that need confirmation by moving them into the main part.
-		await this.applyState(workingSetState.auxiliary);
+		// Also, in rare cases, the auxiliary part may not be able to apply the state
+		// for certain editors that cannot move to the main part.
+		const applied = await this.applyState(workingSetState.auxiliary);
+		if (!applied) {
+			return false;
+		}
 		await this.mainPart.applyState(workingSetState.main);
 
 		// Restore Focus
@@ -381,6 +391,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			await mostRecentActivePart.whenReady;
 			mostRecentActivePart.activeGroup.focus();
 		}
+
+		return true;
 	}
 
 	private indexOfWorkingSet(workingSet: IEditorWorkingSet): number | undefined {
@@ -590,11 +602,11 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		return this.getPart(group).moveGroup(group, location, direction);
 	}
 
-	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView {
+	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
 		return this.getPart(group).mergeGroup(group, target, options);
 	}
 
-	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): boolean {
 		return this.activePart.mergeAllGroups(target);
 	}
 
