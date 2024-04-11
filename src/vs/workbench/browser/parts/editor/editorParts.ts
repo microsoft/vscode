@@ -370,9 +370,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			return;
 		}
 
-		// Apply state
-		await this.mainPart.applyState(workingSetState.main);
+		// Apply state: begin with auxiliary windows first because it helps to keep
+		// editors around that need confirmation by moving them into the main part.
 		await this.applyState(workingSetState.auxiliary);
+		await this.mainPart.applyState(workingSetState.main);
 
 		// Restore Focus
 		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
