@@ -156,8 +156,3 @@ steps:
       ArtifactType: Container
       PublishProcessedResults: false
       AllTools: true
-
-  - task: TSAUpload@2
-    inputs:
-      GdnPublishTsaOnboard: true
-      GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)\build\azure-pipelines\config\tsaoptions.json'
