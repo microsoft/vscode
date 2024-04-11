@@ -315,7 +315,6 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 			options: { type: AccessibleViewType.Help },
 			provideContent: () => helpContent,
 			onClose: () => viewsService.openView(viewDescriptor.id),
-			verbositySettingKey: 'extension'
 		} as IAccessibleExtensionContentProvider);
 		return true;
 	}, FocusedViewContext.isEqualTo(viewDescriptor.id)));
