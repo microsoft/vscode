@@ -107,6 +107,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		const tracker = this._register(dom.trackFocus(bodyElement));
 		this._register(registerNavigableContainer({
+			name: 'commentThreadWidget',
 			focusNotifiers: [tracker],
 			focusNextWidget: () => {
 				if (!this._commentReply?.isCommentEditorFocused()) {
@@ -204,7 +205,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}, true));
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>) {
+	async updateCommentThread(commentThread: languages.CommentThread<T>) {
 		const shouldCollapse = (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) && (this._commentThreadState === languages.CommentThreadState.Unresolved)
 			&& (commentThread.state === languages.CommentThreadState.Resolved);
 		this._commentThreadState = commentThread.state;
@@ -213,7 +214,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
-		this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
+		await this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
 		this._threadIsEmpty.set(!this._body.length);
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
@@ -229,11 +230,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 	}
 
-	display(lineHeight: number) {
+	async display(lineHeight: number) {
 		const headHeight = Math.max(23, Math.ceil(lineHeight * 1.2)); // 23 is the value of `Math.ceil(lineHeight * 1.2)` with the default editor font size
 		this._header.updateHeight(headHeight);
 
-		this._body.display();
+		await this._body.display();
 
 		// create comment thread only when it supports reply
 		if (this._commentThread.canReply) {

@@ -12,6 +12,7 @@ import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
 
 export interface ITerminalCommandProperties {
 	command: string;
+	commandLineConfidence: 'low' | 'medium' | 'high';
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
@@ -33,6 +34,7 @@ export interface ITerminalCommandProperties {
 export class TerminalCommand implements ITerminalCommand {
 
 	get command() { return this._properties.command; }
+	get commandLineConfidence() { return this._properties.commandLineConfidence; }
 	get isTrusted() { return this._properties.isTrusted; }
 	get timestamp() { return this._properties.timestamp; }
 	get duration() { return this._properties.duration; }
@@ -71,6 +73,7 @@ export class TerminalCommand implements ITerminalCommand {
 		const executedMarker = serialized.executedLine !== undefined ? xterm.registerMarker(serialized.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
 		const newCommand = new TerminalCommand(xterm, {
 			command: isCommandStorageDisabled ? '' : serialized.command,
+			commandLineConfidence: serialized.commandLineConfidence ?? 'low',
 			isTrusted: serialized.isTrusted,
 			promptStartMarker,
 			marker,
@@ -99,6 +102,7 @@ export class TerminalCommand implements ITerminalCommand {
 			executedLine: this.executedMarker?.line,
 			executedX: this.executedX,
 			command: isCommandStorageDisabled ? '' : this.command,
+			commandLineConfidence: isCommandStorageDisabled ? 'low' : this.commandLineConfidence,
 			isTrusted: this.isTrusted,
 			cwd: this.cwd,
 			exitCode: this.exitCode,
@@ -107,6 +111,10 @@ export class TerminalCommand implements ITerminalCommand {
 			duration: this.duration,
 			markProperties: this.markProperties,
 		};
+	}
+
+	extractCommandLine(): string {
+		return extractCommandLine(this._xterm.buffer.active, this._xterm.cols, this.marker, this.startX, this.executedMarker, this.executedX);
 	}
 
 	getOutput(): string | undefined {
@@ -263,7 +271,9 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	currentContinuationMarker?: IMarker;
 	continuations?: { marker: IMarker; end: number }[];
 
+	cwd?: string;
 	command?: string;
+	commandLineConfidence?: 'low' | 'medium' | 'high';
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
@@ -286,6 +296,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 			executedLine: undefined,
 			executedX: undefined,
 			command: '',
+			commandLineConfidence: 'low',
 			isTrusted: true,
 			cwd,
 			exitCode: undefined,
@@ -305,6 +316,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		if ((this.command !== undefined && !this.command.startsWith('\\')) || ignoreCommandLine) {
 			return new TerminalCommand(this._xterm, {
 				command: ignoreCommandLine ? '' : (this.command || ''),
+				commandLineConfidence: ignoreCommandLine ? 'low' : (this.commandLineConfidence || 'low'),
 				isTrusted: !!this.isTrusted,
 				promptStartMarker: this.promptStartMarker,
 				marker: this.commandStartMarker,
@@ -336,6 +348,10 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		}
 	}
 
+	extractCommandLine(): string {
+		return extractCommandLine(this._xterm.buffer.active, this._xterm.cols, this.commandStartMarker, this.commandStartX, this.commandExecutedMarker, this.commandExecutedX);
+	}
+
 	getPromptRowCount(): number {
 		return getPromptRowCount(this, this._xterm.buffer.active);
 	}
@@ -343,6 +359,27 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	getCommandRowCount(): number {
 		return getCommandRowCount(this);
 	}
+}
+
+function extractCommandLine(
+	buffer: IBuffer,
+	cols: number,
+	commandStartMarker: IXtermMarker | undefined,
+	commandStartX: number | undefined,
+	commandExecutedMarker: IXtermMarker | undefined,
+	commandExecutedX: number | undefined
+): string {
+	if (!commandStartMarker || !commandExecutedMarker || commandStartX === undefined || commandExecutedX === undefined) {
+		return '';
+	}
+	let content = '';
+	for (let i = commandStartMarker.line; i <= commandExecutedMarker.line; i++) {
+		const line = buffer.getLine(i);
+		if (line) {
+			content += line.translateToString(true, i === commandStartMarker.line ? commandStartX : 0, i === commandExecutedMarker.line ? commandExecutedX : cols);
+		}
+	}
+	return content;
 }
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {

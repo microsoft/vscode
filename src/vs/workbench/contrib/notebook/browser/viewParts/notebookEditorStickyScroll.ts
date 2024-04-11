@@ -281,7 +281,7 @@ export class NotebookStickyScroll extends Disposable {
 
 	static computeStickyHeight(entry: OutlineEntry) {
 		let height = 0;
-		if (entry.cell.cellKind === CellKind.Markup && entry.level !== 7) {
+		if (entry.cell.cellKind === CellKind.Markup && entry.level < 7) {
 			height += 22;
 		}
 		while (entry.parent) {
@@ -297,8 +297,8 @@ export class NotebookStickyScroll extends Disposable {
 
 		const elementsToRender = [];
 		while (currentEntry) {
-			if (currentEntry.level === 7) {
-				// level 7 represents a non-header entry, which we don't want to render
+			if (currentEntry.level >= 7) {
+				// level 7+ represents a non-header entry, which we don't want to render
 				currentEntry = currentEntry.parent;
 				continue;
 			}
@@ -382,7 +382,7 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 	if (visibleRange.start === 0) {
 		const firstCell = notebookEditor.cellAt(0);
 		const firstCellEntry = NotebookStickyScroll.getVisibleOutlineEntry(0, notebookOutlineEntries);
-		if (firstCell && firstCellEntry && firstCell.cellKind === CellKind.Markup && firstCellEntry.level !== 7) {
+		if (firstCell && firstCellEntry && firstCell.cellKind === CellKind.Markup && firstCellEntry.level < 7) {
 			if (notebookEditor.scrollTop > 22) {
 				const newMap = NotebookStickyScroll.checkCollapsedStickyLines(firstCellEntry, 100, notebookEditor);
 				return newMap;
@@ -418,7 +418,7 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 		}
 
 		// check next cell, if markdown with non level 7 entry, that means this is the end of the section (new header) ---------------------
-		if (nextCell.cellKind === CellKind.Markup && nextCellEntry.level !== 7) {
+		if (nextCell.cellKind === CellKind.Markup && nextCellEntry.level < 7) {
 			const sectionBottom = notebookCellList.getCellViewScrollTop(nextCell);
 			const currentSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(cellEntry);
 			const nextSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(nextCellEntry);

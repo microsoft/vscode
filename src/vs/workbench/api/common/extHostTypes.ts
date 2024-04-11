@@ -2001,6 +2001,12 @@ export enum TerminalExitReason {
 	Extension = 4
 }
 
+export enum TerminalShellExecutionCommandLineConfidence {
+	Low = 0,
+	Medium = 1,
+	High = 2
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
@@ -2794,9 +2800,9 @@ export class DocumentDropEdit {
 
 	additionalEdit?: WorkspaceEdit;
 
-	kind?: DocumentPasteEditKind;
+	kind?: DocumentDropOrPasteEditKind;
 
-	constructor(insertText: string | SnippetString, title?: string, kind?: DocumentPasteEditKind) {
+	constructor(insertText: string | SnippetString, title?: string, kind?: DocumentDropOrPasteEditKind) {
 		this.insertText = insertText;
 		this.title = title;
 		this.kind = kind;
@@ -2808,8 +2814,8 @@ export enum DocumentPasteTriggerKind {
 	PasteAs = 1,
 }
 
-export class DocumentPasteEditKind {
-	static Empty: DocumentPasteEditKind;
+export class DocumentDropOrPasteEditKind {
+	static Empty: DocumentDropOrPasteEditKind;
 
 	private static sep = '.';
 
@@ -2817,29 +2823,28 @@ export class DocumentPasteEditKind {
 		public readonly value: string
 	) { }
 
-	public append(...parts: string[]): DocumentPasteEditKind {
-		return new DocumentPasteEditKind((this.value ? [this.value, ...parts] : parts).join(DocumentPasteEditKind.sep));
+	public append(...parts: string[]): DocumentDropOrPasteEditKind {
+		return new DocumentDropOrPasteEditKind((this.value ? [this.value, ...parts] : parts).join(DocumentDropOrPasteEditKind.sep));
 	}
 
-	public intersects(other: DocumentPasteEditKind): boolean {
+	public intersects(other: DocumentDropOrPasteEditKind): boolean {
 		return this.contains(other) || other.contains(this);
 	}
 
-	public contains(other: DocumentPasteEditKind): boolean {
-		return this.value === other.value || other.value.startsWith(this.value + DocumentPasteEditKind.sep);
+	public contains(other: DocumentDropOrPasteEditKind): boolean {
+		return this.value === other.value || other.value.startsWith(this.value + DocumentDropOrPasteEditKind.sep);
 	}
 }
-DocumentPasteEditKind.Empty = new DocumentPasteEditKind('');
+DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
 
-@es5ClassCompat
 export class DocumentPasteEdit {
 
 	title: string;
 	insertText: string | SnippetString;
 	additionalEdit?: WorkspaceEdit;
-	kind: DocumentPasteEditKind;
+	kind: DocumentDropOrPasteEditKind;
 
-	constructor(insertText: string | SnippetString, title: string, kind: DocumentPasteEditKind) {
+	constructor(insertText: string | SnippetString, title: string, kind: DocumentDropOrPasteEditKind) {
 		this.title = title;
 		this.insertText = insertText;
 		this.kind = kind;
@@ -4027,14 +4032,23 @@ export class TestTag implements vscode.TestTag {
 //#region Test Coverage
 export class TestCoverageCount implements vscode.TestCoverageCount {
 	constructor(public covered: number, public total: number) {
+		validateTestCoverageCount(this);
 	}
 }
 
-const validateCC = (cc?: vscode.TestCoverageCount) => {
-	if (cc && cc.covered > cc.total) {
+export function validateTestCoverageCount(cc?: vscode.TestCoverageCount) {
+	if (!cc) {
+		return;
+	}
+
+	if (cc.covered > cc.total) {
 		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
 	}
-};
+
+	if (cc.total < 0) {
+		throw new Error(`The number of covered items (${cc.total}) cannot be negative`);
+	}
+}
 
 export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.FileCoverageDetail[]): vscode.FileCoverage {
@@ -4077,9 +4091,6 @@ export class FileCoverage implements vscode.FileCoverage {
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
 	) {
-		validateCC(statementCoverage);
-		validateCC(branchCoverage);
-		validateCC(declarationCoverage);
 	}
 }
 
@@ -4202,7 +4213,7 @@ export class InteractiveWindowInput {
 }
 
 export class ChatEditorTabInput {
-	constructor(readonly providerId: string) { }
+	constructor() { }
 }
 
 export class TextMultiDiffTabInput {
@@ -4298,12 +4309,20 @@ export class ChatResponseCommandButtonPart {
 }
 
 export class ChatResponseReferencePart {
-	value: vscode.Uri | vscode.Location;
-	constructor(value: vscode.Uri | vscode.Location) {
+	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }) {
 		this.value = value;
 	}
 }
 
+export class ChatResponseTextEditPart {
+	uri: vscode.Uri;
+	edits: vscode.TextEdit[];
+	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+		this.uri = uri;
+		this.edits = Array.isArray(edits) ? edits : [edits];
+	}
+}
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
@@ -4327,7 +4346,8 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 export enum ChatLocation {
 	Panel = 1,
 	Terminal = 2,
-	Notebook = 3
+	Notebook = 3,
+	Editor = 4,
 }
 
 export class LanguageModelChatSystemMessage {
@@ -4350,9 +4370,11 @@ export class LanguageModelChatUserMessage {
 
 export class LanguageModelChatAssistantMessage {
 	content: string;
+	name?: string;
 
-	constructor(content: string) {
+	constructor(content: string, name?: string) {
 		this.content = content;
+		this.name = name;
 	}
 }
 
@@ -4395,7 +4417,8 @@ export enum SpeechToTextStatus {
 	Started = 1,
 	Recognizing = 2,
 	Recognized = 3,
-	Stopped = 4
+	Stopped = 4,
+	Error = 5
 }
 
 export enum KeywordRecognitionStatus {

@@ -44,11 +44,11 @@ suite('ExtHostConfiguration', function () {
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
 		return {
-			defaults: new ConfigurationModel(contents),
-			policy: new ConfigurationModel(),
-			application: new ConfigurationModel(),
-			user: new ConfigurationModel(contents),
-			workspace: new ConfigurationModel(),
+			defaults: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
+			policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+			application: ConfigurationModel.createEmptyModel(new NullLogService()),
+			user: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
+			workspace: ConfigurationModel.createEmptyModel(new NullLogService()),
 			folders: [],
 			configurationScopes: []
 		};
@@ -284,15 +284,15 @@ suite('ExtHostConfiguration', function () {
 					'editor': {
 						'wordWrap': 'off'
 					}
-				}, ['editor.wordWrap']),
-				policy: new ConfigurationModel(),
-				application: new ConfigurationModel(),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
-				workspace: new ConfigurationModel({}, []),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				workspace: new ConfigurationModel({}, [], [], undefined, new NullLogService()),
 				folders: [],
 				configurationScopes: []
 			},
@@ -319,7 +319,7 @@ suite('ExtHostConfiguration', function () {
 			'editor': {
 				'wordWrap': 'bounded'
 			}
-		}, ['editor.wordWrap']);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService());
 		folders.push([workspaceUri, workspace]);
 		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
@@ -335,14 +335,14 @@ suite('ExtHostConfiguration', function () {
 					'editor': {
 						'wordWrap': 'off'
 					}
-				}, ['editor.wordWrap']),
-				policy: new ConfigurationModel(),
-				application: new ConfigurationModel(),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				workspace,
 				folders,
 				configurationScopes: []
@@ -380,7 +380,7 @@ suite('ExtHostConfiguration', function () {
 			'editor': {
 				'wordWrap': 'bounded'
 			}
-		}, ['editor.wordWrap']);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService());
 
 		const firstRoot = URI.file('foo1');
 		const secondRoot = URI.file('foo2');
@@ -391,13 +391,13 @@ suite('ExtHostConfiguration', function () {
 				'wordWrap': 'off',
 				'lineNumbers': 'relative'
 			}
-		}, ['editor.wordWrap'])]);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService())]);
 		folders.push([secondRoot, new ConfigurationModel({
 			'editor': {
 				'wordWrap': 'on'
 			}
-		}, ['editor.wordWrap'])]);
-		folders.push([thirdRoot, new ConfigurationModel({}, [])]);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService())]);
+		folders.push([thirdRoot, new ConfigurationModel({}, [], [], undefined, new NullLogService())]);
 
 		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
@@ -414,14 +414,14 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'off',
 						'lineNumbers': 'on'
 					}
-				}, ['editor.wordWrap']),
-				policy: new ConfigurationModel(),
-				application: new ConfigurationModel(),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				workspace,
 				folders,
 				configurationScopes: []
@@ -520,8 +520,8 @@ suite('ExtHostConfiguration', function () {
 						'editor.wordWrap': 'bounded',
 					}
 				}),
-				policy: new ConfigurationModel(),
-				application: new ConfigurationModel(),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: toConfigurationModel({
 					'editor.wordWrap': 'bounded',
 					'[typescript]': {
@@ -575,20 +575,20 @@ suite('ExtHostConfiguration', function () {
 						'lineNumbers': 'on',
 						'fontSize': '12px'
 					}
-				}, ['editor.wordWrap']),
-				policy: new ConfigurationModel(),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
 				application: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'auto',
 						'lineNumbers': 'off'
 					}
-				}, ['editor.wordWrap']),
-				workspace: new ConfigurationModel({}, []),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				workspace: new ConfigurationModel({}, [], [], undefined, new NullLogService()),
 				folders: [],
 				configurationScopes: []
 			},
@@ -789,7 +789,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function toConfigurationModel(obj: any): ConfigurationModel {
-		const parser = new ConfigurationModelParser('test');
+		const parser = new ConfigurationModelParser('test', new NullLogService());
 		parser.parse(JSON.stringify(obj));
 		return parser.configurationModel;
 	}

@@ -705,7 +705,7 @@ export class ExtensionsScanner extends Disposable {
 			isValid: extension.isValid,
 			readmeUrl,
 			changelogUrl,
-			publisherDisplayName: extension.metadata?.publisherDisplayName || null,
+			publisherDisplayName: extension.metadata?.publisherDisplayName,
 			publisherId: extension.metadata?.publisherId || null,
 			isApplicationScoped: !!extension.metadata?.isApplicationScoped,
 			isMachineScoped: !!extension.metadata?.isMachineScoped,
@@ -803,6 +803,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
 	constructor(
+		readonly manifest: IExtensionManifest,
 		readonly identifier: IExtensionIdentifier,
 		readonly source: URI | IGalleryExtension,
 		readonly options: InstallExtensionTaskOptions,
@@ -877,7 +878,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		logService: ILogService,
 		private readonly telemetryService: ITelemetryService,
 	) {
-		super(gallery.identifier, gallery, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
+		super(manifest, gallery.identifier, gallery, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
 	}
 
 	protected async install(token: CancellationToken): Promise<[ILocalExtension, Metadata]> {
@@ -913,7 +914,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			source: 'gallery',
 		};
 
-		if (existingExtension?.manifest.version === this.gallery.version) {
+		if (existingExtension && existingExtension.type !== ExtensionType.System && existingExtension.manifest.version === this.gallery.version) {
 			try {
 				const local = await this.extensionsScanner.updateMetadata(existingExtension, metadata);
 				return [local, metadata];
@@ -988,7 +989,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 class InstallVSIXTask extends InstallExtensionTask {
 
 	constructor(
-		private readonly manifest: IExtensionManifest,
+		manifest: IExtensionManifest,
 		private readonly location: URI,
 		options: InstallExtensionTaskOptions,
 		private readonly galleryService: IExtensionGalleryService,
@@ -999,7 +1000,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 		extensionsProfileScannerService: IExtensionsProfileScannerService,
 		logService: ILogService,
 	) {
-		super({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
+		super(manifest, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
 	}
 
 	protected override async doRun(token: CancellationToken): Promise<ILocalExtension> {

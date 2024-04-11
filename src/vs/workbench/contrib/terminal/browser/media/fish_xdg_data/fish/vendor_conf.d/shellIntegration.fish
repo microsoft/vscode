@@ -75,8 +75,8 @@ end
 # Sent right before executing an interactive command.
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
-	__vsc_esc C
 	__vsc_esc E (__vsc_escape_value "$argv") $__vsc_nonce
+	__vsc_esc C
 
 	# Creates a marker to indicate a command was run.
 	set --global _vsc_has_cmd

@@ -119,6 +119,9 @@
 		// e.g.  * ...| or */| or *-----*/|
 		"unIndentedLinePattern": {
 			"pattern": "^(\\t|[ ])*[ ]\\*[^/]*\\*/\\s*$|^(\\t|[ ])*[ ]\\*/\\s*$|^(\\t|[ ])*[ ]\\*([ ]([^\\*]|\\*(?!/))*)?$"
+		},
+		"indentNextLinePattern": {
+			"pattern": "^((.*=>\\s*)|((.*[^\\w]+|\\s*)(if|while|for)\\s*\\(.*\\)\\s*))$"
 		}
 	},
 	"onEnterRules": [
@@ -197,6 +200,33 @@
 			"action": {
 				"indent": "outdent"
 			}
-		}
+		},
+		// Indent when pressing enter from inside ()
+		{
+			"beforeText": "^.*\\([^\\)]*$",
+			"afterText": "^\\s*\\).*$",
+			"action": {
+				"indent": "indentOutdent",
+				"appendText": "\t",
+			}
+		},
+		// Indent when pressing enter from inside {}
+		{
+			"beforeText": "^.*\\{[^\\}]*$",
+			"afterText": "^\\s*\\}.*$",
+			"action": {
+				"indent": "indentOutdent",
+				"appendText": "\t",
+			}
+		},
+		// Indent when pressing enter from inside []
+		{
+			"beforeText": "^.*\\[[^\\]]*$",
+			"afterText": "^\\s*\\].*$",
+			"action": {
+				"indent": "indentOutdent",
+				"appendText": "\t",
+			}
+		},
 	]
 }

@@ -686,6 +686,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 						if (latestCell) {
 							latestCell.outputIsFocused = false;
+							latestCell.inputInOutputIsFocused = false;
 						}
 					}
 					break;
@@ -908,15 +909,49 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				}
 				case 'notebookPerformanceMessage': {
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
+					if (data.mimeType && data.outputSize && data.rendererId === 'vscode.builtin-renderer') {
+						this._sendPerformanceData(data.mimeType, data.outputSize, data.duration);
+					}
 					break;
 				}
 				case 'outputInputFocus': {
+					const resolvedResult = this.resolveOutputId(data.id);
+					if (resolvedResult) {
+						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+						if (latestCell) {
+							latestCell.inputInOutputIsFocused = data.inputFocused;
+						}
+					}
 					this.notebookEditor.didFocusOutputInputChange(data.inputFocused);
 				}
 			}
 		}));
 
 		return initializePromise.p;
+	}
+
+	private _sendPerformanceData(mimeType: string, outputSize: number, renderTime: number) {
+		type NotebookOutputRenderClassification = {
+			owner: 'amunger';
+			comment: 'Track performance data for output rendering';
+			mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Presentation type of the output.' };
+			outputSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Size of the output data buffer.'; isMeasurement: true };
+			renderTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent rendering output.'; isMeasurement: true };
+		};
+
+		type NotebookOutputRenderEvent = {
+			mimeType: string;
+			outputSize: number;
+			renderTime: number;
+		};
+
+		const telemetryData = {
+			mimeType,
+			outputSize,
+			renderTime
+		};
+
+		this.telemetryService.publicLog2<NotebookOutputRenderEvent, NotebookOutputRenderClassification>('NotebookCellOutputRender', telemetryData);
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
@@ -1693,6 +1728,18 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
+	selectInputContents(cell: ICellViewModel) {
+		if (this._disposed) {
+			return;
+		}
+		const output = cell.outputsViewModels.find(o => o.model.outputId === cell.focusedOutputId);
+		const outputId = output ? this.insetMapping.get(output)?.outputId : undefined;
+		this._sendMessageToWebview({
+			type: 'select-input-contents',
+			cellOrOutputId: outputId || cell.id
+		});
+	}
+
 	focusOutput(cellOrOutputId: string, alternateId: string | undefined, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
@@ -1706,6 +1753,16 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			type: 'focus-output',
 			cellOrOutputId: cellOrOutputId,
 			alternateId: alternateId
+		});
+	}
+
+	blurOutput() {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'blur-output'
 		});
 	}
 

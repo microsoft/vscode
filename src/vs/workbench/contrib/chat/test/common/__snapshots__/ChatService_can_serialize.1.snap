@@ -3,6 +3,7 @@
   requesterAvatarIconUri: undefined,
   responderUsername: "test",
   responderAvatarIconUri: undefined,
+  initialLocation: "panel",
   welcomeMessage: undefined,
   requests: [
     {
@@ -66,8 +67,9 @@
           fullName: "test"
         },
         slashCommands: [  ],
-        locations: [ 1 ],
-        isDefault: undefined
+        locations: [ "panel" ],
+        isDefault: undefined,
+        extensionPublisher: ""
       },
       slashCommand: undefined,
       usedContext: {
@@ -97,6 +99,5 @@
       },
       contentReferences: [  ]
     }
-  ],
-  providerId: "testProvider"
+  ]
 }

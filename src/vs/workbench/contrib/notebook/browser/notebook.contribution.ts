@@ -1079,17 +1079,6 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'fullCell'
 		},
-		[NotebookSetting.anchorToFocusedCell]: {
-			markdownDescription: nls.localize('notebook.scrolling.anchorToFocusedCell.description', "Experimental. Keep the focused cell steady while surrounding cells change size."),
-			type: 'string',
-			enum: ['auto', 'on', 'off'],
-			markdownEnumDescriptions: [
-				nls.localize('notebook.scrolling.anchorToFocusedCell.auto.description', "Anchor the viewport to the focused cell depending on context unless {0} is set to {1}.", 'notebook.scrolling.revealCellBehavior', 'none'),
-				nls.localize('notebook.scrolling.anchorToFocusedCell.on.description', "Always anchor the viewport to the focused cell."),
-				nls.localize('notebook.scrolling.anchorToFocusedCell.off.description', "The focused cell may shift around as cells resize.")
-			],
-			default: 'auto'
-		},
 		[NotebookSetting.cellChat]: {
 			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental floating chat widget in notebooks."),
 			type: 'boolean',
@@ -1101,9 +1090,9 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[NotebookSetting.cellFailureDiagnostics]: {
-			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Enable experimental diagnostics for cell failures."),
+			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Show available diagnostics for cell failures."),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 	}
 });

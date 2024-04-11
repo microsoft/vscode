@@ -11,7 +11,7 @@ import * as Types from 'vs/base/common/types';
 import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Codicon } from 'vs/base/common/codicons';
@@ -90,12 +90,14 @@ export class TaskQuickPick extends Disposable {
 		return icon.id ? `$(${icon.id}) ${label}` : `$(${Codicon.tools.id}) ${label}`;
 	}
 
-	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): void {
+	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): IDisposable | undefined {
 		if (task.configurationProperties.icon?.color) {
 			const colorTheme = themeService.getColorTheme();
-			createColorStyleElement(colorTheme);
+			const disposable = createColorStyleElement(colorTheme);
 			entry.iconClasses = [getColorClass(task.configurationProperties.icon.color)];
+			return disposable;
 		}
+		return;
 	}
 
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
@@ -104,7 +106,10 @@ export class TaskQuickPick extends Disposable {
 			...extraButtons
 		];
 		const entry: ITaskTwoLevelQuickPickEntry = { label: TaskQuickPick.getTaskLabelWithIcon(task, this._guessTaskLabel(task)), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined, buttons };
-		TaskQuickPick.applyColorStyles(task, entry, this._themeService);
+		const disposable = TaskQuickPick.applyColorStyles(task, entry, this._themeService);
+		if (disposable) {
+			this._register(disposable);
+		}
 		return entry;
 	}
 

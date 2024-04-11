@@ -184,7 +184,7 @@ declare module 'vscode' {
 	/**
 	 * A chat request handler is a callback that will be invoked when a request is made to a chat participant.
 	 */
-	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
+	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
 	/**
 	 * A chat participant can be invoked by the user in a chat session, using the `@` prefix. When it is invoked, it handles the chat request and is solely
@@ -224,11 +224,6 @@ declare module 'vscode' {
 		 * When the user clicks this participant in `/help`, this text will be submitted to this participant.
 		 */
 		sampleRequest?: string;
-
-		/**
-		 * Whether invoking the participant puts the chat into a persistent mode, where the participant is automatically added to the chat input for the next message.
-		 */
-		isSticky?: boolean;
 
 		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
@@ -272,24 +267,6 @@ declare module 'vscode' {
 		readonly values: ChatVariableValue[];
 	}
 
-	/**
-	 * The location at which the chat is happening.
-	 */
-	export enum ChatLocation {
-		/**
-		 * The chat panel
-		 */
-		Panel = 1,
-		/**
-		 * Terminal inline chat
-		 */
-		Terminal = 2,
-		/**
-		 * Notebook inline chat
-		 */
-		Notebook = 3
-	}
-
 	export interface ChatRequest {
 		/**
 		 * The prompt as entered by the user.
@@ -306,6 +283,7 @@ declare module 'vscode' {
 		 */
 		readonly command: string | undefined;
 
+
 		/**
 		 * The list of variables and their values that are referenced in the prompt.
 		 *
@@ -318,10 +296,6 @@ declare module 'vscode' {
 		// TODO@API Q? are there implicit variables that are not part of the prompt?
 		readonly variables: readonly ChatResolvedVariable[];
 
-		/**
-		 * The location at which the chat is happening. This will always be one of the supported values
-		 */
-		readonly location: ChatLocation;
 	}
 
 	/**
@@ -388,7 +362,7 @@ declare module 'vscode' {
 		 * @param value A uri or location
 		 * @returns This stream.
 		 */
-		reference(value: Uri | Location): ChatResponseStream;
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }): ChatResponseStream;
 
 		/**
 		 * Pushes a part to this stream.
@@ -426,8 +400,8 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseReferencePart {
-		value: Uri | Location;
-		constructor(value: Uri | Location);
+		value: Uri | Location | { variableName: string; value?: Uri | Location };
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location });
 	}
 
 	export class ChatResponseCommandButtonPart {

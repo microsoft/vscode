@@ -19,12 +19,12 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
-import { registerChatCodeBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
+import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
 import { registerChatCopyActions } from 'vs/workbench/contrib/chat/browser/actions/chatCopyActions';
 import { IChatExecuteActionContext, SubmitAction, registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { registerChatFileTreeActions } from 'vs/workbench/contrib/chat/browser/actions/chatFileTreeActions';
@@ -34,17 +34,16 @@ import { registerQuickChatActions } from 'vs/workbench/contrib/chat/browser/acti
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
-import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { QuickChatService } from 'vs/workbench/contrib/chat/browser/chatQuick';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/codeBlockContextProviderService';
 import 'vs/workbench/contrib/chat/browser/contrib/chatHistoryVariables';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
-import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -58,7 +57,7 @@ import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/c
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/chatColors';
-import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/codeBlockContextProviderService';
+import { ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -250,7 +249,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			sortText: 'z1_help',
 			executeImmediately: true
 		}, async (prompt, progress) => {
-			const defaultAgent = chatAgentService.getDefaultAgent();
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			const agents = chatAgentService.getAgents();
 
 			// Report prefix
@@ -267,7 +266,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			const agentText = (await Promise.all(agents
 				.filter(a => a.id !== defaultAgent?.id)
 				.map(async a => {
-					const agentWithLeader = `${chatAgentLeader}${a.id}`;
+					const agentWithLeader = `${chatAgentLeader}${a.name}`;
 					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
 					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${a.description}`;
@@ -290,7 +289,11 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'content' });
 				}
 
-				const variableText = Array.from(chatVariablesService.getVariables())
+				const variables = [
+					...chatVariablesService.getVariables(),
+					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
+				];
+				const variableText = variables
 					.map(v => `* \`${chatVariableLeader}${v.name}\` - ${v.description}`)
 					.join('\n');
 				progress.report({ content: '\n' + variableText, kind: 'content' });
@@ -314,10 +317,12 @@ registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribu
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
+registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 
 registerChatActions();
 registerChatCopyActions();
 registerChatCodeBlockActions();
+registerChatCodeCompareBlockActions();
 registerChatFileTreeActions();
 registerChatTitleActions();
 registerChatExecuteActions();
@@ -327,7 +332,6 @@ registerMoveActions();
 registerNewChatActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
-registerSingleton(IChatContributionService, ChatContributionService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);

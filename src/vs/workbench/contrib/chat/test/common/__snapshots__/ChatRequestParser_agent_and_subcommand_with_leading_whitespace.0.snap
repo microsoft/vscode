@@ -32,8 +32,9 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        locations: [  ],
-        metadata: { description: "" },
+        extensionPublisher: "",
+        locations: [ "panel" ],
+        metadata: {  },
         slashCommands: [
           {
             name: "subCommand",
