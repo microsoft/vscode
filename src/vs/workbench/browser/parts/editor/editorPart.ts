@@ -6,7 +6,7 @@
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement } from 'vs/base/browser/dom';
-import { Event, Emitter, Relay } from 'vs/base/common/event';
+import { Event, Emitter, Relay, PauseableEmitter } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -117,7 +117,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly _onDidAddGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidAddGroup = this._onDidAddGroup.event;
 
-	private readonly _onDidRemoveGroup = this._register(new Emitter<IEditorGroupView>());
+	private readonly _onDidRemoveGroup = this._register(new PauseableEmitter<IEditorGroupView>());
 	readonly onDidRemoveGroup = this._onDidRemoveGroup.event;
 
 	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
@@ -1352,13 +1352,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		for (const group of groups) {
 			await group.closeAllEditors({ excludeConfirming: true });
 		}
-		this.disposeGroups();
+		const resumeEvents = this.disposeGroups(true /* suspress events for the duration of applying state */);
 
 		// MRU
 		this.mostRecentActiveGroups = state.mostRecentActiveGroups;
 
 		// Grid Widget
-		this.doApplyGridState(state.serializedGrid, state.activeGroup);
+		try {
+			this.doApplyGridState(state.serializedGrid, state.activeGroup);
+		} finally {
+			resumeEvents();
+		}
 
 		// Restore editors that were not closed before and are now opened now
 		await this.activeGroup.openEditors(
@@ -1410,7 +1414,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		};
 	}
 
-	private disposeGroups(): void {
+	private disposeGroups(): void;
+	private disposeGroups(surpressEvents: boolean): Function;
+	private disposeGroups(surpressEvents?: boolean): Function | void {
+		if (surpressEvents) {
+			this._onDidRemoveGroup.pause();
+		}
+
 		for (const group of this.groups) {
 			group.dispose();
 
@@ -1419,6 +1429,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		this.groupViews.clear();
 		this.mostRecentActiveGroups = [];
+
+		if (surpressEvents) {
+			return () => this._onDidRemoveGroup.resume();
+		}
 	}
 
 	override dispose(): void {
