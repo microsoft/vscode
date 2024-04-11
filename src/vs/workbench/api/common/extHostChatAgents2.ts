@@ -86,6 +86,17 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				markdownWithVulnerabilities(value, vulnerabilities) {
+					throwIfDone(this.markdown);
+					if (vulnerabilities) {
+						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					}
+
+					const part = new extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart(value, vulnerabilities);
+					const dto = typeConvert.ChatResponseMarkdownWithVulnerabilitiesPart.from(part);
+					_report(dto);
+					return this;
+				},
 				filetree(value, baseUri) {
 					throwIfDone(this.filetree);
 					const part = new extHostTypes.ChatResponseFileTreePart(value, baseUri);

@@ -76,16 +76,16 @@ declare module 'vscode' {
 		command?: ChatCommand;
 	}
 
-	// TODO@API fit this into the stream
 	export interface ChatVulnerability {
 		title: string;
 		description: string;
 		// id: string; // Later we will need to be able to link these across multiple content chunks.
 	}
 
-	// TODO@API fit this into the stream
-	export interface ChatContent {
-		vulnerabilities?: ChatVulnerability[];
+	export class ChatResponseMarkdownWithVulnerabilitiesPart {
+		value: string | MarkdownString;
+		vulnerabilities: ChatVulnerability[];
+		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
 
 	/**
@@ -183,6 +183,8 @@ declare module 'vscode' {
 		 * @deprecated use above methods instread
 		 */
 		report(value: ChatProgress): void;
+
+		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatExtendedResponseStream;
 	}
 
 	/** @deprecated */
@@ -190,11 +192,14 @@ declare module 'vscode' {
 		| ChatMarkdownContent
 		| ChatDetectedParticipant;
 
+	// TODO@API is the 'extended' type even needed?
 	export type ChatExtendedResponseStream = ChatResponseStream & {
 		/**
 		 * @deprecated
 		 */
 		report(value: ChatExtendedProgress): void;
+
+		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatExtendedResponseStream;
 	};
 
 	export interface ChatParticipant {
