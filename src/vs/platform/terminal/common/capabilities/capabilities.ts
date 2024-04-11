@@ -240,6 +240,7 @@ export interface IPartialCommandDetectionCapability {
 interface IBaseTerminalCommand {
 	// Mandatory
 	command: string;
+	commandLineConfidence: 'low' | 'medium' | 'high';
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
@@ -262,6 +263,7 @@ export interface ITerminalCommand extends IBaseTerminalCommand {
 	readonly aliases?: string[][];
 	readonly wasReplayed?: boolean;
 
+	extractCommandLine(): string;
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;

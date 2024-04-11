@@ -75,6 +75,9 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 				return looksLikeMarkdownPath(resource);
 			},
 		},
+		markdown: {
+			supportHtml: true,
+		}
 	};
 
 	const client = factory('markdown', vscode.l10n.t("Markdown Language Server"), clientOptions);

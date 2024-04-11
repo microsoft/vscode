@@ -6,10 +6,10 @@
 import * as vscode from 'vscode';
 
 export function disposeAll(disposables: vscode.Disposable[]) {
-	while (disposables.length) {
-		const item = disposables.pop();
-		item?.dispose();
+	for (const disposable of disposables) {
+		disposable.dispose();
 	}
+	disposables.length = 0;
 }
 
 export interface IDisposable {
@@ -40,5 +40,14 @@ export abstract class Disposable {
 
 	protected get isDisposed() {
 		return this._isDisposed;
+	}
+}
+
+export class DisposableStore extends Disposable {
+
+	public add<T extends IDisposable>(disposable: T): T {
+		this._register(disposable);
+
+		return disposable;
 	}
 }

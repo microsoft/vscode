@@ -2146,7 +2146,7 @@ export type DropYieldTo = { readonly kind: HierarchicalKind } | { readonly mimeT
 /**
  * @internal
  */
-export interface DocumentOnDropEdit {
+export interface DocumentDropEdit {
 	readonly title: string;
 	readonly kind: HierarchicalKind | undefined;
 	readonly handledMimeType?: string;
@@ -2158,11 +2158,12 @@ export interface DocumentOnDropEdit {
 /**
  * @internal
  */
-export interface DocumentOnDropEditProvider {
+export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit[]>;
+	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEdit[]>;
+	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
 }
 
 export interface DocumentContextItem {

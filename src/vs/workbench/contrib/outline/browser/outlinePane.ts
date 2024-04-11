@@ -266,7 +266,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
 				defaultFindMode: this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight,
-				overrideStyles: { listBackground: this.getBackgroundColor() }
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
 
@@ -297,7 +297,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		// feature: apply panel background to tree
 		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
-				tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
+				tree.updateOptions({ overrideStyles: this.getLocationBasedColors().listOverrideStyles });
 			}
 		}));
 
