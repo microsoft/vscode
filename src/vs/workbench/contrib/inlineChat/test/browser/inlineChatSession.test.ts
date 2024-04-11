@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -12,7 +11,6 @@ import { TestDiffProviderFactoryService } from 'vs/editor/test/browser/diff/test
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
@@ -30,11 +28,10 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
-import { HunkState, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { HunkState, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
-import { EditMode, IInlineChatEditResponse, IInlineChatService, InlineChatResponseType, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { EditMode, IInlineChatService, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
@@ -49,55 +46,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IChatSlashCommandService, ChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatWidgetHistoryService, ChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { TestExtensionService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IChatAgentService, ChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { MockChatContributionService } from 'vs/workbench/contrib/chat/test/common/mockChatContributionService';
-
-
-suite('ReplyResponse', function () {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('Inline chat widget should not contain Accept and Discard buttons for responses which do not include changes. #3143', async function () {
-		const textFileService = new class extends mock<ITextFileService>() { };
-		const languageService = new class extends mock<ILanguageService>() { };
-
-		const message = { value: 'hello' };
-		const emptyMessage = { value: '' };
-
-		const raw: IInlineChatEditResponse = {
-			type: InlineChatResponseType.EditorEdit,
-			edits: [],
-			message: emptyMessage,
-			id: 1234
-		};
-
-		{
-			const res2 = new ReplyResponse(raw, emptyMessage, URI.parse('test:uri'), 1, [], '1', textFileService, languageService);
-			assert.strictEqual(res2.responseType, InlineChatResponseTypes.Empty);
-		}
-		{
-			const res1 = new ReplyResponse({ ...raw, message }, message, URI.parse('test:uri'), 1, [], '1', textFileService, languageService);
-			assert.strictEqual(res1.responseType, InlineChatResponseTypes.OnlyMessages);
-		}
-		{
-			const res3 = new ReplyResponse({ ...raw, edits: [{ text: 'EDIT', range: new Range(1, 1, 1, 1) }] }, emptyMessage, URI.parse('test:uri'), 1, [], '1', textFileService, languageService);
-			assert.strictEqual(res3.responseType, InlineChatResponseTypes.OnlyEdits);
-		}
-		{
-			const res4 = new ReplyResponse({ ...raw, edits: [{ text: 'EDIT', range: new Range(1, 1, 1, 1) }], message }, message, URI.parse('test:uri'), 1, [], '1', textFileService, languageService);
-			assert.strictEqual(res4.responseType, InlineChatResponseTypes.Mixed);
-		}
-	});
-});
+import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 
 suite('InlineChatSession', function () {
 
@@ -115,20 +72,18 @@ suite('InlineChatSession', function () {
 
 		const serviceCollection = new ServiceCollection(
 			[IConfigurationService, new TestConfigurationService()],
-			[IChatVariablesService, new MockChatVariablesService()],
+			[IChatVariablesService, new SyncDescriptor(ChatVariablesService)],
 			[ILogService, new NullLogService()],
 			[ITelemetryService, NullTelemetryService],
 			[IExtensionService, new TestExtensionService()],
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new TestExtensionService()],
-			[IChatContributionService, new TestExtensionService()],
 			[IWorkspaceContextService, new TestContextService()],
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
-			[IChatContributionService, new MockChatContributionService()],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IContextKeyService, contextKeyService],
@@ -172,6 +127,7 @@ suite('InlineChatSession', function () {
 
 		instaService.get(IChatAgentService).registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
+			extensionPublisher: '',
 			id: 'testAgent',
 			name: 'testAgent',
 			isDefault: true,

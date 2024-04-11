@@ -233,7 +233,8 @@ export class InlineEditController extends Disposable {
 		}
 		const line = edit.range.endLineNumber;
 		const column = edit.range.endColumn;
-		const ghostText = new GhostText(line, [new GhostTextPart(column, edit.text, false)]);
+		const textToDisplay = edit.text.endsWith('\n') && !(edit.range.startLineNumber === edit.range.endLineNumber && edit.range.startColumn === edit.range.endColumn) ? edit.text.slice(0, -1) : edit.text;
+		const ghostText = new GhostText(line, [new GhostTextPart(column, textToDisplay, false)]);
 		const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
 			ghostText: constObservable(ghostText),
 			minReservedLineCount: constObservable(0),

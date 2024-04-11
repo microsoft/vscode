@@ -248,6 +248,10 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	}
 
 	public abstract get debugName(): string;
+
+	protected get debugValue() {
+		return this.get();
+	}
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {

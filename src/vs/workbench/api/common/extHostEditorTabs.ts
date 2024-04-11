@@ -99,7 +99,7 @@ class ExtHostEditorTab {
 			case TabInputKind.InteractiveEditorInput:
 				return new InteractiveWindowInput(URI.revive(this._dto.input.uri), URI.revive(this._dto.input.inputBoxUri));
 			case TabInputKind.ChatEditorInput:
-				return new ChatEditorTabInput(this._dto.input.providerId);
+				return new ChatEditorTabInput();
 			case TabInputKind.MultiDiffEditorInput:
 				return new TextMultiDiffTabInput(this._dto.input.diffEditors.map(diff => new TextDiffTabInput(URI.revive(diff.original), URI.revive(diff.modified))));
 			default:

@@ -14,24 +14,20 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
 
 suite('TerminalClipboard', function () {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('shouldPasteTerminalText', () => {
 		let instantiationService: TestInstantiationService;
 		let configurationService: TestConfigurationService;
-		let dialogService: TestDialogService;
 
 		setup(async () => {
-			instantiationService = new TestInstantiationService();
+			instantiationService = store.add(new TestInstantiationService());
 			configurationService = new TestConfigurationService({
 				[TerminalSettingId.EnableMultiLinePasteWarning]: 'auto'
 			});
-			dialogService = new TestDialogService(undefined, { result: { confirmed: false } });
-
 			instantiationService.stub(IConfigurationService, configurationService);
-			instantiationService.stub(IDialogService, dialogService);
+			instantiationService.stub(IDialogService, new TestDialogService(undefined, { result: { confirmed: false } }));
 		});
-
-		ensureNoDisposablesAreLeakedInTestSuite();
 
 		function setConfigValue(value: unknown) {
 			configurationService = new TestConfigurationService({
