@@ -555,7 +555,7 @@ export abstract class ViewPane extends Pane implements IView {
 			return title;
 		}
 
-		return 'Use alt+f1 for accessibility help ' + title;
+		return nls.localize('viewAccessibilityHelp', 'Use Alt+F1 for accessibility help {0}', title);
 	}
 
 	protected updateTitle(title: string): void {
