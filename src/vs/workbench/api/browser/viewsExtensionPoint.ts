@@ -104,6 +104,7 @@ interface IUserFriendlyViewDescriptor {
 	group?: string;
 	remoteName?: string | string[];
 	virtualWorkspace?: string;
+
 	accessibilityHelpContent?: string;
 }
 

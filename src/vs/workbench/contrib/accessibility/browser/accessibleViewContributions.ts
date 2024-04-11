@@ -8,7 +8,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -36,6 +36,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/ac
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { Extensions, IViewDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);
@@ -279,13 +280,13 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
 	static ID = 'extensionAccessibilityHelpDialogContribution';
 	private _viewHelpDialogMap = this._register(new DisposableMap<string, IDisposable>());
-	constructor() {
+	constructor(@IKeybindingService keybindingService: IKeybindingService) {
 		super();
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
 			for (const view of e) {
 				for (const viewDescriptor of view.views) {
 					if (viewDescriptor.accessibilityHelpContent) {
-						this._viewHelpDialogMap.set(viewDescriptor.id, registerAccessibilityHelpAction(viewDescriptor));
+						this._viewHelpDialogMap.set(viewDescriptor.id, registerAccessibilityHelpAction(keybindingService, viewDescriptor));
 					}
 				}
 			}
@@ -300,12 +301,13 @@ export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
 	}
 }
 
-function registerAccessibilityHelpAction(viewDescriptor: IViewDescriptor): IDisposable {
-	const helpContent = viewDescriptor.accessibilityHelpContent;
+function registerAccessibilityHelpAction(keybindingService: IKeybindingService, viewDescriptor: IViewDescriptor): IDisposable {
+	const disposableStore = new DisposableStore();
+	const helpContent = resolveExtensionHelpContent(keybindingService, viewDescriptor.accessibilityHelpContent);
 	if (!helpContent) {
 		throw new Error('No help content for view');
 	}
-	return AccessibilityHelpAction.addImplementation(95, viewDescriptor.id, accessor => {
+	disposableStore.add(AccessibilityHelpAction.addImplementation(95, viewDescriptor.id, accessor => {
 		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const viewsService = accessor.get(IViewsService);
 		accessibleViewService.show({
@@ -316,5 +318,26 @@ function registerAccessibilityHelpAction(viewDescriptor: IViewDescriptor): IDisp
 			verbositySettingKey: 'extension'
 		} as IAccessibleExtensionContentProvider);
 		return true;
-	}, FocusedViewContext.isEqualTo(viewDescriptor.id));
+	}, FocusedViewContext.isEqualTo(viewDescriptor.id)));
+	disposableStore.add(keybindingService.onDidUpdateKeybindings(() => {
+		disposableStore.clear();
+		disposableStore.add(registerAccessibilityHelpAction(keybindingService, viewDescriptor));
+	}));
+	return disposableStore;
+}
+
+function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: string): string | undefined {
+	if (!content) {
+		return;
+	}
+	const matches = content.matchAll(/\(kb\(command:(?<commandId>.*)\)\)/gm);
+	for (const match of [...matches]) {
+		const commandId = match?.groups?.commandId;
+		if (match?.length && commandId) {
+			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
+			const kbLabel = keybinding ? ' (' + keybinding + ')' : ', which is not currently bound to a keybinding.';
+			content = content.replace(match[0], kbLabel);
+		}
+	}
+	return new MarkdownString(content).value;
 }
