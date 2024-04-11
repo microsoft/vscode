@@ -51,7 +51,6 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
@@ -2562,68 +2561,8 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatResponseProgress {
-	export function from(extension: IExtensionDescription, progress: vscode.ChatExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
-		if ('markdownContent' in progress) {
-			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
-		} else if ('content' in progress) {
-			if (typeof progress.content === 'string') {
-				return { content: progress.content, kind: 'content' };
-			}
-
-			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-			return { content: MarkdownString.from(progress.content), kind: 'markdownContent' };
-		} else if ('documents' in progress) {
-			return {
-				documents: progress.documents.map(d => ({
-					uri: d.uri,
-					version: d.version,
-					ranges: d.ranges.map(r => Range.from(r))
-				})),
-				kind: 'usedContext'
-			};
-		} else if ('reference' in progress) {
-			return {
-				reference: 'uri' in progress.reference ?
-					{
-						uri: progress.reference.uri,
-						range: Range.from(progress.reference.range)
-					} : progress.reference,
-				kind: 'reference'
-			};
-		} else if ('inlineReference' in progress) {
-			return {
-				inlineReference: 'uri' in progress.inlineReference ?
-					{
-						uri: progress.inlineReference.uri,
-						range: Range.from(progress.inlineReference.range)
-					} : progress.inlineReference,
-				name: progress.title,
-				kind: 'inlineReference'
-			};
-		} else if ('participant' in progress) {
-			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-			return { agentId: progress.participant, command: progress.command, kind: 'agentDetection' };
-		} else if ('message' in progress) {
-			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
-		} else {
-			return undefined;
-		}
-	}
-
 	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto, commandsConverter: Command.ICommandsConverter): vscode.ChatContentProgress | undefined {
 		switch (progress.kind) {
-			case 'markdownContent':
-				// For simplicity, don't sent back the 'extended' types, so downgrade markdown to just some text
-				return { content: progress.content.value };
-			case 'inlineReference':
-				return {
-					inlineReference:
-						isUriComponents(progress.inlineReference) ?
-							URI.revive(progress.inlineReference) :
-							Location.to(progress.inlineReference),
-					title: progress.name
-				};
 			case 'command':
 				// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
 				return {

@@ -56,11 +56,6 @@ declare module 'vscode' {
 		responseIsRedacted?: boolean;
 	}
 
-	/** @deprecated */
-	export interface ChatMarkdownContent {
-		markdownContent: MarkdownString;
-	}
-
 	/**
 	 * Now only used for the "intent detection" API below
 	 */
@@ -92,8 +87,6 @@ declare module 'vscode' {
 	 * @deprecated use ChatResponseStream instead
 	 */
 	export type ChatContentProgress =
-		| ChatContent
-		| ChatInlineContentReference
 		| ChatCommandButton;
 
 	/**
@@ -124,35 +117,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A reference to a piece of content that will be rendered inline with the markdown content.
-	 */
-	export interface ChatInlineContentReference {
-		/**
-		 * The resource being referenced.
-		 */
-		inlineReference: Uri | Location;
-
-		/**
-		 * An alternate title for the resource.
-		 */
-		title?: string;
-	}
-
-	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
 	export interface ChatCommandButton {
 		command: Command;
-	}
-
-	/**
-	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
-	 */
-	export interface ChatContent {
-		/**
-		 * The content as a string of markdown source.
-		 */
-		content: string;
 	}
 
 	export interface ChatDocumentContext {
@@ -169,7 +137,7 @@ declare module 'vscode' {
 
 	export interface ChatResponseStream {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
-
+		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
 		push(part: ChatResponsePart | ChatResponseTextEditPart): ChatResponseStream;
 	}
 
@@ -178,29 +146,9 @@ declare module 'vscode' {
 		documents: ChatDocumentContext[];
 	}
 
-	export interface ChatResponseStream {
-		/**
-		 * @deprecated use above methods instread
-		 */
-		report(value: ChatProgress): void;
-
-		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatExtendedResponseStream;
-	}
-
 	/** @deprecated */
 	export type ChatExtendedProgress = ChatProgress
-		| ChatMarkdownContent
 		| ChatDetectedParticipant;
-
-	// TODO@API is the 'extended' type even needed?
-	export type ChatExtendedResponseStream = ChatResponseStream & {
-		/**
-		 * @deprecated
-		 */
-		report(value: ChatExtendedProgress): void;
-
-		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatExtendedResponseStream;
-	};
 
 	export interface ChatParticipant {
 		/**
@@ -223,7 +171,7 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
+	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
 	export namespace chat {
 		/**
