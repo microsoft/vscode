@@ -125,7 +125,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		console.log('\ngit diff --shortstat:\n', output);
 	});
 
-	/*
+	/* Refine.
 	test('Find Cases of Incorrect Indentation with the onEnter Rules', () => {
 		function walkDirectoryAndReindent(directory: string, languageId: string) {
 			const files = fs.readdirSync(directory, { withFileTypes: true });

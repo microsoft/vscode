@@ -24,7 +24,7 @@ import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
 import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
 
-export enum Language {
+enum Language {
 	TypeScript,
 	Ruby,
 	PHP,
