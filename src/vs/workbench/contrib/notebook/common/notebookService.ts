@@ -34,6 +34,7 @@ export interface INotebookSerializer {
 	dataToNotebook(data: VSBuffer): Promise<NotebookData>;
 	notebookToData(data: NotebookData): Promise<VSBuffer>;
 	save(uri: URI, versionId: number, options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
+	saveAs(target: URI, preamble: string, documentUri: URI, versionId: number, token: CancellationToken): Promise<IFileStatWithMetadata>;
 	searchInNotebooks(textQuery: ITextQuery, token: CancellationToken, allPriorityInfo: Map<string, NotebookPriorityInfo[]>): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }>;
 }
 

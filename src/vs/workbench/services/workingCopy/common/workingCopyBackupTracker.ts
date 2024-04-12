@@ -186,7 +186,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString(), workingCopy.typeId);
 
 				try {
-					if (workingCopy.canPersistPackup) {
+					if (workingCopy.shouldHandleBackupPersistence && workingCopy.shouldHandleBackupPersistence()) {
 						await this.workingCopyBackupService.delegatedBackup(async (target, preamble) => {
 							await workingCopy.persistBackup!(target, preamble, cts.token);
 							return true;

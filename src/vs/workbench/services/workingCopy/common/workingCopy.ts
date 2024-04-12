@@ -203,7 +203,7 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	 */
 	backup(token: CancellationToken): Promise<IWorkingCopyBackup>;
 
-	canPersistPackup?: boolean;
+	shouldHandleBackupPersistence?(): boolean;
 
 	persistBackup?(target: URI, preamble: string, token: CancellationToken): Promise<void>;
 

@@ -9,6 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> {
 
@@ -75,6 +76,8 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 * @param token support for cancellation
 	 */
 	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
+
+	writeSnapshot?(target: URI, preamble: string, token: CancellationToken): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Updates the model with the provided contents. The implementation should

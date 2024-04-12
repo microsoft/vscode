@@ -2545,6 +2545,7 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
 	$notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer>;
 	$saveNotebook(handle: number, uri: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata>;
+	$saveNotebookAs(handle: number, target: UriComponents, preamble: string, documentLocation: UriComponents, versionId: number, options: files.IWriteFileOptions | undefined, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata>;
 
 	$searchInNotebooks(handle: number, textQuery: search.ITextQuery, viewTypeFileTargets: NotebookPriorityInfo[], otherViewTypeFileTargets: NotebookPriorityInfo[], token: CancellationToken): Promise<{ results: IRawClosedNotebookFileMatch[]; limitHit: boolean }>;
 }

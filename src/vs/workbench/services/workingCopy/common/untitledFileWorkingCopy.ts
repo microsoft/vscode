@@ -272,6 +272,18 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		return { content };
 	}
 
+	shouldHandleBackupPersistence(): boolean {
+		return this.isResolved() && this.model?.writeSnapshot !== undefined;
+	}
+
+	async persistBackup(target: URI, preamble: string, token: CancellationToken): Promise<void> {
+		if (!this.isResolved()) {
+			return;
+		}
+
+		await this.model.writeSnapshot!(target, preamble, token);
+	}
+
 	//#endregion
 
 

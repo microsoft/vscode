@@ -376,6 +376,73 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return fileStats;
 	}
 
+	async $saveNotebookAs(handle: number, target: UriComponents, preamble: string, documentLocation: UriComponents, versionId: number, options: files.IWriteFileOptions | undefined, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata> {
+		const documentUri = URI.revive(documentLocation);
+		const targetUri = URI.revive(target);
+		const serializer = this._notebookSerializer.get(handle);
+		if (!serializer) {
+			throw new Error('NO serializer found');
+		}
+
+		const document = this._documents.get(documentUri);
+		if (!document) {
+			throw new Error('Document NOT found');
+		}
+
+		if (document.versionId !== versionId) {
+			throw new Error('Document version mismatch');
+		}
+
+		if (!this._extHostFileSystem.value.isWritableFileSystem(targetUri.scheme)) {
+			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(documentUri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
+		}
+
+		// validate write
+		if (options !== undefined) {
+			await this._validateWriteFile(targetUri, options);
+		}
+		const data: vscode.NotebookData = {
+			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
+			cells: [],
+		};
+
+		for (const cell of document.apiNotebook.getCells()) {
+			const cellData = new extHostTypes.NotebookCellData(
+				cell.kind,
+				cell.document.getText(),
+				cell.document.languageId,
+				cell.mime,
+				!(serializer.options?.transientOutputs) ? [...cell.outputs] : [],
+				cell.metadata,
+				cell.executionSummary
+			);
+
+			cellData.metadata = filter(cell.metadata, key => !(serializer.options?.transientCellMetadata ?? {})[key]);
+			data.cells.push(cellData);
+		}
+
+		const bytes = await serializer.serializer.serializeNotebook(data, token);
+		await this._extHostFileSystem.value.writeFile(targetUri, bytes);
+		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(targetUri.scheme);
+		const stat = await this._extHostFileSystem.value.stat(targetUri);
+
+		const fileStats = {
+			name: providerExtUri.basename(targetUri),
+			isFile: (stat.type & files.FileType.File) !== 0,
+			isDirectory: (stat.type & files.FileType.Directory) !== 0,
+			isSymbolicLink: (stat.type & files.FileType.SymbolicLink) !== 0,
+			mtime: stat.mtime,
+			ctime: stat.ctime,
+			size: stat.size,
+			readonly: Boolean((stat.permissions ?? 0) & files.FilePermission.Readonly) || !this._extHostFileSystem.value.isWritableFileSystem(documentUri.scheme),
+			locked: Boolean((stat.permissions ?? 0) & files.FilePermission.Locked),
+			etag: files.etag({ mtime: stat.mtime, size: stat.size }),
+			children: undefined
+		};
+
+		return fileStats;
+	}
+
 	/**
 	 * Search for query in all notebooks that can be deserialized by the serializer fetched by `handle`.
 	 *

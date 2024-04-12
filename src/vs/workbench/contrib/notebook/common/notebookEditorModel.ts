@@ -252,6 +252,17 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		return this._notebookModel;
 	}
 
+	async writeSnapshot(target: URI, preamble: string, token: CancellationToken): Promise<IFileStatWithMetadata> {
+		const serializer = await this.getNotebookSerializer();
+
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		const stat = await serializer.saveAs(target, preamble, this._notebookModel.uri, this._notebookModel.versionId, token);
+		return stat;
+	}
+
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
 		const serializer = await this.getNotebookSerializer();
 
