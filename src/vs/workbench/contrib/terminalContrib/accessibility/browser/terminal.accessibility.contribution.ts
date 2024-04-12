@@ -183,7 +183,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 		const command = filteredCommands[0];
 		this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
-		if (command.exitCode && command.exitCode !== 0) {
+		if (command.exitCode) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 		}
 	}
