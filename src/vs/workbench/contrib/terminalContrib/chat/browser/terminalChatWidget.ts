@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -14,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, type IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalStickyScrollContribution } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollContribution';
 
@@ -37,6 +38,7 @@ export class TerminalChatWidget extends Disposable {
 	constructor(
 		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
+		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
@@ -75,7 +77,7 @@ export class TerminalChatWidget extends Disposable {
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
-			Event.debounce(this._instance.xterm!.raw.onCursorMove, () => void 0, MicrotaskDelay),
+			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
 		const observer = new ResizeObserver(() => this._relayout());
@@ -138,7 +140,7 @@ export class TerminalChatWidget extends Disposable {
 			return;
 		}
 		if (top > terminalWrapperHeight - widgetHeight) {
-			this._setTerminalOffset(widgetHeight);
+			this._setTerminalOffset(top - (terminalWrapperHeight - widgetHeight));
 		} else {
 			this._setTerminalOffset(undefined);
 		}
@@ -171,7 +173,6 @@ export class TerminalChatWidget extends Disposable {
 			this._terminalElement.style.position = 'relative';
 			this._terminalElement.style.bottom = `${offset}px`;
 			TerminalStickyScrollContribution.get(this._instance)?.hideLock();
-
 		}
 	}
 	focus(): void {
