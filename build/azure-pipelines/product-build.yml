@@ -182,7 +182,7 @@ extends:
           validateToolOutput: None
           allTools: true
       binskim:
-        analyzeTargetGlob: '$(Build.SourcesDirectory)/**.dll;$(Build.SourcesDirectory)/**.exe;$(Build.SourcesDirectory)/**.node'
+        analyzeTargetGlob: '$(agent.builddirectory)/scanbin/**.dll;$(agent.builddirectory)/scanbin/**.exe;$(agent.builddirectory)/scanbin/**.node'
         symbolsPath: '$(agent.builddirectory)/scanbin/VSCode-win32-x64/pdb'
       codeql:
         compiled:
