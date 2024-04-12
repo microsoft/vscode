@@ -9,8 +9,8 @@ import * as dom from 'vs/base/browser/dom';
 import { basename } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CommentNode, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { IWorkspaceCommentThreadsEvent, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { CommentNode, ICommentThreadChangedEvent, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
+import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentsList, COMMENTS_VIEW_TITLE, Filter } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
@@ -323,6 +323,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			const kbLabel = this.keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
 			accessibleViewHint = kbLabel ? nls.localize('acessibleViewHint', "Inspect this in the accessible view ({0}).\n", kbLabel) : nls.localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.\n");
 		}
+		const replies = this.getRepliesAsString(element, type) || '';
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
@@ -332,32 +333,16 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					element.range.startColumn,
 					basename(element.resource),
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				);
+				) + replies;
 			} else {
-				if (type === 'ariaLabel' || !element.replies?.length) {
-					return accessibleViewHint + nls.localize('resourceWithCommentLabel',
-						"${0} at line {1} column {2} in {3}, comment: {4}. replies: {5}",
-						element.comment.userName,
-						element.range.startLineNumber,
-						element.range.startColumn,
-						basename(element.resource),
-						(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
-					);
-				} else {
-					return accessibleViewHint + nls.localize('resourceWithCommentWithRepliesLabel',
-						"${0} at line {1} column {2} in {3}, comment: {4}. {5} replies:\n{6}",
-						element.comment.userName,
-						element.range.startLineNumber,
-						element.range.startColumn,
-						basename(element.resource),
-						(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
-						element.replies.length,
-						element.replies.map(reply => nls.localize('resourceWithRepliesLabel',
-							"${0} {1}",
-							reply.comment.userName,
-							(typeof reply.comment.body === 'string') ? reply.comment.body : reply.comment.body.value)
-						).join('\n'));
-				}
+				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
+					"${0} at line {1} column {2} in {3}, comment: {4}",
+					element.comment.userName,
+					element.range.startLineNumber,
+					element.range.startColumn,
+					basename(element.resource),
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+				) + replies;
 			}
 		} else {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
@@ -366,16 +351,27 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					element.comment.userName,
 					basename(element.resource),
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				);
+				) + replies;
 			} else {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFile',
 					"{0} in {1}, comment: {2}",
 					element.comment.userName,
 					basename(element.resource),
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				);
+				) + replies;
 			}
 		}
+	}
+
+	private getRepliesAsString(node: CommentNode, type: 'ariaLabel' | 'accessibleViewContent'): string {
+		if (!node.replies.length || type === 'ariaLabel') {
+			return '';
+		}
+		return nls.localize('replies', "{0} replies:\n{1}", node.replies.length, node.replies.map(reply => nls.localize('resourceWithRepliesLabel',
+			"${0} {1}",
+			reply.comment.userName,
+			(typeof reply.comment.body === 'string') ? reply.comment.body : reply.comment.body.value)
+		).join('\n'));
 	}
 
 	private createTree(): void {
