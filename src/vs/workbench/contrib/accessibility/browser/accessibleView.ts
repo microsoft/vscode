@@ -51,7 +51,47 @@ const enum DIMENSIONS {
 	MAX_WIDTH = 600
 }
 
-type AccessibleViewContentProvider = IAccessibleContentProvider | IAccessibleExtensionContentProvider;
+type AccessibleViewContentProvider = AccessibleContentProvider | AccessibleExtensionContentProvider;
+
+export class AccessibleContentProvider implements IAccessibleContentProvider {
+	static is(obj: any): obj is IAccessibleContentProvider {
+		if (!obj) {
+			return false;
+		}
+		return obj instanceof AccessibleContentProvider;
+	}
+
+	constructor(
+		public id: AccessibleViewProviderId,
+		public options: IAccessibleViewOptions,
+		public provideContent: () => string,
+		public onClose: () => void,
+		public verbositySettingKey: AccessibilityVerbositySettingId,
+		public actions?: IAction[],
+		public next?: () => void,
+		public previous?: () => void,
+		public onKeyDown?: (e: IKeyboardEvent) => void,
+		public onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>,
+	) { }
+}
+
+export class AccessibleExtensionContentProvider implements IAccessibleExtensionContentProvider {
+
+	static is(obj: any): obj is IAccessibleExtensionContentProvider {
+		if (!obj) {
+			return false;
+		}
+		return obj instanceof AccessibleExtensionContentProvider;
+	}
+
+	constructor(
+		public readonly id: string,
+		public options: IAccessibleViewOptions,
+		public provideContent: () => string,
+		public onClose: () => void,
+	) { }
+
+}
 
 export interface IAccessibleExtensionContentProvider {
 	id: string;
@@ -241,12 +281,12 @@ export class AccessibleView extends Disposable {
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (this._currentProvider && 'verbositySettingKey' in this._currentProvider && e.affectsConfiguration(this._currentProvider.verbositySettingKey)) {
+			if (AccessibleContentProvider.is(this._currentProvider) && e.affectsConfiguration(this._currentProvider.verbositySettingKey)) {
 				if (this._accessiblityHelpIsShown.get()) {
 					this.show(this._currentProvider);
 				}
 				this._accessibleViewVerbosityEnabled.set(this._configurationService.getValue(this._currentProvider.verbositySettingKey));
-				this._updateToolbar('actions' in this._currentProvider ? this._currentProvider.actions : undefined, this._currentProvider.options.type);
+				this._updateToolbar(this._currentProvider.actions, this._currentProvider.options.type);
 			}
 			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.HideAccessibleView)) {
 				this._container.classList.toggle('hide', this._configurationService.getValue(AccessibilityWorkbenchSettingId.HideAccessibleView));
@@ -340,7 +380,7 @@ export class AccessibleView extends Disposable {
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
 		}
-		if ('onDidRequestClearLastProvider' in provider && typeof provider.onDidRequestClearLastProvider === 'function') {
+		if (AccessibleContentProvider.is(provider) && provider.onDidRequestClearLastProvider) {
 			this._register(provider.onDidRequestClearLastProvider((id: string) => {
 				if (this._lastProvider?.options.id === id) {
 					this._lastProvider = undefined;
@@ -354,30 +394,28 @@ export class AccessibleView extends Disposable {
 		if (provider.id === AccessibleViewProviderId.Chat) {
 			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
 		}
-		if (!('verbositySettingsKey' in provider)) {
+		if (AccessibleExtensionContentProvider.is(provider)) {
 			this._storageService.store(`ACCESSIBLE_VIEW_SHOWN_${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
 
 	previous(): void {
-		if (!this._currentProvider || !('previous' in this._currentProvider)) {
-			return;
+		if (AccessibleContentProvider.is(this._currentProvider)) {
+			this._currentProvider.previous?.();
 		}
-		this._currentProvider.previous?.();
 	}
 
 	next(): void {
-		if (!this._currentProvider || !('next' in this._currentProvider)) {
-			return;
+		if (AccessibleContentProvider.is(this._currentProvider)) {
+			this._currentProvider.next?.();
 		}
-		this._currentProvider.next?.();
 	}
 
 	private _verbosityEnabled(): boolean {
 		if (!this._currentProvider) {
 			return false;
 		}
-		return 'verbositySettingKey' in this._currentProvider ? this._configurationService.getValue(this._currentProvider.verbositySettingKey) === true : this._storageService.getBoolean(`ACCESSIBLE_VIEW_SHOWN_${this._currentProvider.id}`, StorageScope.APPLICATION, false);
+		return AccessibleContentProvider.is(this._currentProvider) ? this._configurationService.getValue(this._currentProvider.verbositySettingKey) === true : this._storageService.getBoolean(`ACCESSIBLE_VIEW_SHOWN_${this._currentProvider.id}`, StorageScope.APPLICATION, false);
 	}
 
 	goToSymbol(): void {
@@ -417,7 +455,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	getSymbols(): IAccessibleViewSymbol[] | undefined {
-		if (!this._currentProvider || !this._currentContent || !('getSymbols' in this._currentProvider)) {
+		if (!this._currentContent || !AccessibleContentProvider.is(this._currentProvider)) {
 			return;
 		}
 		const symbols: IAccessibleViewSymbol[] = this._currentProvider.getSymbols?.() || [];
@@ -492,7 +530,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	disableHint(): void {
-		if (!this._currentProvider || !('verbositySettingKey' in this._currentProvider)) {
+		if (!AccessibleContentProvider.is(this._currentProvider)) {
 			return;
 		}
 		this._configurationService.updateValue(this._currentProvider?.verbositySettingKey, false);
@@ -507,8 +545,8 @@ export class AccessibleView extends Disposable {
 			this._accessibleViewIsShown.set(shown);
 			this._accessiblityHelpIsShown.reset();
 		}
-		if ('next' in provider && 'previous' in provider && provider.next && provider.previous) {
-			this._accessibleViewSupportsNavigation.set(true);
+		if (AccessibleContentProvider.is(this._currentProvider)) {
+			this._accessibleViewSupportsNavigation.set(this._currentProvider.next !== undefined || this._currentProvider.previous !== undefined);
 		} else {
 			this._accessibleViewSupportsNavigation.reset();
 		}
@@ -522,7 +560,7 @@ export class AccessibleView extends Disposable {
 		const verbose = this._verbosityEnabled();
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
 		let disableHelpHint = '';
-		if (provider.options.type === AccessibleViewType.Help && verbose && 'verbositySettingKey' in provider) {
+		if (AccessibleContentProvider.is(provider) && provider.options.type === AccessibleViewType.Help && verbose) {
 			disableHelpHint = this._getDisableVerbosityHint(provider.verbositySettingKey);
 		}
 		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
@@ -533,7 +571,7 @@ export class AccessibleView extends Disposable {
 					? AccessibilityHelpNLS.changeConfigToOnMac
 					: AccessibilityHelpNLS.changeConfigToOnWinLinux
 			);
-			if (accessibilitySupport && 'verbositySettingId' in provider && provider.verbositySettingId === AccessibilityVerbositySettingId.Editor) {
+			if (accessibilitySupport && AccessibleContentProvider.is(provider) && provider.verbositySettingKey === AccessibilityVerbositySettingId.Editor) {
 				message = AccessibilityHelpNLS.auto_on;
 				message += '\n';
 			} else if (!accessibilitySupport) {
@@ -559,7 +597,7 @@ export class AccessibleView extends Disposable {
 			model.setLanguage(provider.options.language ?? 'markdown');
 			container.appendChild(this._container);
 			let actionsHint = '';
-			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || (this._currentProvider && 'actions' in this._currentProvider && this._currentProvider?.actions);
+			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || (AccessibleContentProvider.is(this._currentProvider) && this._currentProvider.actions);
 			if (verbose && !showAccessibleViewHelp && hasActions) {
 				actionsHint = provider.options.position ? localize('ariaAccessibleViewActionsBottom', 'Explore actions such as disabling this hint (Shift+Tab), use Escape to exit this dialog.') : localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
 			}
@@ -590,7 +628,7 @@ export class AccessibleView extends Disposable {
 				}
 			}
 		});
-		this._updateToolbar('actions' in provider ? provider.actions : undefined, provider.options.type);
+		this._updateToolbar(AccessibleContentProvider.is(this._currentProvider) ? this._currentProvider.actions : undefined, provider.options.type);
 
 		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
 			provider.onClose();
@@ -613,7 +651,7 @@ export class AccessibleView extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 			}
-			if ('onKeyDown' in provider) {
+			if (AccessibleContentProvider.is(provider)) {
 				provider.onKeyDown?.(e);
 			}
 		}));
@@ -669,18 +707,19 @@ export class AccessibleView extends Disposable {
 		if (!this._currentProvider) {
 			return false;
 		}
-		return this._currentProvider.options.type === AccessibleViewType.Help || this._currentProvider.options.language === 'markdown' || this._currentProvider.options.language === undefined || ('getSymbols' in this._currentProvider && !!this._currentProvider.getSymbols?.());
+		return this._currentProvider.options.type === AccessibleViewType.Help || this._currentProvider.options.language === 'markdown' || this._currentProvider.options.language === undefined || (AccessibleContentProvider.is(this._currentProvider) && !!this._currentProvider.getSymbols?.());
 	}
 
 	private _updateLastProvider(): AccessibleViewContentProvider | undefined {
-		if (!this._currentProvider) {
+		const provider = this._currentProvider;
+		if (!provider) {
 			return;
 		}
-		const lastProvider = Object.assign({}, this._currentProvider);
-		lastProvider.provideContent = this._currentProvider.provideContent.bind(lastProvider);
-		lastProvider.options = Object.assign({}, this._currentProvider.options);
-		if ('verbositySettingKey' in this._currentProvider) {
-			(lastProvider as IAccessibleContentProvider).verbositySettingKey = this._currentProvider.verbositySettingKey;
+		const lastProvider = Object.assign({}, provider);
+		lastProvider.provideContent = provider.provideContent.bind(lastProvider);
+		lastProvider.options = Object.assign({}, provider.options);
+		if (AccessibleContentProvider.is(provider)) {
+			(lastProvider as AccessibleContentProvider).verbositySettingKey = provider.verbositySettingKey;
 		}
 		return lastProvider;
 	}
@@ -700,11 +739,11 @@ export class AccessibleView extends Disposable {
 				queueMicrotask(() => this.show(lastProvider));
 			},
 			options: { type: AccessibleViewType.Help },
-			verbositySettingKey: 'verbositySettingKey' in lastProvider ? lastProvider.verbositySettingKey : undefined
+			verbositySettingKey: AccessibleContentProvider.is(lastProvider) ? lastProvider.verbositySettingKey : undefined
 		};
 		this._contextViewService.hideContextView();
 		// HACK: Delay to allow the context view to hide #186514
-		queueMicrotask(() => this.show(accessibleViewHelpProvider as AccessibleViewContentProvider, undefined, true));
+		queueMicrotask(() => this.show(accessibleViewHelpProvider, undefined, true));
 	}
 
 	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
@@ -768,7 +807,7 @@ export class AccessibleView extends Disposable {
 		}
 		return hint;
 	}
-	private _getDisableVerbosityHint(verbositySettingKey: AccessibilityVerbositySettingId | 'extension'): string {
+	private _getDisableVerbosityHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
 		if (!this._configurationService.getValue(verbositySettingKey)) {
 			return '';
 		}
