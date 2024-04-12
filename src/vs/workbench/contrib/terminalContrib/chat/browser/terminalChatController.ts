@@ -364,7 +364,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
-			request.message.text,
+			// DEBT: Add hardcoded agent name until its removed
+			`@${this._terminalAgentName} ${request.message.text}`,
 			request.variableData,
 			request.attempt,
 			{
