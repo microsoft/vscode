@@ -1199,6 +1199,8 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 
 	$prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined>;
 	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
+
+	$countTokens(provider: string, value: string, token: CancellationToken): Promise<number>;
 }
 
 export interface ExtHostLanguageModelsShape {
@@ -1206,6 +1208,7 @@ export interface ExtHostLanguageModelsShape {
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+	$provideTokenLength(handle: number, value: string, token: CancellationToken): Promise<number>;
 }
 
 export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {

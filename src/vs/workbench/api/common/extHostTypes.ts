@@ -4276,6 +4276,29 @@ export class ChatResponseMarkdownPart {
 	}
 }
 
+/**
+ * TODO if 'vulnerabilities' is finalized, this should be merged with the base ChatResponseMarkdownPart. I just don't see how to do that while keeping
+ * vulnerabilities in a seperate API proposal in a clean way.
+ */
+export class ChatResponseMarkdownWithVulnerabilitiesPart {
+	value: vscode.MarkdownString;
+	vulnerabilities: vscode.ChatVulnerability[];
+	constructor(value: string | vscode.MarkdownString, vulnerabilities: vscode.ChatVulnerability[]) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+		this.vulnerabilities = vulnerabilities;
+	}
+}
+
+export class ChatResponseDetectedParticipantPart {
+	participant: string;
+	// TODO@API validate this against statically-declared slash commands?
+	command?: vscode.ChatCommand;
+	constructor(participant: string, command?: vscode.ChatCommand) {
+		this.participant = participant;
+		this.command = command;
+	}
+}
+
 export class ChatResponseFileTreePart {
 	value: vscode.ChatResponseFileTree[];
 	baseUri: vscode.Uri;
