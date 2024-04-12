@@ -83,7 +83,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (!focused) {
 			return;
 		}
-		return this.getScreenReaderInfoForNode(focused);
+		return this.getScreenReaderInfoForNode(focused, 'accessibleViewContent');
 	}
 
 	focusNextNode(): void {
@@ -317,9 +317,9 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.messageBoxContainer.classList.toggle('hidden', this.commentService.commentsModel.hasCommentThreads());
 	}
 
-	private getScreenReaderInfoForNode(element: CommentNode, asAriaLabel?: boolean) {
+	private getScreenReaderInfoForNode(element: CommentNode, type: 'ariaLabel' | 'accessibleViewContent') {
 		let accessibleViewHint = '';
-		if (asAriaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.Comments)) {
+		if (type === 'ariaLabel' && this.configurationService.getValue(AccessibilityVerbositySettingId.Comments)) {
 			const kbLabel = this.keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
 			accessibleViewHint = kbLabel ? nls.localize('acessibleViewHint', "Inspect this in the accessible view ({0}).\n", kbLabel) : nls.localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.\n");
 		}
@@ -334,14 +334,30 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
 				);
 			} else {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
-					"${0} at line {1} column {2} in {3}, comment: {4}",
-					element.comment.userName,
-					element.range.startLineNumber,
-					element.range.startColumn,
-					basename(element.resource),
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				);
+				if (type === 'ariaLabel' || !element.replies?.length) {
+					return accessibleViewHint + nls.localize('resourceWithCommentLabel',
+						"${0} at line {1} column {2} in {3}, comment: {4}. replies: {5}",
+						element.comment.userName,
+						element.range.startLineNumber,
+						element.range.startColumn,
+						basename(element.resource),
+						(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+					);
+				} else {
+					return accessibleViewHint + nls.localize('resourceWithCommentWithRepliesLabel',
+						"${0} at line {1} column {2} in {3}, comment: {4}. {5} replies:\n{6}",
+						element.comment.userName,
+						element.range.startLineNumber,
+						element.range.startColumn,
+						basename(element.resource),
+						(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+						element.replies.length,
+						element.replies.map(reply => nls.localize('resourceWithRepliesLabel',
+							"${0} {1}",
+							reply.comment.userName,
+							(typeof reply.comment.body === 'string') ? reply.comment.body : reply.comment.body.value)
+						).join('\n'));
+				}
 			}
 		} else {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
@@ -382,7 +398,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 						return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
 					}
 					if (element instanceof CommentNode) {
-						return this.getScreenReaderInfoForNode(element, true);
+						return this.getScreenReaderInfoForNode(element, 'ariaLabel');
 					}
 					return '';
 				},
