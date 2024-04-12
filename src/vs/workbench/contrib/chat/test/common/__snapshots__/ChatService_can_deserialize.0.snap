@@ -62,7 +62,8 @@
         metadata: {  },
         slashCommands: [  ],
         locations: [ "panel" ],
-        isDefault: undefined
+        isDefault: undefined,
+        extensionPublisher: ""
       },
       slashCommand: undefined,
       usedContext: {

@@ -15,7 +15,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import * as strings from 'vs/base/common/strings';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
@@ -38,6 +37,7 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { CommentsPanel, CONTEXT_KEY_HAS_COMMENTS } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);

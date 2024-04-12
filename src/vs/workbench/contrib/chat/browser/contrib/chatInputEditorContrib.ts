@@ -138,7 +138,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder ?? defaultAgent?.description ?? '',
+							contentText: viewModel.inputPlaceholder || (defaultAgent?.description ?? ''),
 							color: this.getPlaceholderColor()
 						}
 					}
@@ -213,8 +213,8 @@ class InputEditorDecorations extends Disposable {
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
 			const isDupe = !!this.chatAgentService.getAgents().find(other => other.name === agentPart.agent.name && other.id !== agentPart.agent.id);
-			const id = isDupe ? `(${agentPart.agent.id}) ` : '';
-			const agentHover = `${id}${agentPart.agent.description}`;
+			const publisher = isDupe ? `(${agentPart.agent.extensionPublisher}) ` : '';
+			const agentHover = `${publisher}${agentPart.agent.description}`;
 			textDecorations.push({ range: agentPart.editorRange, hoverMessage: new MarkdownString(agentHover) });
 			if (agentSubcommandPart) {
 				textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });
@@ -361,7 +361,7 @@ class AgentCompletions extends Disposable {
 						return <CompletionItem>{
 							// Leading space is important because detail has no space at the start by design
 							label: isDupe ?
-								{ label: withAt, description: a.description, detail: ` (${a.id})` } :
+								{ label: withAt, description: a.description, detail: ` (${a.extensionPublisher})` } :
 								withAt,
 							insertText: `${withAt} `,
 							detail: a.description,
@@ -452,7 +452,7 @@ class AgentCompletions extends Disposable {
 
 						return {
 							label: isDupe ?
-								{ label: agentLabel, description: agent.description, detail: ` (${agent.id})` } :
+								{ label: agentLabel, description: agent.description, detail: ` (${agent.extensionPublisher})` } :
 								agentLabel,
 							detail,
 							filterText: `${chatSubcommandLeader}${agent.name}`,

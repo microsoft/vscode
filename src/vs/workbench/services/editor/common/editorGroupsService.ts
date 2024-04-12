@@ -116,6 +116,7 @@ export type ICloseEditorsFilter = {
 
 export interface ICloseAllEditorsOptions {
 	readonly excludeSticky?: boolean;
+	readonly excludeConfirming?: boolean;
 }
 
 export interface IEditorReplacement {
@@ -393,13 +394,17 @@ export interface IEditorGroupsContainer {
 	 * will be moved over to the target and the source group will close. Configure to
 	 * `MOVE_EDITORS_KEEP_GROUP` to prevent the source group from closing. Set to
 	 * `COPY_EDITORS` to copy the editors into the target instead of moding them.
+	 *
+	 * @returns if merging was successful
 	 */
-	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
+	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	/**
 	 * Merge all editor groups into the target one.
+	 *
+	 * @returns if merging was successful
 	 */
-	mergeAllGroups(target: IEditorGroup | GroupIdentifier): IEditorGroup;
+	mergeAllGroups(target: IEditorGroup | GroupIdentifier): boolean;
 
 	/**
 	 * Copy a group to a new group in the container.
@@ -469,14 +474,21 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	/**
 	 * Close this auxiliary editor part after moving all
 	 * editors of all groups back to the main editor part.
+	 *
+	 * @returns `false` if an editor could not be moved back.
 	 */
-	close(): void;
+	close(): boolean;
 }
 
 export interface IAuxiliaryEditorPartCreateEvent {
 	readonly part: IAuxiliaryEditorPart;
 	readonly instantiationService: IInstantiationService;
 	readonly disposables: DisposableStore;
+}
+
+export interface IEditorWorkingSet {
+	readonly id: string;
+	readonly name: string;
 }
 
 /**
@@ -526,6 +538,29 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
+
+	/**
+	 * Save a new editor working set from the currently opened
+	 * editors and group layout.
+	 */
+	saveWorkingSet(name: string): IEditorWorkingSet;
+
+	/**
+	 * Returns all known editor working sets.
+	 */
+	getWorkingSets(): IEditorWorkingSet[];
+
+	/**
+	 * Applies the working set. Use `empty` to apply an empty working set.
+	 *
+	 * @returns `true` when the working set as applied.
+	 */
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean>;
+
+	/**
+	 * Deletes a working set.
+	 */
+	deleteWorkingSet(workingSet: IEditorWorkingSet): void;
 }
 
 export const enum OpenEditorContext {

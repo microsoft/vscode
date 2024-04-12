@@ -621,7 +621,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.requestInProgress.set(this.viewModel.requestInProgress);
 
 			this.onDidChangeItems();
-			if (events.some(e => e?.kind === 'addRequest')) {
+			if (events.some(e => e?.kind === 'addRequest') && this.visible) {
 				revealLastElement(this.tree);
 				this.focusInput();
 			}

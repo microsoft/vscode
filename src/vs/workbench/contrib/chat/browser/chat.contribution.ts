@@ -257,9 +257,9 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				if (isMarkdownString(defaultAgent.metadata.helpTextPrefix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'markdownContent' });
 				} else {
-					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'content' });
+					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextPrefix), kind: 'markdownContent' });
 				}
-				progress.report({ content: '\n\n', kind: 'content' });
+				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
 			}
 
 			// Report agent list
@@ -282,26 +282,30 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 			// Report variables
 			if (defaultAgent?.metadata.helpTextVariablesPrefix) {
-				progress.report({ content: '\n\n', kind: 'content' });
+				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
 				if (isMarkdownString(defaultAgent.metadata.helpTextVariablesPrefix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'markdownContent' });
 				} else {
-					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'content' });
+					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextVariablesPrefix), kind: 'markdownContent' });
 				}
 
-				const variableText = Array.from(chatVariablesService.getVariables())
+				const variables = [
+					...chatVariablesService.getVariables(),
+					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
+				];
+				const variableText = variables
 					.map(v => `* \`${chatVariableLeader}${v.name}\` - ${v.description}`)
 					.join('\n');
-				progress.report({ content: '\n' + variableText, kind: 'content' });
+				progress.report({ content: new MarkdownString('\n' + variableText), kind: 'markdownContent' });
 			}
 
 			// Report help text ending
 			if (defaultAgent?.metadata.helpTextPostfix) {
-				progress.report({ content: '\n\n', kind: 'content' });
+				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
 				if (isMarkdownString(defaultAgent.metadata.helpTextPostfix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextPostfix, kind: 'markdownContent' });
 				} else {
-					progress.report({ content: defaultAgent.metadata.helpTextPostfix, kind: 'content' });
+					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextPostfix), kind: 'markdownContent' });
 				}
 			}
 		}));

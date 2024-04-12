@@ -49,7 +49,7 @@ export class FoldedCellHint extends CellContentPart {
 			const idx = this._notebookEditor.getViewModel().getCellIndex(element);
 			const length = this._notebookEditor.getViewModel().getFoldedLength(idx);
 
-			DOM.reset(this._container, this.getRunFoldedSectionButton({ start: idx, end: idx + length }), this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
+			DOM.reset(this._container, this.getRunFoldedSectionButton({ start: idx, end: idx + length + 1 }), this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
 			DOM.show(this._container);
 
 			const foldHintTop = element.layoutInfo.previewHeight;

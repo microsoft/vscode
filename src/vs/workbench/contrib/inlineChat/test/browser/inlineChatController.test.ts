@@ -8,7 +8,6 @@ import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -181,6 +180,7 @@ suite('InteractiveChatController', function () {
 
 		store.add(chatAgentService.registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
+			extensionPublisher: '',
 			id: 'testAgent',
 			name: 'testAgent',
 			isDefault: true,
@@ -560,7 +560,6 @@ suite('InteractiveChatController', function () {
 		assert.strictEqual(requests.length, 2);
 
 		assert.strictEqual(requests[0].previewDocument.toString(), model.uri.toString()); // live
-		assert.strictEqual(requests[1].previewDocument.scheme, Schemas.vscode); // preview
-		assert.strictEqual(requests[1].previewDocument.authority, 'inline-chat');
+		assert.strictEqual(requests[1].previewDocument.toString(), model.uri.toString()); // preview (both use the same but edits aren't applied like that)
 	});
 });
