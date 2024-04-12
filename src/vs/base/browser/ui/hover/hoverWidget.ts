@@ -88,7 +88,6 @@ export function getHoverAccessibleViewHint(shouldHaveHint?: boolean, keybinding?
 }
 
 export class ClickAction extends Disposable {
-
 	constructor(container: HTMLElement, run: (container: HTMLElement) => void) {
 		super();
 		this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => {
@@ -100,7 +99,6 @@ export class ClickAction extends Disposable {
 }
 
 export class KeyDownAction extends Disposable {
-
 	constructor(container: HTMLElement, run: (container: HTMLElement) => void, keyCodes: KeyCode[]) {
 		super();
 		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, e => {

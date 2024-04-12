@@ -1618,9 +1618,16 @@ export interface MainThreadTimelineShape extends IDisposable {
 	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
 }
 
-export interface HoverWithId extends languages.DisposableHover {
+export interface HoverWithId extends languages.Hover {
 	/**
-	 * An id for the hover
+	 * Id of the hover
+	 */
+	id: number;
+}
+
+export interface DisposableHoverWithId extends languages.DisposableHover {
+	/**
+	 * Id of the hover
 	 */
 	id: number;
 }

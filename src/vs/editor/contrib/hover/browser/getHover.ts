@@ -21,8 +21,7 @@ export class HoverProviderResult<THover = Hover> {
 	) { }
 
 	convertDisposableHoverToHover(this: HoverProviderResult<DisposableHover>): HoverProviderResult<Hover> {
-		const res = new HoverProviderResult(this.provider, convertDisposableHoverToHover(this.hover), this.ordinal);
-		return res;
+		return new HoverProviderResult(this.provider, convertDisposableHoverToHover(this.hover), this.ordinal);
 	}
 }
 
@@ -42,13 +41,7 @@ export async function createHoverProviderResultsPromise(registry: LanguageFeatur
 	const providers = registry.ordered(model);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
 	const hoverProviderResults = await Promises.settled(promises);
-	const convertedHoverResult: HoverProviderResult<DisposableHover>[] = [];
-	hoverProviderResults.forEach(item => {
-		if (item) {
-			convertedHoverResult.push(item);
-		}
-	});
-	return convertedHoverResult;
+	return hoverProviderResults.filter(result => !!result);
 }
 
 export async function getHoverProviderResultsPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult<Hover>[]> {
@@ -61,7 +54,7 @@ export async function getHoversPromise(registry: LanguageFeatureRegistry<HoverPr
 	return hoverProviderResults.map(item => item.hover);
 }
 
-registerModelAndPositionCommand('_executeHoverProvider', async (accessor, model, position) => {
+registerModelAndPositionCommand('_executeHoverProvider', async (accessor, model, position): Promise<Hover[]> => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	return getHoversPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
 });

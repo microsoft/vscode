@@ -275,27 +275,29 @@ class HoverAdapter {
 			if (!previousHover) {
 				throw new Error(`Hover with id ${previousHoverId} not found`);
 			}
-			value = await this._provider.provideHover(doc, pos, token, { action: context.action, previousHover });
+			const hoverContext: vscode.HoverContext = { action: context.action, previousHover };
+			value = await this._provider.provideHover(doc, pos, token, hoverContext);
 		} else {
 			value = await this._provider.provideHover(doc, pos, token);
 		}
-
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
-		const id = this._hoverCounter;
-		this._hoverMap.set(id, value);
 		if (!value.range) {
 			value.range = doc.getWordRangeAtPosition(pos);
 		}
 		if (!value.range) {
 			value.range = new Range(pos, pos);
 		}
+		const disposableHover: languages.Hover = typeConvert.Hover.from(value);
+		const id = this._hoverCounter;
+		this._hoverMap.set(id, value);
 		this._hoverCounter += 1;
-		return {
-			...typeConvert.Hover.from(value),
+		const hover: extHostProtocol.HoverWithId = {
+			...disposableHover,
 			id
 		};
+		return hover;
 	}
 
 	releaseHover(id: number): void {

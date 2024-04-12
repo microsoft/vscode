@@ -33,6 +33,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { createHoverProviderResultsPromise } from 'vs/editor/contrib/hover/browser/getHover';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { DecreaseHoverVerbosityLevel, IncreaseHoverVerbosityLevel } from 'vs/editor/contrib/hover/browser/hoverActions';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -63,6 +64,7 @@ export class MarkdownHover implements IHoverPart {
 }
 
 class HoverSource {
+
 	constructor(
 		readonly hover: DisposableHover,
 		readonly hoverProvider: HoverProvider,
@@ -311,12 +313,12 @@ class RenderedHoverParts extends Disposable {
 		const actionElement = dom.append(container, $(ThemeIcon.asCSSSelector(isActionIncrease ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
 		actionElement.tabIndex = 0;
 		if (isActionIncrease) {
-			const kb = this._keybindingService.lookupKeybinding('editor.action.increaseHoverVerbosityLevel');
+			const kb = this._keybindingService.lookupKeybinding(IncreaseHoverVerbosityLevel.ID);
 			store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), actionElement, kb ?
 				nls.localize('increaseVerbosityWithKb', "Increase Verbosity ({0})", kb.getLabel()) :
 				nls.localize('increaseVerbosity', "Increase Verbosity")));
 		} else {
-			const kb = this._keybindingService.lookupKeybinding('editor.action.decreaseHoverVerbosityLevel');
+			const kb = this._keybindingService.lookupKeybinding(DecreaseHoverVerbosityLevel.ID);
 			store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), actionElement, kb ?
 				nls.localize('decreaseVerbosityWithKb', "Decrease Verbosity ({0})", kb.getLabel()) :
 				nls.localize('decreaseVerbosity', "Decrease Verbosity")));
