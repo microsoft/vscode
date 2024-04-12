@@ -157,10 +157,6 @@ export class CancelAction extends Action2 {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,
 				group: 'navigation',
-			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.Escape,
 			}
 		});
 	}
