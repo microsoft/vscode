@@ -13,9 +13,9 @@ import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/go
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 
 enum HoverFocusBehavior {
 	NoAutoFocus = 'noAutoFocus',
