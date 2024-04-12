@@ -24,7 +24,6 @@ import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService 
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
@@ -50,6 +49,7 @@ import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { TextEdit } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 
 const $ = dom.$;
 
