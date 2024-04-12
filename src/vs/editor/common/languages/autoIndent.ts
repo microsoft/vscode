@@ -160,7 +160,6 @@ export function getInheritIndentForLine(
 	}
 
 	const precedingUnIgnoredLineContent = getStrippedLine(languageConfigurationService, model, precedingUnIgnoredLine);
-
 	if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
 		return {
 			indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
@@ -218,9 +217,7 @@ export function getInheritIndentForLine(
 		} else {
 			// search from precedingUnIgnoredLine until we find one whose indent is not temporary
 			for (let i = precedingUnIgnoredLine; i > 0; i--) {
-				// let lineContent = model.getLineContent(i);
 				const lineContent = getStrippedLine(languageConfigurationService, model, i);
-
 				if (indentRulesSupport.shouldIncrease(lineContent)) {
 					return {
 						indentation: strings.getLeadingWhitespace(lineContent),
@@ -287,7 +284,6 @@ export function getGoodIndentForLine(
 	}
 
 	const indent = getInheritIndentForLine(autoIndent, virtualModel, lineNumber, undefined, languageConfigurationService);
-	// const lineContent = virtualModel.getLineContent(lineNumber);
 	const lineContent = getStrippedLine(languageConfigurationService, virtualModel, lineNumber);
 
 	if (indent) {
