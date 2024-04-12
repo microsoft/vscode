@@ -27,8 +27,9 @@
 }
 
 .monaco-editor .monaco-hover .hover-row .hover-row-contents {
-	display: grid;
-	place-content: center;
+	min-width:0;
+	display: flex;
+	flex-direction: column;
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions {
