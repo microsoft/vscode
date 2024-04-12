@@ -313,7 +313,7 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 		accessibleViewService.show(new ExtensionContentProvider(
 			viewDescriptor.id,
 			{ type: AccessibleViewType.Help },
-			() => helpContent,
+			() => helpContent.value,
 			() => viewsService.openView(viewDescriptor.id)
 		));
 		return true;
@@ -325,18 +325,19 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 	return disposableStore;
 }
 
-function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: string): string | undefined {
+function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: MarkdownString): MarkdownString | undefined {
 	if (!content) {
 		return;
 	}
-	const matches = content.matchAll(/\(kb\(command:(?<commandId>.*)\)\)/gm);
+	let resolvedContent = content.value;
+	const matches = resolvedContent.matchAll(/\(kb\(command:(?<commandId>.*)\)\)/gm);
 	for (const match of [...matches]) {
 		const commandId = match?.groups?.commandId;
 		if (match?.length && commandId) {
 			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
 			const kbLabel = keybinding ? ' (' + keybinding + ')' : ', which is not currently bound to a keybinding.';
-			content = content.replace(match[0], kbLabel);
+			resolvedContent = resolvedContent.replace(match[0], kbLabel);
 		}
 	}
-	return new MarkdownString(content).value;
+	return new MarkdownString(resolvedContent);
 }
