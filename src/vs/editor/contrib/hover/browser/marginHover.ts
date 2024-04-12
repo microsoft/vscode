@@ -15,6 +15,7 @@ import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contri
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GlyphMarginLane } from 'vs/editor/common/model';
+import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
 const $ = dom.$;
 
@@ -24,7 +25,7 @@ export interface IHoverMessage {
 
 type LaneOrLineNumber = GlyphMarginLane | 'lineNo';
 
-export class MarginHoverWidget extends Disposable implements IOverlayWidget {
+export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHoverWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
 

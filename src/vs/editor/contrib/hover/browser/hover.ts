@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverParticipantRegistry, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
@@ -286,9 +286,23 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent, hoverWidgetType: HoverWidgetType): boolean {
-		const isContentWidget = hoverWidgetType === HoverWidgetType.Content;
-		const currentWidget = isContentWidget ? this._getOrCreateContentWidget() : this._getOrCreateGlyphWidget();
-		const otherWidget = isContentWidget ? this._getOrCreateGlyphWidget() : this._getOrCreateContentWidget();
+		const contentWidget: IHoverWidget = this._getOrCreateContentWidget();
+		const glyphWidget: IHoverWidget = this._getOrCreateGlyphWidget();
+		let currentWidget: IHoverWidget;
+		let otherWidget: IHoverWidget;
+		switch (hoverWidgetType) {
+			case HoverWidgetType.Content:
+				currentWidget = contentWidget;
+				otherWidget = glyphWidget;
+				break;
+			case HoverWidgetType.Glyph:
+				currentWidget = glyphWidget;
+				otherWidget = contentWidget;
+				break;
+			default:
+				throw new Error(`HoverWidgetType ${hoverWidgetType} is unrecognized`)
+		}
+
 		const showsOrWillShow = currentWidget.showsOrWillShow(mouseEvent);
 		if (showsOrWillShow) {
 			otherWidget.hide();
