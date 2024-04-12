@@ -140,23 +140,40 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 
 		this._hoverState.mouseDown = true;
-		const target = mouseEvent.target;
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
-			// mouse down on top of content hover widget
-			return;
-		}
-
-		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
-			// mouse down on top of margin hover widget
-			return;
-		}
-
-		if (this._contentWidget?.widget.isResizing) {
+		const shouldNotHideCurrentHoverWidget = this._shouldNotHideCurrentHoverWidget(mouseEvent);
+		if (shouldNotHideCurrentHoverWidget) {
 			return;
 		}
 
 		this._hideWidgets();
+	}
+
+	private _shouldNotHideCurrentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
+		if (
+			this._isMouseOnContentHoverWidget(mouseEvent)
+			|| this._isMouseOnMarginHoverWidget(mouseEvent)
+			|| this._isContentWidgetResizing()
+		) {
+			return true;
+		}
+		return false;
+	}
+
+	private _isMouseOnMarginHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
+		const target = mouseEvent.target;
+		if (!target) {
+			return false;
+		}
+		return target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID;
+	}
+
+	private _isMouseOnContentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
+		const target = mouseEvent.target;
+		if (!target) {
+			return false;
+		}
+		return target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID;
 	}
 
 	private _onEditorMouseUp(): void {
@@ -166,11 +183,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
 
 		this._cancelScheduler();
-		const targetElement = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
 
-		if (this._contentWidget?.widget.isResizing || this._contentWidget?.containsNode(targetElement)) {
-			// When the content widget is resizing
-			// When the mouse is inside hover widget
+		const shouldNotHideCurrentHoverWidget = this._shouldNotHideCurrentHoverWidget(mouseEvent);
+		if (shouldNotHideCurrentHoverWidget) {
 			return;
 		}
 		if (_sticky) {
@@ -179,21 +194,22 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hideWidgets();
 	}
 
-	private _isMouseOverHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
+	private _shouldNotRecomputeCurrentHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
 
-		const sticky = this._hoverSettings.sticky;
+		const isHoverSticky = this._hoverSettings.sticky;
 
-		const isMouseOnMarginHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
-			const target = mouseEvent.target;
-			return sticky
-				&& target.type === MouseTargetType.OVERLAY_WIDGET
-				&& target.detail === MarginHoverWidget.ID;
+		const isMouseOnStickyMarginHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
+			const isMouseOnMarginHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
+			return isHoverSticky && isMouseOnMarginHoverWidget;
 		}
-		const isMouseOnContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
-			const target = mouseEvent.target;
-			const isMouseOnContentHoverWidget = target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID;
+		const isMouseOnStickyContentHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
+			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
+			return isHoverSticky && isMouseOnContentHoverWidget;
+		}
+		const isMouseOnColorPicker = (mouseEvent: IEditorMouseEvent) => {
+			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			const isColorPickerVisible = this._contentWidget?.isColorPickerVisible;
-			return isMouseOnContentHoverWidget && (sticky || isColorPickerVisible);
+			return isMouseOnContentHoverWidget && isColorPickerVisible;
 		}
 		// TODO@aiday-mar verify if the following is necessary code
 		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
@@ -203,9 +219,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 
 		if (
-			isMouseOnMarginHoverWidget(mouseEvent, sticky)
-			|| isMouseOnContentHoverWidget(mouseEvent, sticky)
-			|| isTextSelectedWithinContentHoverWidget(mouseEvent, sticky)
+			isMouseOnStickyMarginHoverWidget(mouseEvent, isHoverSticky)
+			|| isMouseOnStickyContentHoverWidget(mouseEvent, isHoverSticky)
+			|| isMouseOnColorPicker(mouseEvent)
+			|| isTextSelectedWithinContentHoverWidget(mouseEvent, isHoverSticky)
 		) {
 			return true;
 		}
@@ -225,17 +242,19 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		const mouseIsOverWidget = this._isMouseOverHoverWidget(mouseEvent);
-		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
-		if (mouseIsOverWidget) {
+		const shouldNotRecomputeCurrentHoverWidget = this._shouldNotRecomputeCurrentHoverWidget(mouseEvent);
+		if (shouldNotRecomputeCurrentHoverWidget) {
 			this._reactToEditorMouseMoveRunner.cancel();
 			return;
 		}
 
+		const hidingDelay = this._hoverSettings.hidingDelay;
+		const isContentHoverWidgetVisible = this._contentWidget?.isVisible;
 		// If the mouse is not over the widget, and if sticky is on,
 		// then give it a grace period before reacting to the mouse event
-		const hidingDelay = this._hoverSettings.hidingDelay;
-		if (this._contentWidget?.isVisible && sticky && hidingDelay > 0) {
+		const shouldRescheduleHoverComputation = isContentHoverWidgetVisible && sticky && hidingDelay > 0;
+
+		if (shouldRescheduleHoverComputation) {
 			if (!this._reactToEditorMouseMoveRunner.isScheduled()) {
 				this._reactToEditorMouseMoveRunner.schedule(hidingDelay);
 			}
@@ -384,6 +403,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 	): void {
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
+	}
+
+	private _isContentWidgetResizing(): boolean {
+		return this._contentWidget?.widget.isResizing || false;
 	}
 
 	public focus(): void {
