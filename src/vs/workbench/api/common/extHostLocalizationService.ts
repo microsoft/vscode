@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LANGUAGE_DEFAULT } from 'vs/base/common/platform';
-import { format } from 'vs/base/common/strings';
+import { format2 } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -35,22 +35,22 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	getMessage(extensionId: string, details: IStringDetails): string {
 		const { message, args, comment } = details;
 		if (this.isDefaultLanguage) {
-			return format(message, ...(args ?? []));
+			return format2(message, (args ?? {}));
 		}
 
 		let key = message;
 		if (comment && comment.length > 0) {
-			key += `/${comment.join()}`;
+			key += `/${Array.isArray(comment) ? comment.join('') : comment}`;
 		}
 		const str = this.bundleCache.get(extensionId)?.contents[key];
 		if (!str) {
 			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
 		}
-		return format(str ?? key, ...(args ?? []));
+		return format2(str ?? message, (args ?? {}));
 	}
 
-	getBundle(extensionId: string): { [key: string]: string } {
-		return this.bundleCache.get(extensionId)?.contents ?? {};
+	getBundle(extensionId: string): { [key: string]: string } | undefined {
+		return this.bundleCache.get(extensionId)?.contents;
 	}
 
 	getBundleUri(extensionId: string): URI | undefined {
@@ -59,8 +59,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
 		if (this.isDefaultLanguage
-			// TODO: support builtin extensions
-			|| !extension.l10n
+			|| (!extension.l10n && !extension.isBuiltin)
 		) {
 			return;
 		}
@@ -70,16 +69,17 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		}
 
 		let contents: { [key: string]: string } | undefined;
-		const bundleLocation = this.getBundleLocation(extension);
-		if (!bundleLocation) {
+		const bundleUri = await this.getBundleLocation(extension);
+		if (!bundleUri) {
 			this.logService.error(`No bundle location found for extension ${extension.identifier.value}`);
 			return;
 		}
-		const bundleUri = URI.joinPath(bundleLocation, `bundle.l10n.${this.currentLanguage}.json`);
 
 		try {
 			const response = await this._proxy.$fetchBundleContents(bundleUri);
-			contents = JSON.parse(response);
+			const result = JSON.parse(response);
+			// 'contents.bundle' is a well-known key in the language pack json file that contains the _code_ translations for the extension
+			contents = extension.isBuiltin ? result.contents?.bundle : result;
 		} catch (e) {
 			this.logService.error(`Failed to load translations for ${extension.identifier.value} from ${bundleUri}: ${e.message}`);
 			return;
@@ -93,14 +93,14 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		}
 	}
 
-	private getBundleLocation(extension: IExtensionDescription): URI | undefined {
-		// TODO: support builtin extensions using IExtHostInitDataService
-		// if (extension.isBuiltin && this.initData.nlsBaseUrl) {
-		// 	return URI.joinPath(this.initData.nlsBaseUrl, extension.identifier.value, 'main');
-		// }
+	private async getBundleLocation(extension: IExtensionDescription): Promise<URI | undefined> {
+		if (extension.isBuiltin) {
+			const uri = await this._proxy.$fetchBuiltInBundleUri(extension.identifier.value, this.currentLanguage);
+			return URI.revive(uri);
+		}
 
 		return extension.l10n
-			? URI.joinPath(extension.extensionLocation, extension.l10n)
+			? URI.joinPath(extension.extensionLocation, extension.l10n, `bundle.l10n.${this.currentLanguage}.json`)
 			: undefined;
 	}
 }

@@ -11,6 +11,9 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
+import { mainWindow } from 'vs/base/browser/window';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 // To run this test, open imeTester.html
 
@@ -34,8 +37,13 @@ class SingleLineTestModel implements ISimpleModel {
 		return this._line.substring(range.startColumn - 1, range.endColumn - 1);
 	}
 
-	getValueLengthInRange(range: Range): number {
-		return this.getValueInRange(range, EndOfLinePreference.TextDefined).length;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
+		return this.getValueInRange(range, eol).length;
+	}
+
+	modifyPosition(position: Position, offset: number): Position {
+		const column = Math.min(this.getLineMaxColumn(position.lineNumber), Math.max(1, position.column + offset));
+		return new Position(position.lineNumber, column);
 	}
 
 	getModelLineContent(lineNumber: number): string {
@@ -106,17 +114,22 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 				mode: null
 			};
 		},
-		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
+		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, 10, true);
+			return PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
 			return null!;
 		}
 	};
 
-	const handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(input), platform.OS, browser);
+	const handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(input), platform.OS, {
+		isAndroid: browser.isAndroid,
+		isFirefox: browser.isFirefox,
+		isChrome: browser.isChrome,
+		isSafari: browser.isSafari,
+	}, new TestAccessibilityService(), new NullLogService());
 
 	const output = document.createElement('pre');
 	output.className = 'output';
@@ -135,7 +148,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	const updatePosition = (off: number, len: number) => {
 		cursorOffset = off;
 		cursorLength = len;
-		handler.writeScreenReaderContent('selection changed');
+		handler.writeNativeTextAreaContent('selection changed');
 		handler.focusTextArea();
 	};
 
@@ -188,5 +201,5 @@ const TESTS = [
 ];
 
 TESTS.forEach((t) => {
-	document.body.appendChild(doCreateTest(t.description, t.in, t.out));
+	mainWindow.document.body.appendChild(doCreateTest(t.description, t.in, t.out));
 });

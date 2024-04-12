@@ -16,11 +16,11 @@ type ErrorEventFragment = {
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
 	msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The message of the error. Normally the first line int the callstack.' };
 	file?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The file the error originated from.' };
-	line?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The line the error originate on.' };
-	column?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The column of the line which the error orginated on.' };
+	line?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The line the error originate on.' };
+	column?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The column of the line which the error orginated on.' };
 	uncaught_error_name?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'If the error is uncaught what is the error type' };
 	uncaught_error_msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'If the error is uncaught this is just msg but for uncaught errors.' };
-	count?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How many times this error has been thrown' };
+	count?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'How many times this error has been thrown' };
 };
 export interface ErrorEvent {
 	callstack: string;
@@ -78,7 +78,7 @@ export default abstract class BaseErrorTelemetry {
 
 	private _onErrorEvent(err: any): void {
 
-		if (!err) {
+		if (!err || err.code) {
 			return;
 		}
 
@@ -89,7 +89,7 @@ export default abstract class BaseErrorTelemetry {
 
 		// If it's the no telemetry error it doesn't get logged
 		// TOOD @lramos15 hacking in FileOperation error because it's too messy to adopt ErrorNoTelemetry. A better solution should be found
-		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError) {
+		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
 			return;
 		}
 

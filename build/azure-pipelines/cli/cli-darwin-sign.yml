@@ -1,0 +1,56 @@
+parameters:
+  - name: VSCODE_CLI_ARTIFACTS
+    type: object
+    default: []
+
+steps:
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
+
+  - task: UseDotNet@2
+    inputs:
+      version: 6.x
+
+  - task: EsrpClientTool@1
+    continueOnError: true
+    displayName: Download ESRPClient
+
+  - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
+    - task: DownloadPipelineArtifact@2
+      displayName: Download ${{ target }}
+      inputs:
+        artifact: ${{ target }}
+        path: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}
+
+    - task: ExtractFiles@1
+      displayName: Extract artifact
+      inputs:
+        archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/*.zip
+        destinationFolder: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
+
+  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-darwin $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
+    displayName: Codesign
+
+  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll notarize-darwin $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
+    displayName: Notarize
+
+  - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
+    - script: |
+        set -e
+        ASSET_ID=$(echo "${{ target }}" | sed "s/unsigned_//")
+        mv $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/${{ target }}.zip $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/$ASSET_ID.zip
+        echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
+      displayName: Set asset id variable
+
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/$(ASSET_ID).zip
+        artifactName: $(ASSET_ID)
+        sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
+        sbomPackageName: "VS Code macOS ${{ target }} CLI"
+        sbomPackageVersion: $(Build.SourceVersion)
+      displayName: Publish signed artifact with ID $(ASSET_ID)

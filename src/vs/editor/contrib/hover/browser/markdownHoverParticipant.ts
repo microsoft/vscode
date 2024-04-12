@@ -9,7 +9,7 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -21,6 +21,7 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -45,7 +46,7 @@ export class MarkdownHover implements IHoverPart {
 
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
-	public readonly hoverOrdinal: number = 2;
+	public readonly hoverOrdinal: number = 3;
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -73,10 +74,18 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 		const lineLength = model.getLineLength(lineNumber);
 		const languageId = model.getLanguageIdAtPosition(anchor.range.startLineNumber, anchor.range.startColumn);
+		const stopRenderingLineAfter = this._editor.getOption(EditorOption.stopRenderingLineAfter);
 		const maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 			overrideIdentifier: languageId
 		});
-		if (typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
+		let stopRenderingMessage = false;
+		if (stopRenderingLineAfter >= 0 && lineLength > stopRenderingLineAfter && anchor.range.startColumn >= stopRenderingLineAfter) {
+			stopRenderingMessage = true;
+			result.push(new MarkdownHover(this, anchor.range, [{
+				value: nls.localize('stopped rendering', "Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`.")
+			}], false, index++));
+		}
+		if (!stopRenderingMessage && typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
 			result.push(new MarkdownHover(this, anchor.range, [{
 				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
 			}], false, index++));

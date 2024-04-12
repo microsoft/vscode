@@ -20,7 +20,7 @@ async function start() {
 
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
-		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
+		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms', 'update-extensions'],
 		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'compatibility'],
 		alias: { help: 'h', version: 'v' }
 	});
@@ -34,7 +34,7 @@ async function start() {
 	});
 
 	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
-	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension'];
+	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'update-extensions'];
 
 	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
 
@@ -43,12 +43,6 @@ async function start() {
 			mod.spawnCli();
 		});
 		return;
-	}
-
-	if (parsedArgs['compatibility'] === '1.63') {
-		console.warn(`server.sh is being replaced by 'bin/${product.serverApplicationName}'. Please migrate to the new command and adopt the following new default behaviors:`);
-		console.warn('* connection token is mandatory unless --without-connection-token is used');
-		console.warn('* host defaults to `localhost`');
 	}
 
 	/**
@@ -197,6 +191,7 @@ async function parsePort(host, strPort) {
 			if (port !== undefined) {
 				return port;
 			}
+			// Remote-SSH extension relies on this exact port error message, treat as an API
 			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end} (inclusive).`);
 			process.exit(1);
 
@@ -234,7 +229,7 @@ function parseRange(strRange) {
  * @throws
  */
 async function findFreePort(host, start, end) {
-	const testPort = (port) => {
+	const testPort = (/** @type {number} */ port) => {
 		return new Promise((resolve) => {
 			const server = http.createServer();
 			server.listen(port, host, () => {

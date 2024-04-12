@@ -13,8 +13,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from 'vs/workbench/contrib/terminal/common/history';
@@ -26,7 +26,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { timeout } from 'vs/base/common/async';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -44,7 +45,7 @@ export async function showRunRecentQuickPick(
 	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
-	const themeService = accessor.get(IThemeService);
+	const accessibleViewService = accessor.get(IAccessibleViewService);
 
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
@@ -209,15 +210,15 @@ export async function showRunRecentQuickPick(
 		title: 'Fuzzy search',
 		icon: commandHistoryFuzzySearchIcon,
 		isChecked: filterMode === 'fuzzy',
-		inputActiveOptionBorder: themeService.getColorTheme().getColor(inputActiveOptionBorder),
-		inputActiveOptionForeground: themeService.getColorTheme().getColor(inputActiveOptionForeground),
-		inputActiveOptionBackground: themeService.getColorTheme().getColor(inputActiveOptionBackground)
+		inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+		inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+		inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
 	});
 	fuzzySearchToggle.onChange(() => {
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
 	});
 	const outputProvider = instantiationService.createInstance(TerminalOutputProvider);
-	const quickPick = quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
+	const quickPick = quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>();
 	const originalItems = items;
 	quickPick.items = [...originalItems];
 	quickPick.sortByLabel = false;
@@ -257,6 +258,39 @@ export async function showRunRecentQuickPick(
 			await instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, filterMode, value);
 		}
 	});
+	let terminalScrollStateSaved = false;
+	function restoreScrollState() {
+		terminalScrollStateSaved = false;
+		instance.xterm?.markTracker.restoreScrollState();
+		instance.xterm?.markTracker.clear();
+	}
+	quickPick.onDidChangeActive(async () => {
+		const xterm = instance.xterm;
+		if (!xterm) {
+			return;
+		}
+		const [item] = quickPick.activeItems;
+		if ('command' in item && item.command && item.command.marker) {
+			if (!terminalScrollStateSaved) {
+				xterm.markTracker.saveScrollState();
+				terminalScrollStateSaved = true;
+			}
+			const promptRowCount = item.command.getPromptRowCount();
+			const commandRowCount = item.command.getCommandRowCount();
+			xterm.markTracker.revealRange({
+				start: {
+					x: 1,
+					y: item.command.marker.line - (promptRowCount - 1) + 1
+				},
+				end: {
+					x: instance.cols,
+					y: item.command.marker.line + (commandRowCount - 1) + 1
+				}
+			});
+		} else {
+			restoreScrollState();
+		}
+	});
 	quickPick.onDidAccept(async () => {
 		const result = quickPick.activeItems[0];
 		let text: string;
@@ -266,11 +300,13 @@ export async function showRunRecentQuickPick(
 			text = result.rawLabel;
 		}
 		quickPick.hide();
-		runCommand(instance, text, !quickPick.keyMods.alt);
+		instance.runCommand(text, !quickPick.keyMods.alt);
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
+		restoreScrollState();
 	});
+	quickPick.onDidHide(() => restoreScrollState());
 	if (value) {
 		quickPick.value = value;
 	}
@@ -279,23 +315,10 @@ export async function showRunRecentQuickPick(
 		showWithPinnedItems(storageService, runRecentStorageKey, quickPick, true);
 		quickPick.onDidHide(() => {
 			terminalInRunCommandPicker.set(false);
+			accessibleViewService.showLastProvider(AccessibleViewProviderId.Terminal);
 			r();
 		});
 	});
-}
-
-async function runCommand(instance: ITerminalInstance, commandLine: string, addNewLine: boolean): Promise<void> {
-	// Determine whether to send ETX (ctrl+c) before running the command. This should always
-	// happen unless command detection can reliably say that a command is being entered and
-	// there is no content in the prompt
-	if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasInput !== false) {
-		await instance.sendText('\x03', false);
-		// Wait a little before running the command to avoid the sequences being echoed while the ^C
-		// is being evaluated
-		await timeout(100);
-	}
-	// Use bracketed paste mode only when not running the command
-	await instance.sendText(commandLine, addNewLine, !addNewLine);
 }
 
 class TerminalOutputProvider implements ITextModelContentProvider {

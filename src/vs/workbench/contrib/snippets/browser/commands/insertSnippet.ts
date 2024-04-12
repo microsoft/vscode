@@ -49,13 +49,10 @@ export class InsertSnippetAction extends SnippetEditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertSnippet',
-			title: {
-				value: nls.localize('snippet.suggestions.label', "Insert Snippet"),
-				original: 'Insert Snippet'
-			},
+			title: nls.localize2('snippet.suggestions.label', "Insert Snippet"),
 			f1: true,
 			precondition: EditorContextKeys.writable,
-			description: {
+			metadata: {
 				description: `Insert Snippet`,
 				args: [{
 					name: 'args',
@@ -79,7 +76,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		});
 	}
 
-	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any[]) {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg: any) {
 
 		const languageService = accessor.get(ILanguageService);
 		const snippetService = accessor.get(ISnippetsService);
@@ -94,7 +91,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		const snippet = await new Promise<Snippet | undefined>((resolve, reject) => {
 
 			const { lineNumber, column } = editor.getPosition();
-			const { snippet, name, langId } = Args.fromUser(args[0]);
+			const { snippet, name, langId } = Args.fromUser(arg);
 
 			if (snippet) {
 				return resolve(new Snippet(
@@ -147,6 +144,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		if (snippet.needsClipboard) {
 			clipboardText = await clipboardService.readText();
 		}
+		editor.focus();
 		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
 		snippetService.updateUsageTimestamp(snippet);
 	}

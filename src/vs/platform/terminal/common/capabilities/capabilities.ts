@@ -5,6 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
 interface IEvent<T, U = void> {
@@ -81,14 +83,28 @@ export interface ITerminalCapabilityStore {
 	readonly items: IterableIterator<TerminalCapability>;
 
 	/**
+	 * Fired when a capability is added. The event data for this is only the
+	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
+	 * capability.
+	 */
+	readonly onDidAddCapabilityType: Event<TerminalCapability>;
+
+	/**
+	 * Fired when a capability is removed. The event data for this is only the
+	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
+	 * capability.
+	 */
+	readonly onDidRemoveCapabilityType: Event<TerminalCapability>;
+
+	/**
 	 * Fired when a capability is added.
 	 */
-	readonly onDidAddCapability: Event<TerminalCapability>;
+	readonly onDidAddCapability: Event<TerminalCapabilityChangeEvent<any>>;
 
 	/**
 	 * Fired when a capability is removed.
 	 */
-	readonly onDidRemoveCapability: Event<TerminalCapability>;
+	readonly onDidRemoveCapability: Event<TerminalCapabilityChangeEvent<any>>;
 
 	/**
 	 * Gets whether the capability exists in the store.
@@ -99,6 +115,11 @@ export interface ITerminalCapabilityStore {
 	 * Gets the implementation of a capability if it has been added to the store.
 	 */
 	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined;
+}
+
+export interface TerminalCapabilityChangeEvent<T extends TerminalCapability> {
+	id: T;
+	capability: ITerminalCapabilityImplMap[T];
 }
 
 /**
@@ -151,9 +172,10 @@ export interface ICommandDetectionCapability {
 	 * the state cannot reliably be detected the fallback of undefined will be used.
 	 */
 	readonly hasInput: boolean | undefined;
+	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
-	readonly onCommandExecuted: Event<void>;
+	readonly onCommandExecuted: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
@@ -164,6 +186,7 @@ export interface ICommandDetectionCapability {
 	 * case the terminal's initial cwd should be used.
 	 */
 	getCwdForLine(line: number): string | undefined;
+	getCommandForLine(line: number): ITerminalCommand | ICurrentPartialCommand | undefined;
 	handlePromptStart(options?: IHandleCommandOptions): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
@@ -172,11 +195,15 @@ export interface ICommandDetectionCapability {
 	handleCommandStart(options?: IHandleCommandOptions): void;
 	handleCommandExecuted(options?: IHandleCommandOptions): void;
 	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
-	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.
+	 * @param commandLine The command line being set.
+	 * @param isTrusted Whether the command line is trusted via the optional nonce is send in order
+	 * to prevent spoofing. This is important as some interactions do not require verification
+	 * before re-running a command. Note that this is optional according to the spec, it should
+	 * always be present when running the _builtin_ SI scripts.
 	 */
-	setCommandLine(commandLine: string): void;
+	setCommandLine(commandLine: string, isTrusted: boolean): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -210,19 +237,46 @@ export interface IPartialCommandDetectionCapability {
 	readonly onCommandFinished: Event<IXtermMarker>;
 }
 
-export interface ITerminalCommand {
+interface IBaseTerminalCommand {
+	// Mandatory
 	command: string;
+	commandLineConfidence: 'low' | 'medium' | 'high';
+	isTrusted: boolean;
 	timestamp: number;
-	cwd?: string;
-	exitCode?: number;
-	marker?: IXtermMarker;
+	duration: number;
+
+	// Optional serializable
+	cwd: string | undefined;
+	exitCode: number | undefined;
+	commandStartLineContent: string | undefined;
+	markProperties: IMarkProperties | undefined;
+	executedX: number | undefined;
+	startX: number | undefined;
+}
+
+export interface ITerminalCommand extends IBaseTerminalCommand {
+	// Optional non-serializable
+	readonly promptStartMarker?: IMarker;
+	readonly marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
-	executedMarker?: IXtermMarker;
-	commandStartLineContent?: string;
-	markProperties?: IMarkProperties;
+	readonly executedMarker?: IXtermMarker;
+	readonly aliases?: string[][];
+	readonly wasReplayed?: boolean;
+
+	extractCommandLine(): string;
 	getOutput(): string | undefined;
-	getOutputMatch(outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): RegExpMatchArray | undefined;
+	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
+	getPromptRowCount(): number;
+	getCommandRowCount(): number;
+}
+
+export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
+	// Optional non-serializable converted for serialization
+	startLine: number | undefined;
+	promptStartLine: number | undefined;
+	endLine: number | undefined;
+	executedLine: number | undefined;
 }
 
 /**
@@ -238,18 +292,6 @@ export interface IXtermMarker {
 	};
 }
 
-export interface ISerializedCommand {
-	command: string;
-	cwd: string | undefined;
-	startLine: number | undefined;
-	startX: number | undefined;
-	endLine: number | undefined;
-	executedLine: number | undefined;
-	exitCode: number | undefined;
-	commandStartLineContent: string | undefined;
-	timestamp: number;
-	markProperties: IMarkProperties | undefined;
-}
 export interface IMarkProperties {
 	hoverMessage?: string;
 	disableCommandStorage?: boolean;
@@ -259,7 +301,7 @@ export interface IMarkProperties {
 }
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
-	commands: ISerializedCommand[];
+	commands: ISerializedTerminalCommand[];
 }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];

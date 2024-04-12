@@ -6,75 +6,7 @@
 import { splitLines } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-
-/**
- * Represents a non-negative length in terms of line and column count.
- * Prefer using {@link Length} for performance reasons.
-*/
-export class LengthObj {
-	public static zero = new LengthObj(0, 0);
-
-	public static lengthDiffNonNegative(start: LengthObj, end: LengthObj): LengthObj {
-		if (end.isLessThan(start)) {
-			return LengthObj.zero;
-		}
-		if (start.lineCount === end.lineCount) {
-			return new LengthObj(0, end.columnCount - start.columnCount);
-		} else {
-			return new LengthObj(end.lineCount - start.lineCount, end.columnCount);
-		}
-	}
-
-	constructor(
-		public readonly lineCount: number,
-		public readonly columnCount: number
-	) { }
-
-	public isZero() {
-		return this.lineCount === 0 && this.columnCount === 0;
-	}
-
-	public toLength(): Length {
-		return toLength(this.lineCount, this.columnCount);
-	}
-
-	public isLessThan(other: LengthObj): boolean {
-		if (this.lineCount !== other.lineCount) {
-			return this.lineCount < other.lineCount;
-		}
-		return this.columnCount < other.columnCount;
-	}
-
-	public isGreaterThan(other: LengthObj): boolean {
-		if (this.lineCount !== other.lineCount) {
-			return this.lineCount > other.lineCount;
-		}
-		return this.columnCount > other.columnCount;
-	}
-
-	public equals(other: LengthObj): boolean {
-		return this.lineCount === other.lineCount && this.columnCount === other.columnCount;
-	}
-
-	public compare(other: LengthObj): number {
-		if (this.lineCount !== other.lineCount) {
-			return this.lineCount - other.lineCount;
-		}
-		return this.columnCount - other.columnCount;
-	}
-
-	public add(other: LengthObj): LengthObj {
-		if (other.lineCount === 0) {
-			return new LengthObj(this.lineCount, this.columnCount + other.columnCount);
-		} else {
-			return new LengthObj(this.lineCount + other.lineCount, other.columnCount);
-		}
-	}
-
-	toString() {
-		return `${this.lineCount},${this.columnCount}`;
-	}
-}
+import { TextLength } from 'vs/editor/common/core/textLength';
 
 /**
  * The end must be greater than or equal to the start.
@@ -100,10 +32,12 @@ export function lengthIsZero(length: Length): boolean {
 /*
  * We have 52 bits available in a JS number.
  * We use the upper 26 bits to store the line and the lower 26 bits to store the column.
- *
- * Set boolean to `true` when debugging, so that debugging is easier.
  */
-const factor = /* is debug: */ false ? 100000 : 2 ** 26;
+///*
+const factor = 2 ** 26;
+/*/
+const factor = 1000000;
+// */
 
 export function toLength(lineCount: number, columnCount: number): Length {
 	// llllllllllllllllllllllllllcccccccccccccccccccccccccc (52 bits)
@@ -115,11 +49,11 @@ export function toLength(lineCount: number, columnCount: number): Length {
 	return (lineCount * factor + columnCount) as any as Length;
 }
 
-export function lengthToObj(length: Length): LengthObj {
+export function lengthToObj(length: Length): TextLength {
 	const l = length as any as number;
 	const lineCount = Math.floor(l / factor);
 	const columnCount = l - lineCount * factor;
-	return new LengthObj(lineCount, columnCount);
+	return new TextLength(lineCount, columnCount);
 }
 
 export function lengthGetLineCount(length: Length): number {
@@ -138,9 +72,17 @@ export function lengthGetColumnCountIfZeroLineCount(length: Length): number {
 // [10 lines, 5 cols] + [20 lines, 3 cols] = [30 lines, 3 cols]
 export function lengthAdd(length1: Length, length2: Length): Length;
 export function lengthAdd(l1: any, l2: any): Length {
-	return ((l2 < factor)
-		? (l1 + l2) // l2 is the amount of columns (zero line count). Keep the column count from l1.
-		: (l1 - (l1 % factor) + l2)); // l1 - (l1 % factor) equals toLength(l1.lineCount, 0)
+	let r = l1 + l2;
+	if (l2 >= factor) { r = r - (l1 % factor); }
+	return r;
+}
+
+export function sumLengths<T>(items: readonly T[], lengthFn: (item: T) => Length): Length {
+	return items.reduce((a, b) => lengthAdd(a, lengthFn(b)), lengthZero);
+}
+
+export function lengthEquals(length1: Length, length2: Length): boolean {
+	return length1 === length2;
 }
 
 /**
@@ -206,6 +148,14 @@ export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	return new Range(lineCount + 1, colCount + 1, lineCount2 + 1, colCount2 + 1);
 }
 
+export function lengthOfRange(range: Range): TextLength {
+	if (range.startLineNumber === range.endLineNumber) {
+		return new TextLength(0, range.endColumn - range.startColumn);
+	} else {
+		return new TextLength(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
+	}
+}
+
 export function lengthCompare(length1: Length, length2: Length): number {
 	const l1 = length1 as any as number;
 	const l2 = length2 as any as number;
@@ -217,9 +167,9 @@ export function lengthOfString(str: string): Length {
 	return toLength(lines.length - 1, lines[lines.length - 1].length);
 }
 
-export function lengthOfStringObj(str: string): LengthObj {
+export function lengthOfStringObj(str: string): TextLength {
 	const lines = splitLines(str);
-	return new LengthObj(lines.length - 1, lines[lines.length - 1].length);
+	return new TextLength(lines.length - 1, lines[lines.length - 1].length);
 }
 
 /**
@@ -227,4 +177,8 @@ export function lengthOfStringObj(str: string): LengthObj {
 */
 export function lengthHash(length: Length): number {
 	return length as any;
+}
+
+export function lengthMax(length1: Length, length2: Length): Length {
+	return length1 > length2 ? length1 : length2;
 }

@@ -6,7 +6,7 @@
 import { h, reset } from 'vs/base/browser/dom';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
@@ -45,11 +45,12 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		o.observe(this._domNode);
 		this._register(toDisposable(() => o.disconnect()));
 
-		this._register(autorun('update scroll decoration', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update scroll decoration */
 			scrollDecoration.className = this.isScrollTopZero.read(reader) ? '' : 'scroll-decoration';
 		}));
 
-		this._register(autorun('EditorGutter.Render', (reader) => this.render(reader)));
+		this._register(autorun(reader => /** @description EditorGutter.Render */ this.render(reader)));
 	}
 
 	override dispose(): void {

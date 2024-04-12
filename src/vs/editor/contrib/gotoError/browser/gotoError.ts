@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -99,7 +99,7 @@ export class MarkerController implements IEditorContribution {
 			if (!this._widget || !this._widget.position || !this._model) {
 				return;
 			}
-			const info = this._model.find(this._editor.getModel()!.uri, this._widget!.position!);
+			const info = this._model.find(this._editor.getModel()!.uri, this._widget.position);
 			if (info) {
 				this._widget.updateMarker(info.marker);
 			} else {
@@ -277,7 +277,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 	}
 }
 
-registerEditorContribution(MarkerController.ID, MarkerController);
+registerEditorContribution(MarkerController.ID, MarkerController, EditorContributionInstantiation.Lazy);
 registerEditorAction(NextMarkerAction);
 registerEditorAction(PrevMarkerAction);
 registerEditorAction(NextMarkerInFilesAction);

@@ -4,21 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+
+export interface IExtensionDescriptionSnapshot {
+	readonly versionId: number;
+	readonly allExtensions: IExtensionDescription[];
+	readonly activationEvents: { [extensionId: string]: string[] };
+	readonly myExtensions: ExtensionIdentifier[];
+}
 
 export interface IExtensionDescriptionDelta {
+	readonly versionId: number;
 	readonly toRemove: ExtensionIdentifier[];
 	readonly toAdd: IExtensionDescription[];
+	readonly addActivationEvents: { [extensionId: string]: string[] };
 	readonly myToRemove: ExtensionIdentifier[];
 	readonly myToAdd: ExtensionIdentifier[];
 }
 
 export interface IExtensionHostInitData {
 	version: string;
+	quality: string | undefined;
 	commit?: string;
 	/**
 	 * When set to `0`, no polling for the parent process still running will happen.
@@ -26,13 +35,18 @@ export interface IExtensionHostInitData {
 	parentPid: number | 0;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
-	allExtensions: IExtensionDescription[];
-	myExtensions: ExtensionIdentifier[];
+	extensions: IExtensionDescriptionSnapshot;
 	nlsBaseUrl?: URI;
-	telemetryInfo: ITelemetryInfo;
+	telemetryInfo: {
+		readonly sessionId: string;
+		readonly machineId: string;
+		readonly sqmId: string;
+		readonly firstSessionDate: string;
+		readonly msftInternal?: boolean;
+	};
 	logLevel: LogLevel;
+	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;
-	logFile: URI;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
 	consoleForward: { includeStack: boolean; logNative: boolean };
@@ -46,6 +60,8 @@ export interface IEnvironment {
 	appHost: string;
 	appRoot?: URI;
 	appLanguage: string;
+	extensionTelemetryLogResource: URI;
+	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
@@ -53,6 +69,7 @@ export interface IEnvironment {
 	workspaceStorageHome: URI;
 	useHostProxy?: boolean;
 	skipWorkspaceStorageLock?: boolean;
+	extensionLogLevel?: [string, string][];
 }
 
 export interface IStaticWorkspaceData {

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -17,13 +17,17 @@ import {
 
 type ManualSyncTaskEvent<T> = { manualSyncTaskId: string; data: T };
 
-function reviewSyncResource(syncResource: IUserDataSyncResource, userDataProfilesService: IUserDataProfilesService) {
-	return { ...syncResource, profie: reviveProfile(syncResource.profile, userDataProfilesService.profilesHome.scheme) };
+function reviewSyncResource(syncResource: IUserDataSyncResource, userDataProfilesService: IUserDataProfilesService): IUserDataSyncResource {
+	return { ...syncResource, profile: reviveProfile(syncResource.profile, userDataProfilesService.profilesHome.scheme) };
 }
 
-export class UserDataSyncChannel implements IServerChannel {
+function reviewSyncResourceHandle(syncResourceHandle: ISyncResourceHandle): ISyncResourceHandle {
+	return { created: syncResourceHandle.created, uri: URI.revive(syncResourceHandle.uri) };
+}
 
-	private readonly manualSyncTasks = new Map<string, { manualSyncTask: IUserDataManualSyncTask; disposables: DisposableStore }>();
+export class UserDataSyncServiceChannel implements IServerChannel {
+
+	private readonly manualSyncTasks = new Map<string, IUserDataManualSyncTask>();
 	private readonly onManualSynchronizeResources = new Emitter<ManualSyncTaskEvent<[SyncResource, URI[]][]>>();
 
 	constructor(
@@ -47,7 +51,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'manualSync/onSynchronizeResources': return this.onManualSynchronizeResources.event;
 		}
 
-		throw new Error(`Event not found: ${event}`);
+		throw new Error(`[UserDataSyncServiceChannel] Event not found: ${event}`);
 	}
 
 	async call(context: any, command: string, args?: any): Promise<any> {
@@ -72,11 +76,10 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'accept': return this.service.accept(reviewSyncResource(args[0], this.userDataProfilesService), URI.revive(args[1]), args[2], args[3]);
-			case 'replace': return this.service.replace(reviewSyncResource(args[0], this.userDataProfilesService), URI.revive(args[1]));
-			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(reviewSyncResource(args[0], this.userDataProfilesService));
-			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(reviewSyncResource(args[0], this.userDataProfilesService));
-			case 'getAssociatedResources': return this.service.getAssociatedResources(reviewSyncResource(args[0], this.userDataProfilesService), { created: args[1].created, uri: URI.revive(args[1].uri) });
-			case 'getMachineId': return this.service.getMachineId(reviewSyncResource(args[0], this.userDataProfilesService), { created: args[1].created, uri: URI.revive(args[1].uri) });
+			case 'replace': return this.service.replace(reviewSyncResourceHandle(args[0]));
+			case 'cleanUpRemoteData': return this.service.cleanUpRemoteData();
+			case 'getRemoteActivityData': return this.service.saveRemoteActivityData(URI.revive(args[0]));
+			case 'extractActivityData': return this.service.extractActivityData(URI.revive(args[0]), URI.revive(args[1]));
 
 			case 'createManualSyncTask': return this.createManualSyncTask();
 		}
@@ -90,9 +93,8 @@ export class UserDataSyncChannel implements IServerChannel {
 
 			switch (manualSyncTaskCommand) {
 				case 'merge': return manualSyncTask.merge();
-				case 'apply': return manualSyncTask.apply();
-				case 'stop': return manualSyncTask.stop();
-				case 'dispose': return this.disposeManualSyncTask(manualSyncTask);
+				case 'apply': return manualSyncTask.apply().then(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
+				case 'stop': return manualSyncTask.stop().finally(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
 			}
 		}
 
@@ -100,32 +102,24 @@ export class UserDataSyncChannel implements IServerChannel {
 	}
 
 	private getManualSyncTask(manualSyncTaskId: string): IUserDataManualSyncTask {
-		const value = this.manualSyncTasks.get(this.createKey(manualSyncTaskId));
-		if (!value) {
+		const manualSyncTask = this.manualSyncTasks.get(this.createKey(manualSyncTaskId));
+		if (!manualSyncTask) {
 			throw new Error(`Manual sync taks not found: ${manualSyncTaskId}`);
 		}
-		return value.manualSyncTask;
+		return manualSyncTask;
 	}
 
 	private async createManualSyncTask(): Promise<string> {
-		const disposables = new DisposableStore();
-		const manualSyncTask = disposables.add(await this.service.createManualSyncTask());
-		this.manualSyncTasks.set(this.createKey(manualSyncTask.id), { manualSyncTask, disposables });
+		const manualSyncTask = await this.service.createManualSyncTask();
+		this.manualSyncTasks.set(this.createKey(manualSyncTask.id), manualSyncTask);
 		return manualSyncTask.id;
-	}
-
-	private disposeManualSyncTask(manualSyncTask: IUserDataManualSyncTask): void {
-		manualSyncTask.dispose();
-		const key = this.createKey(manualSyncTask.id);
-		this.manualSyncTasks.get(key)?.disposables.dispose();
-		this.manualSyncTasks.delete(key);
 	}
 
 	private createKey(manualSyncTaskId: string): string { return `manualSyncTask-${manualSyncTaskId}`; }
 
 }
 
-export class UserDataSyncChannelClient extends Disposable implements IUserDataSyncService {
+export class UserDataSyncServiceChannelClient extends Disposable implements IUserDataSyncService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -199,10 +193,6 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 		return manualSyncTaskChannelClient;
 	}
 
-	replace(profileSyncResource: IUserDataSyncResource, uri: URI): Promise<void> {
-		return this.channel.call('replace', [profileSyncResource, uri]);
-	}
-
 	reset(): Promise<void> {
 		return this.channel.call('reset');
 	}
@@ -231,23 +221,20 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 		return this.channel.call('resolveContent', [resource]);
 	}
 
-	async getLocalSyncResourceHandles(resource: IUserDataSyncResource): Promise<ISyncResourceHandle[]> {
-		const handles = await this.channel.call<ISyncResourceHandle[]>('getLocalSyncResourceHandles', [resource]);
-		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
+	cleanUpRemoteData(): Promise<void> {
+		return this.channel.call('cleanUpRemoteData');
 	}
 
-	async getRemoteSyncResourceHandles(resource: IUserDataSyncResource): Promise<ISyncResourceHandle[]> {
-		const handles = await this.channel.call<ISyncResourceHandle[]>('getRemoteSyncResourceHandles', [resource]);
-		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
+	replace(syncResourceHandle: ISyncResourceHandle): Promise<void> {
+		return this.channel.call('replace', [syncResourceHandle]);
 	}
 
-	async getAssociatedResources(resource: IUserDataSyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const result = await this.channel.call<{ resource: URI; comparableResource: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
-		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
+	saveRemoteActivityData(location: URI): Promise<void> {
+		return this.channel.call('getRemoteActivityData', [location]);
 	}
 
-	async getMachineId(resource: IUserDataSyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
-		return this.channel.call<string | undefined>('getMachineId', [resource, syncResourceHandle]);
+	extractActivityData(activityDataResource: URI, location: URI): Promise<void> {
+		return this.channel.call('extractActivityData', [activityDataResource, location]);
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {
@@ -304,6 +291,7 @@ class ManualSyncTaskChannelClient extends Disposable implements IUserDataManualS
 
 	override dispose(): void {
 		this.channel.call('dispose');
+		super.dispose();
 	}
 
 }

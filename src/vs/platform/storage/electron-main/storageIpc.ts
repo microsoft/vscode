@@ -12,7 +12,7 @@ import { IBaseSerializableStorageRequest, ISerializableItemsChangeEvent, ISerial
 import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { reviveIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { reviveIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class StorageDatabaseChannel extends Disposable implements IServerChannel {
 
@@ -125,6 +125,10 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				break;
 			}
 
+			case 'optimize': {
+				return storage.optimize();
+			}
+
 			case 'isUsed': {
 				const path = arg.payload as string | undefined;
 				if (typeof path === 'string') {
@@ -137,7 +141,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		}
 	}
 
-	private async withStorageInitialized(profile: IUserDataProfile | undefined, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): Promise<IStorageMain> {
+	private async withStorageInitialized(profile: IUserDataProfile | undefined, workspace: IAnyWorkspaceIdentifier | undefined): Promise<IStorageMain> {
 		let storage: IStorageMain;
 		if (workspace) {
 			storage = this.storageMainService.workspaceStorage(workspace);

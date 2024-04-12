@@ -11,7 +11,7 @@ import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
 import * as TaskConfig from '../common/taskConfiguration';
 import { AbstractTaskService } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { ITaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { TerminalTaskSystem } from 'vs/workbench/contrib/tasks/browser/terminalTaskSystem';
 import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -29,7 +29,8 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -46,7 +47,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -91,7 +92,7 @@ export class TaskService extends AbstractTaskService {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IAudioCueService audioCueService: IAudioCueService
+		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super(configurationService,
 			markerService,
@@ -187,8 +188,7 @@ export class TaskService extends AbstractTaskService {
 		} else {
 			terminatePromise = this._dialogService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
-				type: 'question'
+				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task")
 			});
 		}
 
@@ -227,4 +227,4 @@ export class TaskService extends AbstractTaskService {
 	}
 }
 
-registerSingleton(ITaskService, TaskService, true);
+registerSingleton(ITaskService, TaskService, InstantiationType.Delayed);

@@ -53,7 +53,7 @@ const enum StorageKeys {
 }
 
 let commandHistory: ITerminalPersistedHistory<{ shellType: TerminalShellType }> | undefined = undefined;
-export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ shellType: TerminalShellType }> {
+export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ shellType: TerminalShellType | undefined }> {
 	if (!commandHistory) {
 		commandHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'commands') as TerminalPersistedHistory<{ shellType: TerminalShellType }>;
 	}
@@ -69,8 +69,8 @@ export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersis
 }
 
 // Shell file history loads once per shell per window
-const shellFileHistory: Map<TerminalShellType, string[] | null> = new Map();
-export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType): Promise<string[]> {
+const shellFileHistory: Map<TerminalShellType | undefined, string[] | null> = new Map();
+export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType | undefined): Promise<string[]> {
 	const cached = shellFileHistory.get(shellType);
 	if (cached === null) {
 		return [];
@@ -91,6 +91,9 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 			break;
 		case PosixShellType.Fish:
 			result = await fetchFishHistory(accessor);
+			break;
+		case PosixShellType.Python:
+			result = await fetchPythonHistory(accessor);
 			break;
 		default: return [];
 	}
@@ -128,18 +131,18 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 		this._entries = new LRUCache<string, T>(this._getHistoryLimit());
 
 		// Listen for config changes to set history limit
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandHistory)) {
 				this._entries.limit = this._getHistoryLimit();
 			}
-		});
+		}));
 
 		// Listen to cache changes from other windows
-		this._storageService.onDidChangeValue(e => {
-			if (e.key === this._getTimestampStorageKey() && !this._isStale) {
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, this._getTimestampStorageKey(), this._store)(() => {
+			if (!this._isStale) {
 				this._isStale = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.APPLICATION, 0) !== this._timestamp;
 			}
-		});
+		}));
 	}
 
 	add(key: string, value: T) {
@@ -292,6 +295,30 @@ export async function fetchZshHistory(accessor: ServicesAccessor) {
 			result.add(sanitized);
 		}
 	}
+	return result.values();
+}
+
+
+export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+
+	const content = await fetchFileContents(env['HOME'], '.python_history', false, fileService, remoteAgentService);
+
+	if (content === undefined) {
+		return undefined;
+	}
+
+	// Python history file is a simple text file with one command per line
+	const fileLines = content.split('\n');
+	const result: Set<string> = new Set();
+
+	fileLines.forEach(line => {
+		if (line.trim().length > 0) {
+			result.add(line.trim());
+		}
+	});
+
 	return result.values();
 }
 

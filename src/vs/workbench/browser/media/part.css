@@ -22,11 +22,13 @@
 	z-index: 12;
 }
 
-.monaco-workbench .part > .title {
-	display: none; /* Parts have to opt in to show title area */
+.monaco-workbench .part > .title,
+.monaco-workbench .part > .header-or-footer {
+	display: none; /* Parts have to opt in to show area */
 }
 
-.monaco-workbench .part > .title {
+.monaco-workbench .part > .title,
+.monaco-workbench .part > .header-or-footer {
 	height: 35px;
 	display: flex;
 	box-sizing: border-box;
@@ -82,28 +84,14 @@
 	display: none;
 }
 
-.monaco-workbench .part > .title > .title-actions .action-label.codicon {
-	color: inherit;
-}
-
 .monaco-workbench .part > .content {
 	font-size: 13px;
 }
 
 .monaco-workbench .part > .content > .monaco-progress-container,
-.monaco-workbench .part.editor > .content .monaco-progress-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .monaco-progress-container {
 	position: absolute;
 	left: 0;
 	top: 33px; /* at the bottom of the 35px height title container */
 	z-index: 5; /* on top of things */
-	height: 2px;
-}
-
-.monaco-workbench .part > .content > .monaco-progress-container .progress-bit,
-.monaco-workbench
-	.part.editor
-	> .content
-	.monaco-progress-container
-	.progress-bit {
-	height: 2px;
 }

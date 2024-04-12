@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable
           path: ./actions
       - name: Checkout Repo
         if: github.event_name != 'issues'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ./repo
           fetch-depth: 0

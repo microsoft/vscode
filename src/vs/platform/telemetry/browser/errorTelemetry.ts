@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { globals } from 'vs/base/common/platform';
 import BaseErrorTelemetry, { ErrorEvent } from 'vs/platform/telemetry/common/errorTelemetry';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
 	protected override installErrorListeners(): void {
-		let oldOnError: Function;
+		let oldOnError: OnErrorEventHandler;
 		const that = this;
-		if (typeof globals.onerror === 'function') {
-			oldOnError = globals.onerror;
+		if (typeof mainWindow.onerror === 'function') {
+			oldOnError = mainWindow.onerror;
 		}
-		globals.onerror = function (message: string, filename: string, line: number, column?: number, e?: any) {
-			that._onUncaughtError(message, filename, line, column, e);
-			oldOnError?.apply(this, arguments);
+		mainWindow.onerror = function (message: Event | string, filename?: string, line?: number, column?: number, error?: Error) {
+			that._onUncaughtError(message as string, filename as string, line as number, column, error);
+			oldOnError?.apply(this, [message, filename, line, column, error]);
 		};
 		this._disposables.add(toDisposable(() => {
 			if (oldOnError) {
-				globals.onerror = oldOnError;
+				mainWindow.onerror = oldOnError;
 			}
 		}));
 	}

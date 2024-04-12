@@ -6,6 +6,7 @@
 const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
 const es = require('event-stream');
@@ -18,7 +19,7 @@ const monacoapi = require('./lib/monaco-api');
 const fs = require('fs');
 
 const root = path.dirname(__dirname);
-const sha1 = util.getVersion(root);
+const sha1 = getVersion(root);
 const semver = require('./monaco/package.json').version;
 const headerVersion = semver + '(' + sha1 + ')';
 
@@ -84,7 +85,8 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	});
 });
 
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
+// Disable mangling for the editor, as it complicates debugging & quite a few users rely on private/protected fields.
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true }));
 
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
 	{
@@ -418,50 +420,17 @@ gulp.task('editor-distro',
 	)
 );
 
-const bundleEditorESMTask = task.define('editor-esm-bundle-webpack', () => {
-	const webpack = require('webpack');
-	const webpackGulp = require('webpack-stream');
-
-	const result = es.through();
-
-	const webpackConfigPath = path.join(root, 'build/monaco/monaco.webpack.config.js');
-
-	const webpackConfig = {
-		...require(webpackConfigPath),
-		...{ mode: 'production' }
-	};
-
-	const webpackDone = (err, stats) => {
-		if (err) {
-			result.emit('error', err);
-			return;
-		}
-		const { compilation } = stats;
-		if (compilation.errors.length > 0) {
-			result.emit('error', compilation.errors.join('\n'));
-		}
-		if (compilation.warnings.length > 0) {
-			result.emit('data', compilation.warnings.join('\n'));
-		}
-	};
-
-	return webpackGulp(webpackConfig, webpack, webpackDone)
-		.pipe(gulp.dest('out-editor-esm-bundle'));
-});
-
-gulp.task('editor-esm-bundle',
+gulp.task('editor-esm',
 	task.series(
 		task.parallel(
 			util.rimraf('out-editor-src'),
 			util.rimraf('out-editor-esm'),
 			util.rimraf('out-monaco-editor-core'),
-			util.rimraf('out-editor-esm-bundle'),
 		),
 		extractEditorSrcTask,
 		createESMSourcesAndResourcesTask,
 		compileEditorESMTask,
 		appendJSToESMImportsTask,
-		bundleEditorESMTask,
 	)
 );
 

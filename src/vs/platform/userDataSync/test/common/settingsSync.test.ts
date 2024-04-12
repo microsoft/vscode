@@ -6,7 +6,8 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -16,38 +17,39 @@ import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } 
 import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'settingsSync',
-	'type': 'object',
-	'properties': {
-		'settingsSync.machine': {
-			'type': 'string',
-			'scope': ConfigurationScope.MACHINE
-		},
-		'settingsSync.machineOverridable': {
-			'type': 'string',
-			'scope': ConfigurationScope.MACHINE_OVERRIDABLE
-		}
-	}
-});
-
 suite('SettingsSync - Auto', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
 	let testObject: SettingsSynchroniser;
 
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'settingsSync',
+			'type': 'object',
+			'properties': {
+				'settingsSync.machine': {
+					'type': 'string',
+					'scope': ConfigurationScope.MACHINE
+				},
+				'settingsSync.machineOverridable': {
+					'type': 'string',
+					'scope': ConfigurationScope.MACHINE_OVERRIDABLE
+				}
+			}
+		});
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp(true);
 		testObject = client.getSynchronizer(SyncResource.Settings) as SettingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
 
-	teardown(() => disposableStore.clear());
-
-	test('when settings file does not exist', async () => {
+	test('when settings file does not exist', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const settingResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 
@@ -76,9 +78,9 @@ suite('SettingsSync - Auto', () => {
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
-	});
+	}));
 
-	test('when settings file is empty and remote has no changes', async () => {
+	test('when settings file is empty and remote has no changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
@@ -87,12 +89,12 @@ suite('SettingsSync - Auto', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
-		assert.strictEqual(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, '{}');
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content)?.settings, '{}');
+		assert.strictEqual(parseSettingsSyncContent(remoteUserData.syncData!.content)?.settings, '{}');
 		assert.strictEqual((await fileService.readFile(settingsResource)).value.toString(), '');
-	});
+	}));
 
-	test('when settings file is empty and remote has changes', async () => {
+	test('when settings file is empty and remote has changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 		const content =
@@ -128,12 +130,12 @@ suite('SettingsSync - Auto', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, content);
-		assert.strictEqual(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, content);
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content)?.settings, content);
+		assert.strictEqual(parseSettingsSyncContent(remoteUserData.syncData!.content)?.settings, content);
 		assert.strictEqual((await fileService.readFile(settingsResource)).value.toString(), content);
-	});
+	}));
 
-	test('when settings file is created after first sync', async () => {
+	test('when settings file is created after first sync', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const fileService = client.instantiationService.get(IFileService);
 
 		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
@@ -153,10 +155,10 @@ suite('SettingsSync - Auto', () => {
 		const remoteUserData = await testObject.getRemoteUserData(null);
 		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
-	});
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content)?.settings, '{}');
+	}));
 
-	test('sync for first time to the server', async () => {
+	test('sync for first time to the server', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const expected =
 			`{
 	// Always
@@ -185,11 +187,11 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, expected);
-	});
+	}));
 
-	test('do not sync machine settings', async () => {
+	test('do not sync machine settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =
 			`{
 	// Always
@@ -209,7 +211,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -218,9 +220,9 @@ suite('SettingsSync - Auto', () => {
 	// Workbench
 	"workbench.colorTheme": "GitHub Sharp"
 }`);
-	});
+	}));
 
-	test('do not sync machine settings when spread across file', async () => {
+	test('do not sync machine settings when spread across file', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =
 			`{
 	// Always
@@ -240,7 +242,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -249,9 +251,9 @@ suite('SettingsSync - Auto', () => {
 	// Workbench
 	"workbench.colorTheme": "GitHub Sharp"
 }`);
-	});
+	}));
 
-	test('do not sync machine settings when spread across file - 2', async () => {
+	test('do not sync machine settings when spread across file - 2', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =
 			`{
 	// Always
@@ -271,7 +273,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -280,9 +282,9 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 	"files.simpleDialog.enable": true,
 }`);
-	});
+	}));
 
-	test('sync when all settings are machine settings', async () => {
+	test('sync when all settings are machine settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =
 			`{
 	// Machine
@@ -295,12 +297,12 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 }`);
-	});
+	}));
 
-	test('sync when all settings are machine settings with trailing comma', async () => {
+	test('sync when all settings are machine settings with trailing comma', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =
 			`{
 	// Machine
@@ -313,13 +315,13 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	,
 }`);
-	});
+	}));
 
-	test('local change event is triggered when settings are changed', async () => {
+	test('local change event is triggered when settings are changed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const content =
 			`{
 	"files.autoSave": "afterDelay",
@@ -335,9 +337,9 @@ suite('SettingsSync - Auto', () => {
 	"files.simpleDialog.enable": true,
 }`, client);
 		await promise;
-	});
+	}));
 
-	test('do not sync ignored settings', async () => {
+	test('do not sync ignored settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =
 			`{
 	// Always
@@ -365,7 +367,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -380,9 +382,9 @@ suite('SettingsSync - Auto', () => {
 		"terminal.integrated.shell.osx"
 	]
 }`);
-	});
+	}));
 
-	test('do not sync ignored and machine settings', async () => {
+	test('do not sync ignored and machine settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =
 			`{
 	// Always
@@ -413,7 +415,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -428,9 +430,9 @@ suite('SettingsSync - Auto', () => {
 		"terminal.integrated.shell.osx"
 	],
 }`);
-	});
+	}));
 
-	test('sync throws invalid content error', async () => {
+	test('sync throws invalid content error', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const expected =
 			`{
 	// Always
@@ -463,9 +465,9 @@ suite('SettingsSync - Auto', () => {
 			assert.ok(e instanceof UserDataSyncError);
 			assert.deepStrictEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.LocalInvalidContent);
 		}
-	});
+	}));
 
-	test('sync throws invalid content error - content is an array', async () => {
+	test('sync throws invalid content error - content is an array', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await updateSettings('[]', client);
 		try {
 			await testObject.sync(await client.getResourceManifest());
@@ -474,9 +476,9 @@ suite('SettingsSync - Auto', () => {
 			assert.ok(e instanceof UserDataSyncError);
 			assert.deepStrictEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.LocalInvalidContent);
 		}
-	});
+	}));
 
-	test('sync when there are conflicts', async () => {
+	test('sync when there are conflicts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 		await updateSettings(JSON.stringify({
@@ -499,9 +501,9 @@ suite('SettingsSync - Auto', () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const mergeContent = (await fileService.readFile(testObject.conflicts.conflicts[0].previewResource)).value.toString();
 		assert.strictEqual(mergeContent, '');
-	});
+	}));
 
-	test('sync profile settings', async () => {
+	test('sync profile settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 		const profile = await client2.instantiationService.get(IUserDataProfilesService).createNamedProfile('profile1');
@@ -521,27 +523,29 @@ suite('SettingsSync - Auto', () => {
 			'a': 1,
 			'b': 2,
 		});
-	});
+	}));
 
 });
 
 suite('SettingsSync - Manual', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
 	let testObject: SettingsSynchroniser;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp(true);
 		testObject = client.getSynchronizer(SyncResource.Settings) as SettingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
 
-	teardown(() => disposableStore.clear());
-
-	test('do not sync ignored settings', async () => {
+	test('do not sync ignored settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =
 			`{
 	// Always
@@ -572,7 +576,7 @@ suite('SettingsSync - Manual', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -587,7 +591,7 @@ suite('SettingsSync - Manual', () => {
 		"terminal.integrated.shell.osx"
 	]
 }`);
-	});
+	}));
 
 });
 

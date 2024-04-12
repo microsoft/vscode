@@ -75,7 +75,7 @@ export class FileWalker {
 		this.errors = [];
 
 		if (this.filePattern) {
-			this.normalizedFilePatternLowercase = prepareQuery(this.filePattern).normalizedLowercase;
+			this.normalizedFilePatternLowercase = config.shouldGlobMatchFilePattern ? null : prepareQuery(this.filePattern).normalizedLowercase;
 		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
@@ -579,6 +579,8 @@ export class FileWalker {
 
 			if (this.normalizedFilePatternLowercase) {
 				return isFilePatternMatch(candidate, this.normalizedFilePatternLowercase);
+			} else if (this.filePattern) {
+				return isFilePatternMatch(candidate, this.filePattern, false);
 			}
 		}
 
@@ -716,7 +718,7 @@ class AbsoluteAndRelativeParsedExpression {
 	}
 }
 
-export function rgErrorMsgForDisplay(msg: string): string | undefined {
+function rgErrorMsgForDisplay(msg: string): string | undefined {
 	const lines = msg.trim().split('\n');
 	const firstLine = lines[0].trim();
 

@@ -6,7 +6,6 @@
 import { Connection, Emitter, FileChangeType, NotebookDocuments, Position, Range, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as md from 'vscode-markdown-languageservice';
-import { ContainingDocumentContext, FileWatcherOptions, IFileSystemWatcher } from 'vscode-markdown-languageservice/out/workspace';
 import { URI } from 'vscode-uri';
 import { LsConfiguration } from './config';
 import * as protocol from './protocol';
@@ -64,6 +63,22 @@ class VsCodeDocument implements md.ITextDocument {
 		throw new Error('Document has been closed');
 	}
 
+	offsetAt(position: Position): number {
+		if (this.inMemoryDoc) {
+			return this.inMemoryDoc.offsetAt(position);
+		}
+
+		if (this.onDiskDoc) {
+			return this.onDiskDoc.offsetAt(position);
+		}
+
+		throw new Error('Document has been closed');
+	}
+
+	hasInMemoryDoc(): boolean {
+		return !!this.inMemoryDoc;
+	}
+
 	isDetached(): boolean {
 		return !this.onDiskDoc && !this.inMemoryDoc;
 	}
@@ -95,7 +110,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	private _watcherPool = 0;
 	private readonly _watchers = new Map<number, {
 		readonly resource: URI;
-		readonly options: FileWatcherOptions;
+		readonly options: md.FileWatcherOptions;
 		readonly onDidChange: Emitter<URI>;
 		readonly onDidCreate: Emitter<URI>;
 		readonly onDidDelete: Emitter<URI>;
@@ -113,7 +128,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 				return;
 			}
 
-			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: TextDocument.onDidOpen', `${e.document.uri}`);
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.TextDocument.onDidOpen', { document: e.document.uri });
 
 			const uri = URI.parse(e.document.uri);
 			const doc = this._documentCache.get(uri);
@@ -138,7 +153,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 				return;
 			}
 
-			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: TextDocument.onDidChanceContent', `${e.document.uri}`);
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.TextDocument.onDidChanceContent', { document: e.document.uri });
 
 			const uri = URI.parse(e.document.uri);
 			const entry = this._documentCache.get(uri);
@@ -153,7 +168,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 				return;
 			}
 
-			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: TextDocument.onDidClose', `${e.document.uri}`);
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.TextDocument.onDidClose', { document: e.document.uri });
 
 			const uri = URI.parse(e.document.uri);
 			const doc = this._documentCache.get(uri);
@@ -166,18 +181,29 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			if (doc.isDetached()) {
 				// The document has been fully closed
 				this.doDeleteDocument(uri);
-			} else {
-				// The document still exists on disk
-				// To be safe, tell the service that the document has changed because the
-				// in-memory doc contents may be different than the disk doc contents.
-				this._onDidChangeMarkdownDocument.fire(doc);
+				return;
 			}
+
+			// Check that if file has been deleted on disk.
+			// This can happen when directories are renamed / moved. VS Code's file system watcher does not
+			// notify us when this happens.
+			if (!(await this.statBypassingCache(uri))) {
+				if (this._documentCache.get(uri) === doc && !doc.hasInMemoryDoc()) {
+					this.doDeleteDocument(uri);
+					return;
+				}
+			}
+
+			// The document still exists on disk
+			// To be safe, tell the service that the document has changed because the
+			// in-memory doc contents may be different than the disk doc contents.
+			this._onDidChangeMarkdownDocument.fire(doc);
 		});
 
 		connection.onDidChangeWatchedFiles(async ({ changes }) => {
 			for (const change of changes) {
 				const resource = URI.parse(change.uri);
-				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: onDidChangeWatchedFiles', `${change.type}: ${resource}`);
+				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.onDidChangeWatchedFiles', { type: change.type, resource: resource.toString() });
 				switch (change.type) {
 					case FileChangeType.Changed: {
 						const entry = this._documentCache.get(resource);
@@ -216,7 +242,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		});
 
 		connection.onRequest(protocol.fs_watcher_onChange, params => {
-			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: fs_watcher_onChange', `${params.kind}: ${params.uri}`);
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.fs_watcher_onChange', { kind: params.kind, uri: params.uri });
 
 			const watcher = this._watchers.get(params.id);
 			if (!watcher) {
@@ -328,19 +354,28 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	}
 
 	async stat(resource: URI): Promise<md.FileStat | undefined> {
-		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: stat', `${resource}`);
-		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.stat', { resource: resource.toString() });
+		if (this._documentCache.has(resource)) {
 			return { isDirectory: false };
 		}
-		return this.connection.sendRequest(protocol.fs_stat, { uri: resource.toString() });
+		return this.statBypassingCache(resource);
+	}
+
+	private async statBypassingCache(resource: URI): Promise<md.FileStat | undefined> {
+		const uri = resource.toString();
+		if (this.documents.get(uri)) {
+			return { isDirectory: false };
+		}
+		const fsResult = await this.connection.sendRequest(protocol.fs_stat, { uri });
+		return fsResult ?? undefined; // Force convert null to undefined
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
-		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: readDir', `${resource}`);
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.readDir', { resource: resource.toString() });
 		return this.connection.sendRequest(protocol.fs_readDirectory, { uri: resource.toString() });
 	}
 
-	getContainingDocument(resource: URI): ContainingDocumentContext | undefined {
+	getContainingDocument(resource: URI): md.ContainingDocumentContext | undefined {
 		if (resource.scheme === Schemes.notebookCell) {
 			const nb = this.notebooks.findNotebookDocumentForCell(resource.toString());
 			if (nb) {
@@ -353,9 +388,9 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		return undefined;
 	}
 
-	watchFile(resource: URI, options: FileWatcherOptions): IFileSystemWatcher {
+	watchFile(resource: URI, options: md.FileWatcherOptions): md.IFileSystemWatcher {
 		const id = this._watcherPool++;
-		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: watchFile', `(${id}) ${resource}`);
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.watchFile', { id, resource: resource.toString() });
 
 		const entry = {
 			resource,
@@ -378,7 +413,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			onDidChange: entry.onDidChange.event,
 			onDidDelete: entry.onDidDelete.event,
 			dispose: () => {
-				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: disposeWatcher', `(${id}) ${resource}`);
+				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.disposeWatcher', { id, resource: resource.toString() });
 				this.connection.sendRequest(protocol.fs_watcher_delete, { id });
 				this._watchers.delete(id);
 			}
@@ -390,7 +425,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	}
 
 	private doDeleteDocument(uri: URI) {
-		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: deleteDocument', `${uri}`);
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.deleteDocument', { document: uri.toString() });
 
 		this._documentCache.delete(uri);
 		this._onDidDeleteMarkdownDocument.fire(uri);

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -15,20 +15,22 @@ import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userData
 
 suite('TasksSync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
 
 	let testObject: TasksSynchroniser;
 
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp(true);
 		testObject = client.getSynchronizer(SyncResource.Tasks) as TasksSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('when tasks file does not exist', async () => {
 		const fileService = client.instantiationService.get(IFileService);
@@ -84,8 +86,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
 	});
 
@@ -107,8 +109,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 	});
 
 	test('first time sync: when tasks file exists locally with same content as remote', async () => {
@@ -135,8 +137,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
 	});
 
@@ -165,8 +167,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 	});
 
 	test('when tasks file remotely has moved forward', async () => {
@@ -201,8 +203,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
 	});
 
@@ -239,8 +241,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
 	});
 
@@ -292,8 +294,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), previewContent);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), previewContent);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), previewContent);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), previewContent);
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), previewContent);
 	});
 
@@ -345,8 +347,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
 	});
 
@@ -392,8 +394,8 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
 	});
 
@@ -439,9 +441,37 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
+	});
+
+	test('when tasks file was removed in one client', async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
+		await fileService.writeFile(tasksResource, VSBuffer.fromString(JSON.stringify({
+			'version': '2.0.0',
+			'tasks': []
+		})));
+		await testObject.sync(await client.getResourceManifest());
+
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp(true);
+		await client2.sync();
+
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
+		const fileService2 = client2.instantiationService.get(IFileService);
+		fileService2.del(tasksResource2);
+		await client2.sync();
+
+		await testObject.sync(await client.getResourceManifest());
+
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+		const lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), null);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData.syncData!.content, client.instantiationService.get(ILogService)), null);
+		assert.strictEqual(await fileService.exists(tasksResource), false);
 	});
 
 	test('when tasks file is created after first sync', async () => {
@@ -472,7 +502,7 @@ suite('TasksSync', () => {
 		const remoteUserData = await testObject.getRemoteUserData(null);
 		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content, client.instantiationService.get(ILogService)), content);
 	});
 
 	test('apply remote when tasks file does not exist', async () => {
@@ -491,7 +521,7 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(server.requests, []);
 	});
 
-	test('sync profile snippets', async () => {
+	test('sync profile tasks', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 		const profile = await client2.instantiationService.get(IUserDataProfilesService).createNamedProfile('profile1');

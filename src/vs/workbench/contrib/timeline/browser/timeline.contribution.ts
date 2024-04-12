@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
@@ -20,13 +20,14 @@ import { ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
 const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
 
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
-	readonly name = TimelinePane.TITLE;
+	readonly name: ILocalizedString = TimelinePane.TITLE;
 	readonly containerIcon = timelineViewIcon;
 	readonly ctorDescriptor = new SyncDescriptor(TimelinePane);
 	readonly order = 2;
@@ -99,4 +100,4 @@ MenuRegistry.appendMenuItem(MenuId.TimelineTitle, <ISubmenuItem>{
 	icon: timelineFilter
 });
 
-registerSingleton(ITimelineService, TimelineService, true);
+registerSingleton(ITimelineService, TimelineService, InstantiationType.Delayed);

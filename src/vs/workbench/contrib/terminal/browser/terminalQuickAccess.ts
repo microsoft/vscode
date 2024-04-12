@@ -10,7 +10,8 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -25,7 +26,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
-		@ITerminalEditorService private readonly _terminalService: ITerminalService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -73,7 +74,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			ariaLabel: createTerminalLabel,
 			accept: () => this._commandService.executeCommand(TerminalCommandId.New)
 		});
-		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile");
+		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile...");
 		terminalPicks.push({
 			label: `$(plus) ${createWithProfileLabel}`,
 			ariaLabel: createWithProfileLabel,

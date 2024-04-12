@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createESMSourcesAndResources2 = exports.extractEditor = void 0;
+exports.extractEditor = extractEditor;
+exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 const fs = require("fs");
 const path = require("path");
 const tss = require("./treeshaking");
@@ -111,7 +112,6 @@ function extractEditor(options) {
         'vs/nls.mock.ts',
     ].forEach(copyFile);
 }
-exports.extractEditor = extractEditor;
 function createESMSourcesAndResources2(options) {
     const ts = require('typescript');
     const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
@@ -180,7 +180,7 @@ function createESMSourcesAndResources2(options) {
                     + relativePath
                     + fileContents.substring(end + 1));
             }
-            fileContents = fileContents.replace(/import ([a-zA-z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
+            fileContents = fileContents.replace(/import ([a-zA-Z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
                 return `import * as ${m1} from ${m2};`;
             });
             write(getDestAbsoluteFilePath(file), fileContents);
@@ -251,7 +251,6 @@ function createESMSourcesAndResources2(options) {
         }
     }
 }
-exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 function transportCSS(module, enqueue, write) {
     if (!/\.css/.test(module)) {
         return false;
@@ -318,3 +317,4 @@ function transportCSS(module, enqueue, write) {
         return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
     }
 }
+//# sourceMappingURL=standalone.js.map

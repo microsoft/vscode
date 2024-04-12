@@ -7,27 +7,33 @@ import { ILogger, ILoggerOptions, AbstractMessageLogger, LogLevel, AbstractLogge
 import { MainThreadLoggerShape, MainContext, ExtHostLogLevelServiceShape as ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { URI } from 'vs/base/common/uri';
-import { Emitter } from 'vs/base/common/event';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { revive } from 'vs/base/common/marshalling';
 
 export class ExtHostLoggerService extends AbstractLoggerService implements ExtHostLogLevelServiceShape {
 
 	declare readonly _serviceBrand: undefined;
-	private readonly _onDidChangeLogLevel: Emitter<LogLevel>;
-	private readonly _proxy: MainThreadLoggerShape;
+	protected readonly _proxy: MainThreadLoggerShape;
 
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		const emitter = new Emitter<LogLevel>();
-		super(initData.logLevel, emitter.event);
+		super(initData.logLevel, initData.logsLocation, initData.loggers.map(logger => revive(logger)));
 		this._proxy = rpc.getProxy(MainContext.MainThreadLogger);
-		this._onDidChangeLogLevel = this._register(emitter);
 	}
 
-	$setLevel(level: LogLevel): void {
-		this._onDidChangeLogLevel.fire(level);
+	$setLogLevel(logLevel: LogLevel, resource?: UriComponents): void {
+		if (resource) {
+			this.setLogLevel(URI.revive(resource), logLevel);
+		} else {
+			this.setLogLevel(logLevel);
+		}
+	}
+
+	override setVisibility(resource: URI, visibility: boolean): void {
+		super.setVisibility(resource, visibility);
+		this._proxy.$setVisibility(resource, visibility);
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
@@ -46,7 +52,7 @@ class Logger extends AbstractMessageLogger {
 		logLevel: LogLevel,
 		loggerOptions?: ILoggerOptions,
 	) {
-		super(loggerOptions?.always);
+		super(loggerOptions?.logLevel === 'always');
 		this.setLevel(logLevel);
 		this.proxy.$createLogger(file, loggerOptions)
 			.then(() => {
@@ -66,5 +72,9 @@ class Logger extends AbstractMessageLogger {
 
 	private doLog(messages: [LogLevel, string][]) {
 		this.proxy.$log(this.file, messages);
+	}
+
+	override flush(): void {
+		this.proxy.$flush(this.file);
 	}
 }

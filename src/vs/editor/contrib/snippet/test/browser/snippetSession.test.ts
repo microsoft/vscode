@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -58,11 +59,13 @@ suite('SnippetSession', function () {
 		editor.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('normalize whitespace', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
 			const snippet = new SnippetParser().parse(input);
-			SnippetSession.adjustWhitespace(model, position, snippet, true, true);
+			SnippetSession.adjustWhitespace(model, position, true, snippet);
 			assert.strictEqual(snippet.toTextmateString(), expected);
 		}
 
@@ -706,7 +709,7 @@ suite('SnippetSession', function () {
 	test('Tabs don\'t get replaced with spaces in snippet transformations #103818', function () {
 		const model = editor.getModel()!;
 		model.setValue('\n{\n  \n}');
-		model.updateOptions({ insertSpaces: true, tabSize: 2 });
+		model.updateOptions({ insertSpaces: true, indentSize: 2 });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(3, 6, 3, 6)]);
 		const session = new SnippetSession(editor, [
 			'function animate () {',

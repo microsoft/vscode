@@ -151,14 +151,14 @@ export class Client implements IChannelClient, IDisposable {
 
 		let listener: IDisposable;
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				const channel = this.getCachedChannel(channelName);
 				const event: Event<T> = channel.listen(name, arg);
 
 				listener = event(emitter.fire, emitter);
 				this.activeRequests.add(listener);
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				this.activeRequests.delete(listener);
 				listener.dispose();
 
@@ -195,9 +195,9 @@ export class Client implements IChannelClient, IDisposable {
 			}
 
 			if (forkOpts.execArgv === undefined) {
-				// if not set, the forked process inherits the execArgv of the parent process
-				// --inspect and --inspect-brk can not be inherited as the port would conflict
-				forkOpts.execArgv = process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)); // remove
+				forkOpts.execArgv = process.execArgv			// if not set, the forked process inherits the execArgv of the parent process
+					.filter(a => !/^--inspect(-brk)?=/.test(a)) // --inspect and --inspect-brk can not be inherited as the port would conflict
+					.filter(a => !a.startsWith('--vscode-')); 	// --vscode-* arguments are unsupported by node.js and thus need to remove
 			}
 
 			removeDangerousEnvVariables(forkOpts.env);
@@ -207,7 +207,7 @@ export class Client implements IChannelClient, IDisposable {
 			const onMessageEmitter = new Emitter<VSBuffer>();
 			const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
 
-			onRawMessage(msg => {
+			const rawMessageDisposable = onRawMessage(msg => {
 
 				// Handle remote console logs specially
 				if (isRemoteConsoleLog(msg)) {
@@ -233,6 +233,7 @@ export class Client implements IChannelClient, IDisposable {
 
 			this.child.on('exit', (code: any, signal: any) => {
 				process.removeListener('exit' as 'loaded', onExit); // https://github.com/electron/electron/issues/21475
+				rawMessageDisposable.dispose();
 
 				this.activeRequests.forEach(r => dispose(r));
 				this.activeRequests.clear();
@@ -274,10 +275,8 @@ export class Client implements IChannelClient, IDisposable {
 
 	dispose() {
 		this._onDidProcessExit.dispose();
-		if (this.disposeDelayer) {
-			this.disposeDelayer.cancel();
-			this.disposeDelayer = undefined;
-		}
+		this.disposeDelayer?.cancel();
+		this.disposeDelayer = undefined;
 		this.disposeClient();
 		this.activeRequests.clear();
 	}

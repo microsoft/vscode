@@ -9,7 +9,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CodeAction, CodeActionList, CodeActionProvider, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,7 +25,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
 		kind: CodeActionKind.SurroundWith.value,
-		title: SurroundWithSnippetEditorAction.options.title.value,
+		title: localize('more', "More..."),
 		command: {
 			id: SurroundWithSnippetEditorAction.options.id,
 			title: SurroundWithSnippetEditorAction.options.title.value,
@@ -53,7 +53,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 				break;
 			}
 			actions.push({
-				title: localize('codeAction', "Surround With: {0}", snippet.name),
+				title: localize('codeAction', "{0}", snippet.name),
 				kind: CodeActionKind.SurroundWith.value,
 				edit: asWorkspaceEdit(model, range, snippet)
 			});

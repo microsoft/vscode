@@ -9,18 +9,17 @@ import {
 	Range,
 	Selection, Task,
 	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemLabel, TreeItemCollapsibleState, Uri,
-	window, workspace, WorkspaceFolder, Position, Location
+	window, workspace, WorkspaceFolder, Position, Location, l10n
 } from 'vscode';
-import * as nls from 'vscode-nls';
 import { readScripts } from './readScripts';
 import {
 	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
 	NpmTaskProvider,
 	startDebugging,
-	ITaskWithLocation
+	ITaskWithLocation,
+	INSTALL_SCRIPT
 } from './tasks';
 
-const localize = nls.loadMessageBundle();
 
 class Folder extends TreeItem {
 	packages: PackageJSON[] = [];
@@ -84,7 +83,7 @@ class NpmScript extends TreeItem {
 			: task.task.name;
 		super(name, TreeItemCollapsibleState.None);
 		this.taskLocation = task.location;
-		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
+		const command: ExplorerCommands = name === `${INSTALL_SCRIPT} ` ? 'run' : workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
 
 		const commandList = {
 			'open': {
@@ -231,9 +230,9 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 				const taskTree = this.buildTaskTree(taskItems);
 				this.taskTree = this.sortTaskTree(taskTree);
 				if (this.taskTree.length === 0) {
-					let message = localize('noScripts', 'No scripts found.');
+					let message = l10n.t("No scripts found.");
 					if (!isAutoDetectionEnabled()) {
-						message = localize('autoDetectIsOff', 'The setting "npm.autoDetect" is "off".');
+						message = l10n.t('The setting "npm.autoDetect" is "off".');
 					}
 					this.taskTree = [new NoScripts(message)];
 				}

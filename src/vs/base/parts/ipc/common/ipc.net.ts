@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
 export const enum SocketDiagnosticsEventType {
@@ -263,7 +263,7 @@ const enum ProtocolMessageType {
 	ReplayRequest = 6,
 	Pause = 7,
 	Resume = 8,
-	KeepAlive = 9,
+	KeepAlive = 9
 }
 
 function protocolMessageTypeToString(messageType: ProtocolMessageType) {
@@ -300,6 +300,10 @@ export const enum ProtocolConstants {
 	 * Maximal grace time between the first and the last reconnection...
 	 */
 	ReconnectionShortGraceTime = 5 * 60 * 1000, // 5min
+	/**
+	 * Send a message every 5 seconds to avoid that the connection is closed by the OS.
+	 */
+	KeepAliveSendTime = 5000, // 5 seconds
 }
 
 class ProtocolMessage {
@@ -612,14 +616,14 @@ export class BufferedEmitter<T> {
 
 	constructor() {
 		this._emitter = new Emitter<T>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				this._hasListeners = true;
 				// it is important to deliver these messages after this call, but before
 				// other messages have a chance to be received (to guarantee in order delivery)
 				// that's why we're using here queueMicrotask and not other types of timeouts
 				queueMicrotask(() => this._deliverMessages());
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				this._hasListeners = false;
 			}
 		});
@@ -778,6 +782,25 @@ export interface ILoadEstimator {
 	hasHighLoad(): boolean;
 }
 
+export interface PersistentProtocolOptions {
+	/**
+	 * The socket to use.
+	 */
+	socket: ISocket;
+	/**
+	 * The initial chunk of data that has already been received from the socket.
+	 */
+	initialChunk?: VSBuffer | null;
+	/**
+	 * The CPU load estimator to use.
+	 */
+	loadEstimator?: ILoadEstimator;
+	/**
+	 * Whether to send keep alive messages. Defaults to true.
+	 */
+	sendKeepAlive?: boolean;
+}
+
 /**
  * Same as Protocol, but will actually track messages and acks.
  * Moreover, it will ensure no messages are lost if there are no event listeners.
@@ -804,9 +827,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
-	private _socketDisposables: IDisposable[];
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
+	private _socketDisposables: DisposableStore;
 
 	private readonly _loadEstimator: ILoadEstimator;
+	private readonly _shouldSendKeepAlive: boolean;
 
 	private readonly _onControlMessage = new BufferedEmitter<VSBuffer>();
 	readonly onControlMessage: Event<VSBuffer> = this._onControlMessage.event;
@@ -827,8 +852,9 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
 
-	constructor(socket: ISocket, initialChunk: VSBuffer | null = null, loadEstimator: ILoadEstimator = LoadEstimator.getInstance()) {
-		this._loadEstimator = loadEstimator;
+	constructor(opts: PersistentProtocolOptions) {
+		this._loadEstimator = opts.loadEstimator ?? LoadEstimator.getInstance();
+		this._shouldSendKeepAlive = opts.sendKeepAlive ?? true;
 		this._isReconnecting = false;
 		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
 		this._outgoingMsgId = 0;
@@ -843,22 +869,24 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._lastReplayRequestTime = 0;
 		this._lastSocketTimeoutTime = Date.now();
 
-		this._socketDisposables = [];
-		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket);
-		this._socketDisposables.push(this._socketWriter);
-		this._socketReader = new ProtocolReader(this._socket);
-		this._socketDisposables.push(this._socketReader);
-		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
-		if (initialChunk) {
-			this._socketReader.acceptChunk(initialChunk);
+		this._socketDisposables = new DisposableStore();
+		this._socket = opts.socket;
+		this._socketWriter = this._socketDisposables.add(new ProtocolWriter(this._socket));
+		this._socketReader = this._socketDisposables.add(new ProtocolReader(this._socket));
+		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
+		this._socketDisposables.add(this._socket.onClose(e => this._onSocketClose.fire(e)));
+
+		if (opts.initialChunk) {
+			this._socketReader.acceptChunk(opts.initialChunk);
 		}
 
-		// send a message every 5s
-		this._keepAliveInterval = setInterval(() => {
-			this._sendKeepAlive();
-		}, 5000);
+		if (this._shouldSendKeepAlive) {
+			this._keepAliveInterval = setInterval(() => {
+				this._sendKeepAlive();
+			}, ProtocolConstants.KeepAliveSendTime);
+		} else {
+			this._keepAliveInterval = null;
+		}
 	}
 
 	dispose(): void {
@@ -874,7 +902,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			clearInterval(this._keepAliveInterval);
 			this._keepAliveInterval = null;
 		}
-		this._socketDisposables = dispose(this._socketDisposables);
+		this._socketDisposables.dispose();
 	}
 
 	drain(): Promise<void> {
@@ -912,7 +940,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	public beginAcceptReconnection(socket: ISocket, initialDataChunk: VSBuffer | null): void {
 		this._isReconnecting = true;
 
-		this._socketDisposables = dispose(this._socketDisposables);
+		this._socketDisposables.dispose();
+		this._socketDisposables = new DisposableStore();
 		this._onControlMessage.flushBuffer();
 		this._onSocketClose.flushBuffer();
 		this._onSocketTimeout.flushBuffer();
@@ -922,12 +951,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._lastSocketTimeoutTime = Date.now();
 
 		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket);
-		this._socketDisposables.push(this._socketWriter);
-		this._socketReader = new ProtocolReader(this._socket);
-		this._socketDisposables.push(this._socketReader);
-		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
+		this._socketWriter = this._socketDisposables.add(new ProtocolWriter(this._socket));
+		this._socketReader = this._socketDisposables.add(new ProtocolReader(this._socket));
+		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
+		this._socketDisposables.add(this._socket.onClose(e => this._onSocketClose.fire(e)));
+
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
 
@@ -1148,7 +1176,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	private _sendKeepAlive(): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, 0, getEmptyBuffer());
+		this._incomingAckId = this._incomingMsgId;
+		const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, this._incomingAckId, getEmptyBuffer());
 		this._socketWriter.write(msg);
 	}
 }

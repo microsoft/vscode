@@ -20,10 +20,10 @@ import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IKeyMods, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/browser/findController';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	score?: number;
@@ -53,7 +53,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		// Prefer the word under the cursor in the active editor as default filter
 		const editor = this.codeEditorService.getFocusedCodeEditor();
 		if (editor) {
-			return withNullAsUndefined(getSelectionSearchString(editor));
+			return getSelectionSearchString(editor) ?? undefined;
 		}
 
 		return undefined;
@@ -202,7 +202,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				strikethrough: deprecated,
 				buttons: [
 					{
-						iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+						iconClass: openSideBySideDirection === 'right' ? ThemeIcon.asClassName(Codicon.splitHorizontal) : ThemeIcon.asClassName(Codicon.splitVertical),
 						tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 					}
 				],

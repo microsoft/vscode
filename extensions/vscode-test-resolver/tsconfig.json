@@ -4,11 +4,15 @@
 		"outDir": "./out",
 		"types": [
 			"node"
+		],
+		"lib": [
+			"WebWorker"
 		]
 	},
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.tunnels.d.ts",
 		"../../src/vscode-dts/vscode.proposed.resolvers.d.ts"
 	]
 }

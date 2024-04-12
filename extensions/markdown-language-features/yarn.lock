@@ -2,46 +2,103 @@
 # yarn lockfile v1
 
 
-"@microsoft/1ds-core-js@3.2.3", "@microsoft/1ds-core-js@^3.2.3":
-  version "3.2.3"
-  resolved "https://registry.yarnpkg.com/@microsoft/1ds-core-js/-/1ds-core-js-3.2.3.tgz#2217d92ec8b073caa4577a13f40ea3a5c4c4d4e7"
-  integrity sha512-796A8fd90oUKDRO7UXUT9BwZ3G+a9XzJj5v012FcCN/2qRhEsIV3x/0wkx2S08T4FiQEUPkB2uoYHpEjEneM7g==
+"@microsoft/1ds-core-js@4.0.3", "@microsoft/1ds-core-js@^4.0.3":
+  version "4.0.3"
+  resolved "https://registry.yarnpkg.com/@microsoft/1ds-core-js/-/1ds-core-js-4.0.3.tgz#c8a92c623745a9595e06558a866658480c33bdf9"
+  integrity sha512-FrxNLVAPsAvD7+l63TlNS/Kodvpct2WulpDSn1dI4Xuy0kF4E2H867kHdwL/iY1Bj3zA3FSy/jvE4+OcDws7ug==
   dependencies:
-    "@microsoft/applicationinsights-core-js" "2.8.4"
-    "@microsoft/applicationinsights-shims" "^2.0.1"
-    "@microsoft/dynamicproto-js" "^1.1.6"
+    "@microsoft/applicationinsights-core-js" "3.0.4"
+    "@microsoft/applicationinsights-shims" "3.0.1"
+    "@microsoft/dynamicproto-js" "^2.0.2"
+    "@nevware21/ts-async" ">= 0.3.0 < 2.x"
+    "@nevware21/ts-utils" ">= 0.10.1 < 2.x"
 
-"@microsoft/1ds-post-js@^3.2.3":
-  version "3.2.3"
-  resolved "https://registry.yarnpkg.com/@microsoft/1ds-post-js/-/1ds-post-js-3.2.3.tgz#1fa7d51615a44f289632ae8c588007ba943db216"
-  integrity sha512-tcGJQXXr2LYoBbIXPoUVe1KCF3OtBsuKDFL7BXfmNtuSGtWF0yejm6H83DrR8/cUIGMRMUP9lqNlqFGwDYiwAQ==
+"@microsoft/1ds-post-js@^4.0.3":
+  version "4.0.3"
+  resolved "https://registry.yarnpkg.com/@microsoft/1ds-post-js/-/1ds-post-js-4.0.3.tgz#cfcb20bb23fb6215d3f0732f60f5b7df3e624f86"
+  integrity sha512-uewvmUtXKd7ttypiKQGdYI6i7UUpPkOznLayzIFrJ4r2xnG6jhPjpKRncHFXPQcM4XSWO3yf5PQ3xAbPq9t7ZQ==
   dependencies:
-    "@microsoft/1ds-core-js" "3.2.3"
-    "@microsoft/applicationinsights-shims" "^2.0.1"
-    "@microsoft/dynamicproto-js" "^1.1.6"
+    "@microsoft/1ds-core-js" "4.0.3"
+    "@microsoft/applicationinsights-shims" "3.0.1"
+    "@microsoft/dynamicproto-js" "^2.0.2"
+    "@nevware21/ts-async" ">= 0.3.0 < 2.x"
+    "@nevware21/ts-utils" ">= 0.10.1 < 2.x"
 
-"@microsoft/applicationinsights-core-js@2.8.4":
-  version "2.8.4"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.8.4.tgz#607e531bb241a8920d43960f68a7c76a6f9af596"
-  integrity sha512-FoA0FNOsFbJnLyTyQlYs6+HR7HMEa6nAOE6WOm9WVejBHMHQ/Bdb+hfVFi6slxwCimr/ner90jchi4/sIYdnyQ==
+"@microsoft/applicationinsights-channel-js@3.0.4":
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-channel-js/-/applicationinsights-channel-js-3.0.4.tgz#247b6fe2158fad9826cbcdf7304f885766b36624"
+  integrity sha512-6TlfExmErQ8Y+/ChbkyWl+jyt4wg3T6p7lwXDsUCB0LgZmlEWMaCUS0YlT73JCWmE8j7vxW8yUm0lgsgmHns3A==
   dependencies:
-    "@microsoft/applicationinsights-shims" "2.0.1"
-    "@microsoft/dynamicproto-js" "^1.1.6"
+    "@microsoft/applicationinsights-common" "3.0.4"
+    "@microsoft/applicationinsights-core-js" "3.0.4"
+    "@microsoft/applicationinsights-shims" "3.0.1"
+    "@microsoft/dynamicproto-js" "^2.0.2"
+    "@nevware21/ts-async" ">= 0.3.0 < 2.x"
+    "@nevware21/ts-utils" ">= 0.10.1 < 2.x"
 
-"@microsoft/applicationinsights-shims@2.0.1", "@microsoft/applicationinsights-shims@^2.0.1":
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-shims/-/applicationinsights-shims-2.0.1.tgz#5d72fb7aaf4056c4fda54f9d7c93ccf8ca9bcbfd"
-  integrity sha512-G0MXf6R6HndRbDy9BbEj0zrLeuhwt2nsXk2zKtF0TnYo39KgYqhYC2ayIzKPTm2KAE+xzD7rgyLdZnrcRvt9WQ==
+"@microsoft/applicationinsights-common@3.0.4":
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-common/-/applicationinsights-common-3.0.4.tgz#c4aa53ba343f5b3c7fbf54cddd3c86a5bdcd95dc"
+  integrity sha512-r5gWaw/K9+tKfuo2GtDiDiKASgOkPOCrKW+wZzFvuR06uuwvWjbVQ6yW/YbnfuhRF5M65ksUiMi0eCMwEOGq7Q==
+  dependencies:
+    "@microsoft/applicationinsights-core-js" "3.0.4"
+    "@microsoft/applicationinsights-shims" "3.0.1"
+    "@microsoft/dynamicproto-js" "^2.0.2"
+    "@nevware21/ts-utils" ">= 0.10.1 < 2.x"
 
-"@microsoft/dynamicproto-js@^1.1.6":
-  version "1.1.6"
-  resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.6.tgz#6fe03468862861f5f88ac4c3959a652b3797f1bc"
-  integrity sha512-D1Oivw1A4bIXhzBIy3/BBPn3p2On+kpO2NiYt9shICDK7L/w+cR6FFBUsBZ05l6iqzTeL+Jm8lAYn0g6G7DmDg==
+"@microsoft/applicationinsights-core-js@3.0.4":
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-3.0.4.tgz#008308b786930d94a1de8a1fbb4af0351b74653e"
+  integrity sha512-anxy5kEkqBmVoEqJiJzaaXXA0wzqZi9U4zGd05xFJ04lWckP8dG3zyT3+GGdg7rDelqLTNGxndeYoFmDv63u1g==
+  dependencies:
+    "@microsoft/applicationinsights-shims" "3.0.1"
+    "@microsoft/dynamicproto-js" "^2.0.2"
+    "@nevware21/ts-async" ">= 0.3.0 < 2.x"
+    "@nevware21/ts-utils" ">= 0.10.1 < 2.x"
 
-"@types/dompurify@^2.3.1":
-  version "2.3.1"
-  resolved "https://registry.yarnpkg.com/@types/dompurify/-/dompurify-2.3.1.tgz#2934adcd31c4e6b02676f9c22f9756e5091c04dd"
-  integrity sha512-YJth9qa0V/E6/XPH1Jq4BC8uCMmO8V1fKWn8PCvuZcAhMn7q0ez9LW6naQT04UZzjFfAPhyRMZmI2a2rbMlEFA==
+"@microsoft/applicationinsights-shims@3.0.1":
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-shims/-/applicationinsights-shims-3.0.1.tgz#3865b73ace8405b9c4618cc5c571f2fe3876f06f"
+  integrity sha512-DKwboF47H1nb33rSUfjqI6ryX29v+2QWcTrRvcQDA32AZr5Ilkr7whOOSsD1aBzwqX0RJEIP1Z81jfE3NBm/Lg==
+  dependencies:
+    "@nevware21/ts-utils" ">= 0.9.4 < 2.x"
+
+"@microsoft/applicationinsights-web-basic@^3.0.4":
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-web-basic/-/applicationinsights-web-basic-3.0.4.tgz#9a23323276b4a5a0dc6a352e2de5d75e3c16b534"
+  integrity sha512-KfoxPlLlf0JT12ADb23C5iGye/yFouoMgHEKULxkSQcYY9SsW/8rVrqqvoYKAL+u215CZU2A8Kc8sR3ehEaPCQ==
+  dependencies:
+    "@microsoft/applicationinsights-channel-js" "3.0.4"
+    "@microsoft/applicationinsights-common" "3.0.4"
+    "@microsoft/applicationinsights-core-js" "3.0.4"
+    "@microsoft/applicationinsights-shims" "3.0.1"
+    "@microsoft/dynamicproto-js" "^2.0.2"
+    "@nevware21/ts-async" ">= 0.3.0 < 2.x"
+    "@nevware21/ts-utils" ">= 0.10.1 < 2.x"
+
+"@microsoft/dynamicproto-js@^2.0.2":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-2.0.2.tgz#e57fbec2e7067d48b7e8e1e1c1d354028ef718a6"
+  integrity sha512-MB8trWaFREpmb037k/d0bB7T2BP7Ai24w1e1tbz3ASLB0/lwphsq3Nq8S9I5AsI5vs4zAQT+SB5nC5/dLYTiOg==
+  dependencies:
+    "@nevware21/ts-utils" ">= 0.9.4 < 2.x"
+
+"@nevware21/ts-async@>= 0.3.0 < 2.x":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@nevware21/ts-async/-/ts-async-0.3.0.tgz#a8b97ba01065fc930de9a3f4dd4a05e862becc6c"
+  integrity sha512-ZUcgUH12LN/F6nzN0cYd0F/rJaMLmXr0EHVTyYfaYmK55bdwE4338uue4UiVoRqHVqNW4KDUrJc49iGogHKeWA==
+  dependencies:
+    "@nevware21/ts-utils" ">= 0.10.0 < 2.x"
+
+"@nevware21/ts-utils@>= 0.10.0 < 2.x", "@nevware21/ts-utils@>= 0.10.1 < 2.x", "@nevware21/ts-utils@>= 0.9.4 < 2.x":
+  version "0.10.1"
+  resolved "https://registry.yarnpkg.com/@nevware21/ts-utils/-/ts-utils-0.10.1.tgz#aa65abc71eba06749a396598f22263d26f796ac7"
+  integrity sha512-pMny25NnF2/MJwdqC3Iyjm2pGIXNxni4AROpcqDeWa+td9JMUY4bUS9uU9XW+BoBRqTLUL+WURF9SOd/6OQzRg==
+
+"@types/dompurify@^3.0.2":
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/@types/dompurify/-/dompurify-3.0.2.tgz#c1cd33a475bc49c43c2a7900e41028e2136a4553"
+  integrity sha512-YBL4ziFebbbfQfH5mlC+QTJsvh0oJUrWbmxKMyEdL7emlHJqGR2Qb34TEFKj+VCayBvjKy3xczMFNhugThUsfQ==
   dependencies:
     "@types/trusted-types" "*"
 
@@ -95,13 +152,26 @@
   resolved "https://registry.yarnpkg.com/@types/vscode-webview/-/vscode-webview-1.57.0.tgz#bad5194d45ae8d03afc1c0f67f71ff5e7a243bbf"
   integrity sha512-x3Cb/SMa1IwRHfSvKaZDZOTh4cNoG505c3NjTqGlMC082m++x/ETUmtYniDsw6SSmYzZXO8KBNhYxR0+VqymqA==
 
-"@vscode/extension-telemetry@0.6.2":
-  version "0.6.2"
-  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.6.2.tgz#b86814ee680615730da94220c2b03ea9c3c14a8e"
-  integrity sha512-yb/wxLuaaCRcBAZtDCjNYSisAXz3FWsSqAha5nhHcYxx2ZPdQdWuZqVXGKq0ZpHVndBWWtK6XqtpCN2/HB4S1w==
+"@vscode/extension-telemetry@^0.9.0":
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.9.0.tgz#8c6c61e253ff304f46045f04edd60059b144417a"
+  integrity sha512-37RxGHXrs3GoXPgCUKQhghEu0gxs8j27RLjQwwtSf4WhPdJKz8UrqMYzpsXlliQ05zURYmtdGZst9C6+hfWXaQ==
   dependencies:
-    "@microsoft/1ds-core-js" "^3.2.3"
-    "@microsoft/1ds-post-js" "^3.2.3"
+    "@microsoft/1ds-core-js" "^4.0.3"
+    "@microsoft/1ds-post-js" "^4.0.3"
+    "@microsoft/applicationinsights-web-basic" "^3.0.4"
+
+"@vscode/l10n@^0.0.10":
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/@vscode/l10n/-/l10n-0.0.10.tgz#9c513107c690c0dd16e3ec61e453743de15ebdb0"
+  integrity sha512-E1OCmDcDWa0Ya7vtSjp/XfHFGqYJfh+YPC1RkATU71fTac+j1JjCcB3qwSzmlKAighx2WxhLlfhS0RwAN++PFQ==
+
+"@vscode/markdown-it-katex@^1.0.2":
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/@vscode/markdown-it-katex/-/markdown-it-katex-1.0.2.tgz#27ba579fa3896b2944b71209dd30d0f983983f11"
+  integrity sha512-QY/OnOHPTqc8tQoCoAjVblILX4yE6xGZHKODtiTKqA328OXra+lSpeJO5Ouo9AAvrs9AwcCLz6xvW3zwcsPBQg==
+  dependencies:
+    katex "^0.16.4"
 
 argparse@^2.0.1:
   version "2.0.1"
@@ -121,25 +191,37 @@ brace-expansion@^1.1.7:
     balanced-match "^1.0.0"
     concat-map "0.0.1"
 
+commander@^8.3.0:
+  version "8.3.0"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-8.3.0.tgz#4837ea1b2da67b9c616a67afbb0fafee567bca66"
+  integrity sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==
+
 concat-map@0.0.1:
   version "0.0.1"
   resolved "https://registry.yarnpkg.com/concat-map/-/concat-map-0.0.1.tgz#d8a96bd77fd68df7793a73036a3ba0d5405d477b"
   integrity sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==
 
-dompurify@^2.3.3:
-  version "2.3.3"
-  resolved "https://registry.yarnpkg.com/dompurify/-/dompurify-2.3.3.tgz#c1af3eb88be47324432964d8abc75cf4b98d634c"
-  integrity sha512-dqnqRkPMAjOZE0FogZ+ceJNM2dZ3V/yNOuFB7+39qpO93hHhfRpHw3heYQC7DPK9FqbQTfBKUJhiSfz4MvXYwg==
+dompurify@^3.0.5:
+  version "3.0.5"
+  resolved "https://registry.yarnpkg.com/dompurify/-/dompurify-3.0.5.tgz#eb3d9cfa10037b6e73f32c586682c4b2ab01fbed"
+  integrity sha512-F9e6wPGtY+8KNMRAVfxeCOHU0/NPWMSENNq4pQctuXRqqdEPW7q3CrLbR5Nse044WwacyjHGOMlvNsBe1y6z9A==
 
 entities@~2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/entities/-/entities-2.1.0.tgz#992d3129cf7df6870b96c57858c249a120f8b8b5"
   integrity sha512-hCx1oky9PFrJ611mf0ifBLBRW8lUUVRlFolb5gWRfIELabBlbp9xZvrqZLZAs+NxFnbfQoeGd8wDkygjg7U85w==
 
-highlight.js@^11.4.0:
-  version "11.4.0"
-  resolved "https://registry.yarnpkg.com/highlight.js/-/highlight.js-11.4.0.tgz#34ceadd49e1596ee5aba3d99346cdfd4845ee05a"
-  integrity sha512-nawlpCBCSASs7EdvZOYOYVkJpGmAOKMYZgZtUqSRqodZE0GRVcFKwo1RcpeOemqh9hyttTdd5wDBwHkuSyUfnA==
+highlight.js@^11.8.0:
+  version "11.8.0"
+  resolved "https://registry.yarnpkg.com/highlight.js/-/highlight.js-11.8.0.tgz#966518ea83257bae2e7c9a48596231856555bb65"
+  integrity sha512-MedQhoqVdr0U6SSnWPzfiadUcDHfN/Wzq25AkXiQv9oiOO/sG0S7XkvpFIqWBl9Yq1UYyYOOVORs5UW2XlPyzg==
+
+katex@^0.16.4:
+  version "0.16.10"
+  resolved "https://registry.yarnpkg.com/katex/-/katex-0.16.10.tgz#6f81b71ac37ff4ec7556861160f53bc5f058b185"
+  integrity sha512-ZiqaC04tp2O5utMsl2TEZTXxa6WSC4yo0fv5ML++D3QZv/vx2Mct0mTlRx3O+uUkjfuAgOkzsCmq5MiUEsDDdA==
+  dependencies:
+    commander "^8.3.0"
 
 linkify-it@^3.0.1:
   version "3.0.3"
@@ -160,10 +242,10 @@ lru-cache@^6.0.0:
   dependencies:
     yallist "^4.0.0"
 
-markdown-it-front-matter@^0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/markdown-it-front-matter/-/markdown-it-front-matter-0.2.1.tgz#dca49a827bb3cebb0528452c1d87dff276eb28dc"
-  integrity sha512-ydUIqlKfDscRpRUTRcA3maeeUKn3Cl5EaKZSA+I/f0KOGCBurW7e+bbz59sxqkC3FA9Q2S2+t4mpkH9T0BCM6A==
+markdown-it-front-matter@^0.2.4:
+  version "0.2.4"
+  resolved "https://registry.yarnpkg.com/markdown-it-front-matter/-/markdown-it-front-matter-0.2.4.tgz#cf29bc8222149b53575699357b1ece697bf39507"
+  integrity sha512-25GUs0yjS2hLl8zAemVndeEzThB1p42yxuDEKbd4JlL3jiz+jsm6e56Ya8B0VREOkNxLYB4TTwaoPJ3ElMmW+w==
 
 markdown-it@^12.3.2:
   version "12.3.2"
@@ -199,9 +281,9 @@ picomatch@^2.3.1:
   integrity sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==
 
 semver@^7.3.5:
-  version "7.3.7"
-  resolved "https://registry.yarnpkg.com/semver/-/semver-7.3.7.tgz#12c5b649afdbf9049707796e22a4028814ce523f"
-  integrity sha512-QlYTucUYOews+WeEujDoEGziz4K6c47V/Bd+LjSSYcA94p+DmINdf7ncaUinThfvZyu13lN9OY1XDxt8C0Tw0g==
+  version "7.5.4"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-7.5.4.tgz#483986ec4ed38e1c6c48c34894a9182dbff68a6e"
+  integrity sha512-1bCSESV6Pv+i21Hvpxp3Dx+pSD8lIPt8uVjRrxAUt/nbswYc+tK6Y2btiULjd4+fnq15PX+nqQDC7Oft7WkwcA==
   dependencies:
     lru-cache "^6.0.0"
 
@@ -232,6 +314,11 @@ vscode-languageserver-protocol@3.17.2:
     vscode-jsonrpc "8.0.2"
     vscode-languageserver-types "3.17.2"
 
+vscode-languageserver-textdocument@^1.0.11:
+  version "1.0.11"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.11.tgz#0822a000e7d4dc083312580d7575fe9e3ba2e2bf"
+  integrity sha512-X+8T3GoiwTVlJbicx/sIAF+yuJAqz8VvwJyoMVhwEMoEKE/fkDmrqUgDMyBECcM2A2frVZIUj5HI/ErRXCfOeA==
+
 vscode-languageserver-textdocument@^1.0.5:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.5.tgz#838769940ece626176ec5d5a2aa2d0aa69f5095c"
@@ -242,26 +329,16 @@ vscode-languageserver-types@3.17.2, vscode-languageserver-types@^3.17.1, vscode-
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.2.tgz#b2c2e7de405ad3d73a883e91989b850170ffc4f2"
   integrity sha512-zHhCWatviizPIq9B7Vh9uvrH6x3sK8itC84HkamnBWoDFJtzBf7SWlpLCZUit72b3os45h6RWQNC9xHRDF8dRA==
 
-vscode-markdown-languageservice@^0.0.0-alpha.10:
-  version "0.0.0-alpha.10"
-  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.0.0-alpha.10.tgz#53b69c981eed7fd5efa155ab8c0f169995568681"
-  integrity sha512-rJ85nJ+d45yCz9lBhipavoWXz/vW5FknqqUpLqhe3/2xkrhxt8zcekhSoDepgkKFcTORAFV6g1SnnqxbVhX+uA==
+vscode-markdown-languageservice@^0.3.0-alpha.3:
+  version "0.3.0-alpha.3"
+  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.3.0-alpha.3.tgz#219a4880cfc0ea037b5a1833bc0b0039bfd1e2db"
+  integrity sha512-KPjIuCkSqabkzci7TnlLKep5FYIC45tS7UC5H8zoOii7aoKJru5mZBDXJt86bM3XTgnfpW7rUYqhNnvXbbCBbw==
   dependencies:
+    "@vscode/l10n" "^0.0.10"
     picomatch "^2.3.1"
     vscode-languageserver-textdocument "^1.0.5"
     vscode-languageserver-types "^3.17.1"
-    vscode-nls "^5.0.1"
     vscode-uri "^3.0.3"
-
-vscode-nls@^5.0.1:
-  version "5.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.0.1.tgz#ba23fc4d4420d25e7f886c8e83cbdcec47aa48b2"
-  integrity sha512-hHQV6iig+M21lTdItKPkJAaWrxALQb/nqpVffakO4knJOh3DrU2SXOMzUzNgo1eADPzu3qSsJY1weCzvR52q9A==
-
-vscode-nls@^5.2.0:
-  version "5.2.0"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.2.0.tgz#3cb6893dd9bd695244d8a024bdf746eea665cc3f"
-  integrity sha512-RAaHx7B14ZU04EU31pT+rKz2/zSl7xMsfIZuo8pd+KZO6PXtQmpevpq3vxvWNcrGbdmhM/rr5Uw5Mz+NBfhVng==
 
 vscode-uri@^3.0.3:
   version "3.0.3"

@@ -31,6 +31,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 interface ISideBySideEditorViewState {
 	primary: object;
@@ -88,6 +89,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	override get minimumHeight() { return this.minimumPrimaryHeight + this.minimumSecondaryHeight; }
 	override get maximumHeight() { return this.maximumPrimaryHeight + this.maximumSecondaryHeight; }
 
+	private _boundarySashes: IBoundarySashes | undefined;
+
 	//#endregion
 
 	//#region Events
@@ -119,6 +122,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	private lastFocusedSide: Side.PRIMARY | Side.SECONDARY | undefined = undefined;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -128,7 +132,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(SideBySideEditor.ID, SideBySideEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		super(SideBySideEditor.ID, group, SideBySideEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
 		this.registerListeners();
 	}
@@ -200,6 +204,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		// Splitview widget
 		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation }));
 		this.splitviewDisposables.add(this.splitview.onDidSashReset(() => this.splitview?.distributeViewSizes()));
+
+		if (this.orientation === Orientation.HORIZONTAL) {
+			this.splitview.orthogonalEndSash = this._boundarySashes?.bottom;
+		} else {
+			this.splitview.orthogonalStartSash = this._boundarySashes?.left;
+			this.splitview.orthogonalEndSash = this._boundarySashes?.right;
+		}
 
 		// Figure out sizing
 		let leftSizing: number | Sizing = Sizing.Distribute;
@@ -340,9 +351,9 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		}
 
 		// Create editor pane and make visible
-		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService);
+		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService, this.group);
 		editorPane.create(container);
-		editorPane.setVisible(this.isVisible(), this.group);
+		editorPane.setVisible(this.isVisible());
 
 		// Track selections if supported
 		if (isEditorPaneWithSelection(editorPane)) {
@@ -386,13 +397,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		this.getLastFocusedEditorPane()?.setOptions(options);
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean): void {
 
 		// Forward to both sides
-		this.primaryEditorPane?.setVisible(visible, group);
-		this.secondaryEditorPane?.setVisible(visible, group);
+		this.primaryEditorPane?.setVisible(visible);
+		this.secondaryEditorPane?.setVisible(visible);
 
-		super.setEditorVisible(visible, group);
+		super.setEditorVisible(visible);
 	}
 
 	override clearInput(): void {
@@ -408,6 +419,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	}
 
 	override focus(): void {
+		super.focus();
+
 		this.getLastFocusedEditorPane()?.focus();
 	}
 
@@ -424,6 +437,14 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 		const splitview = assertIsDefined(this.splitview);
 		splitview.layout(this.orientation === Orientation.HORIZONTAL ? dimension.width : dimension.height);
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes) {
+		this._boundarySashes = sashes;
+
+		if (this.splitview) {
+			this.splitview.orthogonalEndSash = sashes.bottom;
+		}
 	}
 
 	private layoutPane(pane: EditorPane | undefined, size: number): void {
@@ -490,13 +511,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			if (this.orientation === Orientation.HORIZONTAL) {
 				this.primaryEditorContainer.style.borderLeftWidth = '1px';
 				this.primaryEditorContainer.style.borderLeftStyle = 'solid';
-				this.primaryEditorContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER)?.toString() ?? '';
+				this.primaryEditorContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER) ?? '';
 
 				this.primaryEditorContainer.style.borderTopWidth = '0';
 			} else {
 				this.primaryEditorContainer.style.borderTopWidth = '1px';
 				this.primaryEditorContainer.style.borderTopStyle = 'solid';
-				this.primaryEditorContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER)?.toString() ?? '';
+				this.primaryEditorContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER) ?? '';
 
 				this.primaryEditorContainer.style.borderLeftWidth = '0';
 			}

@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { FileType } from 'vs/platform/files/common/files';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -23,6 +23,16 @@ export const WindowMinimumSize = {
 	WIDTH_WITH_VERTICAL_PANEL: 600,
 	HEIGHT: 270
 };
+
+export interface IPoint {
+	readonly x: number;
+	readonly y: number;
+}
+
+export interface IRectangle extends IPoint {
+	readonly width: number;
+	readonly height: number;
+}
 
 export interface IBaseOpenWindowsOptions {
 
@@ -54,18 +64,32 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
+
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IAddFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
 }
 
-export interface IOpenedWindow {
+interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
+}
+
+export interface IOpenedMainWindow extends IOpenedWindow {
+	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
+}
+
+export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
+	readonly parentId: number;
+}
+
+export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAuxiliaryWindow): candidate is IOpenedAuxiliaryWindow {
+	return typeof (candidate as IOpenedAuxiliaryWindow).parentId === 'number';
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
@@ -103,10 +127,10 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
-	const titleBarStyle = getTitleBarStyle(configurationService);
+	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
 	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+	if (menuBarVisibility === 'default' || (nativeTitleBarEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -124,7 +148,7 @@ export interface IWindowSettings {
 	readonly restoreWindows: 'preserve' | 'all' | 'folders' | 'one' | 'none';
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
-	readonly titleBarStyle: 'native' | 'custom';
+	readonly titleBarStyle: TitlebarStyle;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -134,33 +158,67 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly experimental?: { useSandbox: boolean };
+	readonly density: IDensitySettings;
 }
 
-export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
+export interface IDensitySettings {
+	readonly editorTabHeight: 'default' | 'compact';
+}
+
+export const enum TitleBarSetting {
+	TITLE_BAR_STYLE = 'window.titleBarStyle',
+	CUSTOM_TITLE_BAR_VISIBILITY = 'window.customTitleBarVisibility',
+}
+
+export const enum TitlebarStyle {
+	NATIVE = 'native',
+	CUSTOM = 'custom',
+}
+
+export const enum CustomTitleBarVisibility {
+	AUTO = 'auto',
+	WINDOWED = 'windowed',
+	NEVER = 'never',
+}
+
+export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	// Returns if it possible to have a custom title bar in the curren session
+	// Does not imply that the title bar is visible
+
+	return true;
+}
+
+export function hasNativeTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (!titleBarStyle) {
+		titleBarStyle = getTitleBarStyle(configurationService);
+	}
+	return titleBarStyle === TitlebarStyle.NATIVE;
+}
+
+export function getTitleBarStyle(configurationService: IConfigurationService): TitlebarStyle {
 	if (isWeb) {
-		return 'custom';
+		return TitlebarStyle.CUSTOM;
 	}
 
 	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
-			return 'native'; // native tabs on sierra do not work with custom title style
+			return TitlebarStyle.NATIVE; // native tabs on sierra do not work with custom title style
 		}
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
-			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+			return TitlebarStyle.NATIVE; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
 		}
 
 		const style = configuration.titleBarStyle;
-		if (style === 'native' || style === 'custom') {
+		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM) {
 			return style;
 		}
 	}
 
-	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
+	return isLinux ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all macOS and Windows
 }
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
@@ -168,17 +226,27 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return false; // only supported on a desktop Windows instance
 	}
 
-	if (getTitleBarStyle(configurationService) === 'native') {
+	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
 	}
 
-	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.experimental.windowControlsOverlay.enabled');
-	if (typeof configuredUseWindowControlsOverlay === 'boolean') {
-		return configuredUseWindowControlsOverlay;
+	// Default to true.
+	return true;
+}
+
+export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
+	const windowConfig = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+		return true; // default
 	}
 
-	return false; // disable by default
+	if (windowConfig.nativeTabs) {
+		return true; // https://github.com/electron/electron/issues/16142
+	}
+
+	return windowConfig.nativeFullScreen !== false;
 }
+
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
 
@@ -270,17 +338,20 @@ export interface IWindowConfiguration {
 export interface IOSConfiguration {
 	readonly release: string;
 	readonly hostname: string;
+	readonly arch: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
 	machineId: string;
+	sqmId: string;
 
 	execPath: string;
 	backupPath?: string;
 
 	profiles: {
+		home: UriComponents;
 		all: readonly UriDto<IUserDataProfile>[];
 		profile: UriDto<IUserDataProfile>;
 	};
@@ -295,6 +366,10 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
+	loggers: {
+		global: UriDto<ILoggerResource>[];
+		window: UriDto<ILoggerResource>[];
+	};
 
 	fullscreen?: boolean;
 	maximized?: boolean;
@@ -302,6 +377,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	colorScheme: IColorScheme;
 	autoDetectHighContrast?: boolean;
 	autoDetectColorScheme?: boolean;
+	isCustomZoomLevel?: boolean;
 
 	perfMarks: PerformanceMark[];
 

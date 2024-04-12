@@ -5,30 +5,38 @@
 
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateReadService, IStateService } from 'vs/platform/state/node/state';
 
 type StorageDatabase = { [key: string]: unknown };
 
-export class FileStorage {
+export const enum SaveStrategy {
+	IMMEDIATE,
+	DELAYED
+}
+
+export class FileStorage extends Disposable {
 
 	private storage: StorageDatabase = Object.create(null);
 	private lastSavedStorageContents = '';
 
-	private readonly flushDelayer = new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
+	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(this.saveStrategy === SaveStrategy.IMMEDIATE ? 0 : 100 /* buffer saves over a short time */));
 
 	private initializing: Promise<void> | undefined = undefined;
 	private closing: Promise<void> | undefined = undefined;
 
 	constructor(
 		private readonly storagePath: URI,
+		private readonly saveStrategy: SaveStrategy,
 		private readonly logService: ILogService,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
 	) {
+		super();
 	}
 
 	init(): Promise<void> {
@@ -128,7 +136,7 @@ export class FileStorage {
 
 		// Write to disk
 		try {
-			await this.fileService.writeFile(this.storagePath, VSBuffer.fromString(serializedDatabase));
+			await this.fileService.writeFile(this.storagePath, VSBuffer.fromString(serializedDatabase), { atomic: { postfix: '.vsctmp' } });
 			this.lastSavedStorageContents = serializedDatabase;
 		} catch (error) {
 			this.logService.error(error);
@@ -144,18 +152,21 @@ export class FileStorage {
 	}
 }
 
-export class StateService implements IStateService {
+export class StateReadonlyService extends Disposable implements IStateReadService {
 
 	declare readonly _serviceBrand: undefined;
 
 	protected readonly fileStorage: FileStorage;
 
 	constructor(
+		saveStrategy: SaveStrategy,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IFileService fileService: IFileService
 	) {
-		this.fileStorage = new FileStorage(environmentService.stateResource, logService, fileService);
+		super();
+
+		this.fileStorage = this._register(new FileStorage(environmentService.stateResource, saveStrategy, logService, fileService));
 	}
 
 	async init(): Promise<void> {
@@ -166,5 +177,26 @@ export class StateService implements IStateService {
 	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		return this.fileStorage.getItem(key, defaultValue);
+	}
+}
+
+export class StateService extends StateReadonlyService implements IStateService {
+
+	declare readonly _serviceBrand: undefined;
+
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
+		this.fileStorage.setItem(key, data);
+	}
+
+	setItems(items: readonly { key: string; data?: object | string | number | boolean | undefined | null }[]): void {
+		this.fileStorage.setItems(items);
+	}
+
+	removeItem(key: string): void {
+		this.fileStorage.removeItem(key);
+	}
+
+	close(): Promise<void> {
+		return this.fileStorage.close();
 	}
 }

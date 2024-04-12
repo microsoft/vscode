@@ -6,11 +6,12 @@
 import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import * as nls from 'vs/nls';
@@ -62,7 +63,7 @@ export class SuggestDetailsWidget {
 		this._disposables.add(this._scrollbar);
 
 		this._header = dom.append(this._body, dom.$('.header'));
-		this._close = dom.append(this._header, dom.$('span' + Codicon.close.cssSelector));
+		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
 		this._type = dom.append(this._header, dom.$('p.type'));
 
@@ -205,6 +206,10 @@ export class SuggestDetailsWidget {
 		this._docs.textContent = '';
 	}
 
+	get isEmpty(): boolean {
+		return this.domNode.classList.contains('no-docs');
+	}
+
 	get size() {
 		return this._size;
 	}
@@ -257,6 +262,8 @@ interface TopLeftPosition {
 }
 
 export class SuggestDetailsOverlay implements IOverlayWidget {
+
+	readonly allowEditorOverflow = true;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _resizable: ResizableHTMLElement;
@@ -336,14 +343,13 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		return this._resizable.domNode;
 	}
 
-	getPosition(): null {
-		return null;
+	getPosition(): IOverlayWidgetPosition | null {
+		return this._topLeft ? { preference: this._topLeft } : null;
 	}
 
 	show(): void {
 		if (!this._added) {
 			this._editor.addOverlayWidget(this);
-			this.getDomNode().style.position = 'fixed';
 			this._added = true;
 		}
 	}
@@ -371,7 +377,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension, preferAlignAtTop: boolean) {
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(this.getDomNode().ownerDocument.body);
 
 		const info = this.widget.getLayoutInfo();
 
@@ -437,8 +443,18 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			}
 		}
 
-		this._applyTopLeft({ left: placement.left, top: alignAtTop ? placement.top : bottom - height });
-		this.getDomNode().style.position = 'fixed';
+		let { top, left } = placement;
+		if (!alignAtTop && height > anchorBox.height) {
+			top = bottom - height;
+		}
+		const editorDomNode = this._editor.getDomNode();
+		if (editorDomNode) {
+			// get bounding rectangle of the suggest widget relative to the editor
+			const editorBoundingBox = editorDomNode.getBoundingClientRect();
+			top -= editorBoundingBox.top;
+			left -= editorBoundingBox.left;
+		}
+		this._applyTopLeft({ left, top });
 
 		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
 
@@ -450,7 +466,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	private _applyTopLeft(topLeft: TopLeftPosition): void {
 		this._topLeft = topLeft;
-		this.getDomNode().style.left = `${this._topLeft.left}px`;
-		this.getDomNode().style.top = `${this._topLeft.top}px`;
+		this._editor.layoutOverlayWidget(this);
 	}
 }

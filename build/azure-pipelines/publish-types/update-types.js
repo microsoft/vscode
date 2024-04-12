@@ -70,3 +70,4 @@ function getNewFileHeader(tag) {
     ].join('\n');
     return header;
 }
+//# sourceMappingURL=update-types.js.map

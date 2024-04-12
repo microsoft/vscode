@@ -21,7 +21,7 @@ export class VsCodeMdWorkspace extends Disposable {
 
 	private readonly _documentCache = new ResourceMap<ITextDocument>();
 
-	private readonly utf8Decoder = new TextDecoder('utf-8');
+	private readonly _utf8Decoder = new TextDecoder('utf-8');
 
 	constructor() {
 		super();
@@ -45,7 +45,7 @@ export class VsCodeMdWorkspace extends Disposable {
 		}));
 	}
 
-	private isRelevantMarkdownDocument(doc: vscode.TextDocument) {
+	private _isRelevantMarkdownDocument(doc: vscode.TextDocument) {
 		return isMarkdownFile(doc) && doc.uri.scheme !== 'vscode-bulkeditpreview';
 	}
 
@@ -55,7 +55,7 @@ export class VsCodeMdWorkspace extends Disposable {
 			return existing;
 		}
 
-		const matchingDocument = vscode.workspace.textDocuments.find((doc) => this.isRelevantMarkdownDocument(doc) && doc.uri.toString() === resource.toString());
+		const matchingDocument = vscode.workspace.textDocuments.find((doc) => this._isRelevantMarkdownDocument(doc) && doc.uri.toString() === resource.toString());
 		if (matchingDocument) {
 			this._documentCache.set(resource, matchingDocument);
 			return matchingDocument;
@@ -69,7 +69,7 @@ export class VsCodeMdWorkspace extends Disposable {
 			const bytes = await vscode.workspace.fs.readFile(resource);
 
 			// We assume that markdown is in UTF-8
-			const text = this.utf8Decoder.decode(bytes);
+			const text = this._utf8Decoder.decode(bytes);
 			const doc = new InMemoryDocument(resource, text, 0);
 			this._documentCache.set(resource, doc);
 			return doc;

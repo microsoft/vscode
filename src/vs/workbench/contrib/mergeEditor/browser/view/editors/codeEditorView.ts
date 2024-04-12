@@ -7,25 +7,27 @@ import { h } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
-import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { observableConfigValue, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export abstract class CodeEditorView extends Disposable {
 	readonly model = this.viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
-		h('div.title@header', [
+		h('div.header@header', [
 			h('span.title@title'),
 			h('span.description@description'),
 			h('span.detail@detail'),
@@ -59,10 +61,9 @@ export abstract class CodeEditorView extends Disposable {
 		// snap?: boolean | undefined;
 	};
 
-	protected readonly checkboxesVisible = observableFromEvent<boolean>(
-		this.configurationService.onDidChangeConfiguration,
-		() => /** @description checkboxesVisible */ this.configurationService.getValue('mergeEditor.showCheckboxes') ?? false
-	);
+	protected readonly checkboxesVisible = observableConfigValue<boolean>('mergeEditor.showCheckboxes', false, this.configurationService);
+	protected readonly showDeletionMarkers = observableConfigValue<boolean>('mergeEditor.showDeletionMarkers', true, this.configurationService);
+	protected readonly useSimplifiedDecorations = observableConfigValue<boolean>('mergeEditor.useSimplifiedDecorations', false, this.configurationService);
 
 	public readonly editor = this.instantiationService.createInstance(
 		CodeEditorWidget,
@@ -103,8 +104,8 @@ export abstract class CodeEditorView extends Disposable {
 
 	}
 
-	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return undefined;
+	protected getEditorContributions(): IEditorContributionDescription[] {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== FoldingController.ID && c.id !== CodeLensContribution.ID);
 	}
 }
 
@@ -112,7 +113,8 @@ export function createSelectionsAutorun(
 	codeEditorView: CodeEditorView,
 	translateRange: (baseRange: Range, viewModel: MergeEditorViewModel) => Range
 ): IDisposable {
-	const selections = derived('selections', reader => {
+	const selections = derived(reader => {
+		/** @description selections */
 		const viewModel = codeEditorView.viewModel.read(reader);
 		if (!viewModel) {
 			return [];
@@ -124,7 +126,8 @@ export function createSelectionsAutorun(
 		return baseRange.rangesInBase.map(r => translateRange(r, viewModel));
 	});
 
-	return autorun('set selections', (reader) => {
+	return autorun(reader => {
+		/** @description set selections */
 		const ranges = selections.read(reader);
 		if (ranges.length === 0) {
 			return;
@@ -143,7 +146,7 @@ export class TitleMenu extends Disposable {
 
 		const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, targetHtmlElement, menuId, {
 			menuOptions: { renderShortTitle: true },
-			toolbarOptions: { primaryGroup: () => false }
+			toolbarOptions: { primaryGroup: (g) => g === 'primary' }
 		});
 		this._store.add(toolbar);
 	}

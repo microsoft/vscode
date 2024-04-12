@@ -5,8 +5,8 @@
 
 import * as os from 'os';
 import * as cp from 'child_process';
-import { promises as fs } from 'fs';
-import path = require('path');
+import { Promises } from 'vs/base/node/pfs';
+import * as path from 'path';
 
 let hasWSLFeaturePromise: Promise<boolean> | undefined;
 
@@ -33,7 +33,7 @@ async function testWSLFeatureInstalled(): Promise<boolean> {
 		const dllPath = getLxssManagerDllPath();
 		if (dllPath) {
 			try {
-				if ((await fs.stat(dllPath)).isFile()) {
+				if ((await Promises.stat(dllPath)).isFile()) {
 					return true;
 				}
 			} catch (e) {

@@ -9,14 +9,14 @@ import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { marked } from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
 import { Dimension } from 'vs/base/browser/dom';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Schemas } from 'vs/base/common/network';
 
-export class WalkThroughModel extends EditorModel {
+class WalkThroughModel extends EditorModel {
 
 	constructor(
 		private mainRef: string,

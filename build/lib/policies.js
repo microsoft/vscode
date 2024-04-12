@@ -10,7 +10,6 @@ const path = require("path");
 const byline = require("byline");
 const ripgrep_1 = require("@vscode/ripgrep");
 const Parser = require("tree-sitter");
-const node_fetch_1 = require("node-fetch");
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
 const packageJson = require('../../package.json');
@@ -41,6 +40,12 @@ function renderADMLString(prefix, moduleName, nlsString, translations) {
     return `<string id="${prefix}_${nlsString.nlsKey}">${value}</string>`;
 }
 class BasePolicy {
+    policyType;
+    name;
+    category;
+    minimumVersion;
+    description;
+    moduleName;
     constructor(policyType, name, category, minimumVersion, description, moduleName) {
         this.policyType = policyType;
         this.name = name;
@@ -96,6 +101,7 @@ class BooleanPolicy extends BasePolicy {
     }
 }
 class IntPolicy extends BasePolicy {
+    defaultValue;
     static from(name, category, minimumVersion, description, moduleName, settingNode) {
         const type = getStringProperty(settingNode, 'type');
         if (type !== 'number') {
@@ -140,6 +146,8 @@ class StringPolicy extends BasePolicy {
     }
 }
 class StringEnumPolicy extends BasePolicy {
+    enum_;
+    enumDescriptions;
     static from(name, category, minimumVersion, description, moduleName, settingNode) {
         const type = getStringProperty(settingNode, 'type');
         if (type !== 'string') {
@@ -417,7 +425,7 @@ async function getSpecificNLS(resourceUrlTemplate, languageId, version) {
         path: 'extension/translations/main.i18n.json'
     };
     const url = resourceUrlTemplate.replace(/\{([^}]+)\}/g, (_, key) => resource[key]);
-    const res = await (0, node_fetch_1.default)(url);
+    const res = await fetch(url);
     if (res.status !== 200) {
         throw new Error(`[${res.status}] Error downloading language pack ${languageId}@${version}`);
     }
@@ -438,7 +446,7 @@ function compareVersions(a, b) {
     return a[2] - b[2];
 }
 async function queryVersions(serviceUrl, languageId) {
-    const res = await (0, node_fetch_1.default)(`${serviceUrl}/extensionquery`, {
+    const res = await fetch(`${serviceUrl}/extensionquery`, {
         method: 'POST',
         headers: {
             'Accept': 'application/json;api-version=3.0-preview.1',
@@ -515,3 +523,4 @@ if (require.main === module) {
         process.exit(1);
     });
 }
+//# sourceMappingURL=policies.js.map

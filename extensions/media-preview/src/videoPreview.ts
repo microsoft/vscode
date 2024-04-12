@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { MediaPreview, reopenAsText } from './mediaPreview';
 import { escapeAttribute, getNonce } from './util/dom';
 
-const localize = nls.loadMessageBundle();
 
 class VideoPreviewProvider implements vscode.CustomReadonlyEditorProvider {
 
@@ -56,8 +54,11 @@ class VideoPreview extends MediaPreview {
 
 	protected async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
+		const configurations = vscode.workspace.getConfiguration('mediaPreview.video');
 		const settings = {
 			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
+			autoplay: configurations.get('autoPlay'),
+			loop: configurations.get('loop'),
 		};
 
 		const nonce = getNonce();
@@ -79,11 +80,11 @@ class VideoPreview extends MediaPreview {
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; media-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
-<body class="loading">
+<body class="loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
 	<div class="loading-indicator"></div>
 	<div class="loading-error">
-		<p>${localize('preview.videoLoadError', "An error occurred while loading the video file.")}</p>
-		<a href="#" class="open-file-link">${localize('preview.videoLoadErrorLink', "Open file using VS Code's standard text/binary editor?")}</a>
+		<p>${vscode.l10n.t("An error occurred while loading the video file.")}</p>
+		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
 	</div>
 	<script src="${escapeAttribute(this.extensionResource('media', 'videoPreview.js'))}" nonce="${nonce}"></script>
 </body>

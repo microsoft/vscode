@@ -10,7 +10,8 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExceptionInfo, IDebugSession, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,8 +24,8 @@ const $ = dom.$;
 
 // theming
 
-export const debugExceptionWidgetBorder = registerColor('debugExceptionWidget.border', { dark: '#a31515', light: '#a31515', hcDark: '#a31515', hcLight: '#a31515' }, nls.localize('debugExceptionWidgetBorder', 'Exception widget border color.'));
-export const debugExceptionWidgetBackground = registerColor('debugExceptionWidget.background', { dark: '#420b0d', light: '#f1dfde', hcDark: '#420b0d', hcLight: '#f1dfde' }, nls.localize('debugExceptionWidgetBackground', 'Exception widget background color.'));
+const debugExceptionWidgetBorder = registerColor('debugExceptionWidget.border', { dark: '#a31515', light: '#a31515', hcDark: '#a31515', hcLight: '#a31515' }, nls.localize('debugExceptionWidgetBorder', 'Exception widget border color.'));
+const debugExceptionWidgetBackground = registerColor('debugExceptionWidget.background', { dark: '#420b0d', light: '#f1dfde', hcDark: '#420b0d', hcLight: '#f1dfde' }, nls.localize('debugExceptionWidgetBackground', 'Exception widget background color.'));
 
 export class ExceptionWidget extends ZoneWidget {
 
@@ -121,7 +122,11 @@ export class ExceptionWidget extends ZoneWidget {
 		this.container?.focus();
 	}
 
-	hasFocus(): boolean {
-		return dom.isAncestor(document.activeElement, this.container);
+	override hasFocus(): boolean {
+		if (!this.container) {
+			return false;
+		}
+
+		return dom.isAncestorOfActiveElement(this.container);
 	}
 }

@@ -23,13 +23,12 @@
 		'vs/nls!vs/workbench/workbench.desktop.main',
 		'vs/css!vs/workbench/workbench.desktop.main'
 	],
-		function (_, configuration) {
+		function (desktopMain, configuration) {
 
 			// Mark start of workbench
 			performance.mark('code/didLoadWorkbenchMain');
 
-			// @ts-ignore
-			return require('vs/workbench/electron-sandbox/desktop.main').main(configuration);
+			return desktopMain.main(configuration);
 		},
 		{
 			configureDeveloperSettings: function (windowConfig) {
@@ -48,8 +47,13 @@
 			beforeLoaderConfig: function (loaderConfig) {
 				loaderConfig.recordStats = true;
 			},
-			beforeRequire: function () {
+			beforeRequire: function (windowConfig) {
 				performance.mark('code/willLoadWorkbenchMain');
+
+				// Code windows have a `vscodeWindowId` property to identify them
+				Object.defineProperty(window, 'vscodeWindowId', {
+					get: () => windowConfig.windowId
+				});
 
 				// It looks like browsers only lazily enable
 				// the <canvas> element when needed. Since we
@@ -57,7 +61,6 @@
 				// locations, we try to help the browser to
 				// initialize canvas when it is idle, right
 				// before we wait for the scripts to be loaded.
-				// @ts-ignore
 				window.requestIdleCallback(() => {
 					const canvas = document.createElement('canvas');
 					const context = canvas.getContext('2d');
@@ -73,6 +76,7 @@
 	/**
 	 * @typedef {import('../../../platform/window/common/window').INativeWindowConfiguration} INativeWindowConfiguration
 	 * @typedef {import('../../../platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
 	 *
 	 * @returns {{
 	 *   load: (
@@ -87,7 +91,7 @@
 	 * 		 },
 	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & NativeParsedArgs) => void,
 	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *       beforeRequire?: () => void
+	 *       beforeRequire?: (config: ISandboxConfiguration) => void
 	 *     }
 	 *   ) => Promise<unknown>
 	 * }}
@@ -156,6 +160,11 @@
 		style.className = 'initialShellColors';
 		document.head.appendChild(style);
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
+
+		// set zoom level as soon as possible
+		if (typeof data?.zoomLevel === 'number' && typeof globalThis.vscode?.webFrame?.setZoomLevel === 'function') {
+			globalThis.vscode.webFrame.setZoomLevel(data.zoomLevel);
+		}
 
 		// restore parts if possible (we might not always store layout info)
 		if (data?.layoutInfo) {

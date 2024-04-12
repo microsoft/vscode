@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import findWorkspaceRoot = require('../node_modules/find-yarn-workspace-root');
-import findUp = require('find-up');
+import * as findUp from 'find-up';
 import * as path from 'path';
-import whichPM = require('which-pm');
+import * as whichPM from 'which-pm';
 import { Uri, workspace } from 'vscode';
 
 interface PreferredProperties {
@@ -21,6 +21,14 @@ async function pathExists(filePath: string) {
 		return false;
 	}
 	return true;
+}
+
+async function isBunPreferred(pkgPath: string): Promise<PreferredProperties> {
+	if (await pathExists(path.join(pkgPath, 'bun.lockb'))) {
+		return { isPreferred: true, hasLockfile: true };
+	}
+
+	return { isPreferred: false, hasLockfile: false };
 }
 
 async function isPNPMPreferred(pkgPath: string): Promise<PreferredProperties> {
@@ -66,16 +74,22 @@ export async function findPreferredPM(pkgPath: string): Promise<{ name: string; 
 		detectedPackageManagerProperties.push(npmPreferred);
 	}
 
+	const pnpmPreferred = await isPNPMPreferred(pkgPath);
+	if (pnpmPreferred.isPreferred) {
+		detectedPackageManagerNames.push('pnpm');
+		detectedPackageManagerProperties.push(pnpmPreferred);
+	}
+
 	const yarnPreferred = await isYarnPreferred(pkgPath);
 	if (yarnPreferred.isPreferred) {
 		detectedPackageManagerNames.push('yarn');
 		detectedPackageManagerProperties.push(yarnPreferred);
 	}
 
-	const pnpmPreferred = await isPNPMPreferred(pkgPath);
-	if (pnpmPreferred.isPreferred) {
-		detectedPackageManagerNames.push('pnpm');
-		detectedPackageManagerProperties.push(pnpmPreferred);
+	const bunPreferred = await isBunPreferred(pkgPath);
+	if (bunPreferred.isPreferred) {
+		detectedPackageManagerNames.push('bun');
+		detectedPackageManagerProperties.push(bunPreferred);
 	}
 
 	const pmUsedForInstallation: { name: string } | null = await whichPM(pkgPath);

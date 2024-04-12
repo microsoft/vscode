@@ -14,7 +14,7 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { IEditorWhitespace, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from 'vs/editor/common/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export interface IMyViewZone {
+interface IMyViewZone {
 	whitespaceId: string;
 	delegate: IViewZone;
 	isInHiddenArea: boolean;
@@ -137,12 +137,7 @@ export class ViewZones extends ViewPart {
 	// ---- end view event handlers
 
 	private _getZoneOrdinal(zone: IViewZone): number {
-
-		if (typeof zone.afterColumn !== 'undefined') {
-			return zone.afterColumn;
-		}
-
-		return 10000;
+		return zone.ordinal ?? zone.afterColumn ?? 10000;
 	}
 
 	private _computeWhitespaceProps(zone: IViewZone): IComputedViewZoneProps {
@@ -186,8 +181,8 @@ export class ViewZones extends ViewPart {
 			});
 		}
 
-		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity);
-		const isVisible = this._context.viewModel.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
+		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity, true);
+		const isVisible = zone.showInHiddenAreas || this._context.viewModel.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			isInHiddenArea: !isVisible,
 			afterViewLineNumber: viewPosition.lineNumber,

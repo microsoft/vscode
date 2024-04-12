@@ -6,31 +6,32 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export class ToggleTabFocusModeAction extends EditorAction {
+export class ToggleTabFocusModeAction extends Action2 {
 
 	public static readonly ID = 'editor.action.toggleTabFocusMode';
 
 	constructor() {
 		super({
 			id: ToggleTabFocusModeAction.ID,
-			label: nls.localize({ key: 'toggle.tabMovesFocus', comment: ['Turn on/off use of tab key for moving focus around VS Code'] }, "Toggle Tab Key Moves Focus"),
-			alias: 'Toggle Tab Key Moves Focus',
+			title: nls.localize2({ key: 'toggle.tabMovesFocus', comment: ['Turn on/off use of tab key for moving focus around VS Code'] }, 'Toggle Tab Key Moves Focus'),
 			precondition: undefined,
-			kbOpts: {
-				kbExpr: null,
+			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyM,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyM },
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('tabMovesFocusDescriptions', "Determines whether the tab key moves focus around the workbench or inserts the tab character in the current editor. This is also called tab trapping, tab navigation, or tab focus mode."),
+			},
+			f1: true
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(): void {
 		const oldValue = TabFocus.getTabFocusMode();
 		const newValue = !oldValue;
 		TabFocus.setTabFocusMode(newValue);
@@ -42,4 +43,4 @@ export class ToggleTabFocusModeAction extends EditorAction {
 	}
 }
 
-registerEditorAction(ToggleTabFocusModeAction);
+registerAction2(ToggleTabFocusModeAction);

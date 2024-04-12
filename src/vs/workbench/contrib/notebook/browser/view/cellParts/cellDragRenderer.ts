@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { Color } from 'vs/base/common/color';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import * as languages from 'vs/editor/common/languages';
 import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
+import * as languages from 'vs/editor/common/languages';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ITextModel } from 'vs/editor/common/model';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 class EditorTextRenderer {
 
-	private static _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
+	private static _ttPolicy = createTrustedTypesPolicy('cellRendererEditorText', {
 		createHTML(input) { return input; }
 	});
 

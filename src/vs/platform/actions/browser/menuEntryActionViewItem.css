@@ -11,28 +11,6 @@
 	background-size: 16px;
 }
 
-
-@keyframes shift {
-	0% {
-		transform: scale(1);
-	}
-
-	15%{
-		transform: scale(1.1);
-	}
-
-	100% {
-		transform: scale(1);
-	}
-}
-
-.monaco-toolbar.config .monaco-action-bar .action-item {
-	animation-duration: 1.2s;
-	animation-iteration-count: 1;
-	animation-name: shift;
-}
-
-
 .monaco-dropdown-with-default {
 	display: flex !important;
 	flex-direction: row;
@@ -49,6 +27,10 @@
 	background-repeat: no-repeat;
 	background-position: 50%;
 	background-size: 16px;
+}
+
+.monaco-dropdown-with-default:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-dropdown-with-default > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .suggest-input-container {
-	padding: 2px 4px;
+	padding: 2px 6px;
+	border-radius: 2px;
 }
 
 .suggest-input-container .monaco-editor-background,
@@ -25,5 +26,5 @@
 
 .suggest-input-container .monaco-editor,
 .suggest-input-container .monaco-editor .lines-content {
-	background: none;
+	background: none !important;
 }

@@ -6,11 +6,9 @@
 import 'vs/css!./rulers';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { editorRuler } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorOption, IRulerOption } from 'vs/editor/common/config/editorOptions';
 
 export class Rulers extends ViewPart {
@@ -100,10 +98,3 @@ export class Rulers extends ViewPart {
 		}
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const rulerColor = theme.getColor(editorRuler);
-	if (rulerColor) {
-		collector.addRule(`.monaco-editor .view-ruler { box-shadow: 1px 0 0 0 ${rulerColor} inset; }`);
-	}
-});

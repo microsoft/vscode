@@ -11,7 +11,7 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
+import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from 'vs/editor/common/languages';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { localize } from 'vs/nls';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -19,11 +19,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IdleValue } from 'vs/base/common/async';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { mainWindow } from 'vs/base/browser/window';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -49,7 +49,7 @@ export class DocumentSymbolAccessibilityProvider implements IListAccessibilityPr
 		if (element instanceof OutlineGroup) {
 			return element.label;
 		} else {
-			return element.symbol.name;
+			return getAriaLabelForSymbol(element.symbol.name, element.symbol.kind);
 		}
 	}
 }
@@ -66,6 +66,10 @@ class DocumentSymbolGroupTemplate {
 		readonly labelContainer: HTMLElement,
 		readonly label: HighlightedLabel,
 	) { }
+
+	dispose() {
+		this.label.dispose();
+	}
 }
 
 class DocumentSymbolTemplate {
@@ -107,7 +111,7 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 	}
 
 	disposeTemplate(_template: DocumentSymbolGroupTemplate): void {
-		// nothing
+		_template.dispose();
 	}
 }
 
@@ -117,6 +121,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	constructor(
 		private _renderMarker: boolean,
+		target: OutlineTarget,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
@@ -133,19 +138,20 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, _index: number, template: DocumentSymbolTemplate): void {
 		const { element } = node;
+		const extraClasses = ['nowrap'];
 		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
-			extraClasses: ['nowrap'],
-			title: localize('title.template', "{0} ({1})", element.symbol.name, DocumentSymbolRenderer._symbolKindNames[element.symbol.kind])
+			extraClasses,
+			title: localize('title.template', "{0} ({1})", element.symbol.name, symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
 			template.iconClass.className = '';
-			template.iconClass.classList.add('outline-element-icon', 'inline', ...CSSIcon.asClassNameArray(SymbolKinds.toIcon(element.symbol.kind)));
+			template.iconClass.classList.add('outline-element-icon', 'inline', ...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(element.symbol.kind)));
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
-			options.extraClasses!.push(`deprecated`);
+			extraClasses.push(`deprecated`);
 			options.matches = [];
 		}
 		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);
@@ -168,16 +174,23 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
-			template.container.style.setProperty('--outline-element-color', cssColor);
-		} else {
+		const problem = this._configurationService.getValue('problems.visibility');
+		const configProblems = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
+
+		if (!problem || !configProblems) {
 			template.container.style.removeProperty('--outline-element-color');
+		} else {
+			template.container.style.setProperty('--outline-element-color', cssColor);
 		}
 
 		// badge with color/rollup
-		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
-			dom.hide(template.decoration);
+		if (problem === undefined) {
+			return;
+		}
 
+		const configBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
+		if (!configBadges || !problem) {
+			dom.hide(template.decoration);
 		} else if (count > 0) {
 			dom.show(template.decoration);
 			template.decoration.classList.remove('bubble');
@@ -193,35 +206,6 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
 	}
-
-	private static _symbolKindNames: { [symbol: number]: string } = {
-		[SymbolKind.Array]: localize('Array', "array"),
-		[SymbolKind.Boolean]: localize('Boolean', "boolean"),
-		[SymbolKind.Class]: localize('Class', "class"),
-		[SymbolKind.Constant]: localize('Constant', "constant"),
-		[SymbolKind.Constructor]: localize('Constructor', "constructor"),
-		[SymbolKind.Enum]: localize('Enum', "enumeration"),
-		[SymbolKind.EnumMember]: localize('EnumMember', "enumeration member"),
-		[SymbolKind.Event]: localize('Event', "event"),
-		[SymbolKind.Field]: localize('Field', "field"),
-		[SymbolKind.File]: localize('File', "file"),
-		[SymbolKind.Function]: localize('Function', "function"),
-		[SymbolKind.Interface]: localize('Interface', "interface"),
-		[SymbolKind.Key]: localize('Key', "key"),
-		[SymbolKind.Method]: localize('Method', "method"),
-		[SymbolKind.Module]: localize('Module', "module"),
-		[SymbolKind.Namespace]: localize('Namespace', "namespace"),
-		[SymbolKind.Null]: localize('Null', "null"),
-		[SymbolKind.Number]: localize('Number', "number"),
-		[SymbolKind.Object]: localize('Object', "object"),
-		[SymbolKind.Operator]: localize('Operator', "operator"),
-		[SymbolKind.Package]: localize('Package', "package"),
-		[SymbolKind.Property]: localize('Property', "property"),
-		[SymbolKind.String]: localize('String', "string"),
-		[SymbolKind.Struct]: localize('Struct', "struct"),
-		[SymbolKind.TypeParameter]: localize('TypeParameter', "type parameter"),
-		[SymbolKind.Variable]: localize('Variable', "variable"),
-	};
 
 	disposeTemplate(_template: DocumentSymbolTemplate): void {
 		_template.iconLabel.dispose();
@@ -277,7 +261,7 @@ export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 
 export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymbolItem> {
 
-	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = new dom.WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
 
 	compareByPosition(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {

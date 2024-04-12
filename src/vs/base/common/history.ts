@@ -28,10 +28,8 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public next(): T | null {
-		if (this._currentPosition() !== this._elements.length - 1) {
-			return this._navigator.next();
-		}
-		return null;
+		// This will navigate past the end of the last element, and in that case the input should be cleared
+		return this._navigator.next();
 	}
 
 	public previous(): T | null {
@@ -51,6 +49,18 @@ export class HistoryNavigator<T> implements INavigator<T> {
 
 	public last(): T | null {
 		return this._navigator.last();
+	}
+
+	public isFirst(): boolean {
+		return this._currentPosition() === 0;
+	}
+
+	public isLast(): boolean {
+		return this._currentPosition() >= this._elements.length - 1;
+	}
+
+	public isNowhere(): boolean {
+		return this._navigator.current() === null;
 	}
 
 	public has(t: T): boolean {
@@ -106,23 +116,26 @@ interface HistoryNode<T> {
 
 export class HistoryNavigator2<T> {
 
+	private valueSet: Set<T>;
 	private head: HistoryNode<T>;
 	private tail: HistoryNode<T>;
 	private cursor: HistoryNode<T>;
-	private size: number;
+	private _size: number;
+	get size(): number { return this._size; }
 
 	constructor(history: readonly T[], private capacity: number = 10) {
 		if (history.length < 1) {
 			throw new Error('not supported');
 		}
 
-		this.size = 1;
+		this._size = 1;
 		this.head = this.tail = this.cursor = {
 			value: history[0],
 			previous: undefined,
 			next: undefined
 		};
 
+		this.valueSet = new Set<T>([history[0]]);
 		for (let i = 1; i < history.length; i++) {
 			this.add(history[i]);
 		}
@@ -138,12 +151,20 @@ export class HistoryNavigator2<T> {
 		this.tail.next = node;
 		this.tail = node;
 		this.cursor = this.tail;
-		this.size++;
+		this._size++;
 
-		while (this.size > this.capacity) {
+		if (this.valueSet.has(value)) {
+			this._deleteFromList(value);
+		} else {
+			this.valueSet.add(value);
+		}
+
+		while (this._size > this.capacity) {
+			this.valueSet.delete(this.head.value);
+
 			this.head = this.head.next!;
 			this.head.previous = undefined;
-			this.size--;
+			this._size--;
 		}
 	}
 
@@ -151,9 +172,39 @@ export class HistoryNavigator2<T> {
 	 * @returns old last value
 	 */
 	replaceLast(value: T): T {
+		if (this.tail.value === value) {
+			return value;
+		}
+
 		const oldValue = this.tail.value;
+		this.valueSet.delete(oldValue);
 		this.tail.value = value;
+
+		if (this.valueSet.has(value)) {
+			this._deleteFromList(value);
+		} else {
+			this.valueSet.add(value);
+		}
+
 		return oldValue;
+	}
+
+	prepend(value: T): void {
+		if (this._size === this.capacity || this.valueSet.has(value)) {
+			return;
+		}
+
+		const node: HistoryNode<T> = {
+			value,
+			previous: undefined,
+			next: this.head
+		};
+
+		this.head.previous = node;
+		this.head = node;
+		this._size++;
+
+		this.valueSet.add(value);
 	}
 
 	isAtEnd(): boolean {
@@ -181,14 +232,7 @@ export class HistoryNavigator2<T> {
 	}
 
 	has(t: T): boolean {
-		let temp: HistoryNode<T> | undefined = this.head;
-		while (temp) {
-			if (temp.value === t) {
-				return true;
-			}
-			temp = temp.next;
-		}
-		return false;
+		return this.valueSet.has(t);
 	}
 
 	resetCursor(): T {
@@ -202,6 +246,26 @@ export class HistoryNavigator2<T> {
 		while (node) {
 			yield node.value;
 			node = node.next;
+		}
+	}
+
+	private _deleteFromList(value: T): void {
+		let temp = this.head;
+
+		while (temp !== this.tail) {
+			if (temp.value === value) {
+				if (temp === this.head) {
+					this.head = this.head.next!;
+					this.head.previous = undefined;
+				} else {
+					temp.previous!.next = temp.next;
+					temp.next!.previous = temp.previous;
+				}
+
+				this._size--;
+			}
+
+			temp = temp.next!;
 		}
 	}
 }

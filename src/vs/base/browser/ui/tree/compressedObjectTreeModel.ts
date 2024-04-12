@@ -6,12 +6,13 @@
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { IIndexTreeModelSpliceOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
+import { equals } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 
 // Exported only for test reasons, do not use directly
-export interface ICompressedTreeElement<T> extends ITreeElement<T> {
+export interface ICompressedTreeElement<T> extends IObjectTreeElement<T> {
 	readonly children?: Iterable<ICompressedTreeElement<T>>;
 	readonly incompressible?: boolean;
 }
@@ -22,7 +23,7 @@ export interface ICompressedTreeNode<T> {
 	readonly incompressible: boolean;
 }
 
-function noCompress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompressedTreeNode<T>> {
+function noCompress<T>(element: ICompressedTreeElement<T>): ICompressedTreeElement<ICompressedTreeNode<T>> {
 	const elements = [element.element];
 	const incompressible = element.incompressible || false;
 
@@ -35,7 +36,7 @@ function noCompress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompre
 }
 
 // Exported only for test reasons, do not use directly
-export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompressedTreeNode<T>> {
+export function compress<T>(element: ICompressedTreeElement<T>): ICompressedTreeElement<ICompressedTreeNode<T>> {
 	const elements = [element.element];
 	const incompressible = element.incompressible || false;
 
@@ -65,7 +66,7 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 	};
 }
 
-function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0): ICompressedTreeElement<T> {
+function _decompress<T>(element: ICompressedTreeElement<ICompressedTreeNode<T>>, index = 0): ICompressedTreeElement<T> {
 	let children: Iterable<ICompressedTreeElement<T>>;
 
 	if (index < element.element.elements.length - 1) {
@@ -93,7 +94,7 @@ function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0
 }
 
 // Exported only for test reasons, do not use directly
-export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): ICompressedTreeElement<T> {
+export function decompress<T>(element: ICompressedTreeElement<ICompressedTreeNode<T>>): ICompressedTreeElement<T> {
 	return _decompress(element, 0);
 }
 
@@ -146,7 +147,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
 		options: IObjectTreeModelSetChildrenOptions<T, TFilterData>,
 	): void {
-		// Diffs must be deem, since the compression can affect nested elements.
+		// Diffs must be deep, since the compression can affect nested elements.
 		// @see https://github.com/microsoft/vscode/pull/114237#issuecomment-759425034
 
 		const diffIdentityProvider = options.diffIdentityProvider && wrapIdentityProvider(options.diffIdentityProvider);
@@ -159,7 +160,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		const compressedNode = this.nodes.get(element);
 
 		if (!compressedNode) {
-			throw new Error('Unknown compressed tree node');
+			throw new TreeError(this.user, 'Unknown compressed tree node');
 		}
 
 		const node = this.model.getNode(compressedNode) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
@@ -169,6 +170,16 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		const decompressedElement = decompress(node);
 		const splicedElement = splice(decompressedElement, element, children);
 		const recompressedElement = (this.enabled ? compress : noCompress)(splicedElement);
+
+		// If the recompressed node is identical to the original, just set its children.
+		// Saves work and churn diffing the parent element.
+		const elementComparator = options.diffIdentityProvider
+			? ((a: T, b: T) => options.diffIdentityProvider!.getId(a) === options.diffIdentityProvider!.getId(b))
+			: undefined;
+		if (equals(recompressedElement.element.elements, node.element.elements, elementComparator)) {
+			this._setChildren(compressedNode, recompressedElement.children || Iterable.empty(), { diffIdentityProvider, diffDepth: 1 });
+			return;
+		}
 
 		const parentChildren = parent.children
 			.map(child => child === node ? recompressedElement : child);
@@ -205,7 +216,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	private _setChildren(
 		node: ICompressedTreeNode<T> | null,
-		children: Iterable<ITreeElement<ICompressedTreeNode<T>>>,
+		children: Iterable<IObjectTreeElement<ICompressedTreeNode<T>>>,
 		options: IIndexTreeModelSpliceOptions<ICompressedTreeNode<T>, TFilterData>,
 	): void {
 		const insertedElements = new Set<T | null>();

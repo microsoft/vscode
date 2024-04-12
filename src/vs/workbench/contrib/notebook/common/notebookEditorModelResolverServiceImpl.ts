@@ -5,10 +5,10 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { CellUri, IResolvedNotebookEditorModel, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
-import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -20,6 +20,8 @@ import { Schemas } from 'vs/base/common/network';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { assertIsDefined } from 'vs/base/common/types';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileReadLimits } from 'vs/platform/files/common/files';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -35,17 +37,14 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	private readonly _dirtyStates = new ResourceMap<boolean>();
 
+	private readonly modelsToDispose = new Set<string>();
 	constructor(
-		@IInstantiationService readonly _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-
-		this._disposables.add(_notebookService.onWillRemoveViewType(viewType => {
-			const manager = this._workingCopyManagers.get(NotebookWorkingCopyTypeIdentifier.create(viewType));
-			manager?.destroy().catch(err => _logService.error(err));
-		}));
 	}
 
 	dispose(): void {
@@ -60,35 +59,28 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		return this._dirtyStates.get(resource) ?? false;
 	}
 
-	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean): Promise<IResolvedNotebookEditorModel> {
+	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean, limits?: IFileReadLimits): Promise<IResolvedNotebookEditorModel> {
+		// Untrack as being disposed
+		this.modelsToDispose.delete(key);
+
 		const uri = URI.parse(key);
-		const info = await this._notebookService.withNotebookDataProvider(viewType);
 
-		let result: IResolvedNotebookEditorModel;
-
-		if (info instanceof ComplexNotebookProviderInfo) {
-			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType, info.controller);
-			result = await model.load();
-
-		} else if (info instanceof SimpleNotebookProviderInfo) {
-			const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
-			let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
-			if (!workingCopyManager) {
-				const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
-				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
-					FileWorkingCopyManager,
-					workingCopyTypeId,
-					factory,
-					factory,
-				);
-				this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
-			}
-			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
-			result = await model.load();
-
-		} else {
-			throw new Error(`CANNOT open ${key}, no provider found`);
+		const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
+		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
+		if (!workingCopyManager) {
+			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService, this._configurationService);
+			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
+				FileWorkingCopyManager,
+				workingCopyTypeId,
+				factory,
+				factory,
+			);
+			this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 		}
+		const scratchPad = viewType === 'interactive' && this._configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
+		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager, scratchPad);
+		const result = await model.load({ limits });
+
 
 		// Whenever a notebook model is dirty we automatically reference it so that
 		// we can ensure that at least one reference exists. That guarantees that
@@ -117,14 +109,37 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		return result;
 	}
 
-	protected destroyReferencedObject(_key: string, object: Promise<IResolvedNotebookEditorModel>): void {
-		object.then(model => {
-			this._modelListener.get(model)?.dispose();
-			this._modelListener.delete(model);
-			model.dispose();
-		}).catch(err => {
-			this._logService.critical('FAILED to destory notebook', err);
-		});
+	protected destroyReferencedObject(key: string, object: Promise<IResolvedNotebookEditorModel>): void {
+		this.modelsToDispose.add(key);
+
+		(async () => {
+			try {
+				const model = await object;
+
+				if (!this.modelsToDispose.has(key)) {
+					// return if model has been acquired again meanwhile
+					return;
+				}
+
+				if (model instanceof SimpleNotebookEditorModel) {
+					await model.canDispose();
+				}
+
+				if (!this.modelsToDispose.has(key)) {
+					// return if model has been acquired again meanwhile
+					return;
+				}
+
+				// Finally we can dispose the model
+				this._modelListener.get(model)?.dispose();
+				this._modelListener.delete(model);
+				model.dispose();
+			} catch (err) {
+				this._logService.error('FAILED to destory notebook', err);
+			} finally {
+				this.modelsToDispose.delete(key); // Untrack as being disposed
+			}
+		})();
 	}
 }
 
@@ -159,9 +174,9 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		return this._data.isDirty(resource);
 	}
 
-	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	async resolve(resource: IUntitledNotebookResource, viewType: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {
+	async resolve(resource: URI, viewType?: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>>;
+	async resolve(resource: IUntitledNotebookResource, viewType: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>>;
+	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>> {
 		let resource: URI;
 		let hasAssociatedFilePath = false;
 		if (URI.isUri(arg0)) {
@@ -222,7 +237,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 			}
 		}
 
-		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath);
+		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath, limits);
 		try {
 			const model = await reference.object;
 			return {

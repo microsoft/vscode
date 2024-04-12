@@ -7,6 +7,16 @@
 	padding: 11px 0px 0px 27px;
 }
 
+.keybindings-overflow-widgets-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	z-index: 5000;
+}
+
 /* header styling */
 
 .keybindings-editor > .keybindings-header {
@@ -115,10 +125,6 @@
 
 /** Command column styling **/
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command .hide {
-	display: none;
-}
-
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command.vertical-align-column {
 	flex-direction: column;
 	align-items: flex-start;
@@ -146,22 +152,33 @@
 	padding-left: 4px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when:not(.input-mode) .monaco-inputbox,
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when.input-mode .when-label {
 	display: none;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox {
-	line-height: normal;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox input {
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .suggest-input-container {
 	padding-left: 10px;
 }
 
-.monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox,
-.monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox {
-	height: 24px;
+/** Source column styling **/
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .source a {
+	cursor: pointer;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row:not(.focused):not(.selected) .monaco-table-tr .monaco-table-td .source a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .source a:hover {
+	text-decoration: underline;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row:not(.focused):not(.selected) .monaco-table-tr .monaco-table-td .source a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row:not(.focused):not(.selected) .monaco-table-tr .monaco-table-td .source a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 /** columns styling **/
@@ -175,6 +192,10 @@
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-highlighted-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .hide {
+	display: none;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .code {
@@ -192,11 +213,39 @@
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .highlight {
 	font-weight: bold;
+	color: var(--vscode-list-highlightForeground);
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected .monaco-table-td .highlight,
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected.focused .monaco-table-td .highlight {
 	color: inherit;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row.selected .monaco-table-tr .monaco-table-td .monaco-keybinding-key,
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row.selected.focused .monaco-table-tr .monaco-table-td .monaco-keybinding-key {
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row.focused .monaco-table-tr .monaco-table-td .monaco-keybinding-key {
+	color: var(--vscode-list-focusForeground);
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected .monaco-table-tr .monaco-table-td .monaco-keybinding-key {
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row:hover:not(.selected):not(.focused) .monaco-table-tr .monaco-table-td .monaco-keybinding-key {
+	color: var(--vscode-list-hoverForeground);
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr,
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr,
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr {
+	background-color: var(--vscode-keybindingTable-rowsBackground);
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-th {
+	background-color: var(--vscode-keybindingTable-headerBackground);
 }
 
 .keybindings-editor .monaco-table-th,

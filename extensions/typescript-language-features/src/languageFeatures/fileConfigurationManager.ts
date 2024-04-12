@@ -5,12 +5,12 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { API } from '../tsServer/api';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { Disposable } from '../utils/dispose';
-import * as fileSchemes from '../utils/fileSchemes';
-import { isTypeScriptDocument } from '../utils/languageIds';
+import * as fileSchemes from '../configuration/fileSchemes';
+import { isTypeScriptDocument } from '../configuration/languageIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
@@ -68,7 +68,7 @@ export default class FileConfigurationManager extends Disposable {
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -77,24 +77,27 @@ export default class FileConfigurationManager extends Disposable {
 		const cachedOptions = this.formatOptions.get(document.uri);
 		if (cachedOptions) {
 			const cachedOptionsValue = await cachedOptions;
+			if (token.isCancellationRequested) {
+				return;
+			}
+
 			if (cachedOptionsValue && areFileConfigurationsEqual(cachedOptionsValue, currentOptions)) {
 				return;
 			}
 		}
 
-		let resolve: (x: FileConfiguration | undefined) => void;
-		this.formatOptions.set(document.uri, new Promise<FileConfiguration | undefined>(r => resolve = r));
+		const task = (async () => {
+			try {
+				const response = await this.client.execute('configure', { file, ...currentOptions }, token);
+				return response.type === 'response' ? currentOptions : undefined;
+			} catch {
+				return undefined;
+			}
+		})();
 
-		const args: Proto.ConfigureRequestArguments = {
-			file,
-			...currentOptions,
-		};
-		try {
-			const response = await this.client.execute('configure', args, token);
-			resolve!(response.type === 'response' ? currentOptions : undefined);
-		} finally {
-			resolve!(undefined);
-		}
+		this.formatOptions.set(document.uri, task);
+
+		await task;
 	}
 
 	public async setGlobalConfigurationFromDocument(
@@ -158,14 +161,11 @@ export default class FileConfigurationManager extends Disposable {
 			placeOpenBraceOnNewLineForFunctions: config.get<boolean>('placeOpenBraceOnNewLineForFunctions'),
 			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
 			semicolons: config.get<Proto.SemicolonPreference>('semicolons'),
+			indentSwitchCase: config.get<boolean>('indentSwitchCase'),
 		};
 	}
 
 	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
-		if (this.client.apiVersion.lt(API.v290)) {
-			return {};
-		}
-
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
 			document);
@@ -187,13 +187,17 @@ export default class FileConfigurationManager extends Disposable {
 			provideRefactorNotApplicableReason: true,
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
-			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			includeCompletionsWithSnippetText: true,
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
+			// @ts-expect-error until 5.3 #56090
+			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
+			disableLineTextInReferences: true,
+			interactiveInlayHints: true,
 			...getInlayHintsPreferences(config),
 		};
 
@@ -211,12 +215,16 @@ export default class FileConfigurationManager extends Disposable {
 	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
 		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
 			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
-			const slashNormalized = p.replace(/\\/g, '/');
-			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			const isRelative = /^\.\.?($|[\/\\])/.test(p);
+			// In TypeScript < 5.3, the first path component cannot be a wildcard, so we need to prefix
+			// it with a path root (e.g. `/` or `c:\`)
+			const wildcardPrefix = this.client.apiVersion.gte(API.v540)
+				? ''
+				: path.parse(this.client.toTsFilePath(workspaceFolder)!).root;
 			return path.isAbsolute(p) ? p :
-				p.startsWith('*') ? '/' + slashNormalized :
-					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
-						'/**/' + slashNormalized;
+				p.startsWith('*') ? wildcardPrefix + p :
+					isRelative ? this.client.toTsFilePath(vscode.Uri.joinPath(workspaceFolder, p))! :
+						wildcardPrefix + '**' + path.sep + p;
 		});
 	}
 }

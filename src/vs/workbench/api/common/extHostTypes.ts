@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
 import { isNumber, isObject, isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 /**
@@ -28,12 +29,36 @@ import type * as vscode from 'vscode';
  * but new ones must not be added
  * */
 function es5ClassCompat(target: Function): any {
-	///@ts-expect-error
-	function _() { return Reflect.construct(target, arguments, this.constructor); }
-	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
-	Object.setPrototypeOf(_, target);
-	Object.setPrototypeOf(_.prototype, target.prototype);
-	return _;
+	const interceptFunctions = {
+		apply: function (...args: any[]): any {
+			if (args.length === 0) {
+				return Reflect.construct(target, []);
+			} else {
+				const argsList = args.length === 1 ? [] : args[1];
+				return Reflect.construct(target, argsList, args[0].constructor);
+			}
+		},
+		call: function (...args: any[]): any {
+			if (args.length === 0) {
+				return Reflect.construct(target, []);
+			} else {
+				const [thisArg, ...restArgs] = args;
+				return Reflect.construct(target, restArgs, thisArg.constructor);
+			}
+		}
+	};
+	return Object.assign(target, interceptFunctions);
+}
+
+export enum TerminalOutputAnchor {
+	Top = 0,
+	Bottom = 1
+}
+
+export enum TerminalQuickFixType {
+	TerminalCommand = 0,
+	Opener = 1,
+	Command = 3
 }
 
 @es5ClassCompat
@@ -77,7 +102,7 @@ export class Position {
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
 			const p = positions[i];
-			if (p.isBefore(result!)) {
+			if (p.isBefore(result)) {
 				result = p;
 			}
 		}
@@ -91,7 +116,7 @@ export class Position {
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
 			const p = positions[i];
-			if (p.isAfter(result!)) {
+			if (p.isAfter(result)) {
 				result = p;
 			}
 		}
@@ -460,7 +485,22 @@ export class Selection extends Range {
 	}
 }
 
+const validateConnectionToken = (connectionToken: string) => {
+	if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z_\-]+$/.test(connectionToken)) {
+		throw illegalArgument('connectionToken');
+	}
+};
+
+
 export class ResolvedAuthority {
+	public static isResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ResolvedAuthority {
+		return resolvedAuthority
+			&& typeof resolvedAuthority === 'object'
+			&& typeof resolvedAuthority.host === 'string'
+			&& typeof resolvedAuthority.port === 'number'
+			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
+	}
+
 	readonly host: string;
 	readonly port: number;
 	readonly connectionToken: string | undefined;
@@ -473,13 +513,28 @@ export class ResolvedAuthority {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {
-			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
-				throw illegalArgument('connectionToken');
-			}
+			validateConnectionToken(connectionToken);
 		}
 		this.host = host;
 		this.port = Math.round(port);
 		this.connectionToken = connectionToken;
+	}
+}
+
+
+export class ManagedResolvedAuthority {
+
+	public static isManagedResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ManagedResolvedAuthority {
+		return resolvedAuthority
+			&& typeof resolvedAuthority === 'object'
+			&& typeof resolvedAuthority.makeConnection === 'function'
+			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
+	}
+
+	constructor(public readonly makeConnection: () => Thenable<vscode.ManagedMessagePassing>, public readonly connectionToken?: string) {
+		if (typeof connectionToken !== 'undefined') {
+			validateConnectionToken(connectionToken);
+		}
 	}
 }
 
@@ -506,9 +561,7 @@ export class RemoteAuthorityResolverError extends Error {
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
-		}
+		Object.setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 	}
 }
 
@@ -687,11 +740,11 @@ export class SnippetTextEdit implements vscode.SnippetTextEdit {
 }
 
 export interface IFileOperationOptions {
-	overwrite?: boolean;
-	ignoreIfExists?: boolean;
-	ignoreIfNotExists?: boolean;
-	recursive?: boolean;
-	contents?: Uint8Array;
+	readonly overwrite?: boolean;
+	readonly ignoreIfExists?: boolean;
+	readonly ignoreIfNotExists?: boolean;
+	readonly recursive?: boolean;
+	readonly contents?: Uint8Array | vscode.DataTransferFile;
 }
 
 export const enum FileEditType {
@@ -703,43 +756,43 @@ export const enum FileEditType {
 }
 
 export interface IFileOperation {
-	_type: FileEditType.File;
-	from?: URI;
-	to?: URI;
-	options?: IFileOperationOptions;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.File;
+	readonly from?: URI;
+	readonly to?: URI;
+	readonly options?: IFileOperationOptions;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileTextEdit {
-	_type: FileEditType.Text;
-	uri: URI;
-	edit: TextEdit;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.Text;
+	readonly uri: URI;
+	readonly edit: TextEdit;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileSnippetTextEdit {
-	_type: FileEditType.Snippet;
-	uri: URI;
-	range: vscode.Range;
-	edit: vscode.SnippetString;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.Snippet;
+	readonly uri: URI;
+	readonly range: vscode.Range;
+	readonly edit: vscode.SnippetString;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileCellEdit {
-	_type: FileEditType.Cell;
-	uri: URI;
-	edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
-	notebookMetadata?: Record<string, any>;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.Cell;
+	readonly uri: URI;
+	readonly edit?: ICellMetadataEdit | IDocumentMetadataEdit;
+	readonly notebookMetadata?: Record<string, any>;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface ICellEdit {
-	_type: FileEditType.CellReplace;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
-	uri: URI;
-	index: number;
-	count: number;
-	cells: vscode.NotebookCellData[];
+	readonly _type: FileEditType.CellReplace;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly uri: URI;
+	readonly index: number;
+	readonly count: number;
+	readonly cells: vscode.NotebookCellData[];
 }
 
 
@@ -757,15 +810,15 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- file
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean; contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array | vscode.DataTransferFile }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
@@ -785,7 +838,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
 	}
 
 	// --- text
@@ -808,12 +861,12 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
-	set(uri: URI, edits: (TextEdit | SnippetTextEdit)[]): void;
-	set(uri: URI, edits: [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata][]): void;
-	set(uri: URI, edits: NotebookEdit[]): void;
-	set(uri: URI, edits: [NotebookEdit, vscode.WorkspaceEditEntryMetadata][]): void;
+	set(uri: URI, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
+	set(uri: URI, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void;
+	set(uri: URI, edits: readonly NotebookEdit[]): void;
+	set(uri: URI, edits: ReadonlyArray<[NotebookEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void;
 
-	set(uri: URI, edits: null | undefined | (TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata])[]): void {
+	set(uri: URI, edits: null | undefined | ReadonlyArray<TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata | undefined] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void {
 		if (!edits) {
 			// remove all text, snippet, or notebook edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -954,7 +1007,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
+		const value = values.map(s => s.replaceAll(/[|\\,]/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
@@ -975,7 +1028,7 @@ export class SnippetString {
 			defaultValue = nested.value;
 
 		} else if (typeof defaultValue === 'string') {
-			defaultValue = defaultValue.replace(/\$|}/g, '\\$&');
+			defaultValue = defaultValue.replace(/\$|}/g, '\\$&'); // CodeQL [SM02383] I do not want to escape backslashes here
 		}
 
 		this.value += '${';
@@ -1174,6 +1227,25 @@ export class DocumentHighlight {
 	}
 }
 
+@es5ClassCompat
+export class MultiDocumentHighlight {
+
+	uri: URI;
+	highlights: DocumentHighlight[];
+
+	constructor(uri: URI, highlights: DocumentHighlight[]) {
+		this.uri = uri;
+		this.highlights = highlights;
+	}
+
+	toJSON(): any {
+		return {
+			uri: this.uri,
+			highlights: this.highlights.map(h => h.toJSON())
+		};
+	}
+}
+
 export enum SymbolKind {
 	File = 0,
 	Module = 1,
@@ -1311,7 +1383,6 @@ export class CodeAction {
 	}
 }
 
-
 @es5ClassCompat
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -1326,6 +1397,7 @@ export class CodeActionKind {
 	public static Source: CodeActionKind;
 	public static SourceOrganizeImports: CodeActionKind;
 	public static SourceFixAll: CodeActionKind;
+	public static Notebook: CodeActionKind;
 
 	constructor(
 		public readonly value: string
@@ -1343,6 +1415,7 @@ export class CodeActionKind {
 		return this.value === other.value || other.value.startsWith(this.value + CodeActionKind.sep);
 	}
 }
+
 CodeActionKind.Empty = new CodeActionKind('');
 CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
 CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');
@@ -1353,6 +1426,7 @@ CodeActionKind.RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 CodeActionKind.Source = CodeActionKind.Empty.append('source');
 CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
+CodeActionKind.Notebook = CodeActionKind.Empty.append('notebook');
 
 @es5ClassCompat
 export class SelectionRange {
@@ -1461,11 +1535,11 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.value = value;
 	}
 
-	get isTrusted(): boolean | undefined {
+	get isTrusted(): boolean | MarkdownStringTrustedOptions | undefined {
 		return this.#delegate.isTrusted;
 	}
 
-	set isTrusted(value: boolean | undefined) {
+	set isTrusted(value: boolean | MarkdownStringTrustedOptions | undefined) {
 		this.#delegate.isTrusted = value;
 	}
 
@@ -1710,38 +1784,26 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 
 @es5ClassCompat
 export class InlineSuggestionList implements vscode.InlineCompletionList {
-	items: vscode.InlineCompletionItemNew[];
+	items: vscode.InlineCompletionItem[];
 
 	commands: vscode.Command[] | undefined = undefined;
 
-	constructor(items: vscode.InlineCompletionItemNew[]) {
+	suppressSuggestions: boolean | undefined = undefined;
+
+	constructor(items: vscode.InlineCompletionItem[]) {
 		this.items = items;
 	}
 }
 
-@es5ClassCompat
-export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
-	insertText: string;
-	range?: Range;
-	command?: vscode.Command;
-
-	constructor(insertText: string, range?: Range, command?: vscode.Command) {
-		this.insertText = insertText;
-		this.range = range;
-		this.command = command;
-	}
+export interface PartialAcceptInfo {
+	kind: PartialAcceptTriggerKind;
 }
 
-@es5ClassCompat
-export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
-	items: vscode.InlineCompletionItemNew[];
-
-	commands: vscode.Command[] | undefined;
-
-	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
-		this.items = items;
-		this.commands = commands;
-	}
+export enum PartialAcceptTriggerKind {
+	Unknown = 0,
+	Word = 1,
+	Line = 2,
+	Suggest = 3,
 }
 
 export enum ViewColumn {
@@ -1763,10 +1825,15 @@ export enum StatusBarAlignment {
 	Right = 2
 }
 
+export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: string): string {
+	return `${ExtensionIdentifier.toKey(extension)}.${id}`;
+}
+
 export enum TextEditorLineNumbersStyle {
 	Off = 0,
 	On = 1,
-	Relative = 2
+	Relative = 2,
+	Interval = 3
 }
 
 export enum TextDocumentSaveReason {
@@ -1823,6 +1890,24 @@ export namespace TextEditorSelectionChangeKind {
 			case 'api': return TextEditorSelectionChangeKind.Command;
 		}
 		return undefined;
+	}
+}
+
+export enum SyntaxTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 3
+}
+export namespace SyntaxTokenType {
+	export function toString(v: SyntaxTokenType | unknown): 'other' | 'comment' | 'string' | 'regex' {
+		switch (v) {
+			case SyntaxTokenType.Other: return 'other';
+			case SyntaxTokenType.Comment: return 'comment';
+			case SyntaxTokenType.String: return 'string';
+			case SyntaxTokenType.RegEx: return 'regex';
+		}
+		return 'other';
 	}
 }
 
@@ -1916,6 +2001,12 @@ export enum TerminalExitReason {
 	Extension = 4
 }
 
+export enum TerminalShellExecutionCommandLineConfidence {
+	Low = 0,
+	Medium = 1,
+	High = 2
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
@@ -1931,6 +2022,20 @@ export class TerminalLink implements vscode.TerminalLink {
 		if (tooltip !== undefined && typeof tooltip !== 'string') {
 			throw illegalArgument('tooltip');
 		}
+	}
+}
+
+export class TerminalQuickFixOpener {
+	uri: vscode.Uri;
+	constructor(uri: vscode.Uri) {
+		this.uri = uri;
+	}
+}
+
+export class TerminalQuickFixCommand {
+	terminalCommand: string;
+	constructor(terminalCommand: string) {
+		this.terminalCommand = terminalCommand;
 	}
 }
 
@@ -2488,10 +2593,22 @@ export class TreeItem {
 	checkboxState?: vscode.TreeItemCheckboxState;
 
 	static isTreeItem(thing: any, extension: IExtensionDescription): thing is TreeItem {
+		const treeItemThing = thing as vscode.TreeItem;
+
+		if (treeItemThing.checkboxState !== undefined) {
+			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
+				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.state) ? treeItemThing.checkboxState.state : undefined;
+			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
+			if (checkbox === undefined || (checkbox !== TreeItemCheckboxState.Checked && checkbox !== TreeItemCheckboxState.Unchecked) || (tooltip !== undefined && !isString(tooltip))) {
+				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
+				return false;
+			}
+		}
+
 		if (thing instanceof TreeItem) {
 			return true;
 		}
-		const treeItemThing = thing as vscode.TreeItem2;
+
 		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label?.label)) {
 			console.log('INVALID tree item, invalid label', treeItemThing.label);
 			return false;
@@ -2535,16 +2652,6 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
 			return false;
 		}
-		if (treeItemThing.checkboxState !== undefined) {
-			checkProposedApiEnabled(extension, 'treeItemCheckbox');
-			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
-				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.state) ? treeItemThing.checkboxState.state : undefined;
-			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
-			if (checkbox === undefined || (checkbox !== TreeItemCheckboxState.Checked && checkbox !== TreeItemCheckboxState.Unchecked) || (tooltip !== undefined && !isString(tooltip))) {
-				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
-				return false;
-			}
-		}
 
 		return true;
 	}
@@ -2573,7 +2680,7 @@ export enum TreeItemCheckboxState {
 }
 
 @es5ClassCompat
-export class DataTransferItem {
+export class DataTransferItem implements vscode.DataTransferItem {
 
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
@@ -2583,13 +2690,57 @@ export class DataTransferItem {
 		return undefined;
 	}
 
-	public readonly id: string;
-
 	constructor(
 		public readonly value: any,
-		id?: string,
-	) {
-		this.id = id ?? generateUuid();
+	) { }
+}
+
+/**
+ * A data transfer item that has been created by VS Code instead of by a extension.
+ *
+ * Intentionally not exported to extensions.
+ */
+export class InternalDataTransferItem extends DataTransferItem { }
+
+/**
+ * A data transfer item for a file.
+ *
+ * Intentionally not exported to extensions as only we can create these.
+ */
+export class InternalFileDataTransferItem extends InternalDataTransferItem {
+
+	readonly #file: vscode.DataTransferFile;
+
+	constructor(file: vscode.DataTransferFile) {
+		super('');
+		this.#file = file;
+	}
+
+	override asFile() {
+		return this.#file;
+	}
+}
+
+/**
+ * Intentionally not exported to extensions
+ */
+export class DataTransferFile implements vscode.DataTransferFile {
+
+	public readonly name: string;
+	public readonly uri: vscode.Uri | undefined;
+
+	public readonly _itemId: string;
+	private readonly _getData: () => Promise<Uint8Array>;
+
+	constructor(name: string, uri: vscode.Uri | undefined, itemId: string, getData: () => Promise<Uint8Array>) {
+		this.name = name;
+		this.uri = uri;
+		this._itemId = itemId;
+		this._getData = getData;
+	}
+
+	data(): Promise<Uint8Array> {
+		return this._getData();
 	}
 }
 
@@ -2599,23 +2750,23 @@ export class DataTransfer implements vscode.DataTransfer {
 
 	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
 		for (const [mime, item] of init ?? []) {
-			const existing = this.#items.get(mime);
+			const existing = this.#items.get(this.#normalizeMime(mime));
 			if (existing) {
 				existing.push(item);
 			} else {
-				this.#items.set(mime, [item]);
+				this.#items.set(this.#normalizeMime(mime), [item]);
 			}
 		}
 	}
 
 	get(mimeType: string): DataTransferItem | undefined {
-		return this.#items.get(mimeType)?.[0];
+		return this.#items.get(this.#normalizeMime(mimeType))?.[0];
 	}
 
 	set(mimeType: string, value: DataTransferItem): void {
 		// This intentionally overwrites all entries for a given mimetype.
 		// This is similar to how the DOM DataTransfer type works
-		this.#items.set(mimeType, [value]);
+		this.#items.set(this.#normalizeMime(mimeType), [value]);
 	}
 
 	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
@@ -2633,27 +2784,70 @@ export class DataTransfer implements vscode.DataTransfer {
 			}
 		}
 	}
-}
 
-@es5ClassCompat
-export class DocumentDropEdit {
-	insertText: string | SnippetString;
-
-	additionalEdit?: WorkspaceEdit;
-
-	constructor(insertText: string | SnippetString) {
-		this.insertText = insertText;
+	#normalizeMime(mimeType: string): string {
+		return mimeType.toLowerCase();
 	}
 }
 
 @es5ClassCompat
-export class DocumentPasteEdit {
+export class DocumentDropEdit {
+	title?: string;
+
+	id: string | undefined;
+
 	insertText: string | SnippetString;
 
 	additionalEdit?: WorkspaceEdit;
 
-	constructor(insertText: string | SnippetString) {
+	kind?: DocumentDropOrPasteEditKind;
+
+	constructor(insertText: string | SnippetString, title?: string, kind?: DocumentDropOrPasteEditKind) {
 		this.insertText = insertText;
+		this.title = title;
+		this.kind = kind;
+	}
+}
+
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1,
+}
+
+export class DocumentDropOrPasteEditKind {
+	static Empty: DocumentDropOrPasteEditKind;
+
+	private static sep = '.';
+
+	constructor(
+		public readonly value: string
+	) { }
+
+	public append(...parts: string[]): DocumentDropOrPasteEditKind {
+		return new DocumentDropOrPasteEditKind((this.value ? [this.value, ...parts] : parts).join(DocumentDropOrPasteEditKind.sep));
+	}
+
+	public intersects(other: DocumentDropOrPasteEditKind): boolean {
+		return this.contains(other) || other.contains(this);
+	}
+
+	public contains(other: DocumentDropOrPasteEditKind): boolean {
+		return this.value === other.value || other.value.startsWith(this.value + DocumentDropOrPasteEditKind.sep);
+	}
+}
+DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
+
+export class DocumentPasteEdit {
+
+	title: string;
+	insertText: string | SnippetString;
+	additionalEdit?: WorkspaceEdit;
+	kind: DocumentDropOrPasteEditKind;
+
+	constructor(insertText: string | SnippetString, title: string, kind: DocumentDropOrPasteEditKind) {
+		this.title = title;
+		this.insertText = insertText;
+		this.kind = kind;
 	}
 }
 
@@ -2669,6 +2863,14 @@ export class ThemeIcon {
 	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
 		this.color = color;
+	}
+
+	static isThemeIcon(thing: any) {
+		if (typeof thing.id !== 'string') {
+			console.log('INVALID ThemeIcon, invalid id', thing.id);
+			return false;
+		}
+		return true;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
@@ -2745,6 +2947,20 @@ export class RelativePattern implements IRelativePattern {
 	}
 }
 
+const breakpointIds = new WeakMap<Breakpoint, string>();
+
+/**
+ * We want to be able to construct Breakpoints internally that have a particular id, but we don't want extensions to be
+ * able to do this with the exposed Breakpoint classes in extension API.
+ * We also want "instanceof" to work with debug.breakpoints and the exposed breakpoint classes.
+ * And private members will be renamed in the built js, so casting to any and setting a private member is not safe.
+ * So, we store internal breakpoint IDs in a WeakMap. This function must be called after constructing a Breakpoint
+ * with a known id.
+ */
+export function setBreakpointId(bp: Breakpoint, id: string) {
+	breakpointIds.set(bp, id);
+}
+
 @es5ClassCompat
 export class Breakpoint {
 
@@ -2754,8 +2970,9 @@ export class Breakpoint {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
+	readonly mode?: string;
 
-	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
 		this.enabled = typeof enabled === 'boolean' ? enabled : true;
 		if (typeof condition === 'string') {
 			this.condition = condition;
@@ -2766,11 +2983,14 @@ export class Breakpoint {
 		if (typeof logMessage === 'string') {
 			this.logMessage = logMessage;
 		}
+		if (typeof mode === 'string') {
+			this.mode = mode;
+		}
 	}
 
 	get id(): string {
 		if (!this._id) {
-			this._id = generateUuid();
+			this._id = breakpointIds.get(this) ?? generateUuid();
 		}
 		return this._id;
 	}
@@ -2780,8 +3000,8 @@ export class Breakpoint {
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+		super(enabled, condition, hitCondition, logMessage, mode);
 		if (location === null) {
 			throw illegalArgument('location');
 		}
@@ -2793,8 +3013,8 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+		super(enabled, condition, hitCondition, logMessage, mode);
 		this.functionName = functionName;
 	}
 }
@@ -2805,8 +3025,8 @@ export class DataBreakpoint extends Breakpoint {
 	readonly dataId: string;
 	readonly canPersist: boolean;
 
-	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+		super(enabled, condition, hitCondition, logMessage, mode);
 		if (!dataId) {
 			throw illegalArgument('dataId');
 		}
@@ -2815,7 +3035,6 @@ export class DataBreakpoint extends Breakpoint {
 		this.canPersist = canPersist;
 	}
 }
-
 
 @es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
@@ -2856,6 +3075,21 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 	}
 }
 
+
+export class StackFrame implements vscode.StackFrame {
+	constructor(
+		public readonly session: vscode.DebugSession,
+		readonly threadId: number,
+		readonly frameId: number) { }
+}
+
+export class Thread implements vscode.Thread {
+	constructor(
+		public readonly session: vscode.DebugSession,
+		readonly threadId: number) { }
+}
+
+
 @es5ClassCompat
 export class EvaluatableExpression implements vscode.EvaluatableExpression {
 	readonly range: vscode.Range;
@@ -2868,11 +3102,6 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 }
 
 export enum InlineCompletionTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-export enum InlineCompletionTriggerKindNew {
 	Invoke = 0,
 	Automatic = 1,
 }
@@ -2924,6 +3153,23 @@ export class InlineValueContext implements vscode.InlineValueContext {
 	}
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export class NewSymbolName implements vscode.NewSymbolName {
+	readonly newSymbolName: string;
+	readonly tags?: readonly vscode.NewSymbolNameTag[] | undefined;
+
+	constructor(
+		newSymbolName: string,
+		tags?: readonly NewSymbolNameTag[]
+	) {
+		this.newSymbolName = newSymbolName;
+		this.tags = tags;
+	}
+}
+
 //#region file api
 
 export enum FileChangeType {
@@ -2967,9 +3213,7 @@ export class FileSystemError extends Error {
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
-		}
+		Object.setPrototypeOf(this, FileSystemError.prototype);
 
 		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
 			// nice stack traces
@@ -3023,9 +3267,19 @@ export enum CommentMode {
 	Preview = 1
 }
 
+export enum CommentState {
+	Published = 0,
+	Draft = 1
+}
+
 export enum CommentThreadState {
 	Unresolved = 0,
 	Resolved = 1
+}
+
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
 }
 
 //#endregion
@@ -3270,6 +3524,13 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
+export class DebugVisualization {
+	iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+	visualization?: vscode.Command | vscode.TreeDataProvider<unknown>;
+
+	constructor(public name: string) { }
+}
+
 //#endregion
 
 @es5ClassCompat
@@ -3299,13 +3560,17 @@ export enum ExtensionKind {
 export class FileDecoration {
 
 	static validate(d: FileDecoration): boolean {
-		if (d.badge) {
+		if (typeof d.badge === 'string') {
 			let len = nextCharLength(d.badge, 0);
 			if (len < d.badge.length) {
 				len += nextCharLength(d.badge, len);
 			}
 			if (d.badge.length > len) {
 				throw new Error(`The 'badge'-property must be undefined or a short character`);
+			}
+		} else if (d.badge) {
+			if (!ThemeIcon.isThemeIcon(d.badge)) {
+				throw new Error(`The 'badge'-property is not a valid ThemeIcon`);
 			}
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
@@ -3314,12 +3579,12 @@ export class FileDecoration {
 		return true;
 	}
 
-	badge?: string;
+	badge?: string | vscode.ThemeIcon;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
 	propagate?: boolean;
 
-	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
+	constructor(badge?: string | ThemeIcon, tooltip?: string, color?: ThemeColor) {
 		this.badge = badge;
 		this.tooltip = tooltip;
 		this.color = color;
@@ -3626,6 +3891,20 @@ export class NotebookRendererScript {
 	}
 }
 
+export class NotebookKernelSourceAction {
+	description?: string;
+	detail?: string;
+	command?: vscode.Command;
+	constructor(
+		public label: string
+	) { }
+}
+
+export enum NotebookVariablesRequestKind {
+	Named = 1,
+	Indexed = 2
+}
+
 //#endregion
 
 //#region Timeline
@@ -3687,15 +3966,10 @@ export class LinkedEditingRanges {
 
 //#region ports
 export class PortAttributes {
-	private _port: number;
 	private _autoForwardAction: PortAutoForwardAction;
-	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
-		this._port = port;
-		this._autoForwardAction = autoForwardAction;
-	}
 
-	get port(): number {
-		return this._port;
+	constructor(autoForwardAction: PortAutoForwardAction) {
+		this._autoForwardAction = autoForwardAction;
 	}
 
 	get autoForwardAction(): PortAutoForwardAction {
@@ -3726,6 +4000,7 @@ export class TestRunRequest implements vscode.TestRunRequest {
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
+		public readonly continuous = false,
 	) { }
 }
 
@@ -3734,6 +4009,8 @@ export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
 	public location?: vscode.Location;
+	/** proposed: */
+	public contextValue?: string;
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
@@ -3753,30 +4030,44 @@ export class TestTag implements vscode.TestTag {
 //#endregion
 
 //#region Test Coverage
-@es5ClassCompat
-export class CoveredCount implements vscode.CoveredCount {
-	constructor(public covered: number, public total: number) { }
+export class TestCoverageCount implements vscode.TestCoverageCount {
+	constructor(public covered: number, public total: number) {
+		validateTestCoverageCount(this);
+	}
 }
 
-@es5ClassCompat
+export function validateTestCoverageCount(cc?: vscode.TestCoverageCount) {
+	if (!cc) {
+		return;
+	}
+
+	if (cc.covered > cc.total) {
+		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
+	}
+
+	if (cc.total < 0) {
+		throw new Error(`The number of covered items (${cc.total}) cannot be negative`);
+	}
+}
+
 export class FileCoverage implements vscode.FileCoverage {
-	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
-		const statements = new CoveredCount(0, 0);
-		const branches = new CoveredCount(0, 0);
-		const fn = new CoveredCount(0, 0);
+	public static fromDetails(uri: vscode.Uri, details: vscode.FileCoverageDetail[]): vscode.FileCoverage {
+		const statements = new TestCoverageCount(0, 0);
+		const branches = new TestCoverageCount(0, 0);
+		const decl = new TestCoverageCount(0, 0);
 
 		for (const detail of details) {
 			if ('branches' in detail) {
 				statements.total += 1;
-				statements.covered += detail.executionCount > 0 ? 1 : 0;
+				statements.covered += detail.executed ? 1 : 0;
 
 				for (const branch of detail.branches) {
 					branches.total += 1;
-					branches.covered += branch.executionCount > 0 ? 1 : 0;
+					branches.covered += branch.executed ? 1 : 0;
 				}
 			} else {
-				fn.total += 1;
-				fn.covered += detail.executionCount > 0 ? 1 : 0;
+				decl.total += 1;
+				decl.covered += detail.executed ? 1 : 0;
 			}
 		}
 
@@ -3784,7 +4075,7 @@ export class FileCoverage implements vscode.FileCoverage {
 			uri,
 			statements,
 			branches.total > 0 ? branches : undefined,
-			fn.total > 0 ? fn : undefined,
+			decl.total > 0 ? decl : undefined,
 		);
 
 		coverage.detailedCoverage = details;
@@ -3792,37 +4083,49 @@ export class FileCoverage implements vscode.FileCoverage {
 		return coverage;
 	}
 
-	detailedCoverage?: vscode.DetailedCoverage[];
+	detailedCoverage?: vscode.FileCoverageDetail[];
 
 	constructor(
 		public readonly uri: vscode.Uri,
-		public statementCoverage: vscode.CoveredCount,
-		public branchCoverage?: vscode.CoveredCount,
-		public functionCoverage?: vscode.CoveredCount,
-	) { }
+		public statementCoverage: vscode.TestCoverageCount,
+		public branchCoverage?: vscode.TestCoverageCount,
+		public declarationCoverage?: vscode.TestCoverageCount,
+	) {
+	}
 }
 
-@es5ClassCompat
 export class StatementCoverage implements vscode.StatementCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
 		public branches: vscode.BranchCoverage[] = [],
 	) { }
 }
 
-@es5ClassCompat
 export class BranchCoverage implements vscode.BranchCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
+		public label?: string,
 	) { }
 }
 
-@es5ClassCompat
-export class FunctionCoverage implements vscode.FunctionCoverage {
+export class DeclarationCoverage implements vscode.DeclarationCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public readonly name: string,
+		public executed: number | boolean,
 		public location: Position | Range,
 	) { }
 }
@@ -3908,4 +4211,258 @@ export class TerminalEditorTabInput {
 export class InteractiveWindowInput {
 	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
+
+export class ChatEditorTabInput {
+	constructor() { }
+}
+
+export class TextMultiDiffTabInput {
+	constructor(readonly textDiffs: TextDiffTabInput[]) { }
+}
+//#endregion
+
+//#region Chat
+
+export enum InteractiveSessionVoteDirection {
+	Down = 0,
+	Up = 1
+}
+
+export enum ChatCopyKind {
+	Action = 1,
+	Toolbar = 2
+}
+
+export enum ChatVariableLevel {
+	Short = 1,
+	Medium = 2,
+	Full = 3
+}
+
+export class ChatCompletionItem implements vscode.ChatCompletionItem {
+	label: string | CompletionItemLabel;
+	insertText?: string;
+	values: vscode.ChatVariableValue[];
+	detail?: string;
+	documentation?: string | MarkdownString;
+
+	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+		this.label = label;
+		this.values = values;
+	}
+}
+
+//#endregion
+
+//#region Interactive Editor
+
+export enum InteractiveEditorResponseFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
+	Undone = 2,
+	Accepted = 3,
+	Bug = 4
+}
+
+export enum ChatResultFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
+}
+
+export class ChatResponseMarkdownPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+/**
+ * TODO if 'vulnerabilities' is finalized, this should be merged with the base ChatResponseMarkdownPart. I just don't see how to do that while keeping
+ * vulnerabilities in a seperate API proposal in a clean way.
+ */
+export class ChatResponseMarkdownWithVulnerabilitiesPart {
+	value: vscode.MarkdownString;
+	vulnerabilities: vscode.ChatVulnerability[];
+	constructor(value: string | vscode.MarkdownString, vulnerabilities: vscode.ChatVulnerability[]) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+		this.vulnerabilities = vulnerabilities;
+	}
+}
+
+export class ChatResponseDetectedParticipantPart {
+	participant: string;
+	// TODO@API validate this against statically-declared slash commands?
+	command?: vscode.ChatCommand;
+	constructor(participant: string, command?: vscode.ChatCommand) {
+		this.participant = participant;
+		this.command = command;
+	}
+}
+
+export class ChatResponseFileTreePart {
+	value: vscode.ChatResponseFileTree[];
+	baseUri: vscode.Uri;
+	constructor(value: vscode.ChatResponseFileTree[], baseUri: vscode.Uri) {
+		this.value = value;
+		this.baseUri = baseUri;
+	}
+}
+
+export class ChatResponseAnchorPart {
+	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	title?: string;
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		this.value = value;
+		this.title = title;
+	}
+}
+
+export class ChatResponseProgressPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseCommandButtonPart {
+	value: vscode.Command;
+	constructor(value: vscode.Command) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseReferencePart {
+	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseTextEditPart {
+	uri: vscode.Uri;
+	edits: vscode.TextEdit[];
+	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+		this.uri = uri;
+		this.edits = Array.isArray(edits) ? edits : [edits];
+	}
+}
+
+export class ChatRequestTurn implements vscode.ChatRequestTurn {
+	constructor(
+		readonly prompt: string,
+		readonly command: string | undefined,
+		readonly variables: vscode.ChatResolvedVariable[],
+		readonly participant: string,
+	) { }
+}
+
+export class ChatResponseTurn implements vscode.ChatResponseTurn {
+
+	constructor(
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
+		readonly result: vscode.ChatResult,
+		readonly participant: string,
+		readonly command?: string
+	) { }
+}
+
+export enum ChatLocation {
+	Panel = 1,
+	Terminal = 2,
+	Notebook = 3,
+	Editor = 4,
+}
+
+export class LanguageModelChatSystemMessage {
+	content: string;
+
+	constructor(content: string) {
+		this.content = content;
+	}
+}
+
+export class LanguageModelChatUserMessage {
+	content: string;
+	name: string | undefined;
+
+	constructor(content: string, name?: string) {
+		this.content = content;
+		this.name = name;
+	}
+}
+
+export class LanguageModelChatAssistantMessage {
+	content: string;
+	name?: string;
+
+	constructor(content: string, name?: string) {
+		this.content = content;
+		this.name = name;
+	}
+}
+
+export class LanguageModelError extends Error {
+
+	static NotFound(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NotFound.name);
+	}
+
+	static NoPermissions(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
+	}
+
+	readonly code: string;
+
+	constructor(message?: string, code?: string, cause?: Error) {
+		super(message, { cause });
+		this.name = 'LanguageModelError';
+		this.code = code ?? '';
+	}
+
+}
+
+//#endregion
+
+//#region ai
+
+export enum RelatedInformationType {
+	SymbolInformation = 1,
+	CommandInformation = 2,
+	SearchInformation = 3,
+	SettingInformation = 4
+}
+
+//#endregion
+
+//#region Speech
+
+export enum SpeechToTextStatus {
+	Started = 1,
+	Recognizing = 2,
+	Recognized = 3,
+	Stopped = 4,
+	Error = 5
+}
+
+export enum KeywordRecognitionStatus {
+	Recognized = 1,
+	Stopped = 2
+}
+
+//#endregion
+
+//#region InlineEdit
+
+export class InlineEdit implements vscode.InlineEdit {
+	constructor(
+		public readonly text: string,
+		public readonly range: Range,
+	) { }
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
 //#endregion

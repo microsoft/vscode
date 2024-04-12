@@ -13,8 +13,7 @@ export const enum StatusBarElement {
 	INDENTATION_STATUS = 4,
 	ENCODING_STATUS = 5,
 	EOL_STATUS = 6,
-	LANGUAGE_STATUS = 7,
-	FEEDBACK_ICON = 8
+	LANGUAGE_STATUS = 7
 }
 
 export class StatusBar {
@@ -36,7 +35,7 @@ export class StatusBar {
 	}
 
 	async waitForStatusbarText(title: string, text: string): Promise<void> {
-		await this.code.waitForTextContent(`${this.mainSelector} .statusbar-item[title="${title}"]`, text);
+		await this.code.waitForTextContent(`${this.mainSelector} .statusbar-item[aria-label="${title}"]`, text);
 	}
 
 	private getSelector(element: StatusBarElement): string {
@@ -57,8 +56,6 @@ export class StatusBar {
 				return `.statusbar-item[id="status.editor.eol"]`;
 			case StatusBarElement.LANGUAGE_STATUS:
 				return `.statusbar-item[id="status.editor.mode"]`;
-			case StatusBarElement.FEEDBACK_ICON:
-				return `.statusbar-item[id="status.feedback"]`;
 			default:
 				throw new Error(element);
 		}

@@ -6,7 +6,12 @@
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { NotebookEditorPriority, NotebookRendererEntrypoint, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEditorPriority, ContributedNotebookRendererEntrypoint, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 const NotebookEditorContribution = Object.freeze({
 	type: 'type',
@@ -36,10 +41,22 @@ export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.id]?: string;
 	readonly [NotebookRendererContribution.displayName]: string;
 	readonly [NotebookRendererContribution.mimeTypes]?: readonly string[];
-	readonly [NotebookRendererContribution.entrypoint]: NotebookRendererEntrypoint;
+	readonly [NotebookRendererContribution.entrypoint]: ContributedNotebookRendererEntrypoint;
 	readonly [NotebookRendererContribution.hardDependencies]: readonly string[];
 	readonly [NotebookRendererContribution.optionalDependencies]: readonly string[];
 	readonly [NotebookRendererContribution.requiresMessaging]: RendererMessagingSpec;
+}
+
+const NotebookPreloadContribution = Object.freeze({
+	type: 'type',
+	entrypoint: 'entrypoint',
+	localResourceRoots: 'localResourceRoots',
+});
+
+interface INotebookPreloadContribution {
+	readonly [NotebookPreloadContribution.type]: string;
+	readonly [NotebookPreloadContribution.entrypoint]: string;
+	readonly [NotebookPreloadContribution.localResourceRoots]: readonly string[];
 }
 
 const notebookProviderContribution: IJSONSchema = {
@@ -139,7 +156,6 @@ const notebookRendererContribution: IJSONSchema = {
 							'optional',
 							'never',
 						],
-
 						enumDescriptions: [
 							nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
 							nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
@@ -198,14 +214,153 @@ const notebookRendererContribution: IJSONSchema = {
 	}
 };
 
-export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
-	{
-		extensionPoint: 'notebooks',
-		jsonSchema: notebookProviderContribution
-	});
+const notebookPreloadContribution: IJSONSchema = {
+	description: nls.localize('contributes.preload.provider', 'Contributes notebook preloads.'),
+	type: 'array',
+	defaultSnippets: [{ body: [{ type: '', entrypoint: '' }] }],
+	items: {
+		type: 'object',
+		required: [
+			NotebookPreloadContribution.type,
+			NotebookPreloadContribution.entrypoint
+		],
+		properties: {
+			[NotebookPreloadContribution.type]: {
+				type: 'string',
+				description: nls.localize('contributes.preload.provider.viewType', 'Type of the notebook.'),
+			},
+			[NotebookPreloadContribution.entrypoint]: {
+				type: 'string',
+				description: nls.localize('contributes.preload.entrypoint', 'Path to file loaded in the webview.'),
+			},
+			[NotebookPreloadContribution.localResourceRoots]: {
+				type: 'array',
+				items: { type: 'string' },
+				description: nls.localize('contributes.preload.localResourceRoots', 'Paths to additional resources that should be allowed in the webview.'),
+			},
+		}
+	}
+};
 
-export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>(
-	{
-		extensionPoint: 'notebookRenderer',
-		jsonSchema: notebookRendererContribution
-	});
+export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>({
+	extensionPoint: 'notebooks',
+	jsonSchema: notebookProviderContribution,
+	activationEventsGenerator: (contribs: INotebookEditorContribution[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			if (contrib.type) {
+				result.push(`onNotebookSerializer:${contrib.type}`);
+			}
+		}
+	}
+});
+
+export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>({
+	extensionPoint: 'notebookRenderer',
+	jsonSchema: notebookRendererContribution,
+	activationEventsGenerator: (contribs: INotebookRendererContribution[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			if (contrib.id) {
+				result.push(`onRenderer:${contrib.id}`);
+			}
+		}
+	}
+});
+
+export const notebookPreloadExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookPreloadContribution[]>({
+	extensionPoint: 'notebookPreload',
+	jsonSchema: notebookPreloadContribution,
+});
+
+class NotebooksDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.notebooks;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contrib = manifest.contributes?.notebooks || [];
+		if (!contrib.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			nls.localize('Notebook id', "ID"),
+			nls.localize('Notebook name', "Name"),
+		];
+
+		const rows: IRowData[][] = contrib
+			.sort((a, b) => a.type.localeCompare(b.type))
+			.map(notebook => {
+				return [
+					notebook.type,
+					notebook.displayName
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+class NotebookRenderersDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.notebookRenderer;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contrib = manifest.contributes?.notebookRenderer || [];
+		if (!contrib.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			nls.localize('Notebook renderer name', "Name"),
+			nls.localize('Notebook mimetypes', "Mimetypes"),
+		];
+
+		const rows: IRowData[][] = contrib
+			.sort((a, b) => a.displayName.localeCompare(b.displayName))
+			.map(notebookRenderer => {
+				return [
+					notebookRenderer.displayName,
+					notebookRenderer.mimeTypes.join(',')
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'notebooks',
+	label: nls.localize('notebooks', "Notebooks"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(NotebooksDataRenderer),
+});
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'notebookRenderer',
+	label: nls.localize('notebookRenderer', "Notebook Renderers"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(NotebookRenderersDataRenderer),
+});

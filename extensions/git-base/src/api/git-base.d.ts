@@ -44,6 +44,15 @@ export interface PickRemoteSourceResult {
 	readonly branch?: string;
 }
 
+export interface RemoteSourceAction {
+	readonly label: string;
+	/**
+	 * Codicon name
+	 */
+	readonly icon: string;
+	run(branch: string): void;
+}
+
 export interface RemoteSource {
 	readonly name: string;
 	readonly description?: string;
@@ -70,6 +79,7 @@ export interface RemoteSourceProvider {
 	readonly supportsQuery?: boolean;
 
 	getBranches?(url: string): ProviderResult<string[]>;
+	getRemoteSourceActions?(url: string): ProviderResult<RemoteSourceAction[]>;
 	getRecentRemoteSources?(query?: string): ProviderResult<RecentRemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
 }

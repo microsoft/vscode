@@ -38,11 +38,10 @@ export const IInstantiationService = createDecorator<IInstantiationService>('ins
  * Given a list of arguments as a tuple, attempt to extract the leading, non-service arguments
  * to their own tuple.
  */
-type GetLeadingNonServiceArgs<Args> =
-	Args extends [...BrandedService[]] ? []
-	: Args extends [infer A, ...BrandedService[]] ? [A]
-	: Args extends [infer A, ...infer R] ? [A, ...GetLeadingNonServiceArgs<R>]
-	: never;
+export type GetLeadingNonServiceArgs<TArgs extends any[]> =
+	TArgs extends [] ? []
+	: TArgs extends [...infer TFirst, BrandedService] ? GetLeadingNonServiceArgs<TFirst>
+	: TArgs;
 
 export interface IInstantiationService {
 
@@ -64,6 +63,16 @@ export interface IInstantiationService {
 	 * and adds/overwrites the given services.
 	 */
 	createChild(services: ServiceCollection): IInstantiationService;
+
+	/**
+	 * Disposes this instantiation service.
+	 *
+	 * - Will dispose all services that this instantiation service has created.
+	 * - Will dispose all its children but not its parent.
+	 * - Will NOT dispose services-instances that this service has been created with
+	 * - Will NOT dispose consumer-instances this service has created
+	 */
+	dispose(): void;
 }
 
 

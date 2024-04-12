@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from 'vs/base/common/filters';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
 	const r = filter(word, wordToMatchAgainst);
@@ -18,6 +19,8 @@ function filterNotOk(filter: IFilter, word: string, wordToMatchAgainst: string) 
 }
 
 suite('Filters', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('or', () => {
 		let filter: IFilter;
 		let counters: number[];
@@ -498,6 +501,11 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
 	});
 
+	test.skip('Bad completion ranking changes valid variable name to class name when pressing "." #187055', function () {
+		assertTopScore(fuzzyScore, 'a', 1, 'A', 'a');
+		assertTopScore(fuzzyScore, 'theme', 1, 'Theme', 'theme');
+	});
+
 	test('HTML closing tag proposal filtered out #38880', function () {
 		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', fuzzyScore, { patternPos: 0 });
 		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', fuzzyScore, { patternPos: 2 });
@@ -560,6 +568,11 @@ suite('Filters', () => {
 		assertMatches('lo', 'log', '^l^og', fuzzyScore);
 		assertMatches('.lo', 'log', '^l^og', anyScore);
 		assertMatches('.', 'log', 'log', anyScore);
+	});
+
+	test('anyScore should not require a strong first match', function () {
+		assertMatches('bar', 'foobAr', 'foo^b^A^r', anyScore);
+		assertMatches('bar', 'foobar', 'foo^b^a^r', anyScore);
 	});
 
 	test('configurable full match boost', function () {

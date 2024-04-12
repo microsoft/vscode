@@ -23,7 +23,7 @@ export function setWordDefinitionFor(languageId: string, wordDefinition: RegExp 
 	}
 }
 
-export function getWordDefinitionFor(languageId: string): RegExp | undefined {
+function getWordDefinitionFor(languageId: string): RegExp | undefined {
 	return _languageId2WordDefinition.get(languageId);
 }
 
@@ -37,11 +37,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
-		public readonly notebook?: vscode.NotebookDocument | undefined
 	) {
 		super(uri, lines, eol, versionId);
 	}
 
+	// eslint-disable-next-line local/code-must-use-super-dispose
 	override dispose(): void {
 		// we don't really dispose documents but let
 		// extensions still read from them. some

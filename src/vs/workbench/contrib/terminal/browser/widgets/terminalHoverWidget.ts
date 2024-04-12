@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import * as dom from 'vs/base/browser/dom';
-import type { IViewportRange } from 'xterm';
-import { IHoverTarget, IHoverService, IHoverAction } from 'vs/workbench/services/hover/browser/hover';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
+import type { IViewportRange } from '@xterm/xterm';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import type { IHoverAction, IHoverTarget } from 'vs/base/browser/ui/hover/hover';
 
 const $ = dom.$;
 
@@ -39,10 +38,6 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		super();
 	}
 
-	override dispose() {
-		super.dispose();
-	}
-
 	attach(container: HTMLElement): void {
 		const showLinkHover = this._configurationService.getValue(TerminalSettingId.ShowLinkHover);
 		if (!showLinkHover) {
@@ -64,7 +59,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 }
 
 class CellHoverTarget extends Widget implements IHoverTarget {
-	private _domNode: HTMLElement | undefined;
+	private _domNode: HTMLElement;
 	private readonly _targetElements: HTMLElement[] = [];
 
 	get targetElements(): readonly HTMLElement[] { return this._targetElements; }
@@ -109,13 +104,13 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 
 		if (this._options.modifierDownCallback && this._options.modifierUpCallback) {
 			let down = false;
-			this._register(dom.addDisposableListener(document, 'keydown', e => {
+			this._register(dom.addDisposableListener(container.ownerDocument, 'keydown', e => {
 				if (e.ctrlKey && !down) {
 					down = true;
 					this._options.modifierDownCallback!();
 				}
 			}));
-			this._register(dom.addDisposableListener(document, 'keyup', e => {
+			this._register(dom.addDisposableListener(container.ownerDocument, 'keyup', e => {
 				if (!e.ctrlKey) {
 					down = false;
 					this._options.modifierUpCallback!();
@@ -124,20 +119,6 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		}
 
 		container.appendChild(this._domNode);
-	}
-
-	override dispose(): void {
-		this._domNode?.parentElement?.removeChild(this._domNode);
-		super.dispose();
+		this._register(toDisposable(() => this._domNode?.remove()));
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
-	if (editorHoverHighlightColor) {
-		if (editorHoverHighlightColor.isOpaque()) {
-			editorHoverHighlightColor = editorHoverHighlightColor.transparent(0.5);
-		}
-		collector.addRule(`.integrated-terminal .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
-	}
-});

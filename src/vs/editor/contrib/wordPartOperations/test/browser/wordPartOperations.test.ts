@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/browser/wordTestUtils';
-import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/browser/utils';
 import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from 'vs/editor/contrib/wordPartOperations/browser/wordPartOperations';
+import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/browser/utils';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('WordPartOperations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const _deleteWordPartLeft = new DeleteWordPartLeft();
 	const _deleteWordPartRight = new DeleteWordPartRight();
 	const _cursorWordPartLeft = new CursorWordPartLeft();
@@ -208,6 +212,74 @@ suite('WordPartOperations', () => {
 			ed => deleteWordPartRight(ed),
 			ed => new Position(1, text.length - ed.getValue().length + 1),
 			ed => ed.getValue().length === 0
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('issue #158667: cursorWordPartLeft stops at "-" even when "-" is not in word separators', () => {
+		const EXPECTED = [
+			'|this-|is-|a-|kebab-|case-|var| |THIS-|IS-|CAPS-|KEBAB| |this-|IS|Mixed|Use',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordPartLeft(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1)),
+			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('issue #158667: cursorWordPartRight stops at "-" even when "-" is not in word separators', () => {
+		const EXPECTED = [
+			'this|-is|-a|-kebab|-case|-var| |THIS|-IS|-CAPS|-KEBAB| |this|-IS|Mixed|Use|',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordPartRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 60)),
+			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('issue #158667: deleteWordPartLeft stops at "-" even when "-" is not in word separators', () => {
+		const EXPECTED = [
+			'|this-|is-|a-|kebab-|case-|var| |THIS-|IS-|CAPS-|KEBAB| |this-|IS|Mixed|Use',
+		].join(' ');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => deleteWordPartLeft(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getValue().length === 0,
+			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('issue #158667: deleteWordPartRight stops at "-" even when "-" is not in word separators', () => {
+		const EXPECTED = [
+			'this|-is|-a|-kebab|-case|-var| |THIS|-IS|-CAPS|-KEBAB| |this|-IS|Mixed|Use|',
+		].join(' ');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => deleteWordPartRight(ed),
+			ed => new Position(1, text.length - ed.getValue().length + 1),
+			ed => ed.getValue().length === 0,
+			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);

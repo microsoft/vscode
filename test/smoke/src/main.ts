@@ -193,7 +193,7 @@ if (!opts.web) {
 	}
 
 	if (!fs.existsSync(electronPath || '')) {
-		fail(`Can't find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
+		fail(`Cannot find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
 	}
 
 	quality = parseQuality();
@@ -213,7 +213,7 @@ else {
 
 	if (typeof testCodeServerPath === 'string') {
 		if (!fs.existsSync(testCodeServerPath)) {
-			fail(`Can't find Code server at ${testCodeServerPath}.`);
+			fail(`Cannot find Code server at ${testCodeServerPath}.`);
 		} else {
 			logger.log(`Running web smoke tests against ${testCodeServerPath}`);
 		}
@@ -263,30 +263,31 @@ async function setupRepository(): Promise<void> {
 async function ensureStableCode(): Promise<void> {
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
-		const { major, minor } = parseVersion(version!);
-		const majorMinorVersion = `${major}.${minor - 1}`;
-		const versionsReq = await retry(() => measureAndLog(() => fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } }), 'versionReq', logger), 1000, 20);
+		const current = parseVersion(version!);
+		const versionsReq = await retry(() => measureAndLog(() => fetch('https://update.code.visualstudio.com/api/releases/stable'), 'versionReq', logger), 1000, 20);
 
 		if (!versionsReq.ok) {
 			throw new Error('Could not fetch releases from update server');
 		}
 
-		const versions: { version: string }[] = await measureAndLog(() => versionsReq.json(), 'versionReq.json()', logger);
-		const prefix = `${majorMinorVersion}.`;
-		const previousVersion = versions.find(v => v.version.startsWith(prefix));
+		const versions: string[] = await measureAndLog(() => versionsReq.json(), 'versionReq.json()', logger);
+		const stableVersion = versions.find(raw => {
+			const version = parseVersion(raw);
+			return version.major < current.major || (version.major === current.major && version.minor < current.minor);
+		});
 
-		if (!previousVersion) {
-			throw new Error(`Could not find suitable stable version ${majorMinorVersion}`);
+		if (!stableVersion) {
+			throw new Error(`Could not find suitable stable version for ${version}`);
 		}
 
-		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
+		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${stableVersion}...`);
 
 		let lastProgressMessage: string | undefined = undefined;
 		let lastProgressReportedAt = 0;
 		const stableCodeDestination = path.join(testDataPath, 's');
 		const stableCodeExecutable = await retry(() => measureAndLog(() => vscodetest.download({
 			cachePath: stableCodeDestination,
-			version: previousVersion.version,
+			version: stableVersion,
 			extractSync: true,
 			reporter: {
 				report: report => {
@@ -325,7 +326,7 @@ async function ensureStableCode(): Promise<void> {
 	}
 
 	if (!fs.existsSync(stableCodePath)) {
-		throw new Error(`Can't find Stable VSCode at ${stableCodePath}.`);
+		throw new Error(`Cannot find Stable VSCode at ${stableCodePath}.`);
 	}
 
 	logger.log(`Using stable build ${stableCodePath} for migration tests`);
@@ -401,7 +402,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	if (opts.web) { setupTerminalTests(logger); } // Not stable on desktop/remote https://github.com/microsoft/vscode/issues/146811
+	setupTerminalTests(logger);
 	setupTaskTests(logger);
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }

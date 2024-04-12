@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,4 +37,4 @@ export class WorkbenchReferencesController extends ReferencesController {
 	}
 }
 
-registerEditorContribution(ReferencesController.ID, WorkbenchReferencesController);
+registerEditorContribution(ReferencesController.ID, WorkbenchReferencesController, EditorContributionInstantiation.Lazy);

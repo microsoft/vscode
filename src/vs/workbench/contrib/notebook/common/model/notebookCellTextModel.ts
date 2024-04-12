@@ -93,7 +93,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 		if (this._textModel) {
 			const languageId = this._languageService.createById(newLanguageId);
-			this._textModel.setMode(languageId.languageId);
+			this._textModel.setLanguage(languageId.languageId);
 		}
 
 		if (this._language === newLanguage) {
@@ -166,17 +166,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._textModelDisposables.clear();
 		this._textModel = m;
 		if (this._textModel) {
-			// Init language from text model
-			// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback
-			// If so let's not modify the language
-			if (!(this._languageService.isRegisteredLanguageId(this.language) === false && (this._textModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID || this._textModel.getLanguageId() === 'jupyter'))) {
-				this.language = this._textModel.getLanguageId();
-			}
+			this.setRegisteredLanguage(this._languageService, this._textModel.getLanguageId(), this.language);
 
 			// Listen to language changes on the model
-			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
-				this.language = e.newLanguage;
-			}));
+			this._textModelDisposables.add(this._textModel.onDidChangeLanguage((e) => this.setRegisteredLanguage(this._languageService, e.newLanguage, this.language)));
 			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
 			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
 				if (this._textModel) {
@@ -188,6 +181,18 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 			this._textModel._overwriteVersionId(this._versionId);
 			this._textModel._overwriteAlternativeVersionId(this._versionId);
+		}
+	}
+
+	private setRegisteredLanguage(languageService: ILanguageService, newLanguage: string, currentLanguage: string) {
+		// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback
+		// If so let's not modify the language
+		const isFallBackLanguage = (newLanguage === PLAINTEXT_LANGUAGE_ID || newLanguage === 'jupyter');
+		if (!languageService.isRegisteredLanguageId(currentLanguage) && isFallBackLanguage) {
+			// notify to display warning, but don't change the language
+			this._onDidChangeLanguage.fire(currentLanguage);
+		} else {
+			this.language = newLanguage;
 		}
 	}
 
@@ -280,8 +285,43 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
-		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
-		this._onDidChangeOutputs.fire(splice);
+		if (splice.deleteCount > 0 && splice.newOutputs.length > 0) {
+			const commonLen = Math.min(splice.deleteCount, splice.newOutputs.length);
+			// update
+			for (let i = 0; i < commonLen; i++) {
+				const currentOutput = this.outputs[splice.start + i];
+				const newOutput = splice.newOutputs[i];
+
+				this.replaceOutput(currentOutput.outputId, newOutput);
+			}
+
+			const removed = this.outputs.splice(splice.start + commonLen, splice.deleteCount - commonLen, ...splice.newOutputs.slice(commonLen));
+			removed.forEach(output => output.dispose());
+			this._onDidChangeOutputs.fire({ start: splice.start + commonLen, deleteCount: splice.deleteCount - commonLen, newOutputs: splice.newOutputs.slice(commonLen) });
+		} else {
+			const removed = this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
+			removed.forEach(output => output.dispose());
+			this._onDidChangeOutputs.fire(splice);
+		}
+	}
+
+	replaceOutput(outputId: string, newOutputItem: ICellOutput) {
+		const outputIndex = this.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return false;
+		}
+
+		const output = this.outputs[outputIndex];
+		// convert to dto and dispose the cell output model
+		output.replaceData({
+			outputs: newOutputItem.outputs,
+			outputId: newOutputItem.outputId,
+			metadata: newOutputItem.metadata
+		});
+		newOutputItem.dispose();
+		this._onDidChangeOutputItems.fire();
+		return true;
 	}
 
 	changeOutputItems(outputId: string, append: boolean, items: IOutputItemDto[]): boolean {
@@ -295,9 +335,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		if (append) {
 			output.appendData(items);
 		} else {
-			output.replaceData(items);
+			output.replaceData({ outputId: outputId, outputs: items, metadata: output.metadata });
 		}
-
 		this._onDidChangeOutputItems.fire();
 		return true;
 	}
@@ -378,7 +417,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
-		if (this._source !== b.source) {
+		// Once we attach the cell text buffer to an editor, the source of truth is the text buffer instead of the original source
+		if (this._textBuffer && this.getValue() !== b.source) {
+			return false;
+		} else if (this._source !== b.source) {
 			return false;
 		}
 
@@ -406,8 +448,7 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 			outputs: output.outputs,
 			/* paste should generate new outputId */ outputId: UUID.generateUuid()
 		})),
-		metadata: { ...cell.metadata },
-		// Don't include internalMetadata, ie execution state, this is not to be shared
+		metadata: {}
 	};
 }
 

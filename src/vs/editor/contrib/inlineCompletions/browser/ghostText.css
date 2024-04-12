@@ -24,15 +24,19 @@
 	font-size: 0;
 }
 
-.monaco-editor .ghost-text-decoration {
-	font-style: italic;
-}
-
-.monaco-editor .suggest-preview-text {
+.monaco-editor .ghost-text-decoration, .monaco-editor .suggest-preview-text .ghost-text {
 	font-style: italic;
 }
 
 .monaco-editor .inline-completion-text-to-replace {
 	text-decoration: underline;
 	text-underline-position: under;
+}
+
+.monaco-editor .ghost-text-decoration,
+.monaco-editor .ghost-text-decoration-preview,
+.monaco-editor .suggest-preview-text .ghost-text {
+	color: var(--vscode-editorGhostText-foreground) !important;
+	background-color: var(--vscode-editorGhostText-background);
+	border: 1px solid var(--vscode-editorGhostText-border);
 }

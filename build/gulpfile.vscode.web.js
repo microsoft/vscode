@@ -9,12 +9,12 @@ const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
-const _ = require('underscore');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
 const replace = require('gulp-replace');
@@ -26,7 +26,7 @@ const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
 
-const commit = util.getVersion(REPO_ROOT);
+const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
@@ -55,7 +55,7 @@ const vscodeWebResources = [
 	...vscodeWebResourceIncludes,
 
 	// Excludes
-	'!out-build/vs/**/{node,electron-browser,electron-main}/**',
+	'!out-build/vs/**/{node,electron-sandbox,electron-main}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
 	'!**/test/**'
@@ -63,16 +63,17 @@ const vscodeWebResources = [
 
 const buildfile = require('../src/buildfile');
 
-const vscodeWebEntryPoints = _.flatten([
+const vscodeWebEntryPoints = [
 	buildfile.entrypoint('vs/workbench/workbench.web.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
+	buildfile.workerProfileAnalysis,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb
-]);
+].flat();
 exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
 
 const buildDate = new Date().toISOString();
@@ -82,7 +83,7 @@ const buildDate = new Date().toISOString();
  */
 const createVSCodeWebProductConfigurationPatcher = (product) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {
@@ -94,7 +95,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
 				commit,
 				date: buildDate
 			});
-			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
+			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}
 
 		return content;
@@ -107,14 +108,14 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
  */
 const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {
 		// (2) Patch builtin extensions
 		if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
 			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
-			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
+			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', () => builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
 		}
 
 		return content;
@@ -127,7 +128,7 @@ const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
  */
 const combineContentPatchers = (...patchers) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {
@@ -158,7 +159,7 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 			out: 'out-vscode-web',
 			amd: {
 				src: 'out-build',
-				entryPoints: _.flatten(vscodeWebEntryPoints),
+				entryPoints: vscodeWebEntryPoints.flat(),
 				otherSources: [],
 				resources: vscodeWebResources,
 				loaderConfig: optimize.loaderConfig(),
@@ -199,7 +200,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
 		const productionDependencies = getProductionDependencies(WEB_FOLDER);
-		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 
 		const deps = gulp.src(dependenciesSrc, { base: 'remote/web', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
@@ -232,7 +233,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build', task.series(
 	task.define('clean-web-extensions-build', util.rimraf('.build/web/extensions')),
-	task.define('bundle-web-extensions-build', () => extensions.packageLocalExtensionsStream(true).pipe(gulp.dest('.build/web'))),
+	task.define('bundle-web-extensions-build', () => extensions.packageLocalExtensionsStream(true, false).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
 ));

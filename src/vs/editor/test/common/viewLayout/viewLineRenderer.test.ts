@@ -6,10 +6,11 @@
 import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, RenderLineInput, renderViewLine2 as renderViewLine, LineRange, DomPosition, RenderLineOutput2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { CharacterMapping, DomPosition, LineRange, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
 
@@ -49,6 +50,8 @@ function inflateRenderLineOutput(renderLineOutput: RenderLineOutput2) {
 }
 
 suite('viewLineRenderer.renderLine', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[]): void {
 		const _actual = renderViewLine(new RenderLineInput(
@@ -191,7 +194,7 @@ suite('viewLineRenderer.renderLine', () => {
 				'<span class="mtk3">l</span>',
 				'<span class="mtk4">o</span>',
 				'<span class="mtk5">\u00a0</span>',
-				'<span>&hellip;</span>'
+				'<span class="mtkoverflow">Show more (6 chars)</span>'
 			],
 			mapping: [
 				[0, 0, 0],
@@ -965,6 +968,8 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 }
 
 suite('viewLineRenderer.renderLine 2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null) {
 		const actual = renderViewLine(new RenderLineInput(

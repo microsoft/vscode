@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.create = void 0;
+exports.create = create;
 const Vinyl = require("vinyl");
 const through = require("through");
 const builder = require("./builder");
@@ -28,7 +28,10 @@ function createNullCompiler() {
 const _defaultOnError = (err) => console.log(JSON.stringify(err, null, 4));
 function create(projectPath, existingOptions, config, onError = _defaultOnError) {
     function printDiagnostic(diag) {
-        if (!diag.file || !diag.start) {
+        if (diag instanceof Error) {
+            onError(diag.message);
+        }
+        else if (!diag.file || !diag.start) {
             onError(ts.flattenDiagnosticMessageText(diag.messageText, '\n'));
         }
         else {
@@ -129,4 +132,4 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     };
     return result;
 }
-exports.create = create;
+//# sourceMappingURL=index.js.map

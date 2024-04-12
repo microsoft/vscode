@@ -21,16 +21,17 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { Iterable } from 'vs/base/common/iterator';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 
 // --- VIEW MODEL
 
@@ -39,12 +40,32 @@ export interface ICheckable {
 	setChecked(value: boolean): void;
 }
 
-export class CategoryElement {
+export class CategoryElement implements ICheckable {
 
 	constructor(
 		readonly parent: BulkFileOperations,
 		readonly category: BulkCategory
 	) { }
+
+	isChecked(): boolean {
+		const model = this.parent;
+		let checked = true;
+		for (const file of this.category.fileOperations) {
+			for (const edit of file.originalEdits.values()) {
+				checked = checked && model.checked.isChecked(edit);
+			}
+		}
+		return checked;
+	}
+
+	setChecked(value: boolean): void {
+		const model = this.parent;
+		for (const file of this.category.fileOperations) {
+			for (const edit of file.originalEdits.values()) {
+				model.checked.updateChecked(edit, value);
+			}
+		}
+	}
 }
 
 export class FileElement implements ICheckable {
@@ -207,7 +228,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		// category
 		if (element instanceof CategoryElement) {
-			return [...Iterable.map(element.category.fileOperations, op => new FileElement(element, op))];
+			return Array.from(element.category.fileOperations, op => new FileElement(element, op));
 		}
 
 		// file: text edit
@@ -225,7 +246,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			}
 
 			const result = element.edit.textEdits.map((edit, idx) => {
-				const range = Range.lift(edit.textEdit.textEdit.range);
+				const range = textModel.validateRange(edit.textEdit.textEdit.range);
 
 				//prefix-math
 				const startTokens = textModel.tokenization.getLineTokens(range.startLineNumber);
@@ -265,7 +286,7 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 	compare(a: BulkEditElement, b: BulkEditElement): number {
 		if (a instanceof FileElement && b instanceof FileElement) {
-			return compare(a.edit.uri.toString(), b.edit.uri.toString());
+			return compareBulkFileOperations(a.edit, b.edit);
 		}
 
 		if (a instanceof TextEditElement && b instanceof TextEditElement) {
@@ -274,6 +295,10 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 		return 0;
 	}
+}
+
+export function compareBulkFileOperations(a: BulkFileOperation, b: BulkFileOperation): number {
+	return compare(a.uri.toString(), b.uri.toString());
 }
 
 // --- ACCESSI
@@ -286,7 +311,7 @@ export class BulkEditAccessibilityProvider implements IListAccessibilityProvider
 		return localize('bulkEdit', "Bulk Edit");
 	}
 
-	getRole(_element: BulkEditElement): string {
+	getRole(_element: BulkEditElement): AriaRole {
 		return 'checkbox';
 	}
 
@@ -555,7 +580,7 @@ class TextEditElementTemplate {
 		this._icon = document.createElement('div');
 		container.appendChild(this._icon);
 
-		this._label = new HighlightedLabel(container);
+		this._label = this._disposables.add(new HighlightedLabel(container));
 	}
 
 	dispose(): void {

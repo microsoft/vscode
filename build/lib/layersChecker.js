@@ -23,7 +23,7 @@ const minimatch_1 = require("minimatch");
 // Types we assume are present in all implementations of JS VMs (node.js, browsers)
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
-    'require',
+    'require', // from our AMD loader
     'setTimeout',
     'clearTimeout',
     'setInterval',
@@ -56,7 +56,13 @@ const CORE_TYPES = [
     'MessageChannel',
     'MessagePort',
     'URL',
-    'URLSearchParams'
+    'URLSearchParams',
+    'ReadonlyArray',
+    'Event',
+    'EventTarget',
+    'BroadcastChannel',
+    'performance',
+    'Blob'
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
@@ -65,18 +71,15 @@ const NATIVE_TYPES = [
     'INativeEnvironmentService',
     'AbstractNativeEnvironmentService',
     'INativeWindowConfiguration',
-    'ICommonNativeHostService'
+    'ICommonNativeHostService',
+    'INativeHostService',
+    'IMainProcessService'
 ];
 const RULES = [
     // Tests: skip
     {
         target: '**/vs/**/test/**',
         skip: true // -> skip all test files
-    },
-    // TODO@bpasero remove me once electron utility process has landed
-    {
-        target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
-        skip: true
     },
     // Common: vs/base/common/platform.ts
     {
@@ -88,7 +91,22 @@ const RULES = [
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/base/common/async.ts
+    {
+        target: '**/vs/base/common/async.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to requestIdleCallback & cancelIdleCallback
+            'requestIdleCallback',
+            'cancelIdleCallback'
+        ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
@@ -98,7 +116,7 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
@@ -108,7 +126,7 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
@@ -118,7 +136,17 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/platform/native/common/nativeHostService.ts
+    {
+        target: '**/vs/platform/native/common/nativeHostService.ts',
+        allowedTypes: CORE_TYPES,
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
+        disallowedDefinitions: [
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
@@ -132,7 +160,7 @@ const RULES = [
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
@@ -142,7 +170,7 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
@@ -182,11 +210,6 @@ const RULES = [
         disallowedDefinitions: [
             '@types/node' // no node.js
         ]
-    },
-    // Electron (renderer): skip
-    {
-        target: '**/vs/**/electron-browser/**',
-        skip: true // -> supports all types
     },
     // Electron (main)
     {
@@ -290,3 +313,4 @@ for (const sourceFile of program.getSourceFiles()) {
 if (hasErrors) {
     process.exit(1);
 }
+//# sourceMappingURL=layersChecker.js.map

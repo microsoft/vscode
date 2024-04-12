@@ -9,20 +9,18 @@ const gulp = require('gulp');
 const path = require('path');
 const task = require('./lib/task');
 const util = require('./lib/util');
-const _ = require('underscore');
-const electron = require('gulp-atom-electron');
+const electron = require('@vscode/gulp-electron');
 const { config } = require('./lib/electron');
 const filter = require('gulp-filter');
 const deps = require('./lib/dependencies');
+const { existsSync, readdirSync } = require('fs');
 
 const root = path.dirname(__dirname);
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
-	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
@@ -42,19 +40,20 @@ BUILD_TARGETS.forEach(buildTarget => {
 	tasks.push(util.rimraf(destinationExe), util.rimraf(destinationPdb));
 
 	// electron
-	tasks.push(() => electron.dest(destinationExe, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch })));
+	tasks.push(() => electron.dest(destinationExe, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch }));
 
 	// pdbs for windows
 	if (platform === 'win32') {
 		tasks.push(
-			() => electron.dest(destinationPdb, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true })),
-			util.rimraf(path.join(destinationExe, 'swiftshader')),
-			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')));
+			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true }),
+			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')),
+			() => confirmPdbsExist(destinationExe, destinationPdb)
+		);
 	}
 
 	if (platform === 'linux') {
 		tasks.push(
-			() => electron.dest(destinationPdb, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, symbols: true }))
+			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, symbols: true })
 		);
 	}
 
@@ -72,7 +71,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 function nodeModules(destinationExe, destinationPdb, platform) {
 	const productionDependencies = deps.getProductionDependencies(root);
-	const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 	const exe = () => {
 		return gulp.src(dependenciesSrc, { base: '.', dot: true })
@@ -82,8 +81,7 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 				// We don't build the prebuilt node files so we don't scan them
 				'!**/prebuilds/**/*.node',
 				// These are 3rd party modules that we should ignore
-				'!**/@parcel/watcher/**/*',
-				'!**/native-is-elevated/**/*']))
+				'!**/@parcel/watcher/**/*']))
 			.pipe(gulp.dest(destinationExe));
 	};
 
@@ -108,4 +106,16 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 	}
 
 	return exe;
+}
+
+function confirmPdbsExist(destinationExe, destinationPdb) {
+	readdirSync(destinationExe).forEach(file => {
+		if (file.endsWith('.dll') || file.endsWith('.exe')) {
+			const pdb = `${file}.pdb`;
+			if (!existsSync(path.join(destinationPdb, pdb))) {
+				throw new Error(`Missing pdb file for ${file}. Tried searching for ${pdb} in ${destinationPdb}.`);
+			}
+		}
+	});
+	return Promise.resolve();
 }

@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { StackFrame, Thread, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import type { IExpression, IScope } from 'vs/workbench/contrib/debug/common/debug';
+import { Scope, StackFrame, Thread, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import type { IScope, IExpression } from 'vs/workbench/contrib/debug/common/debug';
-import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 
 suite('Debug - Hover', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('find expression in stack frame', async () => {
-		const model = createMockDebugModel();
-		const session = createMockSession(model);
+		const model = createMockDebugModel(disposables);
+		const session = disposables.add(createTestSession(model));
 
 		const thread = new class extends Thread {
 			public override getCallStack(): StackFrame[] {
@@ -26,7 +30,7 @@ suite('Debug - Hover', () => {
 			name: 'internalModule.js',
 			path: 'a/b/c/d/internalModule.js',
 			sourceReference: 10,
-		}, 'aDebugSessionId', mockUriIdentityService);
+		}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 
 		const stackFrame = new class extends StackFrame {
 			override getScopes(): Promise<IScope[]> {
@@ -45,8 +49,8 @@ suite('Debug - Hover', () => {
 			override getChildren(): Promise<IExpression[]> {
 				return Promise.resolve([variableB]);
 			}
-		}(session, 1, scope, 2, 'A', 'A', undefined!, 0, 0, undefined, {}, 'string');
-		const variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, undefined, {}, 'string');
+		}(session, 1, scope, 2, 'A', 'A', undefined, 0, 0, undefined, {}, 'string');
+		const variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined, 0, 0, undefined, {}, 'string');
 
 		assert.strictEqual(await findExpressionInStackFrame(stackFrame, []), undefined);
 		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), variableA);

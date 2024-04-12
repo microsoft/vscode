@@ -15,7 +15,7 @@ import { ExtHostConsoleForwarder } from 'vs/workbench/api/worker/extHostConsoleF
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
-	_installInterceptor() { }
+	protected _installInterceptor() { }
 
 	getModule(request: string, parent: URI): undefined | any {
 		for (const alternativeModuleName of this._alternatives) {
@@ -83,7 +83,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const fullSource = `${source}\n//# sourceURL=${sourceURL}`;
 		let initFn: Function;
 		try {
-			initFn = new Function('module', 'exports', 'require', fullSource);
+			initFn = new Function('module', 'exports', 'require', fullSource); // CodeQL [SM01632] js/eval-call there is no alternative until we move to ESM
 		} catch (err) {
 			if (extensionId) {
 				console.error(`Loading code for extension ${extensionId} failed: ${err.message}`);

@@ -4,7 +4,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.minifyTask = exports.optimizeTask = exports.optimizeLoaderTask = exports.loaderConfig = void 0;
+exports.loaderConfig = loaderConfig;
+exports.optimizeLoaderTask = optimizeLoaderTask;
+exports.optimizeTask = optimizeTask;
+exports.minifyTask = minifyTask;
 const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
@@ -18,6 +21,7 @@ const bundle = require("./bundle");
 const i18n_1 = require("./i18n");
 const stats_1 = require("./stats");
 const util = require("./util");
+const postcss_1 = require("./postcss");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
@@ -33,7 +37,6 @@ function loaderConfig() {
     result['vs/css'] = { inlineResources: true };
     return result;
 }
-exports.loaderConfig = loaderConfig;
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 function loaderPlugin(src, base, amdModuleId) {
     return (gulp
@@ -81,7 +84,7 @@ function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
             files.push(new VinylFile({
                 path: 'fake2',
                 base: '.',
-                contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
+                contents: Buffer.from(emitExternalLoaderInfo(externalLoaderInfo))
             }));
         }
         for (const file of files) {
@@ -90,6 +93,17 @@ function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
         this.emit('end');
     }))
         .pipe(concat('vs/loader.js')));
+}
+function emitExternalLoaderInfo(externalLoaderInfo) {
+    const externalBaseUrl = externalLoaderInfo.baseUrl;
+    externalLoaderInfo.baseUrl = '$BASE_URL';
+    // If defined, use the runtime configured baseUrl.
+    const code = `
+(function() {
+	const baseUrl = require.getConfig().baseUrl || ${JSON.stringify(externalBaseUrl)};
+	require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});
+})();`;
+    return code.replace('"$BASE_URL"', 'baseUrl');
 }
 function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper) {
     const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
@@ -212,7 +226,6 @@ function optimizeManualTask(options) {
 function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', externalLoaderInfo) {
     return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
-exports.optimizeLoaderTask = optimizeLoaderTask;
 function optimizeTask(opts) {
     return function () {
         const optimizers = [optimizeAMDTask(opts.amd)];
@@ -225,13 +238,11 @@ function optimizeTask(opts) {
         return es.merge(...optimizers).pipe(gulp.dest(opts.out));
     };
 }
-exports.optimizeTask = optimizeTask;
 function minifyTask(src, sourceMapBaseUrl) {
     const esbuild = require('esbuild');
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
     return cb => {
         const cssnano = require('cssnano');
-        const postcss = require('gulp-postcss');
         const sourcemaps = require('gulp-sourcemaps');
         const svgmin = require('gulp-svgmin');
         const jsFilter = filter('**/*.js', { restore: true });
@@ -249,11 +260,18 @@ function minifyTask(src, sourceMapBaseUrl) {
             }).then(res => {
                 const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));
                 const sourceMapFile = res.outputFiles.find(f => /\.js\.map$/.test(f.path));
-                f.contents = Buffer.from(jsFile.contents);
-                f.sourceMap = JSON.parse(sourceMapFile.text);
-                cb(undefined, f);
+                const contents = Buffer.from(jsFile.contents);
+                const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
+                if (unicodeMatch) {
+                    cb(new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${f.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`));
+                }
+                else {
+                    f.contents = contents;
+                    f.sourceMap = JSON.parse(sourceMapFile.text);
+                    cb(undefined, f);
+                }
             }, cb);
-        }), jsFilter.restore, cssFilter, postcss([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, sourcemaps.mapSources((sourcePath) => {
+        }), jsFilter.restore, cssFilter, (0, postcss_1.gulpPostcss)([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, sourcemaps.mapSources((sourcePath) => {
             if (sourcePath === 'bootstrap-fork.js') {
                 return 'bootstrap-fork.orig.js';
             }
@@ -266,4 +284,4 @@ function minifyTask(src, sourceMapBaseUrl) {
         }), gulp.dest(src + '-min'), (err) => cb(err));
     };
 }
-exports.minifyTask = minifyTask;
+//# sourceMappingURL=optimize.js.map

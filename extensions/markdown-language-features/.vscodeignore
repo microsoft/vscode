@@ -21,3 +21,5 @@ server/extension-browser.webpack.config.js
 server/tsconfig.json
 server/.vscode/**
 server/node_modules/**
+server/yarn.lock
+server/.npmignore

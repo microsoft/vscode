@@ -5,26 +5,28 @@
 
 import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
-import { isAncestor, trackFocus } from 'vs/base/browser/dom';
+import { getWindow, isAncestorOfActiveElement, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IListAccessibilityProvider, IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
-import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { Codicon } from 'vs/base/common/codicons';
+import { assertAllDefined } from 'vs/base/common/types';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
-	widgetAriaLabel?: string;
+	readonly widgetAriaLabel?: string;
 }
 
-export class NotificationsList extends Themable {
+export class NotificationsList extends Disposable {
 
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
@@ -36,19 +38,13 @@ export class NotificationsList extends Themable {
 		private readonly container: HTMLElement,
 		private readonly options: INotificationsListOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
-		super(themeService);
+		super();
 	}
 
-	show(focus?: boolean): void {
+	show(): void {
 		if (this.isVisible) {
-			if (focus) {
-				const list = assertIsDefined(this.list);
-				list.domFocus();
-			}
-
 			return; // already visible
 		}
 
@@ -59,12 +55,6 @@ export class NotificationsList extends Themable {
 
 		// Make visible
 		this.isVisible = true;
-
-		// Focus
-		if (focus) {
-			const list = assertIsDefined(this.list);
-			list.domFocus();
-		}
 	}
 
 	private createNotificationsList(): void {
@@ -94,21 +84,7 @@ export class NotificationsList extends Themable {
 				overrideStyles: {
 					listBackground: NOTIFICATIONS_BACKGROUND
 				},
-				accessibilityProvider: {
-					getAriaLabel(element: INotificationViewItem): string {
-						if (!element.source) {
-							return localize('notificationAriaLabel', "{0}, notification", element.message.raw);
-						}
-
-						return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
-					},
-					getWidgetAriaLabel(): string {
-						return options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
-					},
-					getRole(): string {
-						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
-					}
-				}
+				accessibilityProvider: this.instantiationService.createInstance(NotificationAccessibilityProvider, options)
 			}
 		));
 
@@ -135,7 +111,7 @@ export class NotificationsList extends Themable {
 		// This ensures that when the focus comes back, the notification is still focused
 		const listFocusTracker = this._register(trackFocus(list.getHTMLElement()));
 		this._register(listFocusTracker.onDidBlur(() => {
-			if (document.hasFocus()) {
+			if (getWindow(this.listContainer).document.hasFocus()) {
 				list.setFocus([]);
 			}
 		}));
@@ -153,13 +129,11 @@ export class NotificationsList extends Themable {
 		}));
 
 		this.container.appendChild(this.listContainer);
-
-		this.updateStyles();
 	}
 
 	updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
 		const [list, listContainer] = assertAllDefined(this.list, this.listContainer);
-		const listHasDOMFocus = isAncestor(document.activeElement, listContainer);
+		const listHasDOMFocus = isAncestorOfActiveElement(listContainer);
 
 		// Remember focus and relative top of that item
 		const focusedIndex = list.getFocus()[0];
@@ -236,8 +210,8 @@ export class NotificationsList extends Themable {
 	}
 
 	focusFirst(): void {
-		if (!this.isVisible || !this.list) {
-			return; // hidden
+		if (!this.list) {
+			return; // not created yet
 		}
 
 		this.list.focusFirst();
@@ -245,24 +219,11 @@ export class NotificationsList extends Themable {
 	}
 
 	hasFocus(): boolean {
-		if (!this.isVisible || !this.listContainer) {
-			return false; // hidden
+		if (!this.listContainer) {
+			return false; // not created yet
 		}
 
-		return isAncestor(document.activeElement, this.listContainer);
-	}
-
-	protected override updateStyles(): void {
-		if (this.listContainer) {
-			const foreground = this.getColor(NOTIFICATIONS_FOREGROUND);
-			this.listContainer.style.color = foreground ? foreground : '';
-
-			const background = this.getColor(NOTIFICATIONS_BACKGROUND);
-			this.listContainer.style.background = background ? background : '';
-
-			const outlineColor = this.getColor(contrastBorder);
-			this.listContainer.style.outlineColor = outlineColor ? outlineColor : '';
-		}
+		return isAncestorOfActiveElement(this.listContainer);
 	}
 
 	layout(width: number, maxHeight?: number): void {
@@ -284,47 +245,28 @@ export class NotificationsList extends Themable {
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
-	if (linkColor) {
-		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
-	}
+class NotificationAccessibilityProvider implements IListAccessibilityProvider<INotificationViewItem> {
+	constructor(
+		private readonly _options: INotificationsListOptions,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) { }
+	getAriaLabel(element: INotificationViewItem): string {
+		let accessibleViewHint: string | undefined;
+		const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
+		if (this._configurationService.getValue('accessibility.verbosity.notification')) {
+			accessibleViewHint = keybinding ? localize('notificationAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('notificationAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+		}
+		if (!element.source) {
+			return accessibleViewHint ? localize('notificationAriaLabelHint', "{0}, notification, {1}", element.message.raw, accessibleViewHint) : localize('notificationAriaLabel', "{0}, notification", element.message.raw);
+		}
 
-	const focusOutline = theme.getColor(focusBorder);
-	if (focusOutline) {
-		collector.addRule(`
-		.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
-			outline-color: ${focusOutline};
-		}`);
+		return accessibleViewHint ? localize('notificationWithSourceAriaLabelHint', "{0}, source: {1}, notification, {2}", element.message.raw, element.source, accessibleViewHint) : localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
 	}
-
-	// Notification Error Icon
-	const notificationErrorIconForegroundColor = theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND);
-	if (notificationErrorIconForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notifications-center ${Codicon.error.cssSelector},
-		.monaco-workbench .notifications-toasts ${Codicon.error.cssSelector} {
-			color: ${notificationErrorIconForegroundColor};
-		}`);
+	getWidgetAriaLabel(): string {
+		return this._options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
 	}
-
-	// Notification Warning Icon
-	const notificationWarningIconForegroundColor = theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND);
-	if (notificationWarningIconForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notifications-center ${Codicon.warning.cssSelector},
-		.monaco-workbench .notifications-toasts ${Codicon.warning.cssSelector} {
-			color: ${notificationWarningIconForegroundColor};
-		}`);
+	getRole(): AriaRole {
+		return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
 	}
-
-	// Notification Info Icon
-	const notificationInfoIconForegroundColor = theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND);
-	if (notificationInfoIconForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notifications-center ${Codicon.info.cssSelector},
-		.monaco-workbench .notifications-toasts ${Codicon.info.cssSelector} {
-			color: ${notificationInfoIconForegroundColor};
-		}`);
-	}
-});
+}
