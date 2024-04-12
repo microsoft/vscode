@@ -6,7 +6,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
@@ -74,7 +74,7 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 *
 	 * @param token support for cancellation
 	 */
-	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
+	snapshot(token: CancellationToken): Promise<VSBufferReadableStream | VSBufferReadable>;
 
 	/**
 	 * Updates the model with the provided contents. The implementation should

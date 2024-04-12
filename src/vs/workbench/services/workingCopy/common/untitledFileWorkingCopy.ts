@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -257,7 +257,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-		let content: VSBufferReadableStream | undefined = undefined;
+		let content: VSBufferReadableStream | VSBufferReadable | undefined = undefined;
 
 		// Make sure to check whether this working copy has been
 		// resolved or not and fallback to the initial value -

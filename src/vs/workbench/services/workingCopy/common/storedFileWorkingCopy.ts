@@ -15,7 +15,7 @@ import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/as
 import { ILogService } from 'vs/platform/log/common/log';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -811,7 +811,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		}
 
 		// Fill in content if we are resolved
-		let content: VSBufferReadableStream | undefined = undefined;
+		let content: VSBufferReadableStream | VSBufferReadable | undefined = undefined;
 		if (this.isResolved()) {
 			content = await raceCancellation(this.model.snapshot(token), token);
 		}

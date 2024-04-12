@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -250,7 +250,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		return this._notebookModel;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+	async snapshot(token: CancellationToken): Promise<VSBufferReadable> {
 		const serializer = await this.getNotebookSerializer();
 
 		const data: NotebookData = {
@@ -278,7 +278,22 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		return bufferToStream(bytes);
+		return this.createReadable(bytes);
+	}
+
+	private createReadable(buffer: VSBuffer): VSBufferReadable {
+		let index = 0;
+		const chunkSize = 200 * 1024;
+		return {
+			read: () => {
+				if (index >= buffer.byteLength) {
+					return null;
+				}
+				const chunk = buffer.slice(index, index + chunkSize);
+				index += chunk.byteLength;
+				return chunk;
+			}
+		};
 	}
 
 	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {
