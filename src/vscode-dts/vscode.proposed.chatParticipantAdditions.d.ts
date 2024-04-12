@@ -56,11 +56,6 @@ declare module 'vscode' {
 		responseIsRedacted?: boolean;
 	}
 
-	/** @deprecated */
-	export interface ChatMarkdownContent {
-		markdownContent: MarkdownString;
-	}
-
 	/**
 	 * Now only used for the "intent detection" API below
 	 */
@@ -69,45 +64,24 @@ declare module 'vscode' {
 		readonly description: string;
 	}
 
-	// TODO@API fit this into the stream
-	export interface ChatDetectedParticipant {
+	export class ChatResponseDetectedParticipantPart {
 		participant: string;
 		// TODO@API validate this against statically-declared slash commands?
 		command?: ChatCommand;
+		constructor(participant: string, command?: ChatCommand);
 	}
 
-	// TODO@API fit this into the stream
 	export interface ChatVulnerability {
 		title: string;
 		description: string;
 		// id: string; // Later we will need to be able to link these across multiple content chunks.
 	}
 
-	// TODO@API fit this into the stream
-	export interface ChatContent {
-		vulnerabilities?: ChatVulnerability[];
+	export class ChatResponseMarkdownWithVulnerabilitiesPart {
+		value: MarkdownString;
+		vulnerabilities: ChatVulnerability[];
+		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
-
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatContentProgress =
-		| ChatContent
-		| ChatInlineContentReference
-		| ChatCommandButton;
-
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatMetadataProgress =
-		| ChatUsedContext
-		| ChatContentReference
-		| ChatProgressMessage;
-
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatProgress = ChatContentProgress | ChatMetadataProgress;
 
 	/** @deprecated */
 	export interface ChatProgressMessage {
@@ -124,35 +98,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A reference to a piece of content that will be rendered inline with the markdown content.
-	 */
-	export interface ChatInlineContentReference {
-		/**
-		 * The resource being referenced.
-		 */
-		inlineReference: Uri | Location;
-
-		/**
-		 * An alternate title for the resource.
-		 */
-		title?: string;
-	}
-
-	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
 	export interface ChatCommandButton {
 		command: Command;
-	}
-
-	/**
-	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
-	 */
-	export interface ChatContent {
-		/**
-		 * The content as a string of markdown source.
-		 */
-		content: string;
 	}
 
 	export interface ChatDocumentContext {
@@ -169,33 +118,15 @@ declare module 'vscode' {
 
 	export interface ChatResponseStream {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
-
-		push(part: ChatResponsePart | ChatResponseTextEditPart): ChatResponseStream;
+		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
+		detectedParticipant(participant: string, command?: ChatCommand): ChatResponseStream;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart): ChatResponseStream;
 	}
 
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
 	}
-
-	export interface ChatResponseStream {
-		/**
-		 * @deprecated use above methods instread
-		 */
-		report(value: ChatProgress): void;
-	}
-
-	/** @deprecated */
-	export type ChatExtendedProgress = ChatProgress
-		| ChatMarkdownContent
-		| ChatDetectedParticipant;
-
-	export type ChatExtendedResponseStream = ChatResponseStream & {
-		/**
-		 * @deprecated
-		 */
-		report(value: ChatExtendedProgress): void;
-	};
 
 	export interface ChatParticipant {
 		/**
@@ -218,7 +149,7 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
+	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
 	export namespace chat {
 		/**

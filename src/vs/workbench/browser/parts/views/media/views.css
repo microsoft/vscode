@@ -46,7 +46,7 @@
 	padding-left: 24px;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .message a {
+.monaco-workbench .tree-explorer-viewlet-tree-view .message p > a {
 	color: var(--vscode-textLink-foreground);
 }
 

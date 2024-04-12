@@ -126,27 +126,20 @@ suite('ChatModel', () => {
 suite('Response', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('content, markdown', async () => {
+	test('markdown, markdown', async () => {
 		const response = new Response([]);
-		response.updateContent({ content: 'text', kind: 'content' });
-		response.updateContent({ content: new MarkdownString('markdown'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('markdown1'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 
-		assert.strictEqual(response.asString(), 'textmarkdown');
-	});
-
-	test('markdown, content', async () => {
-		const response = new Response([]);
-		response.updateContent({ content: new MarkdownString('markdown'), kind: 'markdownContent' });
-		response.updateContent({ content: 'text', kind: 'content' });
-		await assertSnapshot(response.value);
+		assert.strictEqual(response.asString(), 'markdown1markdown2');
 	});
 
 	test('inline reference', async () => {
 		const response = new Response([]);
-		response.updateContent({ content: 'text before', kind: 'content' });
+		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
 		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
-		response.updateContent({ content: 'text after', kind: 'content' });
+		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 	});
 });
