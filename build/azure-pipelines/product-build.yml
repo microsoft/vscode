@@ -183,7 +183,7 @@ extends:
           allTools: true
       binskim:
         analyzeTargetGlob: '$(Build.SourcesDirectory)/**.dll;$(Build.SourcesDirectory)/**.exe;$(Build.SourcesDirectory)/**.node'
-        symbolsPath: '$(agent.builddirectory)/scanbin/VSCode-win32-${{ parameters.VSCODE_ARCH }}/pdb'
+        symbolsPath: '$(agent.builddirectory)/scanbin/VSCode-win32-x64/pdb'
       codeql:
         compiled:
           enabled: true
