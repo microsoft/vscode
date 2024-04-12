@@ -26,7 +26,7 @@ import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_HAS_DEFAULT_AGENT, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -60,7 +60,7 @@ class OpenChatGlobalAction extends Action2 {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
 			title: localize2('openChat', "Open Chat"),
-			precondition: CONTEXT_HAS_DEFAULT_AGENT,
+			precondition: CONTEXT_CHAT_ENABLED,
 			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,
@@ -108,7 +108,7 @@ class ChatHistoryAction extends ViewAction<ChatViewPane> {
 			category: CHAT_CATEGORY,
 			icon: Codicon.history,
 			f1: true,
-			precondition: CONTEXT_HAS_DEFAULT_AGENT
+			precondition: CONTEXT_CHAT_ENABLED
 		});
 	}
 
@@ -148,7 +148,7 @@ class OpenChatEditorAction extends Action2 {
 			title: localize2('interactiveSession.open', "Open Editor"),
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: CONTEXT_HAS_DEFAULT_AGENT
+			precondition: CONTEXT_CHAT_ENABLED
 		});
 	}
 
@@ -168,7 +168,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.clearInputHistory',
 				title: localize2('interactiveSession.clearHistory.label', "Clear Input History"),
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});
@@ -184,7 +184,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.clearHistory',
 				title: localize2('chat.clear.label', "Clear All Workspace Chats"),
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});

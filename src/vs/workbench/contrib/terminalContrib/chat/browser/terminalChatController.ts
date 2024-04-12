@@ -251,7 +251,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	async acceptInput(): Promise<void> {
 		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(CancellationToken.None);
+			this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, CancellationToken.None);
 			if (!this._model.value) {
 				throw new Error('Could not start chat session');
 			}
@@ -272,9 +272,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				return;
 			}
 
-			if (progress.kind === 'content') {
-				responseContent += progress.content;
-			} else if (progress.kind === 'markdownContent') {
+			if (progress.kind === 'markdownContent') {
 				responseContent += progress.content.value;
 			}
 			if (this._currentRequest) {
@@ -291,7 +289,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const requestVarData: IChatRequestVariableData = {
 			variables: []
 		};
-		this._currentRequest = model.addRequest(request, requestVarData);
+		this._currentRequest = model.addRequest(request, requestVarData, 0);
 		const requestProps: IChatAgentRequest = {
 			sessionId: model.sessionId,
 			requestId: this._currentRequest!.id,
@@ -301,7 +299,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			location: ChatAgentLocation.Terminal
 		};
 		try {
-			const task = this._chatAgentService.invokeAgent(this._terminalAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
+			const task = this._chatAgentService.invokeAgent(this._terminalAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model, this._terminalAgentId!), cancellationToken);
 			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateProgress(true);
@@ -378,6 +376,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
 			request.message.text,
 			request.variableData,
+			request.attempt,
 			{
 				message: request.response!.response.value,
 				result: request.response!.result,

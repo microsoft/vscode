@@ -5,7 +5,7 @@
 
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
-import { addDisposableListener, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { runWhenWindowIdle } from 'vs/base/browser/dom';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
@@ -80,14 +80,16 @@ export class Workbench extends Layout {
 	private registerErrorHandler(logService: ILogService): void {
 
 		// Listen on unhandled rejection events
-		this._register(addDisposableListener(mainWindow, 'unhandledrejection', event => {
+		// Note: intentionally not registered as disposable to handle
+		//       errors that can occur during shutdown phase.
+		mainWindow.addEventListener('unhandledrejection', (event) => {
 
 			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
 			onUnexpectedError(event.reason);
 
 			// Prevent the printing of this event to the console
 			event.preventDefault();
-		}));
+		});
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));

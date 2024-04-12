@@ -286,6 +286,7 @@ class QuickChat extends Disposable {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as IParsedChatRequest,
 					request.variableData,
+					request.attempt,
 					{
 						message: request.response.response.value,
 						result: request.response.result,
@@ -313,7 +314,7 @@ class QuickChat extends Disposable {
 	}
 
 	private updateModel(): void {
-		this.model ??= this.chatService.startSession(CancellationToken.None);
+		this.model ??= this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		if (!this.model) {
 			throw new Error('Could not start chat session');
 		}

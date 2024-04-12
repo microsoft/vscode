@@ -66,6 +66,7 @@ export interface IChatRequestViewModel {
 	readonly avatarIcon?: URI | ThemeIcon;
 	readonly message: IParsedChatRequest | IChatFollowup;
 	readonly messageText: string;
+	readonly attempt: number;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -334,6 +335,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get messageText() {
 		return this.message.text;
+	}
+
+	get attempt() {
+		return this._model.attempt;
 	}
 
 	currentRenderedHeight: number | undefined;

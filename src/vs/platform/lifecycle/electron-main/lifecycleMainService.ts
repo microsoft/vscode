@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Event as ElectronEvent } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Barrier, Promises, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -428,7 +428,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Window Before Closing: Main -> Renderer
 		const win = assertIsDefined(window.win);
-		win.on('close', e => {
+		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'close')(e => {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
@@ -457,10 +457,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				// No veto, close window now
 				window.close();
 			});
-		});
-
-		// Window After Closing
-		win.on('closed', () => {
+		}));
+		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'closed')(() => {
 			this.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
 
 			// update window count
@@ -475,13 +473,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
 				this.fireOnWillShutdown(ShutdownReason.QUIT);
 			}
-		});
+		}));
 	}
 
 	registerAuxWindow(auxWindow: IAuxiliaryWindow): void {
 		const win = assertIsDefined(auxWindow.win);
 
-		win.on('close', e => {
+		const windowListeners = new DisposableStore();
+		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'close')(e => {
 			this.trace(`Lifecycle#auxWindow.on('close') - window ID ${auxWindow.id}`);
 
 			if (this._quitRequested) {
@@ -499,11 +498,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 				e.preventDefault();
 			}
-		});
-
-		win.on('closed', () => {
+		}));
+		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'closed')(() => {
 			this.trace(`Lifecycle#auxWindow.on('closed') - window ID ${auxWindow.id}`);
-		});
+
+			windowListeners.dispose();
+		}));
 	}
 
 	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {

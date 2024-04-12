@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.89.0",
-  "distro": "51cc447f78b8a92b468906c0718cda74314ba794",
+  "distro": "25df1b5602ba46d6b0f618dd227963d1163c83df",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -123,7 +123,7 @@
     "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
     "@types/vscode-notebook-renderer": "^1.72.0",
-    "@types/webpack": "^5.28.1",
+    "@types/webpack": "^5.28.5",
     "@types/wicg-file-system-access": "^2020.9.6",
     "@types/windows-foreground-love": "^0.3.0",
     "@types/winreg": "^1.2.30",
@@ -208,12 +208,12 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.5.0-dev.20240401",
+    "typescript": "^5.5.0-dev.20240408",
     "typescript-formatter": "7.1.0",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",
-    "webpack": "^5.77.0",
-    "webpack-cli": "^5.0.1",
+    "webpack": "^5.91.0",
+    "webpack-cli": "^5.1.4",
     "webpack-stream": "^7.0.0",
     "xml2js": "^0.5.0",
     "yaserver": "^0.4.0"

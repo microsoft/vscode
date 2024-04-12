@@ -27,13 +27,14 @@ suite('VoiceChat', () => {
 	class TestChatAgent implements IChatAgent {
 
 		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
+		extensionPublisher = '';
 		locations: ChatAgentLocation[] = [ChatAgentLocation.Panel];
 		public readonly name: string;
 		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) {
 			this.name = id;
 		}
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
-		provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
+		provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
 		metadata = {};
 	}
 

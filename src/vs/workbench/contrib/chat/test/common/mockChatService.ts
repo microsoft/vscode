@@ -7,9 +7,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 
 export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
@@ -24,7 +24,7 @@ export class MockChatService implements IChatService {
 	getProviderInfos(): IChatProviderInfo[] {
 		throw new Error('Method not implemented.');
 	}
-	startSession(token: CancellationToken): ChatModel | undefined {
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined {
 		throw new Error('Method not implemented.');
 	}
 	getSession(sessionId: string): IChatModel | undefined {
@@ -42,6 +42,9 @@ export class MockChatService implements IChatService {
 	sendRequest(sessionId: string, message: string): Promise<IChatSendRequestData | undefined> {
 		throw new Error('Method not implemented.');
 	}
+	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	removeRequest(sessionid: string, requestId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -51,7 +54,7 @@ export class MockChatService implements IChatService {
 	clearSession(sessionId: string): void {
 		throw new Error('Method not implemented.');
 	}
-	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void {
+	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void {
 		throw new Error('Method not implemented.');
 	}
 	getHistory(): IChatDetail[] {

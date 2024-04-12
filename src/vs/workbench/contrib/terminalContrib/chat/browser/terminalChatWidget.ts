@@ -167,6 +167,8 @@ export class TerminalChatWidget extends Disposable {
 	addToHistory(input: string): void {
 		this._inlineChatWidget.addToHistory(input);
 		this._inlineChatWidget.saveState();
+		this._inlineChatWidget.value = input;
+		this._inlineChatWidget.selectAll(true);
 	}
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
@@ -177,7 +179,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	updateProgress(progress?: IChatProgress): void {
-		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
+		this._inlineChatWidget.updateProgress(progress?.kind === 'markdownContent');
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;

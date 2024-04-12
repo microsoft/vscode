@@ -17,7 +17,7 @@ import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AsyncIterableObject } from 'vs/base/common/async';
@@ -32,7 +32,7 @@ import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnum
 
 const $ = dom.$;
 
-export class ContentHoverController extends Disposable {
+export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
 
@@ -331,9 +331,6 @@ export class ContentHoverController extends Disposable {
 		};
 	}
 
-	/**
-	 * Returns true if the hover shows now or will show.
-	 */
 	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
 
 		if (this._widget.isResizing) {

@@ -12,7 +12,7 @@ import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestVariableData, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -89,11 +89,6 @@ export interface IChatAgentDetection {
 	kind: 'agentDetection';
 }
 
-export interface IChatContent {
-	content: string;
-	kind: 'content';
-}
-
 export interface IChatMarkdownContent {
 	content: IMarkdownString;
 	kind: 'markdownContent';
@@ -114,16 +109,9 @@ export interface IChatAgentVulnerabilityDetails {
 	description: string;
 }
 
-export interface IChatAgentContentWithVulnerabilities {
-	content: string;
-	vulnerabilities?: IChatAgentVulnerabilityDetails[];
-	kind: 'vulnerability';
-}
-
-// TODO@roblourens Temp until I get MarkdownString out of ChatModel
 export interface IChatAgentMarkdownContentWithVulnerability {
 	content: IMarkdownString;
-	vulnerabilities?: IChatAgentVulnerabilityDetails[];
+	vulnerabilities: IChatAgentVulnerabilityDetails[];
 	kind: 'markdownVuln';
 }
 
@@ -139,9 +127,7 @@ export interface IChatTextEdit {
 }
 
 export type IChatProgress =
-	| IChatContent
 	| IChatMarkdownContent
-	| IChatAgentContentWithVulnerabilities
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatUsedContext
@@ -215,7 +201,12 @@ export interface IChatBugReportAction {
 	kind: 'bug';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction;
+export interface IChatInlineChatCodeAction {
+	kind: 'inlineChat';
+	action: 'accepted' | 'discarded';
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
@@ -263,6 +254,14 @@ export interface IChatSendRequestData {
 	slashCommand?: IChatAgentCommand;
 }
 
+export interface IChatSendRequestOptions {
+	implicitVariablesEnabled?: boolean;
+	location?: ChatAgentLocation;
+	parserContext?: IChatParserContext;
+	attempt?: number;
+	noCommandDetection?: boolean;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
@@ -271,7 +270,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(token: CancellationToken): ChatModel | undefined;
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;
@@ -279,11 +278,14 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string, implicitVariablesEnabled?: boolean, location?: ChatAgentLocation, parserContext?: IChatParserContext): Promise<IChatSendRequestData | undefined>;
+	sendRequest(sessionId: string, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
+
+	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
+
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;
-	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void;
+	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	getHistory(): IChatDetail[];
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;
