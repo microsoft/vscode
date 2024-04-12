@@ -329,7 +329,7 @@ function resolveExtensionHelpContent(keybindingService: IKeybindingService, cont
 	if (!content) {
 		return;
 	}
-	let resolvedContent = content.value;
+	let resolvedContent = typeof content === 'string' ? content : content.value;
 	const matches = resolvedContent.matchAll(/\(kb\(command:(?<commandId>.*)\)\)/gm);
 	for (const match of [...matches]) {
 		const commandId = match?.groups?.commandId;
