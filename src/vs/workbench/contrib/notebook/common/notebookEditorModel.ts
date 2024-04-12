@@ -220,10 +220,11 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 		const saveWithReducedCommunication = this._configurationService.getValue(NotebookSetting.remoteSaving);
 
-		if (saveWithReducedCommunication || _notebookModel.uri.scheme === Schemas.vscodeRemote) {
+		if (_notebookModel.uri.scheme === Schemas.vscodeRemote) {
 			this.configuration = {
 				// Intentionally pick a larger delay for triggering backups to allow auto-save
-				// to complete first on the optimized save path
+				// to complete first on the optimized save path.
+				// We should be able to lower this with backups on EH
 				backupDelay: 10000
 			};
 		}
@@ -250,6 +251,10 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 	get notebookModel() {
 		return this._notebookModel;
+	}
+
+	shouldHandleSnapshotPersistence?(): boolean {
+		return this._configurationService.getValue(NotebookSetting.extensionHostBackup);
 	}
 
 	async writeSnapshot(target: URI, preamble: string, token: CancellationToken): Promise<IFileStatWithMetadata> {

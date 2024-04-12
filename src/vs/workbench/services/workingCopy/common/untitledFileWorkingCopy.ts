@@ -273,7 +273,9 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	}
 
 	shouldHandleBackupPersistence(): boolean {
-		return this.isResolved() && this.model?.writeSnapshot !== undefined;
+		return this.isResolved()
+			&& this.model?.shouldHandleSnapshotPersistence !== undefined
+			&& this.model.shouldHandleSnapshotPersistence();
 	}
 
 	async persistBackup(target: URI, preamble: string, token: CancellationToken): Promise<void> {

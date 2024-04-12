@@ -819,6 +819,20 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		return { meta, content };
 	}
 
+	shouldHandleBackupPersistence(): boolean {
+		return this.isResolved()
+			&& this.model?.shouldHandleSnapshotPersistence !== undefined
+			&& this.model.shouldHandleSnapshotPersistence();
+	}
+
+	async persistBackup(target: URI, preamble: string, token: CancellationToken): Promise<void> {
+		if (!this.isResolved()) {
+			return;
+		}
+
+		await this.model.writeSnapshot!(target, preamble, token);
+	}
+
 	//#endregion
 
 	//#region Save

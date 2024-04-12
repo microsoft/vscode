@@ -422,7 +422,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
-		await this._extHostFileSystem.value.writeFile(targetUri, bytes);
+		const preambleBytes = new TextEncoder().encode(preamble);
+		const totalLength = preambleBytes.length + bytes.length;
+		const buffer = new Uint8Array(totalLength);
+		buffer.set(preambleBytes, 0);
+		buffer.set(bytes, preambleBytes.length);
+
+		await this._extHostFileSystem.value.writeFile(targetUri, buffer);
 		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(targetUri.scheme);
 		const stat = await this._extHostFileSystem.value.stat(targetUri);
 

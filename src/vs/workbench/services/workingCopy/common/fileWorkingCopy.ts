@@ -77,6 +77,13 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 */
 	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
 
+
+	shouldHandleSnapshotPersistence?(): boolean;
+
+	/**
+	 * Takes a snapshot of the model and writes it to the target file path,
+	 * prepending with the provided preamble.
+	 */
 	writeSnapshot?(target: URI, preamble: string, token: CancellationToken): Promise<IFileStatWithMetadata>;
 
 	/**

@@ -1094,5 +1094,10 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
+		[NotebookSetting.extensionHostBackup]: {
+			markdownDescription: nls.localize('notebook.extensionHostBackup', "Enable backup of unsaved notebook content directly in the extension host."),
+			type: 'boolean',
+			default: false
+		}
 	}
 });
