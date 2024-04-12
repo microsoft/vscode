@@ -4315,13 +4315,14 @@ declare namespace monaco.editor {
 		 */
 		showMarkSectionHeaders?: boolean;
 		/**
+		 * When specified, is used to create a custom section header parser regexp.
+		 * It must contain a match group that detects the header
+		 */
+		sectionHeaderTemplateRegExp?: string;
+		/**
 		 * Font size of section headers. Defaults to 9.
 		 */
 		sectionHeaderFontSize?: number;
-		/**
-		 * The sign that is interpreted as a mark, Defaults to `MARK:`
-		 */
-		sectionHeaderMarkSign?: string;
 	}
 
 	/**

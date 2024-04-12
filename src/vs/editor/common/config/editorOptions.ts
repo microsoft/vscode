@@ -3067,15 +3067,17 @@ export interface IEditorMinimapOptions {
 	 * Whether to show MARK: comments as section headers. Defaults to true.
 	 */
 	showMarkSectionHeaders?: boolean;
+
+	/**
+	 * When specified, is used to create a custom section header parser regexp.
+	 * It must contain a match group that detects the header
+	 */
+	sectionHeaderTemplateRegExp?: string;
+
 	/**
 	 * Font size of section headers. Defaults to 9.
 	 */
 	sectionHeaderFontSize?: number;
-
-	/**
-	 * The sign that is interpreted as a mark, Defaults to `MARK:`
-	 */
-	sectionHeaderMarkSign?: string;
 }
 
 /**
@@ -3097,8 +3099,8 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			scale: 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
+			sectionHeaderTemplateRegExp: '\\bMARK:\\s*(.*)$',
 			sectionHeaderFontSize: 9,
-			sectionHeaderMarkSign: 'MARK:',
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -3164,16 +3166,16 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					default: defaults.showMarkSectionHeaders,
 					description: nls.localize('minimap.showMarkSectionHeaders', "Controls whether MARK: comments are shown as section headers in the minimap.")
 				},
+				'editor.minimap.sectionHeaderTemplateRegExp': {
+					type: 'string',
+					default: defaults.sectionHeaderTemplateRegExp,
+					description: nls.localize('minimap.customSectionHeaderTemplateRegExp', "Defines the regular expression used to detect the section headers in comments. The regular expression should be for parsing a line and must contain a match group that is the title of the section header.")
+				},
 				'editor.minimap.sectionHeaderFontSize': {
 					type: 'number',
 					default: defaults.sectionHeaderFontSize,
 					description: nls.localize('minimap.sectionHeaderFontSize', "Controls the font size of section headers in the minimap.")
 				},
-				'editor.minimap.sectionHeaderMarkSign': {
-					type: 'string',
-					default: defaults.sectionHeaderMarkSign,
-					description: nls.localize('minimap.sectionHeaderMarkSign', "Sets the prefix in a comment that is interpreted as the mark sign. Everything after this sign in a comment will be read as a section header.")
-				}
 			}
 		);
 	}
@@ -3183,6 +3185,19 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			return this.defaultValue;
 		}
 		const input = _input as IEditorMinimapOptions;
+
+		// validating the sectionHeaderTemplateRegExp's regexps
+		// we test if the children are string and can be compiled as
+		// regular expressions.
+		let sectionHeaderTemplateRegExp = this.defaultValue.sectionHeaderTemplateRegExp;
+		const inputRegExp = _input.sectionHeaderTemplateRegExp;
+		if (typeof inputRegExp == 'string') {
+			try {
+				new RegExp(inputRegExp as string);
+				sectionHeaderTemplateRegExp = inputRegExp as string;
+			} catch { }
+		}
+
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			autohide: boolean(input.autohide, this.defaultValue.autohide),
@@ -3194,8 +3209,8 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
 			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
+			sectionHeaderTemplateRegExp: sectionHeaderTemplateRegExp,
 			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
-			sectionHeaderMarkSign: EditorStringOption.string(input.sectionHeaderMarkSign, this.defaultValue.sectionHeaderMarkSign),
 		};
 	}
 }
@@ -6114,6 +6129,7 @@ export const EditorOptions = {
 			],
 			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
 		}
+
 	)),
 	wordSegmenterLocales: register(new WordSegmenterLocales()),
 	wordSeparators: register(new EditorStringOption(

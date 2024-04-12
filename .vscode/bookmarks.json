@@ -1,0 +1,24 @@
+{
+	"files": [
+		{
+			"path": "src/vs/editor/common/services/findSectionHeaders.ts",
+			"bookmarks": [
+				{
+					"line": 48,
+					"column": 34,
+					"label": "Where section headers are parsed"
+				}
+			]
+		},
+		{
+			"path": "src/vs/editor/contrib/sectionHeaders/browser/sectionHeaders.ts",
+			"bookmarks": [
+				{
+					"line": 108,
+					"column": 10,
+					"label": "Where options are created"
+				}
+			]
+		}
+	]
+}

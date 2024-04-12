@@ -13,6 +13,7 @@ export interface ISectionHeaderFinderTarget {
 
 export interface FindSectionHeaderOptions {
 	foldingRules?: FoldingRules;
+	sectionHeaderTemplateRegExp: RegExp;
 	findRegionSectionHeaders: boolean;
 	findMarkSectionHeaders: boolean;
 }
@@ -36,7 +37,6 @@ export interface SectionHeader {
 	shouldBeInComments: boolean;
 }
 
-const markRegex = /\bMARK:\s*(.*)$/d;
 const trimDashesRegex = /^-+|-+$/g;
 
 /**
@@ -53,7 +53,7 @@ export function findSectionHeaders(model: ISectionHeaderFinderTarget, options: F
 		headers = headers.concat(regionHeaders);
 	}
 	if (options.findMarkSectionHeaders) {
-		const markHeaders = collectMarkHeaders(model);
+		const markHeaders = collectMarkHeaders(model, options);
 		headers = headers.concat(markHeaders);
 	}
 	return headers;
@@ -82,19 +82,19 @@ function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSe
 	return regionHeaders;
 }
 
-function collectMarkHeaders(model: ISectionHeaderFinderTarget): SectionHeader[] {
+function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: FindSectionHeaderOptions): SectionHeader[] {
 	const markHeaders: SectionHeader[] = [];
 	const endLineNumber = model.getLineCount();
 	for (let lineNumber = 1; lineNumber <= endLineNumber; lineNumber++) {
 		const lineContent = model.getLineContent(lineNumber);
-		addMarkHeaderIfFound(lineContent, lineNumber, markHeaders);
+		addMarkHeaderIfFound(lineContent, lineNumber, markHeaders, options);
 	}
 	return markHeaders;
 }
 
-function addMarkHeaderIfFound(lineContent: string, lineNumber: number, sectionHeaders: SectionHeader[]) {
-	markRegex.lastIndex = 0;
-	const match = markRegex.exec(lineContent);
+function addMarkHeaderIfFound(lineContent: string, lineNumber: number, sectionHeaders: SectionHeader[], options: FindSectionHeaderOptions) {
+	options.sectionHeaderTemplateRegExp.lastIndex = 0;
+	const match = options.sectionHeaderTemplateRegExp.exec(lineContent);
 	if (match) {
 		const column = match.indices![1][0] + 1;
 		const endColumn = match.indices![1][1] + 1;
