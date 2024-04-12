@@ -171,7 +171,7 @@ extends:
   parameters:
     sdl:
       tsa:
-        enabled: true
+        enabled: false
         config:
           codebaseName: 'devdiv_$(Build.Repository.Name)'
           serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
@@ -181,6 +181,9 @@ extends:
           notificationAliases: ['monacotools@microsoft.com']
           validateToolOutput: None
           allTools: true
+      binskim:
+        analyzeTargetGlob: '$(Build.SourcesDirectory)/**.dll;$(Build.SourcesDirectory)/**.exe;$(Build.SourcesDirectory)/**.node'
+        symbolsPath: '$(agent.builddirectory)/scanbin/VSCode-win32-${{ parameters.VSCODE_ARCH }}/pdb'
       codeql:
         compiled:
           enabled: true

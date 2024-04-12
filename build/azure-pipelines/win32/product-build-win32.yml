@@ -90,6 +90,38 @@ steps:
     displayName: Setup NPM Authentication
 
   - powershell: |
+      $includes = @'
+        {
+          'target_defaults': {
+            'conditions': [
+              ['OS=="win"', {
+                'msvs_configuration_attributes': {
+                  'SpectreMitigation': 'Spectre'
+                },
+                'msvs_settings': {
+                  'VCCLCompilerTool': {
+                    'AdditionalOptions': [
+                      '/ZH:SHA_256'
+                    ],
+                  },
+                  'VCLinkerTool': {
+                    'AdditionalOptions': [
+                    ]
+                  }
+                }
+              }]
+            ]
+          }
+        }
+      '@
+
+      if (!(Test-Path "~/.gyp")) {
+        mkdir "~/.gyp"
+      }
+      echo $includes > "~/.gyp/include.gypi"
+    displayName: Create include.gypi
+
+  - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
@@ -120,6 +152,11 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
+
+  - powershell: yarn gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download Symbols
 
   - template: ../common/install-builtin-extensions.yml@self
 
