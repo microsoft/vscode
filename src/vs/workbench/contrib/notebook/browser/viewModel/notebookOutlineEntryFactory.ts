@@ -30,7 +30,7 @@ type entryDesc = {
 export class NotebookOutlineEntryFactory {
 
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
-
+	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number, text: string }[] }>();
 	constructor(
 		private readonly executionStateService: INotebookExecutionStateService
 	) { }
@@ -47,22 +47,30 @@ export class NotebookOutlineEntryFactory {
 		let hasHeader = false;
 
 		if (isMarkdown) {
+			const cache = this.cachedMarkdownOutlineEntries.get(cell);
+			const markdownEntries: OutlineEntry[] = [];
 			const fullContent = cell.getText().substring(0, 10000);
-			for (const { depth, text } of getMarkdownHeadersInCell(fullContent)) {
+			const headers = cache?.alternativeId === cell.getAlternativeId() ? cache.headers : Array.from(getMarkdownHeadersInCell(fullContent));
+			this.cachedMarkdownOutlineEntries.set(cell, { alternativeId: cell.getAlternativeId(), headers });
+
+			for (const { depth, text } of headers) {
 				hasHeader = true;
-				entries.push(new OutlineEntry(index++, depth, cell, text, false, false));
+				markdownEntries.push(new OutlineEntry(index++, depth, cell, text, false, false));
 			}
 
 			if (!hasHeader) {
+				const fullContent = cell.getText().substring(0, 10000);
 				// no markdown syntax headers, try to find html tags
 				const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
 				if (match) {
 					hasHeader = true;
 					const level = parseInt(match[1]);
 					const text = match[2].trim();
-					entries.push(new OutlineEntry(index++, level, cell, text, false, false));
+					markdownEntries.push(new OutlineEntry(index++, level, cell, text, false, false));
 				}
 			}
+
+			entries.push(...markdownEntries);
 
 			if (!hasHeader) {
 				content = renderMarkdownAsPlaintext({ value: content });
