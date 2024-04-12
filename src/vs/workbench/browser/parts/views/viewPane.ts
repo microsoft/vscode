@@ -53,6 +53,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { PANEL_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from 'vs/workbench/common/theme';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX } from 'vs/platform/accessibility/common/accessibility';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -552,7 +553,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private _getAriaLabel(title: string): string {
 		const viewHasAccessibilityHelpContent = this.viewDescriptorService.getViewDescriptorById(this.id)?.accessibilityHelpContent;
-		const accessibleViewHasShownForView = this.storageService?.getBoolean(`ACCESSIBLE_VIEW_SHOWN_${this.id}`, StorageScope.APPLICATION, false);
+		const accessibleViewHasShownForView = this.storageService?.getBoolean(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${this.id}`, StorageScope.APPLICATION, false);
 		if (!viewHasAccessibilityHelpContent || accessibleViewHasShownForView) {
 			return title;
 		}
