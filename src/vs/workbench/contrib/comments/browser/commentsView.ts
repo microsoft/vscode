@@ -367,7 +367,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (!node.replies.length || type === 'ariaLabel') {
 			return '';
 		}
-		return nls.localize('replies', "{0} replies:\n{1}", node.replies.length, node.replies.map(reply => nls.localize('resourceWithRepliesLabel',
+		return nls.localize('replies', " {0} replies:\n{1}", node.replies.length, node.replies.map(reply => nls.localize('resourceWithRepliesLabel',
 			"${0} {1}",
 			reply.comment.userName,
 			(typeof reply.comment.body === 'string') ? reply.comment.body : reply.comment.body.value)
