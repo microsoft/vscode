@@ -394,6 +394,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.refresh();
 		} else {
 			this._dataProvider = undefined;
+			this.treeDisposables.clear();
+			this.activated = false;
 			this.updateMessage();
 		}
 
@@ -602,6 +604,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 	}
 
+	protected activated: boolean = false;
 	protected abstract activate(): void;
 
 	focus(reveal: boolean = true, revealItem?: ITreeItem): void {
@@ -637,19 +640,21 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._register(focusTracker.onDidBlur(() => this.focused = false));
 	}
 
+	private readonly treeDisposables: DisposableStore = this._register(new DisposableStore());
 	protected createTree() {
+		this.treeDisposables.clear();
 		const actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		const treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
+		const treeMenus = this.treeDisposables.add(this.instantiationService.createInstance(TreeMenus, this.id));
+		this.treeLabels = this.treeDisposables.add(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
-		const checkboxStateHandler = this._register(new CheckboxStateHandler());
+		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes);
-		this._register(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
+		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
 
 		const widgetAriaLabel = this._title;
 
-		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer!, new TreeViewDelegate(), [renderer],
+		this.tree = this.treeDisposables.add(this.instantiationService.createInstance(Tree, this.id, this.treeContainer!, new TreeViewDelegate(), [renderer],
 			dataSource, {
 			identityProvider: new TreeViewIdentityProvider(),
 			accessibilityProvider: {
@@ -698,6 +703,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			dnd: this.treeViewDnd,
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+		this.treeDisposables.add(this.tree);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
 		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
@@ -706,21 +712,21 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
 		const customTreeKey = RawCustomTreeViewContextKey.bindTo(this.tree.contextKeyService);
 		customTreeKey.set(true);
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e, actionRunner)));
+		this.treeDisposables.add(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e, actionRunner)));
 
-		this._register(this.tree.onDidChangeSelection(e => {
+		this.treeDisposables.add(this.tree.onDidChangeSelection(e => {
 			this.lastSelection = e.elements;
 			this.lastActive = this.tree?.getFocus()[0] ?? this.lastActive;
 			this._onDidChangeSelectionAndFocus.fire({ selection: this.lastSelection, focus: this.lastActive });
 		}));
-		this._register(this.tree.onDidChangeFocus(e => {
+		this.treeDisposables.add(this.tree.onDidChangeFocus(e => {
 			if (e.elements.length && (e.elements[0] !== this.lastActive)) {
 				this.lastActive = e.elements[0];
 				this.lastSelection = this.tree?.getSelection() ?? this.lastSelection;
 				this._onDidChangeSelectionAndFocus.fire({ selection: this.lastSelection, focus: this.lastActive });
 			}
 		}));
-		this._register(this.tree.onDidChangeCollapseState(e => {
+		this.treeDisposables.add(this.tree.onDidChangeCollapseState(e => {
 			if (!e.node.element) {
 				return;
 			}
@@ -734,7 +740,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		this._register(this.tree.onDidOpen(async (e) => {
+		this.treeDisposables.add(this.tree.onDidOpen(async (e) => {
 			if (!e.browserEvent) {
 				return;
 			}
@@ -760,7 +766,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			}
 		}));
 
-		this._register(treeMenus.onDidChange((changed) => {
+		this.treeDisposables.add(treeMenus.onDidChange((changed) => {
 			if (this.tree?.hasNode(changed)) {
 				this.tree?.rerender(changed);
 			}
@@ -1615,8 +1621,6 @@ class TreeMenus implements IDisposable {
 
 export class CustomTreeView extends AbstractTreeView {
 
-	private activated: boolean = false;
-
 	constructor(
 		id: string,
 		title: string,
@@ -1669,8 +1673,6 @@ export class CustomTreeView extends AbstractTreeView {
 }
 
 export class TreeView extends AbstractTreeView {
-
-	private activated: boolean = false;
 
 	protected activate() {
 		if (!this.activated) {
