@@ -17,90 +17,17 @@ export function getEnterAction(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ): CompleteEnterAction | null {
-	console.log('getEnterAction');
-
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 	const richEditSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId);
 	if (!richEditSupport) {
 		return null;
 	}
 
-	const scopedLineText = scopedLineTokens.getLineContent();
-	const indexOfCursor = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
-	const beforeEnterText = scopedLineText.substring(0, indexOfCursor);
+	const beforeEnterText = getBeforeEnterText(model, range, languageConfigurationService);
+	const afterEnterText = getAfterEnterText(model, range, languageConfigurationService);
+	const previousLineText = getPreviousLineText(model, range, languageConfigurationService);
 
-	const firstTokenIndex = scopedLineTokens.firstTokenIndex;
-	const lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(indexOfCursor) + 1;
-	const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
-	const language = initialTokens.getLanguageId(firstTokenIndex);
-	const firstCharOffset = scopedLineTokens.firstCharOffset;
-
-	const beforeEnterTokens = new ScopedLineTokens(
-		initialTokens,
-		language,
-		firstTokenIndex,
-		lastTokenIndex,
-		firstCharOffset,
-		indexOfCursor
-	);
-	const strippedBeforeEnterText = getStrippedLineForLineAndTokens(languageConfigurationService, language, beforeEnterText, beforeEnterTokens);
-
-	// selection support
-	let afterEnterText: string;
-	let afterEnterTokens: ScopedLineTokens;
-
-	if (range.isEmpty()) {
-		afterEnterText = scopedLineText.substring(indexOfCursor);
-
-		const lastScopedCharOffset = scopedLineText.length - 1;
-		const firstTokenIndex = scopedLineTokens.findTokenIndexAtOffset(indexOfCursor);
-		const lastTokenIndex = scopedLineTokens.findTokenIndexAtOffset(lastScopedCharOffset);
-		const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
-		const language = initialTokens.getLanguageId(firstTokenIndex);
-		const lastCharOffset = scopedLineTokens.firstCharOffset + lastScopedCharOffset;
-		afterEnterTokens = new ScopedLineTokens(
-			initialTokens,
-			language,
-			firstTokenIndex,
-			lastTokenIndex,
-			indexOfCursor,
-			lastCharOffset
-		);
-	} else {
-		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-		const endScopedLineText = endScopedLineTokens.getLineContent();
-		afterEnterText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
-
-		const lastScopedCharOffset = endScopedLineText.length - 1;
-		const firstTokenIndex = endScopedLineTokens.findTokenIndexAtOffset(indexOfCursor);
-		const lastTokenIndex = endScopedLineTokens.findTokenIndexAtOffset(lastScopedCharOffset);
-		const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
-		const language = initialTokens.getLanguageId(firstTokenIndex);
-		const lastCharOffset = scopedLineTokens.firstCharOffset + lastScopedCharOffset;
-		afterEnterTokens = new ScopedLineTokens(
-			initialTokens,
-			language,
-			firstTokenIndex,
-			lastTokenIndex,
-			indexOfCursor,
-			lastCharOffset
-		);
-	}
-
-	const strippedAfterEnterText = getStrippedLineForLineAndTokens(languageConfigurationService, language, afterEnterText, afterEnterTokens);
-
-	let strippedPreviousLineText = '';
-	if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
-		// This is not the first line and the entire line belongs to this mode
-		const oneLineAboveScopedLineTokens = getScopedLineTokens(model, range.startLineNumber - 1);
-		if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
-			// The line above ends with text belonging to the same mode
-			const previousLineText = oneLineAboveScopedLineTokens.getLineContent();
-			strippedPreviousLineText = getStrippedLineForLineAndTokens(languageConfigurationService, language, previousLineText, oneLineAboveScopedLineTokens);
-		}
-	}
-
-	const enterResult = richEditSupport.onEnter(autoIndent, strippedPreviousLineText, strippedBeforeEnterText, strippedAfterEnterText);
+	const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
 	if (!enterResult) {
 		return null;
 	}
@@ -134,4 +61,91 @@ export function getEnterAction(
 		removeText: removeText,
 		indentation: indentation
 	};
+}
+
+function getBeforeEnterText(
+	model: ITextModel,
+	range: Range,
+	languageConfigurationService: ILanguageConfigurationService
+) {
+	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+	const language = scopedLineTokens.languageId;
+	const scopedLineText = scopedLineTokens.getLineContent();
+	const columnIndexOfStart = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+	const beforeEnterText = scopedLineText.substring(0, columnIndexOfStart);
+
+	const firstTokenIndex = scopedLineTokens.firstTokenIndex;
+	const lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(columnIndexOfStart) + 1;
+	const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
+	const firstCharOffset = scopedLineTokens.firstCharOffset;
+
+	const beforeEnterTokens = new ScopedLineTokens(
+		initialTokens,
+		language,
+		firstTokenIndex,
+		lastTokenIndex,
+		firstCharOffset,
+		columnIndexOfStart
+	);
+	return getStrippedLineForLineAndTokens(languageConfigurationService, language, beforeEnterText, beforeEnterTokens);
+}
+
+/** look at the following */
+function getAfterEnterText(
+	model: ITextModel,
+	range: Range,
+	languageConfigurationService: ILanguageConfigurationService
+) {
+	const scopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+	const columnIndexOfEnd = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+	let afterEnterText: string;
+	let tokensOfInterest: ScopedLineTokens;
+	let afterEnterTokens: ScopedLineTokens;
+
+	if (range.isEmpty()) {
+		const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+		const scopedLineText = scopedLineTokens.getLineContent();
+		afterEnterText = scopedLineText.substring(columnIndexOfEnd);
+		tokensOfInterest = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+	} else {
+		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+		afterEnterText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - endScopedLineTokens.firstCharOffset);
+		tokensOfInterest = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+	}
+	const text = tokensOfInterest.getLineContent();
+	const lastScopedCharOffset = text.length - 1;
+	const firstTokenIndex = tokensOfInterest.findTokenIndexAtOffset(columnIndexOfEnd);
+	const lastTokenIndex = tokensOfInterest.findTokenIndexAtOffset(lastScopedCharOffset);
+	const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
+	const language = initialTokens.getLanguageId(firstTokenIndex);
+	const lastCharOffset = tokensOfInterest.firstCharOffset + lastScopedCharOffset;
+	afterEnterTokens = new ScopedLineTokens(
+		initialTokens,
+		language,
+		firstTokenIndex,
+		lastTokenIndex,
+		columnIndexOfEnd,
+		lastCharOffset
+	);
+	return getStrippedLineForLineAndTokens(languageConfigurationService, language, afterEnterText, afterEnterTokens);
+}
+
+function getPreviousLineText(
+	model: ITextModel,
+	range: Range,
+	languageConfigurationService: ILanguageConfigurationService
+) {
+	let previousLineText = '';
+	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+	const language = model.tokenization.getLanguageId();
+	if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
+		// This is not the first line and the entire line belongs to this mode
+		const oneLineAboveScopedLineTokens = getScopedLineTokens(model, range.startLineNumber - 1);
+		if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
+			// The line above ends with text belonging to the same mode
+			const _previousLineText = oneLineAboveScopedLineTokens.getLineContent();
+			previousLineText = getStrippedLineForLineAndTokens(languageConfigurationService, language, _previousLineText, oneLineAboveScopedLineTokens);
+		}
+	}
+	return previousLineText;
 }

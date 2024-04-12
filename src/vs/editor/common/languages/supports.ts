@@ -80,13 +80,11 @@ export class ScopedLineTokens {
 	}
 
 	public getStartOffset(tokenIndex: number): number {
-		const offsetOnLine = this._actual.getStartOffset(tokenIndex + this.firstTokenIndex);
-		return offsetOnLine - this.firstCharOffset;
+		return this._actual.getStartOffset(tokenIndex + this.firstTokenIndex) - this.firstCharOffset;
 	}
 
 	public getEndOffset(tokenIndex: number): number {
-		const offsetOnLine = this._actual.getEndOffset(tokenIndex + this.firstTokenIndex);
-		return offsetOnLine - this.firstCharOffset;
+		return this._actual.getEndOffset(tokenIndex + this.firstTokenIndex) - this.firstCharOffset;
 	}
 }
 

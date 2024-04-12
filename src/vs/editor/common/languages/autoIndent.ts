@@ -37,8 +37,18 @@ export interface IIndentConverter {
  * else: nearest preceding line of the same language
  */
 function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
-	console.log('getPrecedingValidLine');
-
+	const doesLineContainOtherStandardTokenType = (tokens: LineTokens) => {
+		const numberOfTokens = tokens.getCount();
+		let lineContainsOtherStandardTokenType = false;
+		for (let i = 0; i < numberOfTokens; i++) {
+			const tokenType = tokens.getStandardTokenType(i);
+			if (tokenType === StandardTokenType.Other) {
+				lineContainsOtherStandardTokenType = true;
+				break;
+			}
+		}
+		return lineContainsOtherStandardTokenType;
+	}
 	const languageId = model.tokenization.getLanguageIdAtPosition(lineNumber, 0);
 	if (lineNumber > 1) {
 		let lastLineNumber: number;
@@ -49,44 +59,9 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 				return resultLineNumber;
 			}
 			const text = model.getLineContent(lastLineNumber);
-
 			const tokens = model.tokenization.getLineTokens(lastLineNumber);
-			const numberOfTokens = tokens.getCount();
-
-			let entirelyInComment = true;
-			for (let i = 0; i < numberOfTokens; i++) {
-				const tokenType = tokens.getStandardTokenType(i);
-				if (tokenType !== StandardTokenType.Comment) {
-					entirelyInComment = false;
-					break;
-				}
-			}
-
-			let entirelyInString = true;
-			for (let i = 0; i < numberOfTokens; i++) {
-				const tokenType = tokens.getStandardTokenType(i);
-				if (tokenType !== StandardTokenType.String) {
-					entirelyInString = false;
-					break;
-				}
-			}
-
-			let entirelyInRegex = true;
-			for (let i = 0; i < numberOfTokens; i++) {
-				const tokenType = tokens.getStandardTokenType(i);
-				if (tokenType !== StandardTokenType.RegEx) {
-					entirelyInRegex = false;
-					break;
-				}
-			}
-
-			console.log('lastLineNumber : ', lastLineNumber);
-			console.log('entirelyInComment : ', entirelyInComment);
-			console.log('entirelyInString : ', entirelyInString);
-			console.log('entirelyInRegex : ', entirelyInRegex);
-			//
-
-			if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '' || entirelyInComment || entirelyInString || entirelyInRegex) {
+			const lineContainsOtherStandardTokenType = doesLineContainOtherStandardTokenType(tokens);
+			if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '' || !lineContainsOtherStandardTokenType) {
 				resultLineNumber = lastLineNumber;
 				continue;
 			}
@@ -118,8 +93,7 @@ export function getInheritIndentForLine(
 	languageConfigurationService: ILanguageConfigurationService
 ): { indentation: string; action: IndentAction | null; line?: number } | null {
 
-	console.log('getInheritedIndentForLine');
-
+	// console.log('getInheritedIndentForLine');
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -202,7 +176,7 @@ export function getInheritIndentForLine(
 			}
 
 			return {
-				indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)), // also need to trim?
+				indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
 				action: null,
 				line: stopLine + 1
 			};
@@ -250,8 +224,9 @@ export function getInheritIndentForLine(
 				}
 			}
 
+			const lineContent = getStrippedLine(languageConfigurationService, model, 1);
 			return {
-				indentation: strings.getLeadingWhitespace(model.getLineContent(1)),
+				indentation: strings.getLeadingWhitespace(lineContent),
 				action: null,
 				line: 1
 			};
@@ -267,7 +242,7 @@ export function getGoodIndentForLine(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
-	console.log('getGoodIndentForLine');
+	// console.log('getGoodIndentForLine');
 
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
@@ -355,7 +330,7 @@ export function getIndentForEnter(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): { beforeEnter: string; afterEnter: string } | null {
-	console.log('getIndentForEnter');
+	// console.log('getIndentForEnter');
 
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
@@ -370,20 +345,21 @@ export function getIndentForEnter(
 	if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
 		// we are in the embeded language content
 		embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
-		beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		beforeEnterText = scopedLineText.substring(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 	} else {
 		beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
 	}
 
+	// combine with indent elsewhere
 	let _afterEnterText: string;
 	if (range.isEmpty()) {
-		_afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		_afterEnterText = scopedLineText.substring(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 	} else {
 		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-		_afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		_afterEnterText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 	}
 
-	console.log('_afterEnterText : ', _afterEnterText);
+	// console.log('_afterEnterText : ', _afterEnterText);
 	const afterEnterText = _afterEnterText;
 
 	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).indentRulesSupport;
@@ -453,7 +429,7 @@ export function getIndentActionForType(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
-	console.log('getIndentActionForType');
+	// console.log('getIndentActionForType');
 
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
@@ -483,9 +459,9 @@ export function getIndentActionForType(
 	}
 
 	const fullText = beforeTypeText + afterTypeText;
-	console.log('fullText : ', fullText);
+	// console.log('fullText : ', fullText);
 	const fullTextWithCharacter = beforeTypeText + ch + afterTypeText;
-	console.log('fullTextWithCharacter : ', fullTextWithCharacter);
+	// console.log('fullTextWithCharacter : ', fullTextWithCharacter);
 
 	// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
 	// Users might change the indentation by purpose and we should honor that instead of readjusting.
@@ -525,19 +501,19 @@ export function getIndentMetadata(
 
 function getStrippedLine(languageConfigurationService: ILanguageConfigurationService, model: IVirtualModel, lineNumber: number): string {
 	const lineContent = model.getLineContent(lineNumber);
-	console.log('lineContent : ', lineContent);
+	// console.log('lineContent : ', lineContent);
 	const tokens = model.tokenization.getLineTokens(lineNumber);
 	const strippedLineContent = getStrippedLineForLineAndTokens(languageConfigurationService, model.tokenization.getLanguageId(), lineContent, tokens);
-	console.log('strippedLineContent : ', strippedLineContent);
+	// console.log('strippedLineContent : ', strippedLineContent);
 	return strippedLineContent;
 }
 
 export function getStrippedLineForLineAndTokens(languageConfigurationService: ILanguageConfigurationService, languageId: string, line: string, tokens: LineTokens | ScopedLineTokens): string {
 
-	console.log('getStrippedLineForLineAndTokens');
+	// console.log('getStrippedLineForLineAndTokens');
 
 	const brackets = languageConfigurationService.getLanguageConfiguration(languageId).brackets;
-	console.log('brackets : ', brackets);
+	// console.log('brackets : ', brackets);
 
 	let res = line;
 	let offset = 0;
@@ -547,18 +523,18 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 
 		const standardTokenType = tokens.getStandardTokenType(i);
 
-		console.log('lineTokens.getStartOffset(i) : ', tokens.getStartOffset(i));
-		console.log('lineTokens.getEndOffset(i) : ', tokens.getEndOffset(i));
-		console.log('standardTokenType : ', standardTokenType);
+		// console.log('lineTokens.getStartOffset(i) : ', tokens.getStartOffset(i));
+		// console.log('lineTokens.getEndOffset(i) : ', tokens.getEndOffset(i));
+		// console.log('standardTokenType : ', standardTokenType);
 
 		if (standardTokenType === StandardTokenType.Comment) {
 
 			const startOffset = tokens.getStartOffset(i);
 			const endOffset = tokens.getEndOffset(i);
-			res = res.substr(0, offset + startOffset) + res.substr(offset + endOffset);
+			res = res.substring(0, offset + startOffset) + res.substring(offset + endOffset);
 			offset += startOffset - endOffset;
-			console.log('res : ', res);
-			console.log('offset : ', offset);
+			// console.log('res : ', res);
+			// console.log('offset : ', offset);
 		}
 
 		if (standardTokenType === StandardTokenType.String || standardTokenType === StandardTokenType.RegEx) {
@@ -566,13 +542,13 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 			const endOffset = tokens.getEndOffset(i);
 			// const substringOfToken = res.substr(offset + startOffset, offset + endOffset);
 			const substringOfToken = line.substring(startOffset, endOffset);
-			console.log('substringOfToken : ', substringOfToken);
+			// console.log('substringOfToken : ', substringOfToken);
 
 			let modifiedString = substringOfToken;
 			const _bracketsOpen = brackets?.brackets.map((brackets) => brackets.open).flat();
 			const _bracketsClose = brackets?.brackets.map((brackets) => brackets.close).flat();
-			console.log('_bracketsOpen : ', _bracketsOpen);
-			console.log('_bracketsClose : ', _bracketsClose);
+			// console.log('_bracketsOpen : ', _bracketsOpen);
+			// console.log('_bracketsClose : ', _bracketsClose);
 
 			if (_bracketsOpen) {
 				_bracketsOpen.forEach((bracket) => {
@@ -586,11 +562,11 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 				});
 			}
 
-			console.log('modifiedString : ', modifiedString);
+			// console.log('modifiedString : ', modifiedString);
 			offset += substringOfToken.length - modifiedString.length;
-			console.log('offset : ', offset);
+			// console.log('offset : ', offset);
 			res = res.substring(0, offset + startOffset) + modifiedString + res.substring(offset + endOffset);
-			console.log('res : ', res);
+			// console.log('res : ', res);
 		}
 	}
 	return res;
