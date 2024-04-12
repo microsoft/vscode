@@ -250,7 +250,7 @@ suite('UntitledScratchpadWorkingCopy', () => {
 		workingCopy.model?.updateContents('Hello Backup');
 
 		const backup = await workingCopy.backup(CancellationToken.None);
-		await accessor.workingCopyBackupService.backup(workingCopy, backup.content, undefined, backup.meta);
+		await accessor.workingCopyBackupService.backupContent(workingCopy, backup.content, undefined, backup.meta);
 
 		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(workingCopy), true);
 

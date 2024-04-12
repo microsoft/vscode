@@ -274,7 +274,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 							return;
 						}
 
-						await this.workingCopyBackupService.backup(workingCopy, backup.content, contentVersion, backup.meta, token);
+						await this.workingCopyBackupService.backupContent(workingCopy, backup.content, contentVersion, backup.meta, token);
 						if (token.isCancellationRequested) {
 							return;
 						}

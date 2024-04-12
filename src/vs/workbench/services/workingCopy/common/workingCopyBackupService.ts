@@ -21,6 +21,12 @@ import { hash } from 'vs/base/common/hash';
 import { isEmptyObject } from 'vs/base/common/types';
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
+
+type BackupOptions = {
+	writeDelegate?: (target: URI, preamble: string) => Promise<boolean>;
+	content?: VSBufferReadable | VSBufferReadableStream;
+};
+
 export class WorkingCopyBackupsModel {
 
 	private readonly cache = new ResourceMap<{ versionId?: number; meta?: IWorkingCopyBackupMeta }>();
@@ -160,8 +166,12 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 		return this.impl.hasBackupSync(identifier, versionId, meta);
 	}
 
-	backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
-		return this.impl.backup(identifier, content, versionId, meta, token);
+	delegatedBackup(writeDelegate: (target: URI, preamble: string) => Promise<boolean>, identifier: IWorkingCopyIdentifier, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+		return this.impl.delegatedBackup(writeDelegate, identifier, versionId, meta, token);
+	}
+
+	backupContent(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+		return this.impl.backupContent(identifier, content, versionId, meta, token);
 	}
 
 	discardBackup(identifier: IWorkingCopyIdentifier, token?: CancellationToken): Promise<void> {
@@ -246,7 +256,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 		return this.model.has(backupResource, versionId, meta);
 	}
 
-	async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+	private async backup(options: BackupOptions, identifier: IWorkingCopyIdentifier, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const model = await this.ready;
 		if (token?.isCancellationRequested) {
 			return;
@@ -279,18 +289,22 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 			}
 
 			// Update backup with value
-			const preambleBuffer = VSBuffer.fromString(preamble);
-			let backupBuffer: VSBuffer | VSBufferReadableStream | VSBufferReadable;
-			if (isReadableStream(content)) {
-				backupBuffer = prefixedBufferStream(preambleBuffer, content);
-			} else if (content) {
-				backupBuffer = prefixedBufferReadable(preambleBuffer, content);
+			if (options.writeDelegate) {
+				await options.writeDelegate(backupResource, preamble);
 			} else {
-				backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
-			}
+				const preambleBuffer = VSBuffer.fromString(preamble);
+				let backupBuffer: VSBuffer | VSBufferReadableStream | VSBufferReadable;
+				if (isReadableStream(options.content)) {
+					backupBuffer = prefixedBufferStream(preambleBuffer, options.content);
+				} else if (options.content) {
+					backupBuffer = prefixedBufferReadable(preambleBuffer, options.content);
+				} else {
+					backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
+				}
 
-			// Write backup via file service
-			await this.fileService.writeFile(backupResource, backupBuffer);
+				// Write backup via file service
+				await this.fileService.writeFile(backupResource, backupBuffer);
+			}
 
 			//
 			// Update model
@@ -300,6 +314,14 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 			// prevent the model being out of sync with the backup file
 			model.add(backupResource, versionId, meta);
 		});
+	}
+
+	async delegatedBackup(writeDelegate: (target: URI, preamble: string) => Promise<boolean>, identifier: IWorkingCopyIdentifier, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+		return this.backup({ writeDelegate }, identifier, versionId, meta, token);
+	}
+
+	async backupContent(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+		return this.backup({ content }, identifier, versionId, meta, token);
 	}
 
 	private createPreamble(identifier: IWorkingCopyIdentifier, meta?: IWorkingCopyBackupMeta): string {
@@ -555,7 +577,12 @@ export class InMemoryWorkingCopyBackupService extends Disposable implements IWor
 		return this.backups.has(backupResource);
 	}
 
-	async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+	delegatedBackup(writeDelegate: (target: URI, preamble: string) => Promise<boolean>, identifier: IWorkingCopyIdentifier, versionId?: number | undefined, meta?: IWorkingCopyBackupMeta | undefined, token?: CancellationToken | undefined): Promise<void> {
+		// TODO: what should happen here?
+		throw new Error('Method not implemented.');
+	}
+
+	async backupContent(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(identifier);
 		this.backups.set(backupResource, {
 			typeId: identifier.typeId,

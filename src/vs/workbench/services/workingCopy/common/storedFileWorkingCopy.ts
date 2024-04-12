@@ -78,6 +78,8 @@ export interface IStoredFileWorkingCopyModel extends IFileWorkingCopyModel {
 	 * writing that to the model's resource.
 	 */
 	save?(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
+
+	persistBackup?(targe: URI, preamble: string, token: CancellationToken): Promise<void>;
 }
 
 export interface IStoredFileWorkingCopyModelContentChangedEvent {

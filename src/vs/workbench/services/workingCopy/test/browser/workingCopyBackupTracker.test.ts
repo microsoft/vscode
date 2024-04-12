@@ -204,13 +204,13 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		// Backup 2 normal files and 2 untitled files
 		const untitledFile1WorkingCopyId = toUntypedWorkingCopyId(untitledFile1);
 		const untitledFile2WorkingCopyId = toTypedWorkingCopyId(untitledFile2);
-		await workingCopyBackupService.backup(untitledFile1WorkingCopyId, bufferToReadable(VSBuffer.fromString('untitled-1')));
-		await workingCopyBackupService.backup(untitledFile2WorkingCopyId, bufferToReadable(VSBuffer.fromString('untitled-2')));
+		await workingCopyBackupService.backupContent(untitledFile1WorkingCopyId, bufferToReadable(VSBuffer.fromString('untitled-1')));
+		await workingCopyBackupService.backupContent(untitledFile2WorkingCopyId, bufferToReadable(VSBuffer.fromString('untitled-2')));
 
 		const fooFileWorkingCopyId = toUntypedWorkingCopyId(fooFile);
 		const barFileWorkingCopyId = toTypedWorkingCopyId(barFile);
-		await workingCopyBackupService.backup(fooFileWorkingCopyId, bufferToReadable(VSBuffer.fromString('fooFile')));
-		await workingCopyBackupService.backup(barFileWorkingCopyId, bufferToReadable(VSBuffer.fromString('barFile')));
+		await workingCopyBackupService.backupContent(fooFileWorkingCopyId, bufferToReadable(VSBuffer.fromString('fooFile')));
+		await workingCopyBackupService.backupContent(barFileWorkingCopyId, bufferToReadable(VSBuffer.fromString('barFile')));
 
 		const tracker = disposables.add(instantiationService.createInstance(TestWorkingCopyBackupTracker));
 

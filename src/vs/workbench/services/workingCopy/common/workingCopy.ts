@@ -203,6 +203,10 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	 */
 	backup(token: CancellationToken): Promise<IWorkingCopyBackup>;
 
+	canPersistPackup?: boolean;
+
+	persistBackup?(target: URI, preamble: string, token: CancellationToken): Promise<void>;
+
 	/**
 	 * Asks the working copy to save. If the working copy was dirty, it is
 	 * expected to be non-dirty after this operation has finished.

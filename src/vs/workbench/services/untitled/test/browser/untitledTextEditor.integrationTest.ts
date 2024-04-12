@@ -47,7 +47,7 @@ suite('Untitled text editors', () => {
 
 		const backup = await originalModel.backup(CancellationToken.None);
 		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: restoredInput.resource };
-		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
+		await accessor.workingCopyBackupService.backupContent(modelRestoredIdentifier, backup.content);
 
 		const restoredModel = disposables.add(await restoredInput.resolve());
 

@@ -186,16 +186,24 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString(), workingCopy.typeId);
 
 				try {
-					const backup = await workingCopy.backup(cts.token);
-					if (cts.token.isCancellationRequested) {
-						return;
+					if (workingCopy.canPersistPackup) {
+						await this.workingCopyBackupService.delegatedBackup(async (target, preamble) => {
+							await workingCopy.persistBackup!(target, preamble, cts.token);
+							return true;
+						}, workingCopyIdentifier, this.getContentVersion(workingCopy), undefined, cts.token);
+					} else {
+						const backup = await workingCopy.backup(cts.token);
+						if (cts.token.isCancellationRequested) {
+							return;
+						}
+
+						if (workingCopy.isModified()) {
+							this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString(), workingCopy.typeId);
+
+							await this.workingCopyBackupService.backupContent(workingCopy, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
+						}
 					}
 
-					if (workingCopy.isModified()) {
-						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString(), workingCopy.typeId);
-
-						await this.workingCopyBackupService.backup(workingCopy, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
-					}
 				} catch (error) {
 					this.logService.error(error);
 				}

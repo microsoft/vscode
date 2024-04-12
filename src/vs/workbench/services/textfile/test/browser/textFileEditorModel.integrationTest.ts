@@ -54,7 +54,7 @@ suite('Files - TextFileEditorModel (integration)', () => {
 
 		const backup = await originalModel.backup(CancellationToken.None);
 		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: resourceB };
-		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
+		await accessor.workingCopyBackupService.backupContent(modelRestoredIdentifier, backup.content);
 
 		const modelRestored: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, modelRestoredIdentifier.resource, 'utf8', undefined));
 		await modelRestored.resolve();
