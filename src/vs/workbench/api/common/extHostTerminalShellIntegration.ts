@@ -62,7 +62,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		// 	console.log('*** onDidStartTerminalShellExecution', e);
 		// 	// new Promise<void>(r => {
 		// 	// 	(async () => {
-		// 	// 		for await (const d of e.read()) {
+		// 	// 		for await (const d of e.execution.read()) {
 		// 	// 			console.log('data2', d);
 		// 	// 		}
 		// 	// 	})();
