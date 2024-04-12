@@ -551,7 +551,9 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	private _getAriaLabel(title: string): string {
-		if (!this.viewDescriptorService.getViewDescriptorById(this.id)?.accessibilityHelpContent || !this.storageService?.getBoolean(`ACCESSIBLE_VIEW_SHOWN_${this.id}`, StorageScope.APPLICATION, false)) {
+		const viewHasAccessibilityHelpContent = this.viewDescriptorService.getViewDescriptorById(this.id)?.accessibilityHelpContent;
+		const accessibleViewHasShownForView = this.storageService?.getBoolean(`ACCESSIBLE_VIEW_SHOWN_${this.id}`, StorageScope.APPLICATION, false);
+		if (!viewHasAccessibilityHelpContent || accessibleViewHasShownForView) {
 			return title;
 		}
 
