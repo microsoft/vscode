@@ -242,7 +242,7 @@ const configuration: IConfigurationNode = {
 			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.TerminalCommandFailed]: {
-			'markdownDescription': localize('announcement.terminalCommandFailed', "Indicates when a terminal command fails (non-zero exit code). Also see {0}. This will ", '`#audioCues.terminalCommandFailed#`'),
+			'markdownDescription': localize('announcement.terminalCommandFailed', "Indicates when a terminal command fails (non-zero exit code). Also see {0}.", '`#audioCues.terminalCommandFailed#`'),
 			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.TaskFailed]: {
