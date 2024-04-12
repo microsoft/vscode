@@ -512,7 +512,7 @@ class ContentHoverVisibleData {
 }
 
 const HORIZONTAL_SCROLLING_BY = 30;
-const CONTAINER_HEIGHT_PADDING = 2;
+const CONTAINER_HEIGHT_PADDING = 4;
 
 export class ContentHoverWidget extends ResizableContentWidget {
 
