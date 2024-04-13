@@ -309,7 +309,7 @@ declare module 'vscode' {
 		 * `push(new ChatResponseMarkdownPart(value))`.
 		 *
 		 * @see {@link ChatResponseStream.push}
-		 * @param value A markdown string or a string that should be interpreted as markdown.
+		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
 		 * @returns This stream.
 		 */
 		markdown(value: string | MarkdownString): ChatResponseStream;
@@ -373,6 +373,7 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseMarkdownPart {
+		/** Note: The boolean form of {@link MarkdownString.isTrusted} is NOT supported. */
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
 	}

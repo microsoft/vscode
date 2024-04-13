@@ -163,7 +163,7 @@ suite('ChatService', () => {
 
 			await response.responseCompletePromise;
 
-			serializedChatData = chatModel1.toJSON();
+			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
 		}
 
 		// try deserializing the state into a new service

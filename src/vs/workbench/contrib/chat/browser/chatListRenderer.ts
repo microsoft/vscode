@@ -953,14 +953,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposables = new DisposableStore();
 
-		markdown = new MarkdownString(markdown.value, {
-			isTrusted: {
-				// Disable all other config options except isTrusted
-				enabledCommands: typeof markdown.isTrusted === 'object' ? markdown.isTrusted?.enabledCommands : [] ?? []
-			},
-			supportHtml: true
-		});
-
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
 		const codeblocks: IChatCodeBlockInfo[] = [];

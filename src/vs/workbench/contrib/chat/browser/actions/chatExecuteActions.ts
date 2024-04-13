@@ -157,19 +157,26 @@ export class CancelAction extends Action2 {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,
 				group: 'navigation',
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Escape,
 			}
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext = args[0];
-		if (!context.widget) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
 			return;
 		}
 
 		const chatService = accessor.get(IChatService);
-		if (context.widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(context.widget.viewModel.sessionId);
+		if (widget.viewModel) {
+			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionId);
 		}
 	}
 }
