@@ -105,12 +105,12 @@ export class TextureAtlas extends Disposable {
 
 	// TODO: Color, style etc.
 	public getGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
-		let glyph: ITextureAtlasGlyph | undefined = this._glyphMap.get(chars, tokenFg);
-		if (glyph) {
-			return glyph;
-		}
+		return this._glyphMap.get(chars, tokenFg) ?? this._createGlyph(chars, tokenFg);
+	}
+
+	private _createGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
 		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars, this._colorMap[tokenFg]);
-		glyph = this._allocator.allocate(rasterizedGlyph);
+		const glyph = this._allocator.allocate(rasterizedGlyph);
 		this._glyphMap.set(chars, tokenFg, glyph);
 		this._glyphInOrderSet.add(glyph);
 		this.hasChanges = true;

@@ -6,10 +6,11 @@
 import { getActiveDocument, getActiveWindow } from 'vs/base/browser/dom';
 import { debounce } from 'vs/base/common/decorators';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import { TextureAtlas } from 'vs/editor/browser/view/gpu/textureAtlas';
+import { TextureAtlas, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import type { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -534,6 +535,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	}
 
 	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
+		// Pre-allocate variables to be shared within the loop - don't trust the JIT compiler to do
+		// this optimization to avoid additional blocking time in garbage collector
 		let chars = '';
 		let y = 0;
 		let x = 0;
@@ -544,6 +547,15 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		let wgslX = 0;
 		let wgslY = 0;
 		let xOffset = 0;
+		let glyph: ITextureAtlasGlyph;
+		let cellIndex = 0;
+		let tokenStartIndex = 0;
+		let tokenEndIndex = 0;
+		let tokenFg = 0;
+		let lineData: ViewLineRenderingData;
+		let content: string = '';
+		let fillStartIndex = 0;
+		let fillEndIndex = 0;
 
 		let tokens: IViewLineTokens;
 
@@ -576,8 +588,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
-			const lineData = viewportData.getViewLineRenderingData(y);
-			const content = lineData.content;
+			lineData = viewportData.getViewLineRenderingData(y);
+			content = lineData.content;
 			xOffset = 0;
 
 			// TODO: Handle colors via viewLineRenderingData.tokens
@@ -611,9 +623,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			// );
 
 			tokens = lineData.tokens;
-			let tokenStartIndex = lineData.minColumn - 1;
-			let tokenEndIndex = 0;
-			let tokenFg: number;
+			tokenStartIndex = lineData.minColumn - 1;
+			tokenEndIndex = 0;
 			for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
 				tokenEndIndex = tokens.getEndOffset(tokenIndex);
 				if (tokenEndIndex <= tokenStartIndex) {
@@ -640,7 +651,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 						continue;
 					}
 
-					const glyph = this._textureAtlas.getGlyph(chars, tokenFg);
+					glyph = this._textureAtlas.getGlyph(chars, tokenFg);
 
 					screenAbsoluteX = Math.round((x + xOffset) * 7 * activeWindow.devicePixelRatio);
 					screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
@@ -649,7 +660,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 					wgslX = zeroToOneX * 2 - 1;
 					wgslY = zeroToOneY * 2 - 1;
 
-					const cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x + xOffset)) * Constants.IndicesPerCell;
+					cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x + xOffset)) * Constants.IndicesPerCell;
 					cellBuffer[cellIndex + 0] = wgslX;       // x
 					cellBuffer[cellIndex + 1] = -wgslY;      // y
 					cellBuffer[cellIndex + 2] = 0;
@@ -662,8 +673,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			}
 
 			// Clear to end of line
-			const fillStartIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (tokenEndIndex + xOffset)) * Constants.IndicesPerCell;
-			const fillEndIndex = (y * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
+			fillStartIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (tokenEndIndex + xOffset)) * Constants.IndicesPerCell;
+			fillEndIndex = (y * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
 			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 
 			upToDateLines.add(y);
