@@ -184,95 +184,97 @@ export class WorkbenchToolBar extends ToolBar {
 		coalesceInPlace(extraSecondary);
 		super.setActions(primary, Separator.join(extraSecondary, secondary));
 
-		// add context menu for toggle actions
-		this._sessionDisposables.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
-			const event = new StandardMouseEvent(getWindow(this.getElement()), e);
+		// add context menu for toggle and configure keybinding actions
+		if (toggleActions.length > 0 || primary.length > 0) {
+			this._sessionDisposables.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
+				const event = new StandardMouseEvent(getWindow(this.getElement()), e);
 
-			const action = this.getItemAction(event.target);
-			if (!(action)) {
-				return;
-			}
-			event.preventDefault();
-			event.stopPropagation();
+				const action = this.getItemAction(event.target);
+				if (!(action)) {
+					return;
+				}
+				event.preventDefault();
+				event.stopPropagation();
 
-			const primaryActions = [];
+				const primaryActions = [];
 
-			// -- Configure Keybinding Action --
-			if (action instanceof MenuItemAction && action.menuKeybinding) {
-				primaryActions.push(action.menuKeybinding);
-			} else if (!(action instanceof SubmenuItemAction || action instanceof ToggleMenuAction)) {
-				primaryActions.push(createConfigureKeybindingAction(action.id, undefined, this._commandService, this._keybindingService));
-			}
+				// -- Configure Keybinding Action --
+				if (action instanceof MenuItemAction && action.menuKeybinding) {
+					primaryActions.push(action.menuKeybinding);
+				} else if (!(action instanceof SubmenuItemAction || action instanceof ToggleMenuAction)) {
+					primaryActions.push(createConfigureKeybindingAction(action.id, undefined, this._commandService, this._keybindingService));
+				}
 
-			// -- Hide Actions --
-			if (toggleActions.length > 0) {
-				let noHide = false;
+				// -- Hide Actions --
+				if (toggleActions.length > 0) {
+					let noHide = false;
 
-				// last item cannot be hidden when using ignore strategy
-				if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore) {
-					noHide = true;
-					for (let i = 0; i < toggleActions.length; i++) {
-						if (toggleActions[i].checked) {
-							toggleActions[i] = toAction({
-								id: action.id,
-								label: action.label,
-								checked: true,
-								enabled: false,
-								run() { }
-							});
-							break; // there is only one
+					// last item cannot be hidden when using ignore strategy
+					if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore) {
+						noHide = true;
+						for (let i = 0; i < toggleActions.length; i++) {
+							if (toggleActions[i].checked) {
+								toggleActions[i] = toAction({
+									id: action.id,
+									label: action.label,
+									checked: true,
+									enabled: false,
+									run() { }
+								});
+								break; // there is only one
+							}
 						}
 					}
+
+					// add "hide foo" actions
+					if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
+						if (!action.hideActions) {
+							// no context menu for MenuItemAction instances that support no hiding
+							// those are fake actions and need to be cleaned up
+							return;
+						}
+						primaryActions.push(action.hideActions.hide);
+
+					} else {
+						primaryActions.push(toAction({
+							id: 'label',
+							label: localize('hide', "Hide"),
+							enabled: false,
+							run() { }
+						}));
+					}
 				}
 
-				// add "hide foo" actions
-				if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
-					if (!action.hideActions) {
-						// no context menu for MenuItemAction instances that support no hiding
-						// those are fake actions and need to be cleaned up
-						return;
-					}
-					primaryActions.push(action.hideActions.hide);
+				const actions = Separator.join(primaryActions, toggleActions);
 
-				} else {
-					primaryActions.push(toAction({
-						id: 'label',
-						label: localize('hide', "Hide"),
-						enabled: false,
-						run() { }
+				// add "Reset Menu" action
+				if (this._options?.resetMenu && !menuIds) {
+					menuIds = [this._options.resetMenu];
+				}
+				if (someAreHidden && menuIds) {
+					actions.push(new Separator());
+					actions.push(toAction({
+						id: 'resetThisMenu',
+						label: localize('resetThisMenu', "Reset Menu"),
+						run: () => this._menuService.resetHiddenStates(menuIds)
 					}));
 				}
-			}
 
-			const actions = Separator.join(primaryActions, toggleActions);
+				if (actions.length === 0) {
+					return;
+				}
 
-			// add "Reset Menu" action
-			if (this._options?.resetMenu && !menuIds) {
-				menuIds = [this._options.resetMenu];
-			}
-			if (someAreHidden && menuIds) {
-				actions.push(new Separator());
-				actions.push(toAction({
-					id: 'resetThisMenu',
-					label: localize('resetThisMenu', "Reset Menu"),
-					run: () => this._menuService.resetHiddenStates(menuIds)
-				}));
-			}
-
-			if (actions.length === 0) {
-				return;
-			}
-
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => event,
-				getActions: () => actions,
-				// add context menu actions (iff appicable)
-				menuId: this._options?.contextMenu,
-				menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
-				skipTelemetry: typeof this._options?.telemetrySource === 'string',
-				contextKeyService: this._contextKeyService,
-			});
-		}));
+				this._contextMenuService.showContextMenu({
+					getAnchor: () => event,
+					getActions: () => actions,
+					// add context menu actions (iff appicable)
+					menuId: this._options?.contextMenu,
+					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					skipTelemetry: typeof this._options?.telemetrySource === 'string',
+					contextKeyService: this._contextKeyService,
+				});
+			}));
+		}
 	}
 }
 
