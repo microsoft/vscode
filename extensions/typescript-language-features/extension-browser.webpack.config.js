@@ -61,7 +61,7 @@ module.exports = [withBrowserDefaults({
 				}))
 			],
 		}),
-	],
+	], 
 }), withBrowserDefaults({
 	context: __dirname,
 	entry: {

@@ -20,7 +20,7 @@ export class Logger {
 	constructor(logLevel: LogLevel | undefined) {
 		const doLog = typeof logLevel === 'undefined'
 			? (_message: string) => { }
-			: (message: string) => { postMessage({ type: 'log', body: message }); };
+			: (message: string) => { console.log(message)}
 
 		this.tsLogger = {
 			close: () => { },
