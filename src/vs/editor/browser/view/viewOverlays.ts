@@ -15,6 +15,7 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { disableNonGpuRendering } from 'vs/editor/browser/view/gpu/gpuViewLayer';
 
 export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
 
@@ -123,6 +124,9 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	// ----- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
+		if (disableNonGpuRendering) {
+			return;
+		}
 		const toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
 
 		for (let i = 0, len = toRender.length; i < len; i++) {
@@ -133,6 +137,9 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
+		if (disableNonGpuRendering) {
+			return;
+		}
 		// Overwriting to bypass `shouldRender` flag
 		this._viewOverlaysRender(ctx);
 
@@ -140,6 +147,9 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	}
 
 	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
+		if (disableNonGpuRendering) {
+			return;
+		}
 		this._visibleLines.renderLines(ctx.viewportData, true);
 	}
 }
@@ -175,6 +185,9 @@ export class ViewOverlayLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+		if (disableNonGpuRendering) {
+			return false;
+		}
 		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			const dynamicOverlay = this._dynamicOverlays[i];
@@ -239,6 +252,9 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	override _viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
+		if (disableNonGpuRendering) {
+			return;
+		}
 
 		this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
 	}
@@ -278,6 +294,9 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	override _viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
+		if (disableNonGpuRendering) {
+			return;
+		}
 		const height = Math.min(ctx.scrollHeight, 1000000);
 		this.domNode.setHeight(height);
 		this.domNode.setWidth(this._contentLeft);

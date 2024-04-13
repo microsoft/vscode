@@ -15,6 +15,7 @@ import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouse
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { disableNonGpuRendering } from 'vs/editor/browser/view/gpu/gpuViewLayer';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
@@ -429,11 +430,17 @@ export class View extends ViewEventHandler {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();
 					}
+					if (disableNonGpuRendering) {
+						return;
+					}
 					return rendering.prepareRender(viewParts, ctx);
 				},
 				render: (viewParts: ViewPart[], ctx: RestrictedRenderingContext) => {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();
+					}
+					if (disableNonGpuRendering) {
+						return;
 					}
 					return rendering.render(viewParts, ctx);
 				}

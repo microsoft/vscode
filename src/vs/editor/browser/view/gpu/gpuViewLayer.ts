@@ -14,6 +14,8 @@ import type { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
+export const disableNonGpuRendering = true;
+
 interface IRendererContext<T extends IVisibleLine> {
 	rendLineNumberStart: number;
 	lines: T[];
