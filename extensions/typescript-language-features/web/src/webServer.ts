@@ -20,7 +20,7 @@ async function initializeSession(
 	extensionUri: URI,
 	ports: { tsserver: MessagePort; sync: MessagePort; watcher: MessagePort },
 ): Promise<void> {
-	const logLevel = parseLogLevel(findArgument(args, '--logVerbosity'));
+	const logLevel = parseLogLevel(findArgument(args, '--logVerbosity') ?? "verbose");
 	const logger = new Logger(logLevel);
 
 	const modeOrUnknown = parseServerMode(args);
@@ -60,6 +60,7 @@ function parseSessionOptions(args: readonly string[], serverMode: ts.LanguageSer
 
 let hasInitialized = false;
 const listener = async (e: any) => {
+	console.log('>>> received message: ' + Object.keys(e));
 	if (!hasInitialized) {
 		hasInitialized = true;
 		if ('args' in e.data) {

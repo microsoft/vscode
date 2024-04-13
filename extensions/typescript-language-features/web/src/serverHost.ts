@@ -11,6 +11,7 @@ import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
+import membraneTsPlugin from '../../../membrane-ts-plugin/src/index'
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
@@ -71,27 +72,13 @@ function createServerHost(
 			this.clearTimeout(timeoutId);
 		},
 		importPlugin: async (root, moduleName) => {
-			const packageRoot = combinePaths(root, moduleName);
-
-			let packageJson: any | undefined;
+			const scriptPath = combinePaths(root, moduleName);
 			try {
-				const packageJsonResponse = await fetch(combinePaths(packageRoot, 'package.json'));
-				packageJson = await packageJsonResponse.json();
+				// Dynamically import the script using the constructed path
+				// This assumes the script is accessible via your web server and is correctly set up to be imported as a module
+				return { module: membraneTsPlugin, error: undefined };
 			} catch (e) {
-				return { module: undefined, error: new Error(`Could not load plugin. Could not load 'package.json'.`) };
-			}
-
-			const browser = packageJson.browser;
-			if (!browser) {
-				return { module: undefined, error: new Error(`Could not load plugin. No 'browser' field found in package.json.`) };
-			}
-
-			const scriptPath = combinePaths(packageRoot, browser);
-			try {
-				const { default: module } = await import(/* webpackIgnore: true */ scriptPath);
-				return { module, error: undefined };
-			} catch (e) {
-				return { module: undefined, error: e };
+				return { module: undefined, error: new Error(`Could not load plugin from ${scriptPath}`) };
 			}
 		},
 		args: Array.from(args),

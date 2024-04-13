@@ -154,7 +154,17 @@ class WorkerServerProcess implements TsServerProcess {
 	}
 
 	write(serverRequest: Proto.Request): void {
-		this._tsserver.postMessage(serverRequest);
+    const { arguments: args } = serverRequest;
+    const transfer = args.configuration && args.configuration.transfer;
+    const request = {
+        ...serverRequest,
+        arguments: args, 
+    };
+    if (transfer) {
+        this._tsserver.postMessage(request, transfer);
+    } else {
+        this._tsserver.postMessage(serverRequest);
+    }
 	}
 
 	onData(handler: (response: Proto.Response) => void): void {
