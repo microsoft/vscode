@@ -3072,7 +3072,7 @@ export interface IEditorMinimapOptions {
 	 * When specified, is used to create a custom section header parser regexp.
 	 * It must contain a match group that detects the header
 	 */
-	sectionHeaderTemplateRegExp?: string;
+	sectionHeaderDetectionRegExp?: string;
 
 	/**
 	 * Font size of section headers. Defaults to 9.
@@ -3099,7 +3099,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			scale: 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
-			sectionHeaderTemplateRegExp: '\\bMARK:\\s*(.*)$',
+			sectionHeaderDetectionRegExp: '\\bMARK:\\s*(.*)$',
 			sectionHeaderFontSize: 9,
 		};
 		super(
@@ -3166,10 +3166,10 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					default: defaults.showMarkSectionHeaders,
 					description: nls.localize('minimap.showMarkSectionHeaders', "Controls whether MARK: comments are shown as section headers in the minimap.")
 				},
-				'editor.minimap.sectionHeaderTemplateRegExp': {
+				'editor.minimap.sectionHeaderDetectionRegExp': {
 					type: 'string',
-					default: defaults.sectionHeaderTemplateRegExp,
-					description: nls.localize('minimap.customSectionHeaderTemplateRegExp', "Defines the regular expression used to detect the section headers in comments. The regular expression should be for parsing a line and must contain a match group that is the title of the section header.")
+					default: defaults.sectionHeaderDetectionRegExp,
+					description: nls.localize('minimap.sectionHeaderDetectionRegExp', "Defines the regular expression used to find section headers in comments. It must contain a match group that encapsulates the section header, otherwise it will not work. And keep in mind that the expression takes the whole line so it is advised to use `$`, and don't include the language's comment sign (say `//` for TypeScript, `#` for Python) if you intend for it to work in all languages.")
 				},
 				'editor.minimap.sectionHeaderFontSize': {
 					type: 'number',
@@ -3186,15 +3186,15 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 		}
 		const input = _input as IEditorMinimapOptions;
 
-		// validating the sectionHeaderTemplateRegExp's regexps
+		// validating the sectionHeaderDetectionRegExp's regexps
 		// we test if the children are string and can be compiled as
 		// regular expressions.
-		let sectionHeaderTemplateRegExp = this.defaultValue.sectionHeaderTemplateRegExp;
-		const inputRegExp = _input.sectionHeaderTemplateRegExp;
+		let sectionHeaderDetectionRegExp = this.defaultValue.sectionHeaderDetectionRegExp;
+		const inputRegExp = _input.sectionHeaderDetectionRegExp;
 		if (typeof inputRegExp == 'string') {
 			try {
 				new RegExp(inputRegExp as string);
-				sectionHeaderTemplateRegExp = inputRegExp as string;
+				sectionHeaderDetectionRegExp = inputRegExp as string;
 			} catch { }
 		}
 
@@ -3209,7 +3209,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
 			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
-			sectionHeaderTemplateRegExp: sectionHeaderTemplateRegExp,
+			sectionHeaderDetectionRegExp: sectionHeaderDetectionRegExp,
 			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
 		};
 	}
