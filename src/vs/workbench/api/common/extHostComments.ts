@@ -397,7 +397,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		private _commentsMap: Map<vscode.Comment, number> = new Map<vscode.Comment, number>();
 
-		private _acceptInputDisposables = new MutableDisposable<DisposableStore>();
+		private readonly _acceptInputDisposables = new MutableDisposable<DisposableStore>();
 
 		readonly value: vscode.CommentThread2;
 

@@ -137,6 +137,7 @@ export interface ITerminalConfiguration {
 	macOptionClickForcesSelection: boolean;
 	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
+	middleClickBehavior: 'default' | 'paste';
 	cursorBlinking: boolean;
 	cursorStyle: 'block' | 'underline' | 'line';
 	cursorStyleInactive: 'outline' | 'block' | 'underline' | 'line' | 'none';
@@ -175,6 +176,7 @@ export interface ITerminalConfiguration {
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
+	allowedLinkSchemes: string[];
 	unicodeVersion: '6' | '11';
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;

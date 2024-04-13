@@ -391,7 +391,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 					break;
 				}
 			}
-			if (!differentGroups) {
+			if (!differentGroups && group.terminalInstances.length === instances.length) {
 				return;
 			}
 		}

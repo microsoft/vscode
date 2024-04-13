@@ -320,9 +320,11 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	const inFullscreen = isFullscreen(window);
 	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
 
-	const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-	if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
-		return false;
+	if (!isWeb) {
+		const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
+			return false;
+		}
 	}
 
 	if (!isTitleBarEmpty(configurationService)) {

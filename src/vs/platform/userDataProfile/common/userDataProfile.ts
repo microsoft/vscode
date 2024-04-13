@@ -335,7 +335,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				try {
 					const existing = this.profiles.find(p => p.name === name || p.id === id);
 					if (existing) {
-						return existing;
+						throw new Error(`Profile with ${name} name already exists`);
 					}
 
 					const profile = toUserDataProfile(id, name, joinPath(this.profilesHome, id), this.profilesCacheHome, options, this.defaultProfile);

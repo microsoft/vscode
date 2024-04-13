@@ -10,7 +10,7 @@ use crate::options::Quality;
 use crate::rpc::{MaybeSync, RpcBuilder, RpcCaller, RpcDispatcher};
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
-use crate::tunnels::protocol::{HttpRequestParams, METHOD_CHALLENGE_ISSUE};
+use crate::tunnels::protocol::{HttpRequestParams, PortPrivacy, METHOD_CHALLENGE_ISSUE};
 use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, Release, TargetKind, UpdateService};
 use crate::util::command::new_tokio_command;
@@ -1077,8 +1077,16 @@ async fn handle_forward(
 	let port_forwarding = port_forwarding
 		.as_ref()
 		.ok_or(CodeError::PortForwardingNotAvailable)?;
-	info!(log, "Forwarding port {}", params.port);
-	let uri = port_forwarding.forward(params.port).await?;
+	info!(
+		log,
+		"Forwarding port {} (public={})", params.port, params.public
+	);
+	let privacy = match params.public {
+		true => PortPrivacy::Public,
+		false => PortPrivacy::Private,
+	};
+
+	let uri = port_forwarding.forward(params.port, privacy).await?;
 	Ok(ForwardResult { uri })
 }
 

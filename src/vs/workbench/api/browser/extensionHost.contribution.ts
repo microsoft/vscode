@@ -76,7 +76,6 @@ import './mainThreadNotebookRenderers';
 import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
 import './mainThreadInlineChat';
-import './mainThreadChat';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
@@ -88,7 +87,6 @@ import './mainThreadShare';
 import './mainThreadProfileContentHandlers';
 import './mainThreadAiRelatedInformation';
 import './mainThreadAiEmbeddingVector';
-import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

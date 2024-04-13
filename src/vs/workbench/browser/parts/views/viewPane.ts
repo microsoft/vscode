@@ -7,7 +7,6 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
@@ -23,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, PartialExcept } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -47,9 +46,12 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { PANEL_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from 'vs/workbench/common/theme';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -351,11 +353,11 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
-	private titleContainerHover?: ICustomHover;
+	private titleContainerHover?: IUpdatableHover;
 	private titleDescriptionContainer?: HTMLElement;
-	private titleDescriptionContainerHover?: ICustomHover;
+	private titleDescriptionContainerHover?: IUpdatableHover;
 	private iconContainer?: HTMLElement;
-	private iconContainerHover?: ICustomHover;
+	private iconContainerHover?: IUpdatableHover;
 	protected twistiesContainer?: HTMLElement;
 	private viewWelcomeController!: ViewWelcomeController;
 
@@ -372,6 +374,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IOpenerService protected openerService: IOpenerService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
+		@IHoverService protected readonly hoverService: IHoverService
 	) {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
@@ -535,13 +538,13 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const calculatedTitle = this.calculateTitle(title);
 		this.titleContainer = append(container, $('h3.title', {}, calculatedTitle));
-		this.titleContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
+		this.titleContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
 
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
 		}
 
-		this.iconContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
+		this.iconContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
 		this.iconContainer.setAttribute('aria-label', calculatedTitle);
 	}
 
@@ -568,7 +571,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 		else if (description && this.titleContainer) {
 			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
-			this.titleDescriptionContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
+			this.titleDescriptionContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
 	}
 
@@ -627,16 +630,8 @@ export abstract class ViewPane extends Pane implements IView {
 		return this.viewDescriptorService.getViewContainerByViewId(this.id)!.id;
 	}
 
-	protected getBackgroundColor(): string {
-		switch (this.viewDescriptorService.getViewLocationById(this.id)) {
-			case ViewContainerLocation.Panel:
-				return PANEL_BACKGROUND;
-			case ViewContainerLocation.Sidebar:
-			case ViewContainerLocation.AuxiliaryBar:
-				return SIDE_BAR_BACKGROUND;
-		}
-
-		return SIDE_BAR_BACKGROUND;
+	protected getLocationBasedColors(): IViewPaneLocationColors {
+		return getLocationBasedViewColors(this.viewDescriptorService.getViewLocationById(this.id));
 	}
 
 	focus(): void {
@@ -734,8 +729,9 @@ export abstract class FilterViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
 	}
 
@@ -776,6 +772,42 @@ export abstract class FilterViewPane extends ViewPane {
 
 	protected abstract layoutBodyContent(height: number, width: number): void;
 
+}
+
+export interface IViewPaneLocationColors {
+	background: string;
+	listOverrideStyles: PartialExcept<IListStyles, 'listBackground' | 'treeStickyScrollBackground'>;
+}
+
+export function getLocationBasedViewColors(location: ViewContainerLocation | null): IViewPaneLocationColors {
+	let background, stickyScrollBackground, stickyScrollBorder, stickyScrollShadow;
+
+	switch (location) {
+		case ViewContainerLocation.Panel:
+			background = PANEL_BACKGROUND;
+			stickyScrollBackground = PANEL_STICKY_SCROLL_BACKGROUND;
+			stickyScrollBorder = PANEL_STICKY_SCROLL_BORDER;
+			stickyScrollShadow = PANEL_STICKY_SCROLL_SHADOW;
+			break;
+
+		case ViewContainerLocation.Sidebar:
+		case ViewContainerLocation.AuxiliaryBar:
+		default:
+			background = SIDE_BAR_BACKGROUND;
+			stickyScrollBackground = SIDE_BAR_STICKY_SCROLL_BACKGROUND;
+			stickyScrollBorder = SIDE_BAR_STICKY_SCROLL_BORDER;
+			stickyScrollShadow = SIDE_BAR_STICKY_SCROLL_SHADOW;
+	}
+
+	return {
+		background,
+		listOverrideStyles: {
+			listBackground: background,
+			treeStickyScrollBackground: stickyScrollBackground,
+			treeStickyScrollBorder: stickyScrollBorder,
+			treeStickyScrollShadow: stickyScrollShadow
+		}
+	};
 }
 
 export abstract class ViewAction<T extends IView> extends Action2 {

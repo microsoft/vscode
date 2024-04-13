@@ -433,7 +433,11 @@ impl<'a> ServerBuilder<'a> {
 				.await?;
 
 				let server_dir = target_dir.join(SERVER_FOLDER_NAME);
-				unzip_downloaded_release(&archive_path, &server_dir, SilentCopyProgress())?;
+				unzip_downloaded_release(
+					&archive_path,
+					&server_dir,
+					self.logger.get_download_logger("server inflate progress:"),
+				)?;
 
 				if !skip_requirements_check().await {
 					let output = capture_command_and_check_status(
@@ -602,7 +606,9 @@ impl<'a> ServerBuilder<'a> {
 		// Original issue: https://github.com/microsoft/vscode/issues/184058
 		// Partial fix: https://github.com/microsoft/vscode/pull/184621
 		#[cfg(target_os = "windows")]
-		let cmd = cmd.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+		let cmd = cmd.creation_flags(
+			winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+		);
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())

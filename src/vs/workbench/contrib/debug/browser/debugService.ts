@@ -581,8 +581,6 @@ export class DebugService implements IDebugService {
 		}
 
 		this.model.addSession(session);
-		// register listeners as the very first thing!
-		this.registerSessionListeners(session);
 
 		// since the Session is now properly registered under its ID and hooked, we can announce it
 		// this event doesn't go to extensions
@@ -641,6 +639,9 @@ export class DebugService implements IDebugService {
 	}
 
 	private async launchOrAttachToSession(session: IDebugSession, forceFocus = false): Promise<void> {
+		// register listeners as the very first thing!
+		this.registerSessionListeners(session);
+
 		const dbgr = this.adapterManager.getDebugger(session.configuration.type);
 		try {
 			await session.initialize(dbgr!);
@@ -659,7 +660,7 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	private registerSessionListeners(session: DebugSession): void {
+	private registerSessionListeners(session: IDebugSession): void {
 		const listenerDisposables = new DisposableStore();
 		this.disposables.add(listenerDisposables);
 
@@ -678,7 +679,7 @@ export class DebugService implements IDebugService {
 			}
 		}));
 		listenerDisposables.add(this.onDidEndSession(e => {
-			if (e.session === session && !e.restart) {
+			if (e.session === session) {
 				this.disposables.delete(listenerDisposables);
 			}
 		}));
