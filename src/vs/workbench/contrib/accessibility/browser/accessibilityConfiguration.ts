@@ -428,14 +428,14 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.terminalCommandFailed': {
 			...signalFeatureBase,
-			'description': localize('accessibility.signals.terminalCommandFailed', "Plays a signal when a terminal command fails (non-zero exit code)."),
+			'description': localize('accessibility.signals.terminalCommandFailed', "Plays a signal when a terminal command fails (non-zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
 			'properties': {
 				'sound': {
-					'description': localize('accessibility.signals.terminalCommandFailed.sound', "Plays a sound when a terminal command fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.terminalCommandFailed.sound', "Plays a sound when a terminal command fails (non-zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.terminalCommandFailed.announcement', "Indicates when a terminal command fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.terminalCommandFailed.announcement', "Indicates when a terminal command fails (non-zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
 					...announcementFeatureBase
 				},
 			}

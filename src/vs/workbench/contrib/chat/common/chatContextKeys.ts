@@ -21,8 +21,7 @@ export const CONTEXT_CHAT_INPUT_HAS_FOCUS = new RawContextKey<boolean>('chatInpu
 export const CONTEXT_IN_CHAT_INPUT = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 export const CONTEXT_IN_CHAT_SESSION = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 
-// TODO call it 'has default agent'
-export const CONTEXT_HAS_DEFAULT_AGENT = new RawContextKey<boolean>('hasChatProvider', false, { type: 'boolean', description: localize('hasChatProvider', "True when some chat provider has been registered.") });
+export const CONTEXT_CHAT_ENABLED = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is registered.") });
 export const CONTEXT_CHAT_INPUT_CURSOR_AT_TOP = new RawContextKey<boolean>('chatCursorAtTop', false);
 export const CONTEXT_CHAT_INPUT_HAS_AGENT = new RawContextKey<boolean>('chatInputHasAgent', false);
 export const CONTEXT_CHAT_LOCATION = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);

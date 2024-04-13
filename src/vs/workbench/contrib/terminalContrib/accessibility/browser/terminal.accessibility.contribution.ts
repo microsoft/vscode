@@ -31,6 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Event } from 'vs/base/common/event';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
@@ -76,7 +77,8 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
@@ -179,7 +181,11 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		if (!filteredCommands.length) {
 			return;
 		}
-		this._accessibleViewService.setPosition(new Position(filteredCommands[0].lineNumber, 1), true);
+		const command = filteredCommands[0];
+		this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
+		if (command.exitCode) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
+		}
 	}
 
 	private _getCommandsWithEditorLine(): ICommandWithEditorLine[] | undefined {
@@ -195,7 +201,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			if (!lineNumber) {
 				continue;
 			}
-			result.push({ command, lineNumber });
+			result.push({ command, lineNumber, exitCode: command.exitCode });
 		}
 		if (currentCommand) {
 			const lineNumber = this._getEditorLineForCommand(currentCommand);

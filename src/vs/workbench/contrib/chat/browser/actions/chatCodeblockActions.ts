@@ -29,7 +29,7 @@ import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/br
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext, ICodeCompareBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_HAS_DEFAULT_AGENT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -183,7 +183,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
 				title: localize2('interactive.insertCodeBlock.label', "Insert at Cursor"),
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -349,7 +349,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
 				title: localize2('interactive.insertIntoNewFile.label', "Insert into New File"),
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.newFile,
@@ -403,7 +403,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
 				title: localize2('interactive.runInTerminal.label', "Insert into Terminal"),
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
@@ -521,7 +521,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -543,7 +543,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
-				precondition: CONTEXT_HAS_DEFAULT_AGENT,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -616,6 +616,9 @@ export function registerChatCodeCompareBlockActions() {
 		}
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
+
+			const editorService = accessor.get(IEditorService);
+
 			const model = context.diffEditor.getModel();
 			if (!model) {
 				return;
@@ -635,6 +638,12 @@ export function registerChatCodeCompareBlockActions() {
 			model.original.pushStackElement();
 			model.original.pushEditOperations(null, edits, () => null);
 			model.original.pushStackElement();
+
+
+			await editorService.openEditor({
+				resource: model.original.uri,
+				options: { revealIfVisible: true },
+			});
 		}
 	});
 
