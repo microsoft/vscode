@@ -61,7 +61,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
 			sectionHeaderFontSize: 9,
-			sectionHeaderDetectionRegExp: '\\bMARK:\\s*(.*)$',
+			sectionHeaderDetectionRegExp: '\\bMARK:\\s*(?<separator>\-?)\\s*(?<label>.*)$',
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {

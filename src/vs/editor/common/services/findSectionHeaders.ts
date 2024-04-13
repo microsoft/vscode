@@ -99,10 +99,15 @@ function addMarkHeaderIfFound(lineContent: string, lineNumber: number, sectionHe
 		const column = match.indices![1][0] + 1;
 		const endColumn = match.indices![1][1] + 1;
 		const range = { startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: endColumn };
+
+		const text = (match.groups ?? {})['label'] ?? '';
+		const hasSeparatorLine = ((match.groups ?? {})['separator'] ?? '') !== '';
+
 		if (range.endColumn > range.startColumn) {
 			const sectionHeader = {
 				range,
-				...getHeaderText(match[1]),
+				text,
+				hasSeparatorLine,
 				shouldBeInComments: true
 			};
 			if (sectionHeader.text || sectionHeader.hasSeparatorLine) {

@@ -3099,7 +3099,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			scale: 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
-			sectionHeaderDetectionRegExp: '\\bMARK:\\s*(.*)$',
+			sectionHeaderDetectionRegExp: '\\bMARK:\\s*(?<separator>\-?)\\s*(?<label>.*)$',
 			sectionHeaderFontSize: 9,
 		};
 		super(
@@ -3169,7 +3169,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 				'editor.minimap.sectionHeaderDetectionRegExp': {
 					type: 'string',
 					default: defaults.sectionHeaderDetectionRegExp,
-					description: nls.localize('minimap.sectionHeaderDetectionRegExp', "Defines the regular expression used to find section headers in comments. It must contain a match group that encapsulates the section header, otherwise it will not work. And keep in mind that the expression takes the whole line so it is advised to use `$`, and don't include the language's comment sign (say `//` for TypeScript, `#` for Python) if you intend for it to work in all languages.")
+					description: nls.localize('minimap.sectionHeaderDetectionRegExp', "Defines the regular expression used to find section headers in comments. It must contain a named match group `label` (written as `(?<label>.+)`) that encapsulates the section header, otherwise it will not work. Optionally you can include another match group named `separator`, if this match group captures anything then the separation line will be rendered. And keep in mind that the expression takes the whole line so it is advised to use `$`, and don't include the language's comment sign (say `//` for TypeScript, `#` for Python) if you intend for it to work in all languages.")
 				},
 				'editor.minimap.sectionHeaderFontSize': {
 					type: 'number',
