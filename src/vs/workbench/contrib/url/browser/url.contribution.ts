@@ -20,6 +20,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ITrustedDomainService, TrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
+import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
 
 class OpenUrlAction extends Action2 {
 
@@ -87,3 +89,5 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+registerSingleton(ITrustedDomainService, TrustedDomainService, InstantiationType.Delayed);

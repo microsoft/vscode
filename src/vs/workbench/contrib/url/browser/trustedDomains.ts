@@ -198,7 +198,7 @@ export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): P
 export async function readAuthenticationTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
 	const authenticationService = accessor.get(IAuthenticationService);
 	return authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
-		? [`https://github.com`]
+		? ['https://github.com', 'https://raw.githubusercontent.com', 'https://private-user-images.githubusercontent.com', 'https://avatars.githubusercontent.com', 'https://gist.github.com/']
 		: [];
 }
 

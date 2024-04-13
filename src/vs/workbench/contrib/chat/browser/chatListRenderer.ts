@@ -71,6 +71,7 @@ import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/text
 import { TextEdit } from 'vs/editor/common/languages';
 import { IChatListItemRendererOptions } from './chat';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
 
 const $ = dom.$;
 
@@ -146,6 +147,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
+		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
 	) {
 		super();
 
@@ -958,7 +960,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		let codeBlockIndex = 0;
 		const result = this.renderer.render(markdown, {
-			disallowRemoteImages: true,
+			remoteImageIsAllowed: (uri) => this.trustedDomainService.isValidSync(uri),
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const index = codeBlockIndex++;
