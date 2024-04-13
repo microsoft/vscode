@@ -126,13 +126,22 @@ suite('ChatModel', () => {
 suite('Response', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('markdown, markdown', async () => {
+	test('mergeable markdown', async () => {
 		const response = new Response([]);
 		response.updateContent({ content: new MarkdownString('markdown1'), kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 
 		assert.strictEqual(response.asString(), 'markdown1markdown2');
+	});
+
+	test('not mergeable markdown', async () => {
+		const response = new Response([]);
+		const md1 = new MarkdownString('markdown1');
+		md1.supportHtml = true;
+		response.updateContent({ content: md1, kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
+		await assertSnapshot(response.value);
 	});
 
 	test('inline reference', async () => {
