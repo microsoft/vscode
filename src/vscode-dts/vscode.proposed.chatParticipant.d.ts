@@ -32,10 +32,14 @@ declare module 'vscode' {
 
 		/**
 		 * The variables that were referenced in this message.
+		 * Either
+		 * - a variable which is a skill (#codebase)
+		 * - a variable with an immediate value (#selection) because it's fast and should only be resolved once at the beginning, since it may change. And is probably also a skill.
+		 * - a reference to a resource (#file) which is not a skill
 		 */
-		readonly variables: ChatResolvedVariable[];
+		readonly variables: ChatVariableIdentifier[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: string);
+		private constructor(prompt: string, command: string | undefined, variables: ChatVariableIdentifier[], participant: string);
 	}
 
 	/**
@@ -240,33 +244,6 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	/**
-	 * A resolved variable value is a name-value pair as well as the range in the prompt where a variable was used.
-	 */
-	export interface ChatResolvedVariable {
-		/**
-		 * The name of the variable.
-		 *
-		 * *Note* that the name doesn't include the leading `#`-character,
-		 * e.g `selection` for `#selection`.
-		 */
-		readonly name: string;
-
-		/**
-		 * The start and end index of the variable in the {@link ChatRequest.prompt prompt}.
-		 *
-		 * *Note* that the indices take the leading `#`-character into account which means they can
-		 * used to modify the prompt as-is.
-		 */
-		readonly range?: [start: number, end: number];
-
-		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
-		/**
-		 * The values of the variable. Can be an empty array if the variable doesn't currently have a value.
-		 */
-		readonly values: ChatVariableValue[];
-	}
-
 	export interface ChatRequest {
 		/**
 		 * The prompt as entered by the user.
@@ -293,9 +270,28 @@ declare module 'vscode' {
 		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		// TODO@API Q? are there implicit variables that are not part of the prompt?
-		readonly variables: readonly ChatResolvedVariable[];
+		readonly variables: readonly ChatVariableIdentifier[];
+	}
 
+	export interface ChatVariableIdentifier {
+		/**
+		 * The name of the variable.
+		 *
+		 * *Note* that the name doesn't include the leading `#`-character,
+		 * e.g `selection` for `#selection`.
+		 */
+		readonly name: string;
+
+		/**
+		 * The start and end index of the variable in the {@link ChatAgentRequest.prompt prompt}.
+		 *
+		 * *Note* that the indices take the leading `#`-character into account which means they can
+		 * used to modify the prompt as-is.
+		 */
+		readonly range: [start: number, end: number];
+
+		// If no value, needs to be resolved
+		readonly value: string | Uri | undefined;
 	}
 
 	/**
@@ -434,22 +430,5 @@ declare module 'vscode' {
 		Short = 1,
 		Medium = 2,
 		Full = 3
-	}
-
-	export interface ChatVariableValue {
-		/**
-		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
-		 */
-		level: ChatVariableLevel;
-
-		/**
-		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
-		 */
-		value: string | Uri;
-
-		/**
-		 * A description of this value, which could be provided to the LLM as a hint.
-		 */
-		description?: string;
 	}
 }

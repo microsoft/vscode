@@ -54,6 +54,14 @@ declare module 'vscode' {
 		resolve(name: string, context: ChatVariableContext, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
 
+	export interface ChatSkillOptions {
+		/** Does it show up as a variable in the UI? */
+		isVariable?: boolean; // "manual" skill, "explicit" skill, ...
+
+		/** Is invoked automatically before the chat request is made? */
+		isFast?: boolean;
+	}
+
 	export namespace chat {
 		export function registerSkill(skill: ChatSkill): Disposable;
 
