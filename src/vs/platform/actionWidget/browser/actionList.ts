@@ -130,9 +130,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
-				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
 			} else {
-				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
+				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
 			}
 		} else {
 			data.container.title = '';
@@ -140,7 +140,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	}
 
 	disposeTemplate(_templateData: IActionMenuTemplateData): void {
-		// noop
+		_templateData.keybinding.dispose();
 	}
 }
 
@@ -245,30 +245,35 @@ export class ActionList<T> extends Disposable {
 		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
 		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
 		this._list.layout(heightWithHeaders);
+		let maxWidth = minWidth;
 
-		// For finding width dynamically (not using resize observer)
-		const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
-			const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				return width;
-			}
-			return 0;
-		});
+		if (this._allMenuItems.length >= 50) {
+			maxWidth = 380;
+		} else {
+			// For finding width dynamically (not using resize observer)
+			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
+				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+				if (element) {
+					element.style.width = 'auto';
+					const width = element.getBoundingClientRect().width;
+					element.style.width = '';
+					return width;
+				}
+				return 0;
+			});
 
-		// resize observer - can be used in the future since list widget supports dynamic height but not width
-		const width = Math.max(...itemWidths, minWidth);
+			// resize observer - can be used in the future since list widget supports dynamic height but not width
+			maxWidth = Math.max(...itemWidths, minWidth);
+		}
 
 		const maxVhPrecentage = 0.7;
 		const height = Math.min(heightWithHeaders, this.domNode.ownerDocument.body.clientHeight * maxVhPrecentage);
-		this._list.layout(height, width);
+		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;
 
 		this._list.domFocus();
-		return width;
+		return maxWidth;
 	}
 
 	focusPrevious() {
@@ -309,7 +314,6 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private onFocus() {
-		this._list.domFocus();
 		const focused = this._list.getFocus();
 		if (focused.length === 0) {
 			return;

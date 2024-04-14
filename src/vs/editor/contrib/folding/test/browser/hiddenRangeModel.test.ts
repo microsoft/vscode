@@ -18,6 +18,8 @@ interface ExpectedRange {
 }
 
 suite('Hidden Range Model', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function r(startLineNumber: number, endLineNumber: number): ExpectedRange {
 		return { startLineNumber, endLineNumber };
 	}
@@ -96,6 +98,4 @@ suite('Hidden Range Model', () => {
 			hiddenRangeModel.dispose();
 		}
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

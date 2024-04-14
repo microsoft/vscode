@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as objects from 'vs/base/common/objects';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const check = (one: any, other: any, msg: string) => {
 	assert(objects.equals(one, other), msg);
@@ -16,6 +17,8 @@ const checkNot = (one: any, other: any, msg: string) => {
 };
 
 suite('Objects', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('equals', () => {
 		check(null, null, 'null');
@@ -110,7 +113,8 @@ suite('Objects', () => {
 			c: [
 				obj1, obj2
 			],
-			d: null
+			d: null,
+			e: BigInt(42)
 		};
 
 		arr.push(circular);
@@ -132,7 +136,8 @@ suite('Objects', () => {
 				},
 				'[Circular]'
 			],
-			d: [1, '[Circular]', '[Circular]']
+			d: [1, '[Circular]', '[Circular]'],
+			e: '[BigInt 42]'
 		});
 	});
 

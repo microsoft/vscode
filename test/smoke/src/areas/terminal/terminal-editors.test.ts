@@ -31,13 +31,6 @@ export function setup() {
 			await terminal.assertSingleTab({ color }, true);
 		});
 
-		it('should update icon of the tab', async () => {
-			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
-			const icon = 'symbol-method';
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
-			await terminal.assertSingleTab({ icon }, true);
-		});
-
 		it('should rename the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const name = 'my terminal name';

@@ -536,7 +536,7 @@ export class AzureActiveDirectoryService {
 			scope: scopeData.scopeStr,
 			sessionId,
 			account: {
-				label: claims.email ?? claims.preferred_username ?? claims.unique_name ?? 'user@example.com',
+				label: claims.preferred_username ?? claims.email ?? claims.unique_name ?? 'user@example.com',
 				id,
 				type: claims.tid === MSA_TID || claims.tid === MSA_PASSTHRU_TID ? MicrosoftAccountType.MSA : MicrosoftAccountType.AAD
 			}

@@ -168,7 +168,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 								label: localize('cancel', "Skip Changes"),
 								run: () => Choice.Cancel
 							},
-							checkbox: { label: localize('again', "Don't ask again") }
+							checkbox: { label: localize('again', "Do not ask me again") }
 						});
 						if (result === Choice.Cancel) {
 							// no changes wanted, don't persist cancel option
@@ -212,9 +212,8 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this._proxy.$onDidRunFileOperation(e.operation, e.files)));
 	}
 
-	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
+	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
-		const correlate = Array.isArray(unvalidatedOpts?.excludes) && unvalidatedOpts.excludes.length > 0; // TODO@bpasero for now only correlate proposed new file system watcher API with excludes
 
 		const opts: IWatchOptions = {
 			...unvalidatedOpts
@@ -231,7 +230,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 					opts.recursive = false;
 				}
 			} catch (error) {
-				this._logService.error(`MainThreadFileSystemEventService#$watch(): failed to stat a resource for file watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}): ${error}`);
+				// ignore
 			}
 		}
 
@@ -255,21 +254,9 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 
 		// Uncorrelated file watching gets special treatment
 		else {
-
-			// Refuse to watch anything that is already watched via
-			// our workspace watchers in case the request is a
-			// recursive file watcher and does not opt-in to event
-			// correlation via specific exclude rules.
-			// Still allow for non-recursive watch requests as a way
-			// to bypass configured exclude rules though
-			// (see https://github.com/microsoft/vscode/issues/146066)
-			const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
-			if (workspaceFolder && opts.recursive) {
-				this._logService.trace(`MainThreadFileSystemEventService#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
-				return;
-			}
-
 			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching uncorrelated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+
+			const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
 
 			// Automatically add `files.watcherExclude` patterns when watching
 			// recursively to give users a chance to configure exclude rules
@@ -278,7 +265,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {
-						if (config.files.watcherExclude[key] === true) {
+						if (key && config.files.watcherExclude[key] === true) {
 							opts.excludes.push(key);
 						}
 					}
@@ -296,11 +283,11 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			// `<workspace path>/bar` but will not work as include for files within
 			// `bar` unless a suffix of `/**` if added.
 			// (https://github.com/microsoft/vscode/issues/148245)
-			else if (workspaceFolder) {
+			else if (!opts.recursive && workspaceFolder) {
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {
-						if (config.files.watcherExclude[key] === true) {
+						if (key && config.files.watcherExclude[key] === true) {
 							if (!opts.includes) {
 								opts.includes = [];
 							}

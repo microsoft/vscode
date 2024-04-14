@@ -8,15 +8,16 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize, localize2 } from 'vs/nls';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatTreeItem, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -28,10 +29,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markHelpful',
-				title: {
-					value: localize('interactive.helpful.label', "Helpful"),
-					original: 'Helpful'
-				},
+				title: localize2('interactive.helpful.label', "Helpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
@@ -52,14 +50,14 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: item.providerId,
+			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
+				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Up,
-					responseId: item.providerResponseId,
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Up);
@@ -70,10 +68,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markUnhelpful',
-				title: {
-					value: localize('interactive.unhelpful.label', "Unhelpful"),
-					original: 'Unhelpful'
-				},
+				title: localize2('interactive.unhelpful.label', "Unhelpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
@@ -94,17 +89,53 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: item.providerId,
+			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
+				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Down,
-					responseId: item.providerResponseId,
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Down);
+		}
+	});
+
+	registerAction2(class ReportIssueForBugAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.reportIssueForBug',
+				title: localize2('interactive.reportIssueForBug.label', "Report Issue"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.report,
+				menu: {
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const item = args[0];
+			if (!isResponseVM(item)) {
+				return;
+			}
+
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction({
+				agentId: item.agent?.id,
+				sessionId: item.sessionId,
+				requestId: item.requestId,
+				result: item.result,
+				action: {
+					kind: 'bug'
+				}
+			});
 		}
 	});
 
@@ -112,10 +143,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNotebook',
-				title: {
-					value: localize('interactive.insertIntoNotebook.label', "Insert into Notebook"),
-					original: 'Insert into Notebook'
-				},
+				title: localize2('interactive.insertIntoNotebook.label', "Insert into Notebook"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -188,10 +216,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.remove',
-				title: {
-					value: localize('chat.remove.label', "Remove Request and Response"),
-					original: 'Remove Request and Response'
-				},
+				title: localize2('chat.remove.label', "Remove Request and Response"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
@@ -220,12 +245,95 @@ export function registerChatTitleActions() {
 				item = widget?.getFocus();
 			}
 
-			const providerRequestId = isRequestVM(item) ? item.providerRequestId :
-				isResponseVM(item) ? item.providerResponseId : undefined;
+			const requestId = isRequestVM(item) ? item.id :
+				isResponseVM(item) ? item.requestId : undefined;
 
-			if (providerRequestId) {
+			if (requestId) {
 				const chatService = accessor.get(IChatService);
-				chatService.removeRequest(item.sessionId, providerRequestId);
+				chatService.removeRequest(item.sessionId, requestId);
+			}
+		}
+	});
+
+	const rerunMenu = MenuId.for('ChatMessageTitle#Rerun');
+
+	MenuRegistry.appendMenuItem(MenuId.ChatMessageTitle, {
+		submenu: rerunMenu,
+		title: localize('reunmenu', "Rerun..."),
+		icon: Codicon.refresh,
+		group: 'navigation',
+		order: -10,
+		when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor)) // TODO@jrieken needs extension adoption
+
+	});
+
+	registerAction2(class RerunAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.rerun',
+				title: localize2('chat.rerun.label', "Rerun Request"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.refresh,
+				precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), // TODO@jrieken needs extension adoption
+				menu: {
+					id: rerunMenu,
+					group: 'navigation',
+					order: -1,
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: [ChatTreeItem | unknown]) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
+			const widget = chatWidgetService.lastFocusedWidget;
+			let item = args[0];
+			if (!isResponseVM(item)) {
+				item = widget?.getFocus();
+			}
+			if (!isResponseVM(item) || !widget) {
+				return;
+			}
+			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
+			if (request) {
+				await chatService.resendRequest(request, { noCommandDetection: false, attempt: request.attempt + 1, location: widget.location, implicitVariablesEnabled: true });
+			}
+		}
+	});
+
+	registerAction2(class RerunWithoutCommandDetectionAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.rerunWithoutCommandDetection',
+				title: localize2('chat.rerunWithoutCommandDetection.label', "Rerun without Command Detection"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.refresh,
+				precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), // TODO@jrieken needs extension adoption
+				menu: {
+					when: CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND,
+					id: rerunMenu,
+					group: 'navigation',
+					order: -1,
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
+			const widget = chatWidgetService.lastFocusedWidget;
+			let item = args[0];
+			if (!isResponseVM(item)) {
+				item = widget?.getFocus();
+			}
+			if (!isResponseVM(item) || !widget) {
+				return;
+			}
+			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
+			if (request) {
+				await chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: widget.location, implicitVariablesEnabled: true });
 			}
 		}
 	});

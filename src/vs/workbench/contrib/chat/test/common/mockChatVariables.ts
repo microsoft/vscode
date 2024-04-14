@@ -5,13 +5,17 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariableData, IChatVariableResolveResult, IChatVariableResolver, IChatVariablesService, IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	getVariable(name: string): IChatVariableData | undefined {
 		throw new Error('Method not implemented.');
 	}
 
@@ -23,14 +27,17 @@ export class MockChatVariablesService implements IChatVariablesService {
 		throw new Error('Method not implemented.');
 	}
 
-	getDynamicReferences(sessionId: string): readonly IDynamicReference[] {
-		throw new Error('Method not implemented.');
+	getDynamicVariables(sessionId: string): readonly IDynamicVariable[] {
+		return [];
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {
+	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
 		return {
-			prompt: prompt.text,
-			variables: {}
+			variables: []
 		};
+	}
+
+	resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[]> {
+		throw new Error('Method not implemented.');
 	}
 }

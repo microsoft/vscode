@@ -5,7 +5,7 @@
 
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation, ISCMActionButtonDescriptor } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -69,6 +69,19 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeVisibility = new Emitter<boolean>();
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
+	private _actionButton: ISCMActionButtonDescriptor | undefined;
+	get actionButton(): ISCMActionButtonDescriptor | undefined {
+		return this._actionButton;
+	}
+
+	set actionButton(actionButton: ISCMActionButtonDescriptor) {
+		this._actionButton = actionButton;
+		this._onDidChangeActionButton.fire();
+	}
+
+	private readonly _onDidChangeActionButton = new Emitter<void>();
+	readonly onDidChangeActionButton: Event<void> = this._onDidChangeActionButton.event;
+
 	setFocus(): void {
 		this._onDidChangeFocus.fire();
 	}
@@ -130,7 +143,7 @@ class SCMInput implements ISCMInput {
 		}
 
 		if (!transient) {
-			this.saveValue();
+			this.historyNavigator.add(this._value);
 			this.historyNavigator.add(value);
 			this.didChangeHistory = true;
 		}
@@ -392,4 +405,5 @@ export class SCMService implements ISCMService {
 	getRepository(id: string): ISCMRepository | undefined {
 		return this._repositories.get(id);
 	}
+
 }

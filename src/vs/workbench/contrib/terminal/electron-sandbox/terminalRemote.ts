@@ -5,7 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -15,7 +15,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 export function registerRemoteContributions() {
 	registerTerminalAction({
 		id: TerminalCommandId.NewLocal,
-		title: { value: localize('workbench.action.terminal.newLocal', "Create New Integrated Terminal (Local)"), original: 'Create New Integrated Terminal (Local)' },
+		title: localize2('workbench.action.terminal.newLocal', 'Create New Integrated Terminal (Local)'),
 		run: async (c, accessor) => {
 			const historyService = accessor.get(IHistoryService);
 			const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);

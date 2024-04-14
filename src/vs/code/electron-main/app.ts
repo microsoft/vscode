@@ -84,7 +84,7 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
@@ -104,7 +104,7 @@ import { IExtensionsScannerService } from 'vs/platform/extensionManagement/commo
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Promises, RunOnceScheduler, runWhenGlobalIdle } from 'vs/base/common/async';
 import { resolveMachineId, resolveSqmId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
@@ -120,6 +120,7 @@ import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME
 import { Lazy } from 'vs/base/common/lazy';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
+import { normalizeNFC } from 'vs/base/common/normalization';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -165,10 +166,6 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
-		const allowedPermissionsInMainFrame = new Set(
-			this.productService.quality === 'stable' ? [] : ['media']
-		);
-
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
 			'clipboard-sanitized-write',
@@ -179,20 +176,12 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (details.isMainFrame && details.securityOrigin === `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) {
-				return callback(allowedPermissionsInMainFrame.has(permission));
-			}
-
 			return callback(false);
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
-			}
-
-			if (details.isMainFrame && details.securityOrigin === `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) {
-				return allowedPermissionsInMainFrame.has(permission);
 			}
 
 			return false;
@@ -205,7 +194,7 @@ export class CodeApplication extends Disposable {
 		// Block all SVG requests from unsupported origins
 		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
-		// But allow them if the are made from inside an webview
+		// But allow them if they are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
@@ -313,6 +302,24 @@ export class CodeApplication extends Disposable {
 
 		//#endregion
 
+		//#region Allow CORS for the PRSS CDN
+
+		// https://github.com/microsoft/vscode-remote-release/issues/9246
+		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+			if (details.url.startsWith('https://vscode.download.prss.microsoft.com/')) {
+				const responseHeaders = details.responseHeaders ?? Object.create(null);
+
+				if (responseHeaders['Access-Control-Allow-Origin'] === undefined) {
+					responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+					return callback({ cancel: false, responseHeaders });
+				}
+			}
+
+			return callback({ cancel: false });
+		});
+
+		//#endregion
+
 		//#region Code Cache
 
 		type SessionWithCodeCachePathSupport = Session & {
@@ -385,9 +392,10 @@ export class CodeApplication extends Disposable {
 		//
 		app.on('web-contents-created', (event, contents) => {
 
-			// Child Window: delegate to `AuxiliaryWindow` class
-			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
-			if (isChildWindow) {
+			// Auxiliary Window: delegate to `AuxiliaryWindow` class
+			if (contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`)) {
+				this.logService.trace('[aux window]  app.on("web-contents-created"): Registering auxiliary window');
+
 				this.auxiliaryWindowsMainService?.registerWindow(contents);
 			}
 
@@ -398,25 +406,25 @@ export class CodeApplication extends Disposable {
 				event.preventDefault();
 			});
 
-			// All Windows: only allow about:blank child windows to open
+			// All Windows: only allow about:blank auxiliary windows to open
 			// For all other URLs, delegate to the OS.
-			contents.setWindowOpenHandler(handler => {
+			contents.setWindowOpenHandler(details => {
 
 				// about:blank windows can open as window witho our default options
-				if (handler.url === 'about:blank') {
-					this.logService.trace('webContents#setWindowOpenHandler: Allowing about:blank window to open');
+				if (details.url === 'about:blank') {
+					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow()
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow(details)
 					};
 				}
 
 				// Any other URL: delegate to OS
 				else {
-					this.logService.trace(`webContents#setWindowOpenHandler: Prevented opening window with URL ${handler.url}}`);
+					this.logService.trace(`webContents#setWindowOpenHandler: Prevented opening window with URL ${details.url}}`);
 
-					this.nativeHostMainService?.openExternal(undefined, handler.url);
+					this.nativeHostMainService?.openExternal(undefined, details.url);
 
 					return { action: 'deny' };
 				}
@@ -428,6 +436,8 @@ export class CodeApplication extends Disposable {
 		let macOpenFileURIs: IWindowOpenable[] = [];
 		let runningTimeout: NodeJS.Timeout | undefined = undefined;
 		app.on('open-file', (event, path) => {
+			path = normalizeNFC(path); // macOS only: normalize paths to NFC form
+
 			this.logService.trace('app#open-file: ', path);
 			event.preventDefault();
 
@@ -460,8 +470,6 @@ export class CodeApplication extends Disposable {
 		});
 
 		//#region Bootstrap IPC Handlers
-
-		validatedIpcMain.handle('vscode:getWindowId', event => Promise.resolve(event.sender.id));
 
 		validatedIpcMain.handle('vscode:fetchShellEnv', event => {
 
@@ -510,6 +518,13 @@ export class CodeApplication extends Disposable {
 		validatedIpcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
 
 		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
+
+		validatedIpcMain.handle('vscode:notifyZoomLevel', async (event, zoomLevel: number | undefined) => {
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
+			if (window) {
+				window.notifyZoomLevel(zoomLevel);
+			}
+		});
 
 		//#endregion
 	}
@@ -637,7 +652,7 @@ export class CodeApplication extends Disposable {
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
+			this._register(runWhenGlobalIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
 	}
@@ -660,8 +675,8 @@ export class CodeApplication extends Disposable {
 		});
 
 		const activeWindowManager = this._register(new ActiveWindowManager({
-			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
-			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
+			onDidOpenMainWindow: nativeHostMainService.onDidOpenMainWindow,
+			onDidFocusMainWindow: nativeHostMainService.onDidFocusMainWindow,
 			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
 		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
@@ -740,17 +755,17 @@ export class CodeApplication extends Disposable {
 				continue; // invalid
 			}
 
-			if (await this.shouldBlockURI(protocolUrl.uri, windowsMainService, dialogMainService)) {
-				this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
-
-				continue; // blocked
-			}
-
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
 			if (windowOpenable) {
-				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', protocolUrl.uri.toString(true), windowOpenable);
+				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
+					this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
 
-				openables.push(windowOpenable); // handled as window to open
+					continue; // blocked
+				} else {
+					this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', protocolUrl.uri.toString(true), windowOpenable);
+
+					openables.push(windowOpenable); // handled as window to open
+				}
 			} else {
 				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', protocolUrl.uri.toString(true));
 
@@ -761,8 +776,21 @@ export class CodeApplication extends Disposable {
 		return { urls, openables };
 	}
 
-	private async shouldBlockURI(uri: URI, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
-		if (uri.authority !== Schemas.file && uri.authority !== Schemas.vscodeRemote) {
+	private async shouldBlockOpenable(openable: IWindowOpenable, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
+		let openableUri: URI;
+		let message: string;
+		if (isWorkspaceToOpen(openable)) {
+			openableUri = openable.workspaceUri;
+			message = localize('confirmOpenMessageWorkspace', "An external application wants to open '{0}' in {1}. Do you want to open this workspace file?", openableUri.scheme === Schemas.file ? getPathLabel(openableUri, { os: OS, tildify: this.environmentMainService }) : openableUri.toString(true), this.productService.nameShort);
+		} else if (isFolderToOpen(openable)) {
+			openableUri = openable.folderUri;
+			message = localize('confirmOpenMessageFolder', "An external application wants to open '{0}' in {1}. Do you want to open this folder?", openableUri.scheme === Schemas.file ? getPathLabel(openableUri, { os: OS, tildify: this.environmentMainService }) : openableUri.toString(true), this.productService.nameShort);
+		} else {
+			openableUri = openable.fileUri;
+			message = localize('confirmOpenMessageFileOrFolder', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", openableUri.scheme === Schemas.file ? getPathLabel(openableUri, { os: OS, tildify: this.environmentMainService }) : openableUri.toString(true), this.productService.nameShort);
+		}
+
+		if (openableUri.scheme !== Schemas.file && openableUri.scheme !== Schemas.vscodeRemote) {
 
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			//
@@ -778,7 +806,7 @@ export class CodeApplication extends Disposable {
 			return false;
 		}
 
-		const askForConfirmation = this.configurationService.getValue<unknown>(CodeApplication.SECURITY_PROTOCOL_HANDLING_CONFIRMATION_SETTING_KEY[uri.authority]);
+		const askForConfirmation = this.configurationService.getValue<unknown>(CodeApplication.SECURITY_PROTOCOL_HANDLING_CONFIRMATION_SETTING_KEY[openableUri.scheme]);
 		if (askForConfirmation === false) {
 			return false; // not blocked via settings
 		}
@@ -789,9 +817,9 @@ export class CodeApplication extends Disposable {
 				localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
 				localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")
 			],
-			message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", uri.authority === Schemas.file ? getPathLabel(uri, { os: OS, tildify: this.environmentMainService }) : uri.toString(true), this.productService.nameShort),
+			message,
 			detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
-			checkboxLabel: localize('doNotAskAgain', "Do not ask me again"),
+			checkboxLabel: openableUri.scheme === Schemas.file ? localize('doNotAskAgainLocal', "Allow opening local paths without asking") : localize('doNotAskAgainRemote', "Allow opening remote paths without asking"),
 			cancelId: 1
 		});
 
@@ -804,7 +832,7 @@ export class CodeApplication extends Disposable {
 			// update settings from within a window. But we do not know if a window
 			// is about to open or can already handle the request, so we have to send
 			// to any current window and any newly opening window.
-			const request = { channel: 'vscode:disablePromptForProtocolHandling', args: uri.authority === Schemas.file ? 'local' : 'remote' };
+			const request = { channel: 'vscode:disablePromptForProtocolHandling', args: openableUri.scheme === Schemas.file ? 'local' : 'remote' };
 			windowsMainService.sendToFocused(request.channel, request.args);
 			windowsMainService.sendToOpeningWindow(request.channel, request.args);
 		}
@@ -879,13 +907,6 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// If URI should be blocked, behave as if it's handled
-		if (await this.shouldBlockURI(uri, windowsMainService, dialogMainService)) {
-			this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
-
-			return true;
-		}
-
 		let shouldOpenInNewWindow = false;
 
 		// We should handle the URI in a new window if the URL contains `windowId=_blank`
@@ -920,20 +941,26 @@ export class CodeApplication extends Disposable {
 		// Check if the protocol URL is a window openable to open...
 		const windowOpenableFromProtocolUrl = this.getWindowOpenableFromProtocolUrl(uri);
 		if (windowOpenableFromProtocolUrl) {
-			this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
+			if (await this.shouldBlockOpenable(windowOpenableFromProtocolUrl, windowsMainService, dialogMainService)) {
+				this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
 
-			const window = firstOrDefault(await windowsMainService.open({
-				context: OpenContext.API,
-				cli: { ...this.environmentMainService.args },
-				urisToOpen: [windowOpenableFromProtocolUrl],
-				forceNewWindow: shouldOpenInNewWindow,
-				gotoLineMode: true
-				// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
-			}));
+				return true; // If openable should be blocked, behave as if it's handled
+			} else {
+				this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
-			window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+				const window = firstOrDefault(await windowsMainService.open({
+					context: OpenContext.API,
+					cli: { ...this.environmentMainService.args },
+					urisToOpen: [windowOpenableFromProtocolUrl],
+					forceNewWindow: shouldOpenInNewWindow,
+					gotoLineMode: true
+					// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
+				}));
 
-			return true;
+				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+
+				return true;
+			}
 		}
 
 		// ...or if we should open in a new window and then handle it within that window
@@ -1312,7 +1339,11 @@ export class CodeApplication extends Disposable {
 				return windowsMainService.open({
 					context: OpenContext.DOCK,
 					cli: args,
-					urisToOpen: macOpenFiles.map(path => (hasWorkspaceFileExtension(path) ? { workspaceUri: URI.file(path) } : { fileUri: URI.file(path) })),
+					urisToOpen: macOpenFiles.map(path => {
+						path = normalizeNFC(path); // macOS only: normalize paths to NFC form
+
+						return (hasWorkspaceFileExtension(path) ? { workspaceUri: URI.file(path) } : { fileUri: URI.file(path) });
+					}),
 					noRecentEntry,
 					waitMarkerFileURI,
 					initialStartup: true,
@@ -1325,7 +1356,7 @@ export class CodeApplication extends Disposable {
 		return windowsMainService.open({
 			context,
 			cli: args,
-			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
+			forceNewWindow: args['new-window'],
 			diffMode: args.diff,
 			mergeMode: args.merge,
 			noRecentEntry,

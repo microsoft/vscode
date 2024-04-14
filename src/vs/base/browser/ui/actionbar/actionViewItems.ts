@@ -9,8 +9,8 @@ import { addDisposableListener, EventHelper, EventLike, EventType } from 'vs/bas
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -19,6 +19,8 @@ import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./actionbar';
 import * as nls from 'vs/nls';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
@@ -34,7 +36,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	_context: unknown;
 	readonly _action: IAction;
 
-	private customHover?: ICustomHover;
+	private customHover?: IUpdatableHover;
 
 	get action() {
 		return this._action;
@@ -210,6 +212,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		// implement in subclass
 	}
 
+	protected getClass(): string | undefined {
+		return this.action.class;
+	}
+
 	protected getTooltip(): string | undefined {
 		return this.action.tooltip;
 	}
@@ -220,14 +226,15 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 		const title = this.getTooltip() ?? '';
 		this.updateAriaLabel();
-		if (!this.options.hoverDelegate) {
+
+		if (this.options.hoverDelegate?.showNativeHover) {
+			/* While custom hover is not inside custom hover */
 			this.element.title = title;
 		} else {
-			this.element.title = '';
-			if (!this.customHover) {
-				this.customHover = setupCustomHover(this.options.hoverDelegate, this.element, title);
-				this._store.add(this.customHover);
-			} else {
+			if (!this.customHover && title !== '') {
+				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupUpdatableHover(hoverDelegate, this.element, title));
+			} else if (this.customHover) {
 				this.customHover.update(title);
 			}
 		}
@@ -369,9 +376,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
-
 		if (this.options.icon) {
-			this.cssClass = this.action.class;
+			this.cssClass = this.getClass();
 
 			if (this.label) {
 				this.label.classList.add('codicon');
@@ -419,7 +425,7 @@ export class ActionViewItem extends BaseActionViewItem {
 				this.label.setAttribute('role', 'checkbox');
 			} else {
 				this.label.classList.remove('checked');
-				this.label.setAttribute('aria-checked', '');
+				this.label.removeAttribute('aria-checked');
 				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}

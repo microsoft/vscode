@@ -3,85 +3,99 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, WebContents } from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
+import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStateService } from 'vs/platform/state/node/state';
+import { hasNativeTitlebar } from 'vs/platform/window/common/window';
+import { IBaseWindow, WindowMode } from 'vs/platform/window/electron-main/window';
 import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
-export interface IAuxiliaryWindow {
-
-	readonly onDidClose: Event<void>;
-
-	readonly id: number;
-	readonly win: BrowserWindow | null;
-
-	readonly lastFocusTime: number;
-
-	focus(options?: { force: boolean }): void;
+export interface IAuxiliaryWindow extends IBaseWindow {
+	readonly parentId: number;
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
-	readonly id = this.contents.id;
+	readonly id = this.webContents.id;
+	parentId = -1;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
-
-	private _win: BrowserWindow | null = null;
-	get win() {
-		if (!this._win) {
-			const window = BrowserWindow.fromWebContents(this.contents);
-			if (window) {
-				this._win = window;
-				this.registerWindowListeners(window);
-			}
+	override get win() {
+		if (!super.win) {
+			this.tryClaimWindow();
 		}
 
-		return this._win;
+		return super.win;
 	}
 
-	protected getWin(): BrowserWindow | null {
-		return this.win;
-	}
-
-	private _lastFocusTime = Date.now(); // window is shown on creation so take current time
-	get lastFocusTime(): number { return this._lastFocusTime; }
+	private stateApplied = false;
 
 	constructor(
-		private readonly contents: WebContents,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
+		private readonly webContents: WebContents,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
+		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStateService stateService: IStateService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
-		super();
+		super(configurationService, stateService, environmentMainService, logService);
 
-		this.create();
+		// Try to claim window
+		this.tryClaimWindow();
 	}
 
-	private create(): void {
+	tryClaimWindow(options?: BrowserWindowConstructorOptions): void {
+		if (this._store.isDisposed || this.webContents.isDestroyed()) {
+			return; // already disposed
+		}
 
-		// Handle devtools argument
-		if (this.environmentMainService.args['open-devtools'] === true) {
-			this.contents.openDevTools({ mode: 'bottom' });
+		this.doTryClaimWindow();
+
+		if (options && !this.stateApplied) {
+			this.stateApplied = true;
+
+			this.applyState({
+				x: options.x,
+				y: options.y,
+				width: options.width,
+				height: options.height,
+				// TODO@bpasero We currently do not support restoring fullscreen state for
+				// auxiliary windows because we do not get hold of the original `features`
+				// string that contains that info in `window-fullscreen`. However, we can
+				// probe the `options.show` value for whether the window should be maximized
+				// or not because we never show maximized windows initially to reduce flicker.
+				mode: options.show === false ? WindowMode.Maximized : WindowMode.Normal
+			});
 		}
 	}
 
-	private registerWindowListeners(window: BrowserWindow): void {
+	private doTryClaimWindow(): void {
+		if (this._win) {
+			return; // already claimed
+		}
 
-		// Window Close
-		window.on('closed', () => {
-			this._onDidClose.fire();
+		const window = BrowserWindow.fromWebContents(this.webContents);
+		if (window) {
+			this.logService.trace('[aux window] Claimed browser window instance');
 
-			this.dispose();
-		});
+			// Remember
+			this.setWin(window);
 
-		// Window Focus
-		window.on('focus', () => {
-			this._lastFocusTime = Date.now();
-		});
+			// Disable Menu
+			window.setMenu(null);
+			if ((isWindows || isLinux) && hasNativeTitlebar(this.configurationService)) {
+				window.setAutoHideMenuBar(true); // Fix for https://github.com/microsoft/vscode/issues/200615
+			}
+
+			// Lifecycle
+			this.lifecycleMainService.registerAuxWindow(this);
+		}
 	}
 
-	override dispose(): void {
-		super.dispose();
-
-		this._win = null!; // Important to dereference the window object to allow for GC
+	matches(webContents: WebContents): boolean {
+		return this.webContents.id === webContents.id;
 	}
 }

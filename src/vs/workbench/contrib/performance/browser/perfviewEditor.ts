@@ -27,27 +27,45 @@ import { isWeb } from 'vs/base/common/platform';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import * as perf from 'vs/base/common/performance';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, getWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 export class PerfviewContrib {
 
+	static get() {
+		return getWorkbenchContribution<PerfviewContrib>(PerfviewContrib.ID);
+	}
+
+	static readonly ID = 'workbench.contrib.perfview';
+
+	private readonly _inputUri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 	private readonly _registration: IDisposable;
 
 	constructor(
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		this._registration = textModelResolverService.registerTextModelContentProvider('perf', instaService.createInstance(PerfModelContentProvider));
+		this._registration = textModelResolverService.registerTextModelContentProvider('perf', _instaService.createInstance(PerfModelContentProvider));
 	}
 
 	dispose(): void {
 		this._registration.dispose();
+	}
+
+	getInputUri(): URI {
+		return this._inputUri;
+	}
+
+	getEditorInput(): PerfviewInput {
+		return this._instaService.createInstance(PerfviewInput);
 	}
 }
 
 export class PerfviewInput extends TextResourceEditorInput {
 
 	static readonly Id = 'PerfviewInput';
-	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 
 	override get typeId(): string {
 		return PerfviewInput.Id;
@@ -59,10 +77,12 @@ export class PerfviewInput extends TextResourceEditorInput {
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
 		@ILabelService labelService: ILabelService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
 		super(
-			PerfviewInput.Uri,
+			PerfviewContrib.get().getInputUri(),
 			localize('name', "Startup Performance"),
 			undefined,
 			undefined,
@@ -72,7 +92,9 @@ export class PerfviewInput extends TextResourceEditorInput {
 			editorService,
 			fileService,
 			labelService,
-			filesConfigurationService
+			filesConfigurationService,
+			textResourceConfigurationService,
+			customEditorLabelService
 		);
 	}
 }
@@ -131,6 +153,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				md.blank();
 				this._addPerfMarksTable('Terminal Stats', md, this._timerService.getPerformanceMarks().find(e => e[0] === 'renderer')?.[1].filter(e => e.name.startsWith('code/terminal/')));
 				md.blank();
+				this._addWorkbenchContributionsPerfMarksTable(md);
+				md.blank();
 				this._addRawPerfMarks(md);
 				if (!isESM) {
 					md.blank();
@@ -171,6 +195,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	private _addSummaryTable(md: MarkdownBuilder, stats?: LoaderStats): void {
 
 		const metrics = this._timerService.startupMetrics;
+		const contribTimings = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).timings;
+
 		const table: Array<Array<string | number | undefined>> = [];
 		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
@@ -192,6 +218,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['restore viewlet', metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId]);
 		table.push(['restore panel', metrics.timers.ellapsedPanelRestore, '[renderer]', metrics.panelId]);
 		table.push(['restore & resolve visible editors', metrics.timers.ellapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
+		table.push(['create workbench contributions', metrics.timers.ellapsedWorkbenchContributions, '[renderer]', `${(contribTimings.get(LifecyclePhase.Starting)?.length ?? 0) + (contribTimings.get(LifecyclePhase.Starting)?.length ?? 0)} blocking startup`]);
 		table.push(['overall workbench load', metrics.timers.ellapsedWorkbench, '[renderer]', undefined]);
 		table.push(['workbench ready', metrics.ellapsed, '[main->renderer]', undefined]);
 		table.push(['renderer ready', metrics.timers.ellapsedRenderer, '[renderer]', undefined]);
@@ -229,7 +256,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		}
 	}
 
-	private _addPerfMarksTable(name: string, md: MarkdownBuilder, marks: readonly perf.PerformanceMark[] | undefined): void {
+	private _addPerfMarksTable(name: string | undefined, md: MarkdownBuilder, marks: readonly perf.PerformanceMark[] | undefined): void {
 		if (!marks) {
 			return;
 		}
@@ -242,8 +269,27 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			table.push([name, Math.round(startTime), Math.round(delta), Math.round(total)]);
 			lastStartTime = startTime;
 		}
-		md.heading(2, name);
+		if (name) {
+			md.heading(2, name);
+		}
 		md.table(['Name', 'Timestamp', 'Delta', 'Total'], table);
+	}
+
+	private _addWorkbenchContributionsPerfMarksTable(md: MarkdownBuilder): void {
+		md.heading(2, 'Workbench Contributions Blocking Restore');
+
+		const timings = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).timings;
+		md.li(`Total (LifecyclePhase.Starting): ${timings.get(LifecyclePhase.Starting)?.length} (${timings.get(LifecyclePhase.Starting)?.reduce((p, c) => p + c[1], 0)}ms)`);
+		md.li(`Total (LifecyclePhase.Ready): ${timings.get(LifecyclePhase.Ready)?.length} (${timings.get(LifecyclePhase.Ready)?.reduce((p, c) => p + c[1], 0)}ms)`);
+		md.blank();
+
+		const marks = this._timerService.getPerformanceMarks().find(e => e[0] === 'renderer')?.[1].filter(e =>
+			e.name.startsWith('code/willCreateWorkbenchContribution/1') ||
+			e.name.startsWith('code/didCreateWorkbenchContribution/1') ||
+			e.name.startsWith('code/willCreateWorkbenchContribution/2') ||
+			e.name.startsWith('code/didCreateWorkbenchContribution/2')
+		);
+		this._addPerfMarksTable(undefined, md, marks);
 	}
 
 	private _addRawPerfMarks(md: MarkdownBuilder): void {

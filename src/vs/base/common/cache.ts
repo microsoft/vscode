@@ -39,17 +39,19 @@ export class Cache<T> {
 /**
  * Uses a LRU cache to make a given parametrized function cached.
  * Caches just the last value.
- * The key must be JSON serializable.
 */
 export class LRUCachedFunction<TArg, TComputed> {
 	private lastCache: TComputed | undefined = undefined;
-	private lastArgKey: string | undefined = undefined;
+	private lastArgKey: unknown | undefined = undefined;
 
-	constructor(private readonly fn: (arg: TArg) => TComputed) {
+	constructor(
+		private readonly fn: (arg: TArg) => TComputed,
+		private readonly _computeKey: (arg: TArg) => unknown = JSON.stringify,
+	) {
 	}
 
 	public get(arg: TArg): TComputed {
-		const key = JSON.stringify(arg);
+		const key = this._computeKey(arg);
 		if (this.lastArgKey !== key) {
 			this.lastArgKey = key;
 			this.lastCache = this.fn(arg);

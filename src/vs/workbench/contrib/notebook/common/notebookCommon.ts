@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
@@ -21,7 +21,7 @@ import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
@@ -30,6 +30,9 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IFileReadLimits } from 'vs/platform/files/common/files';
+import { parse as parseUri, generate as generateUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
+import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -118,6 +121,7 @@ export interface NotebookCellInternalMetadata {
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
 	renderDuration?: { [key: string]: number };
+	error?: ICellExecutionError;
 }
 
 export interface NotebookCellCollapseState {
@@ -224,6 +228,7 @@ export interface ICellOutput {
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
 	asDto(): IOutputDto;
 	bumpVersion(): void;
+	dispose(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -528,6 +533,13 @@ export interface IWorkspaceNotebookCellEdit {
 	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
 }
 
+export interface IWorkspaceNotebookCellEditDto {
+	metadata?: WorkspaceEditMetadata;
+	resource: URI;
+	notebookVersionId: number | undefined;
+	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
+}
+
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
@@ -544,43 +556,13 @@ export interface INotebookContributionData {
 
 
 export namespace CellUri {
-
 	export const scheme = Schemas.vscodeNotebookCell;
-
-
-	const _lengths = ['W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f'];
-	const _padRegexp = new RegExp(`^[${_lengths.join('')}]+`);
-	const _radix = 7;
-
 	export function generate(notebook: URI, handle: number): URI {
-
-		const s = handle.toString(_radix);
-		const p = s.length < _lengths.length ? _lengths[s.length - 1] : 'z';
-
-		const fragment = `${p}${s}s${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
-		return notebook.with({ scheme, fragment });
+		return generateUri(notebook, handle);
 	}
 
 	export function parse(cell: URI): { notebook: URI; handle: number } | undefined {
-		if (cell.scheme !== scheme) {
-			return undefined;
-		}
-
-		const idx = cell.fragment.indexOf('s');
-		if (idx < 0) {
-			return undefined;
-		}
-
-		const handle = parseInt(cell.fragment.substring(0, idx).replace(_padRegexp, ''), _radix);
-		const _scheme = decodeBase64(cell.fragment.substring(idx + 1)).toString();
-
-		if (isNaN(handle)) {
-			return undefined;
-		}
-		return {
-			handle,
-			notebook: cell.with({ scheme: _scheme, fragment: null })
-		};
+		return parseUri(cell);
 	}
 
 	export function generateCellOutputUri(notebook: URI, outputId?: string) {
@@ -787,13 +769,18 @@ export interface INotebookLoadOptions {
 	 * Go to disk bypassing any cache of the model if any.
 	 */
 	forceReadFromFile?: boolean;
+	/**
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
+	 */
+	readonly limits?: IFileReadLimits;
 }
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
 	notebook: NotebookTextModel;
 }
 
-export interface INotebookEditorModel extends IEditorModel {
+export interface INotebookEditorModel extends IDisposable {
 	readonly onDidChangeDirty: Event<void>;
 	readonly onDidSave: Event<IWorkingCopySaveEvent>;
 	readonly onDidChangeOrphaned: Event<void>;
@@ -815,7 +802,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	revert(options?: IRevertOptions): Promise<void>;
 }
 
-export interface INotebookDiffEditorModel extends IEditorModel {
+export interface INotebookDiffEditorModel extends IDisposable {
 	original: IResolvedNotebookEditorModel;
 	modified: IResolvedNotebookEditorModel;
 }
@@ -922,7 +909,6 @@ export interface INotebookCellStatusBarItemList {
 }
 
 export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
-
 export const NotebookSetting = {
 	displayOrder: 'notebook.displayOrder',
 	cellToolbarLocation: 'notebook.cellToolbarLocation',
@@ -935,7 +921,8 @@ export const NotebookSetting = {
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
-	stickyScroll: 'notebook.stickyScroll.enabled',
+	stickyScrollEnabled: 'notebook.stickyScroll.enabled',
+	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',
@@ -949,7 +936,9 @@ export const NotebookSetting = {
 	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
+	LinkifyOutputFilePaths: 'notebook.output.linkifyFilePaths',
 	formatOnSave: 'notebook.formatOnSave.enabled',
+	insertFinalNewline: 'notebook.insertFinalNewline',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
 	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
@@ -964,8 +953,15 @@ export const NotebookSetting = {
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 	remoteSaving: 'notebook.experimental.remoteSave',
 	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
+	outlineShowMarkdownHeadersOnly: 'notebook.outline.showMarkdownHeadersOnly',
+	outlineShowCodeCells: 'notebook.outline.showCodeCells',
+	outlineShowCodeCellSymbols: 'notebook.outline.showCodeCellSymbols',
+	breadcrumbsShowCodeCells: 'notebook.breadcrumbs.showCodeCells',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
-	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell'
+	cellChat: 'notebook.experimental.cellChat',
+	notebookVariablesView: 'notebook.experimental.variablesView',
+	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
+	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 } as const;
 
 export const enum CellStatusbarAlignment {

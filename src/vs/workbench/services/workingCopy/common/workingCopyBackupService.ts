@@ -258,7 +258,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 			return;
 		}
 
-		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		return this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (token?.isCancellationRequested) {
 				return;
 			}
@@ -344,7 +344,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 			return;
 		}
 
-		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		return this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (token?.isCancellationRequested) {
 				return;
 			}
@@ -386,7 +386,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 	private async resolveIdentifier(backupResource: URI, model: WorkingCopyBackupsModel): Promise<IWorkingCopyIdentifier | undefined> {
 		let res: IWorkingCopyIdentifier | undefined = undefined;
 
-		await this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		await this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (!model.has(backupResource)) {
 				return; // require backup to be present
 			}
@@ -450,7 +450,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 
 		let res: IResolvedWorkingCopyBackup<T> | undefined = undefined;
 
-		await this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		await this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (!model.has(backupResource)) {
 				return; // require backup to be present
 			}

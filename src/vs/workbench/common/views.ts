@@ -19,9 +19,8 @@ import { flatten } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import Severity from 'vs/base/common/severity';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -285,6 +284,8 @@ export interface IViewDescriptor {
 
 	readonly containerTitle?: string;
 
+	readonly singleViewPaneContainerTitle?: string;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
@@ -299,6 +300,8 @@ export interface IViewDescriptor {
 	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
+
+	readonly accessibilityHelpContent?: MarkdownString;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
@@ -565,31 +568,6 @@ export interface IView {
 	setExpanded(expanded: boolean): boolean;
 
 	getProgressIndicator(): IProgressIndicator | undefined;
-}
-
-export const IViewsService = createDecorator<IViewsService>('viewsService');
-export interface IViewsService {
-
-	readonly _serviceBrand: undefined;
-
-	// View Container APIs
-	readonly onDidChangeViewContainerVisibility: Event<{ id: string; visible: boolean; location: ViewContainerLocation }>;
-	isViewContainerVisible(id: string): boolean;
-	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
-	closeViewContainer(id: string): void;
-	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
-	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
-	getFocusedViewName(): string;
-
-	// View APIs
-	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }>;
-	readonly onDidChangeFocusedView: Event<void>;
-	isViewVisible(id: string): boolean;
-	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
-	closeView(id: string): void;
-	getActiveViewWithId<T extends IView>(id: string): T | null;
-	getViewWithId<T extends IView>(id: string): T | null;
-	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');

@@ -7,6 +7,12 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
+import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
+
+export interface IChatHistoryEntry {
+	text: string;
+	state?: any;
+}
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');
 export interface IChatWidgetHistoryService {
@@ -15,12 +21,12 @@ export interface IChatWidgetHistoryService {
 	readonly onDidClearHistory: Event<void>;
 
 	clearHistory(): void;
-	getHistory(providerId: string): string[];
-	saveHistory(providerId: string, history: string[]): void;
+	getHistory(): IChatHistoryEntry[];
+	saveHistory(history: IChatHistoryEntry[]): void;
 }
 
 interface IChatHistory {
-	history: { [providerId: string]: string[] };
+	history: { [providerId: string]: IChatHistoryEntry[] };
 }
 
 export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
@@ -36,18 +42,24 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 		@IStorageService storageService: IStorageService
 	) {
 		this.memento = new Memento('interactive-session', storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatHistory;
+		const loadedState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatHistory;
+		for (const provider in loadedState.history) {
+			// Migration from old format
+			loadedState.history[provider] = loadedState.history[provider].map(entry => typeof entry === 'string' ? { text: entry } : entry);
+		}
+
+		this.viewState = loadedState;
 	}
 
-	getHistory(providerId: string): string[] {
-		return this.viewState.history?.[providerId] ?? [];
+	getHistory(): IChatHistoryEntry[] {
+		return this.viewState.history?.[CHAT_PROVIDER_ID] ?? [];
 	}
 
-	saveHistory(providerId: string, history: string[]): void {
+	saveHistory(history: IChatHistoryEntry[]): void {
 		if (!this.viewState.history) {
 			this.viewState.history = {};
 		}
-		this.viewState.history[providerId] = history;
+		this.viewState.history[CHAT_PROVIDER_ID] = history;
 		this.memento.saveMemento();
 	}
 

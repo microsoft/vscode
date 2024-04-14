@@ -45,6 +45,7 @@ export interface IRemoteExtensionHostDataProvider {
 
 export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
+	public readonly pid = null;
 	public readonly remoteAuthority: string;
 	public readonly startup = ExtensionHostStartup.EagerAutoStart;
 	public extensions: ExtensionHostExtensions | null = null;
@@ -242,6 +243,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			telemetryInfo: {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
+				sqmId: this._telemetryService.sqmId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
@@ -253,7 +255,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		};
 	}
 
-	getInspectPort(): number | undefined {
+	getInspectPort(): undefined {
 		return undefined;
 	}
 

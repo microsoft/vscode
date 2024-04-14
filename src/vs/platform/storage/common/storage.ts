@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Promises, RunOnceScheduler, runWhenGlobalIdle } from 'vs/base/common/async';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
@@ -343,7 +343,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	private doFlushWhenIdle(): void {
-		this.runFlushWhenIdle.value = runWhenIdle(() => {
+		this.runFlushWhenIdle.value = runWhenGlobalIdle(() => {
 			if (this.shouldFlushWhenIdle()) {
 				this.flush();
 			}

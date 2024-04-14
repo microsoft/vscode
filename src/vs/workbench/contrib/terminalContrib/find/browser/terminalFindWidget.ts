@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITerminalInstance, IXtermTerminal, XtermTerminalConstants } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDetachedTerminalInstance, ITerminalInstance, IXtermTerminal, XtermTerminalConstants } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
-import type { ISearchOptions } from 'xterm-addon-search';
+import type { ISearchOptions } from '@xterm/addon-search';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { openContextMenu } from 'vs/workbench/contrib/terminalContrib/find/browser/textInputContextMenu';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -22,11 +27,16 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
 
+	private _overrideCopyOnSelectionDisposable: IDisposable | undefined;
+
 	constructor(
-		private _instance: ITerminalInstance,
+		private _instance: ITerminalInstance | IDetachedTerminalInstance,
 		@IContextViewService _contextViewService: IContextViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService _contextMenuService: IContextMenuService,
+		@IClipboardService _clipboardService: IClipboardService,
+		@IHoverService hoverService: IHoverService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
@@ -44,7 +54,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			closeWidgetActionId: TerminalCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
-		}, _contextViewService, _contextKeyService, keybindingService);
+		}, _contextViewService, _contextKeyService, hoverService, keybindingService);
 
 		this._register(this.state.onFindReplaceStateChange(() => {
 			this.show();
@@ -52,6 +62,20 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(this._contextKeyService);
+		const innerDom = this.getDomNode().firstChild;
+		if (innerDom) {
+			this._register(dom.addDisposableListener(innerDom, 'mousedown', (event) => {
+				event.stopPropagation();
+			}));
+			this._register(dom.addDisposableListener(innerDom, 'contextmenu', (event) => {
+				event.stopPropagation();
+			}));
+		}
+		const findInputDomNode = this.getFindInputDomNode();
+		this._register(dom.addDisposableListener(findInputDomNode, 'contextmenu', (event) => {
+			openContextMenu(dom.getWindow(findInputDomNode), event, _clipboardService, _contextMenuService);
+			event.stopPropagation();
+		}));
 		this._register(this._themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
 				this.find(true, true);
@@ -124,10 +148,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFocusTrackerFocus() {
+		if ('overrideCopyOnSelection' in this._instance) {
+			this._overrideCopyOnSelectionDisposable = this._instance.overrideCopyOnSelection(false);
+		}
 		this._findWidgetFocused.set(true);
 	}
 
 	protected _onFocusTrackerBlur() {
+		this._overrideCopyOnSelectionDisposable?.dispose();
 		this._instance.xterm?.clearActiveSearchDecoration();
 		this._findWidgetFocused.reset();
 	}

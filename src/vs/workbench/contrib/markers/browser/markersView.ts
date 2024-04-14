@@ -54,6 +54,7 @@ import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/ta
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
 import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -102,7 +103,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	private readonly onVisibleDisposables = this._register(new DisposableStore());
 
 	private widget!: IProblemsWidget;
-	private widgetDisposables = this._register(new DisposableStore());
+	private readonly widgetDisposables = this._register(new DisposableStore());
 	private widgetContainer!: HTMLElement;
 	private widgetIdentityProvider: IIdentityProvider<MarkerElement | MarkerTableItem>;
 	private widgetAccessibilityProvider: MarkersWidgetAccessibilityProvider;
@@ -112,6 +113,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private currentHeight = 0;
 	private currentWidth = 0;
+	private readonly memento: Memento;
 	private readonly panelState: MementoObject;
 
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
@@ -137,8 +139,10 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		const panelState = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const memento = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
+		const panelState = memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {
@@ -148,7 +152,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				text: panelState['filter'] || '',
 				history: panelState['filterHistory'] || []
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		this.memento = memento;
 		this.panelState = panelState;
 
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
@@ -184,6 +189,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	override render(): void {
 		super.render();
 		this._register(registerNavigableContainer({
+			name: 'markersView',
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
 				if (this.filterWidget.hasFocus()) {
@@ -236,7 +242,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	public override focus(): void {
-		if (this.widget.getHTMLElement() === document.activeElement) {
+		super.focus();
+		if (dom.isActiveElement(this.widget.getHTMLElement())) {
 			return;
 		}
 
@@ -494,9 +501,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 					return null;
 				}),
 				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				},
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				selectionNavigation: true,
 				multipleSelectionSupport: true,
 			},
@@ -537,7 +542,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		this.markersModel.setResourceMarkers(groupBy(readMarkers(), compareMarkersByUri).map(group => [group[0].resource, group]));
 		disposables.push(Event.debounce<readonly URI[], ResourceMap<URI>>(this.markerService.onMarkerChanged, (resourcesMap, resources) => {
 			resourcesMap = resourcesMap || new ResourceMap<URI>();
-			resources.forEach(resource => resourcesMap!.set(resource, resource));
+			resources.forEach(resource => resourcesMap.set(resource, resource));
 			return resourcesMap;
 		}, 64)(resourcesMap => {
 			this.markersModel.setResourceMarkers([...resourcesMap.values()].map(resource => [resource, readMarkers(resource)]));
@@ -772,7 +777,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private updateRangeHighlights() {
 		this.rangeHighlightDecorations.removeHighlightRange();
-		if (this.widget.getHTMLElement() === document.activeElement) {
+		if (dom.isActiveElement(this.widget.getHTMLElement())) {
 			this.highlightCurrentSelectedMarkerRange();
 		}
 	}
@@ -803,7 +808,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		e.browserEvent.stopPropagation();
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor!,
+			getAnchor: () => e.anchor,
 			menuId: MenuId.ProblemsPanelContext,
 			contextKeyService: this.widget.contextKeyService,
 			getActions: () => this.getMenuActions(element),
@@ -893,6 +898,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		this.panelState['multiline'] = this.markersViewModel.multiline;
 		this.panelState['viewMode'] = this.markersViewModel.viewMode;
 
+		this.memento.saveMemento();
 		super.saveState();
 	}
 
@@ -1020,8 +1026,10 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 
 	update(resourceMarkers: ResourceMarkers[]): void {
 		for (const resourceMarker of resourceMarkers) {
-			this.setChildren(resourceMarker, createResourceMarkersIterator(resourceMarker));
-			this.rerender(resourceMarker);
+			if (this.hasElement(resourceMarker)) {
+				this.setChildren(resourceMarker, createResourceMarkersIterator(resourceMarker));
+				this.rerender(resourceMarker);
+			}
 		}
 	}
 

@@ -95,7 +95,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		disposables.add(registerTestResourceEditor());
 
-		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -154,7 +154,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			}
 		}
 
-		const resource = toResource.call(this, '/path/custom.txt');
+		const resource: URI = toResource.call(this, '/path/custom.txt');
 		const customWorkingCopy = disposables.add(new TestBackupWorkingCopy(resource));
 
 		// Normal
@@ -196,7 +196,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);

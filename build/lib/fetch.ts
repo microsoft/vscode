@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as es from 'event-stream';
-import fetch, { RequestInit } from 'node-fetch';
 import * as VinylFile from 'vinyl';
 import * as log from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
@@ -47,7 +46,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 	try {
 		let startTime = 0;
 		if (verbose) {
-			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? `(${10 - retries} retry}` : ''}`);
+			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? ` (${10 - retries} retry)` : ''}`);
 			startTime = new Date().getTime();
 		}
 		const controller = new AbortController();
@@ -61,7 +60,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 				log(`Fetch completed: Status ${response.status}. Took ${ansiColors.magenta(`${new Date().getTime() - startTime} ms`)}`);
 			}
 			if (response.ok && (response.status >= 200 && response.status < 300)) {
-				const contents = await response.buffer();
+				const contents = Buffer.from(await response.arrayBuffer());
 				if (options.checksumSha256) {
 					const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
 					if (actualSHA256Checksum !== options.checksumSha256) {
@@ -82,7 +81,11 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 					contents
 				});
 			}
-			throw new Error(`Request ${ansiColors.magenta(url)} failed with status code: ${response.status}`);
+			let err = `Request ${ansiColors.magenta(url)} failed with status code: ${response.status}`;
+			if (response.status === 403) {
+				err += ' (you may be rate limited)';
+			}
+			throw new Error(err);
 		} finally {
 			clearTimeout(timeout);
 		}

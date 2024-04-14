@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor, isResourceMultiDiffEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
@@ -78,18 +78,22 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}));
 
 		// When extensions have registered we no longer need the cache
-		this.extensionService.onDidRegisterExtensions(() => {
+		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			this.cache = undefined;
-		});
+		}));
 	}
 
-	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
+	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> | [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
 		const untypedEditor = editor;
 
 		// Use the untyped editor to find a group
-		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
-
-		return [untypedEditor, group, activation];
+		const findGroupResult = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
+		if (findGroupResult instanceof Promise) {
+			return findGroupResult.then(([group, activation]) => [untypedEditor, group, activation]);
+		} else {
+			const [group, activation] = findGroupResult;
+			return [untypedEditor, group, activation];
+		}
 	}
 
 	async resolveEditor(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
@@ -103,7 +107,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return this.doResolveSideBySideEditor(editor, preferredGroup);
 		}
 
-		const resolvedUntypedAndGroup = this.resolveUntypedInputAndGroup(editor, preferredGroup);
+		let resolvedUntypedAndGroup: [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined;
+		const resolvedUntypedAndGroupResult = this.resolveUntypedInputAndGroup(editor, preferredGroup);
+		if (resolvedUntypedAndGroupResult instanceof Promise) {
+			resolvedUntypedAndGroup = await resolvedUntypedAndGroupResult;
+		} else {
+			resolvedUntypedAndGroup = resolvedUntypedAndGroupResult;
+		}
+
 		if (!resolvedUntypedAndGroup) {
 			return ResolvedStatus.NONE;
 		}
@@ -263,13 +274,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));
 	}
 
-	private getAllUserAssociations(): EditorAssociations {
+	getAllUserAssociations(): EditorAssociations {
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const defaultAssociations = inspectedEditorAssociations.defaultValue ?? {};
 		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
 		const userAssociations = inspectedEditorAssociations.userValue ?? {};
 		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
-		// We want to apply the user associations on top of the workspace associations but ignore duplicate keys.
-		for (const [key, value] of Object.entries(userAssociations)) {
+		// We want to apply the default associations and user associations on top of the workspace associations but ignore duplicate keys.
+		for (const [key, value] of Object.entries({ ...defaultAssociations, ...userAssociations })) {
 			if (rawAssociations[key] === undefined) {
 				rawAssociations[key] = value;
 			}
@@ -463,6 +475,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
+		// If it's a diff list editor we trigger the create diff list editor input
+		if (isResourceMultiDiffEditorInput(editor)) {
+			if (!selectedEditor.editorFactoryObject.createMultiDiffEditorInput) {
+				return;
+			}
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createMultiDiffEditorInput(editor, group);
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
+		}
+
 		if (isResourceSideBySideEditorInput(editor)) {
 			throw new Error(`Untyped side by side editor input not supported here.`);
 		}
@@ -483,9 +504,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If the editor states it can only be opened once per resource we must close all existing ones except one and move the new one into the group
 		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource;
 		if (singleEditorPerResource) {
-			const foundInput = await this.moveExistingEditorForResource(resource, selectedEditor.editorInfo.id, group);
-			if (foundInput) {
-				return { editor: foundInput, options };
+			const existingEditors = this.findExistingEditorsForResource(resource, selectedEditor.editorInfo.id);
+			if (existingEditors.length) {
+				const editor = await this.moveExistingEditorForResource(existingEditors, group);
+				if (editor) {
+					return { editor, options };
+				} else {
+					return; // failed to move
+				}
 			}
 		}
 
@@ -503,27 +529,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Moves an editor with the resource and viewtype to target group if one exists
+	 * Moves the first existing editor for a resource to the target group unless already opened there.
 	 * Additionally will close any other editors that are open for that resource and viewtype besides the first one found
 	 * @param resource The resource of the editor
 	 * @param viewType the viewtype of the editor
 	 * @param targetGroup The group to move it to
-	 * @returns An editor input if one exists, else undefined
+	 * @returns The moved editor input or `undefined` if the editor could not be moved
 	 */
 	private async moveExistingEditorForResource(
-		resource: URI,
-		viewType: string,
+		existingEditorsForResource: Array<{ editor: EditorInput; group: IEditorGroup }>,
 		targetGroup: IEditorGroup,
 	): Promise<EditorInput | undefined> {
-		const editorInfoForResource = this.findExistingEditorsForResource(resource, viewType);
-		if (!editorInfoForResource.length) {
-			return;
-		}
-
-		const editorToUse = editorInfoForResource[0];
+		const editorToUse = existingEditorsForResource[0];
 
 		// We should only have one editor but if there are multiple we close the others
-		for (const { editor, group } of editorInfoForResource) {
+		for (const { editor, group } of existingEditorsForResource) {
 			if (editor !== editorToUse.editor) {
 				const closed = await group.closeEditor(editor);
 				if (!closed) {
@@ -534,10 +554,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Move the editor already opened to the target group
 		if (targetGroup.id !== editorToUse.group.id) {
-			editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
-			return editorToUse.editor;
+			const moved = editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
+			if (!moved) {
+				return;
+			}
 		}
-		return;
+
+		return editorToUse.editor;
 	}
 
 	/**

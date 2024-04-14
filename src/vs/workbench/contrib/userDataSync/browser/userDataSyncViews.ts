@@ -97,7 +97,7 @@ export class UserDataSyncDataViews extends Disposable {
 			order: 300,
 		}], container);
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.editMachineName`,
@@ -116,9 +116,9 @@ export class UserDataSyncDataViews extends Disposable {
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.turnOffSyncOnMachine`,
@@ -134,7 +134,7 @@ export class UserDataSyncDataViews extends Disposable {
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 
 	}
 
@@ -221,10 +221,10 @@ export class UserDataSyncDataViews extends Disposable {
 	}
 
 	private registerDataViewActions(viewId: string) {
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.resolveResource`,
+					id: `workbench.actions.sync.${viewId}.resolveResource`,
 					title: localize('workbench.actions.sync.resolveResourceRef', "Show raw JSON sync data"),
 					menu: {
 						id: MenuId.ViewItemContext,
@@ -237,12 +237,12 @@ export class UserDataSyncDataViews extends Disposable {
 				const editorService = accessor.get(IEditorService);
 				await editorService.openEditor({ resource: URI.parse(resource), options: { pinned: true } });
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.compareWithLocal`,
+					id: `workbench.actions.sync.${viewId}.compareWithLocal`,
 					title: localize('workbench.actions.sync.compareWithLocal', "Compare with Local"),
 					menu: {
 						id: MenuId.ViewItemContext,
@@ -262,17 +262,17 @@ export class UserDataSyncDataViews extends Disposable {
 					undefined
 				);
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.replaceCurrent`,
+					id: `workbench.actions.sync.${viewId}.replaceCurrent`,
 					title: localize('workbench.actions.sync.replaceCurrent', "Restore"),
 					icon: Codicon.discard,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i)),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i), ContextKeyExpr.notEquals('viewItem', `sync-resource-${SyncResource.Profiles}`)),
 						group: 'inline',
 					},
 				});
@@ -290,7 +290,7 @@ export class UserDataSyncDataViews extends Disposable {
 					return userDataSyncService.replace({ created: syncResourceHandle.created, uri: URI.revive(syncResourceHandle.uri) });
 				}
 			}
-		});
+		}));
 
 	}
 

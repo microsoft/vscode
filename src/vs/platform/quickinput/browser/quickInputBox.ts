@@ -36,15 +36,11 @@ export class QuickInputBox extends Disposable {
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
-		return dom.addDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			handler(new StandardKeyboardEvent(e));
-		});
+		return dom.addStandardDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.KEY_DOWN, handler);
 	};
 
 	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
-		return dom.addDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			handler(new StandardMouseEvent(e));
-		});
+		return dom.addStandardDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.MOUSE_DOWN, handler);
 	};
 
 	onDidChange = (handler: (event: string) => void): IDisposable => {
@@ -61,6 +57,10 @@ export class QuickInputBox extends Disposable {
 
 	select(range: IRange | null = null): void {
 		this.findInput.inputBox.select(range);
+	}
+
+	getSelection(): IRange | null {
+		return this.findInput.inputBox.getSelection();
 	}
 
 	isSelectionAtEnd(): boolean {

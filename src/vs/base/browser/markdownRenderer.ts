@@ -12,7 +12,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
+import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -35,6 +35,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRendererSync?: (languageId: string, value: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
+	readonly disallowRemoteImages?: boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -80,7 +81,8 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/>/g, '&gt;')
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
-		return `<a href="${href}" title="${title || href}">${text}</a>`;
+
+		return `<a href="${href}" title="${title || href}" draggable="false">${text}</a>`;
 	},
 });
 
@@ -195,7 +197,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
 		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
 		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(e);
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(element), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}
@@ -261,7 +263,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const htmlParser = new DOMParser();
 	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string, 'text/html');
 
-	markdownHtmlDoc.body.querySelectorAll('img')
+	markdownHtmlDoc.body.querySelectorAll('img, audio, video, source')
 		.forEach(img => {
 			const src = img.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
 			if (src) {
@@ -272,7 +274,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 					}
 				} catch (err) { }
 
-				img.src = _href(href, true);
+				img.setAttribute('src', _href(href, true));
+
+				if (options.disallowRemoteImages) {
+					const uriScheme = URI.parse(href).scheme;
+					if (uriScheme !== Schemas.file && uriScheme !== Schemas.data) {
+						img.replaceWith(DOM.$('', undefined, img.outerHTML));
+					}
+				}
 			}
 		});
 
@@ -387,8 +396,25 @@ function sanitizeRenderedMarkdown(
 			}
 			e.keepAttr = false;
 			return;
+		} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
+			if ((e.attrName === 'type' && e.attrValue === 'checkbox') || e.attrName === 'disabled' || e.attrName === 'checked') {
+				e.keepAttr = true;
+				return;
+			}
+			e.keepAttr = false;
 		}
 	});
+
+	dompurify.addHook('uponSanitizeElement', (element, e) => {
+		if (e.tagName === 'input') {
+			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
+				element.setAttribute('disabled', '');
+			} else {
+				element.parentElement?.removeChild(element);
+			}
+		}
+	});
+
 
 	const hook = DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes);
 
@@ -404,10 +430,13 @@ export const allowedMarkdownAttr = [
 	'align',
 	'autoplay',
 	'alt',
+	'checked',
 	'class',
 	'controls',
 	'data-code',
 	'data-href',
+	'disabled',
+	'draggable',
 	'height',
 	'href',
 	'loop',
@@ -418,6 +447,7 @@ export const allowedMarkdownAttr = [
 	'style',
 	'target',
 	'title',
+	'type',
 	'width',
 	'start',
 ];
@@ -559,7 +589,8 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 }
 
 function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens.Paragraph): marked.Token | undefined {
-	for (const subtoken of token.tokens) {
+	for (let i = 0; i < token.tokens.length; i++) {
+		const subtoken = token.tokens[i];
 		if (subtoken.type === 'text') {
 			const lines = subtoken.raw.split('\n');
 			const lastLine = lines[lines.length - 1];
@@ -574,14 +605,27 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 			} else if (lastLine.match(/(^|\s)_\w/)) {
 				return completeUnderscore(token);
 			} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+				const nextTwoSubTokens = token.tokens.slice(i + 1);
+				if (nextTwoSubTokens[0]?.type === 'link' && nextTwoSubTokens[1]?.type === 'text' && nextTwoSubTokens[1].raw.match(/^ *"[^"]*$/)) {
+					// A markdown link can look like
+					// [link text](https://microsoft.com "more text")
+					// Where "more text" is a title for the link or an argument to a vscode command link
+					return completeLinkTargetArg(token);
+				}
 				return completeLinkTarget(token);
-			} else if (lastLine.match(/(^|\s)\[\w/)) {
+			} else if (hasStartOfLinkTarget(lastLine)) {
+				return completeLinkTarget(token);
+			} else if (lastLine.match(/(^|\s)\[\w/) && !token.tokens.slice(i + 1).some(t => hasStartOfLinkTarget(t.raw))) {
 				return completeLinkText(token);
 			}
 		}
 	}
 
 	return undefined;
+}
+
+function hasStartOfLinkTarget(str: string): boolean {
+	return !!str.match(/^[^\[]*\]\([^\)]*$/);
 }
 
 // function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List | undefined {
@@ -609,9 +653,11 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 	let newTokens: marked.Token[] | undefined;
 	for (i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
-		if (token.type === 'paragraph' && token.raw.match(/(\n|^)```/)) {
+		let codeblockStart: RegExpMatchArray | null;
+		if (token.type === 'paragraph' && (codeblockStart = token.raw.match(/(\n|^)(````*)/))) {
+			const codeblockLead = codeblockStart[2];
 			// If the code block was complete, it would be in a type='code'
-			newTokens = completeCodeBlock(tokens.slice(i));
+			newTokens = completeCodeBlock(tokens.slice(i), codeblockLead);
 			break;
 		}
 
@@ -650,9 +696,9 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 	return tokens;
 }
 
-function completeCodeBlock(tokens: marked.Token[]): marked.Token[] {
+function completeCodeBlock(tokens: marked.Token[], leader: string): marked.Token[] {
 	const mergedRawText = mergeRawTokenText(tokens);
-	return marked.lexer(mergedRawText + '\n```');
+	return marked.lexer(mergedRawText + `\n${leader}`);
 }
 
 function completeCodespan(token: marked.Token): marked.Token {
@@ -669,6 +715,10 @@ function completeUnderscore(tokens: marked.Token): marked.Token {
 
 function completeLinkTarget(tokens: marked.Token): marked.Token {
 	return completeWithString(tokens, ')');
+}
+
+function completeLinkTargetArg(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '")');
 }
 
 function completeLinkText(tokens: marked.Token): marked.Token {

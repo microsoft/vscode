@@ -102,7 +102,7 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 				engines: { vscode: '*' },
 			},
 			extension,
-			{ profileLocation: userDataProfilesService.defaultProfile.extensionsResource },
+			{ profileLocation: userDataProfilesService.defaultProfile.extensionsResource, productVersion: { version: '' } },
 			extensionDownloader,
 			new TestExtensionsScanner(),
 			uriIdentityService,
@@ -110,6 +110,7 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 			extensionsScannerService,
 			extensionsProfileScannerService,
 			logService,
+			NullTelemetryService
 		);
 	}
 
@@ -224,8 +225,8 @@ suite('InstallGalleryExtensionTask Tests', () => {
 		instantiationService.stub(IProductService, { quality: options.quality ?? 'insiders' });
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, logService);
-		instantiationService.stub(INativeEnvironmentService, <Partial<INativeEnvironmentService>>{ extensionsDownloadLocation: joinPath(ROOT, 'CachedExtensionVSIXs') });
-		instantiationService.stub(IExtensionGalleryService, <Partial<IExtensionGalleryService>>{
+		instantiationService.stub(INativeEnvironmentService, { extensionsDownloadLocation: joinPath(ROOT, 'CachedExtensionVSIXs') });
+		instantiationService.stub(IExtensionGalleryService, {
 			async download(extension, location, operation) {
 				await fileService.writeFile(location, VSBuffer.fromString('extension vsix'));
 			},

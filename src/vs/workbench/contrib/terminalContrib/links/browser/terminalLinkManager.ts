@@ -20,18 +20,19 @@ import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, 
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLocalLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalUriLinkDetector';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalWordLinkDetector';
-import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService, ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalConfiguration, ITerminalProcessInfo, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
-import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
+import type { ILink, ILinkProvider, IViewportRange, Terminal } from '@xterm/xterm';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { TerminalMultiLineLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalMultiLineLinkDetector';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -45,13 +46,17 @@ export class TerminalLinkManager extends DisposableStore {
 	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
 
+	externalProvideLinksCb?: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>;
+
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processInfo: ITerminalProcessInfo,
 		capabilities: ITerminalCapabilityStore,
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
@@ -70,11 +75,11 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 
 		// Setup link detectors in their order of priority
-		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._processInfo, this._linkResolver));
 		if (enableFileLinks) {
 			this._setupLinkDetector(TerminalMultiLineLinkDetector.id, this._instantiationService.createInstance(TerminalMultiLineLinkDetector, this._xterm, this._processInfo, this._linkResolver));
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processInfo, this._linkResolver));
 		}
+		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._processInfo, this._linkResolver));
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this.add(this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm)));
 
 		// Setup link openers
@@ -91,11 +96,36 @@ export class TerminalLinkManager extends DisposableStore {
 		let activeHoverDisposable: IDisposable | undefined;
 		let activeTooltipScheduler: RunOnceScheduler | undefined;
 		this.add(toDisposable(() => {
+			this._clearLinkProviders();
+			dispose(this._externalLinkProviders);
 			activeHoverDisposable?.dispose();
 			activeTooltipScheduler?.dispose();
 		}));
 		this._xterm.options.linkHandler = {
-			activate: (_, text) => {
+			allowNonHttpProtocols: true,
+			activate: (event, text) => {
+				if (!this._isLinkActivationModifierDown(event)) {
+					return;
+				}
+				const colonIndex = text.indexOf(':');
+				if (colonIndex === -1) {
+					throw new Error(`Could not find scheme in link "${text}"`);
+				}
+				const scheme = text.substring(0, colonIndex);
+				if (this._terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
+					this._notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
+						{
+							label: nls.localize('allow', 'Allow {0}', scheme),
+							run: () => {
+								const allowedLinkSchemes = [
+									...this._terminalConfigurationService.config.allowedLinkSchemes,
+									scheme
+								];
+								this._configurationService.updateValue(`terminal.integrated.allowedLinkSchemes`, allowedLinkSchemes);
+							}
+						}
+					]);
+				}
 				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
 					type: TerminalBuiltinLinkType.Url,
 					text,
@@ -347,20 +377,28 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _registerStandardLinkProviders(): void {
+		// Forward any external link provider requests to the registered provider if it exists. This
+		// helps maintain the relative priority of the link providers as it's defined by the order
+		// in which they're registered in xterm.js.
+		//
+		/**
+		 * There's a bit going on here but here's another view:
+		 * - {@link externalProvideLinksCb} The external callback that gives the links (eg. from
+		 *   exthost)
+		 * - {@link proxyLinkProvider} A proxy that forwards the call over to
+		 *   {@link externalProvideLinksCb}
+		 * - {@link wrappedLinkProvider} Wraps the above in an `TerminalLinkDetectorAdapter`
+		 */
+		const proxyLinkProvider: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']> = async (bufferLineNumber) => {
+			return this.externalProvideLinksCb?.(bufferLineNumber);
+		};
+		const detectorId = `extension-${this._externalLinkProviders.length}`;
+		const wrappedLinkProvider = this._setupLinkDetector(detectorId, new TerminalExternalLinkDetector(detectorId, this._xterm, proxyLinkProvider), true);
+		this._linkProvidersDisposables.push(this._xterm.registerLinkProvider(wrappedLinkProvider));
+
 		for (const p of this._standardLinkProviders.values()) {
 			this._linkProvidersDisposables.push(this._xterm.registerLinkProvider(p));
 		}
-	}
-
-	registerExternalLinkProvider(provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>): IDisposable {
-		// Clear and re-register the standard link providers so they are a lower priority than the new one
-		this._clearLinkProviders();
-		const detectorId = `extension-${this._externalLinkProviders.length}`;
-		const wrappedLinkProvider = this._setupLinkDetector(detectorId, new TerminalExternalLinkDetector(detectorId, this._xterm, provideLinks), true);
-		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
-		this._externalLinkProviders.push(newLinkProvider);
-		this._registerStandardLinkProviders();
-		return newLinkProvider;
 	}
 
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
@@ -429,6 +467,6 @@ export interface ILineColumnInfo {
 export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];
-	fileLinks?: ILink[];
+	fileLinks?: (ILink | TerminalLink)[];
 	folderLinks?: ILink[];
 }

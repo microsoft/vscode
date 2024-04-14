@@ -44,7 +44,7 @@ export function editorMatchesToTextSearchResults(matches: FindMatch[], model: IT
 	});
 }
 
-export function addContextToEditorMatches(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
+export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
 	const results: ITextSearchResult[] = [];
 
 	let prevLine = -1;
@@ -55,7 +55,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 			for (let b = beforeContextStartLine; b < matchStartLine; b++) {
 				results.push(<ITextSearchContext>{
 					text: model.getLineContent(b + 1),
-					lineNumber: b
+					lineNumber: b + 1
 				});
 			}
 		}
@@ -69,7 +69,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 			for (let a = matchEndLine + 1; a <= afterContextToLine; a++) {
 				results.push(<ITextSearchContext>{
 					text: model.getLineContent(a + 1),
-					lineNumber: a
+					lineNumber: a + 1
 				});
 			}
 		}

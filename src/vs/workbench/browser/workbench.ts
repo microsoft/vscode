@@ -5,10 +5,10 @@
 
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { runWhenWindowIdle } from 'vs/base/browser/dom';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
-import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
-import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -41,6 +41,11 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { mainWindow } from 'vs/base/browser/window';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IWorkbenchOptions {
 
@@ -75,14 +80,16 @@ export class Workbench extends Layout {
 	private registerErrorHandler(logService: ILogService): void {
 
 		// Listen on unhandled rejection events
-		this._register(addDisposableListener(window, 'unhandledrejection', event => {
+		// Note: intentionally not registered as disposable to handle
+		//       errors that can occur during shutdown phase.
+		mainWindow.addEventListener('unhandledrejection', (event) => {
 
 			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
 			onUnexpectedError(event.reason);
 
 			// Prevent the printing of this event to the console
 			event.preventDefault();
-		}));
+		});
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
@@ -102,8 +109,8 @@ export class Workbench extends Layout {
 		}
 		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
 
-		if (typeof window.require?.config === 'function') {
-			window.require.config({
+		if (typeof mainWindow.require?.config === 'function') {
+			mainWindow.require.config({
 				onError: (err: AnnotatedError) => {
 					if (err.phase === 'loading') {
 						onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
@@ -137,7 +144,7 @@ export class Workbench extends Layout {
 		try {
 
 			// Configure emitter leak warning threshold
-			setGlobalLeakWarningThreshold(175);
+			this._register(setGlobalLeakWarningThreshold(175));
 
 			// Services
 			const instantiationService = this.initServices(this.serviceCollection);
@@ -147,8 +154,14 @@ export class Workbench extends Layout {
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
 				const hostService = accessor.get(IHostService);
+				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
+
+				// Default Hover Delegate must be registered before creating any workbench/layout components
+				// as these possibly will use the default hover delegate
+				setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
+				setBaseLayerHoverDelegate(hoverService);
 
 				// Layout
 				this.initLayout(accessor);
@@ -258,8 +271,8 @@ export class Workbench extends Layout {
 		}));
 
 		// Dialogs showing/hiding
-		this._register(dialogService.onWillShowDialog(() => this.container.classList.add('modal-dialog-visible')));
-		this._register(dialogService.onDidShowDialog(() => this.container.classList.remove('modal-dialog-visible')));
+		this._register(dialogService.onWillShowDialog(() => this.mainContainer.classList.add('modal-dialog-visible')));
+		this._register(dialogService.onDidShowDialog(() => this.mainContainer.classList.remove('modal-dialog-visible')));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
@@ -281,11 +294,11 @@ export class Workbench extends Layout {
 
 		// Remove all
 		const fontAliasingValues: (typeof aliasing)[] = ['antialiased', 'none', 'auto'];
-		this.container.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+		this.mainContainer.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
 
 		// Add specific
 		if (fontAliasingValues.some(option => option === aliasing)) {
-			this.container.classList.add(`monaco-font-aliasing-${aliasing}`);
+			this.mainContainer.classList.add(`monaco-font-aliasing-${aliasing}`);
 		}
 	}
 
@@ -295,18 +308,18 @@ export class Workbench extends Layout {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
 				if (Array.isArray(storedFontInfo)) {
-					FontMeasurements.restoreFontInfo(storedFontInfo);
+					FontMeasurements.restoreFontInfo(mainWindow, storedFontInfo);
 				}
 			} catch (err) {
 				/* ignore */
 			}
 		}
 
-		FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), PixelRatio.value));
+		FontMeasurements.readFontInfo(mainWindow, BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), PixelRatio.getInstance(mainWindow).value));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {
-		const serializedFontInfo = FontMeasurements.serializeFontInfo();
+		const serializedFontInfo = FontMeasurements.serializeFontInfo(mainWindow);
 		if (serializedFontInfo) {
 			storageService.store('editorFontInfo', JSON.stringify(serializedFontInfo), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
@@ -315,7 +328,7 @@ export class Workbench extends Layout {
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// ARIA
-		setARIAContainer(this.container);
+		setARIAContainer(this.mainContainer);
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -328,11 +341,11 @@ export class Workbench extends Layout {
 			...(this.options?.extraClasses ? this.options.extraClasses : [])
 		]);
 
-		this.container.classList.add(...workbenchClasses);
-		document.body.classList.add(platformClass); // used by our fonts
+		this.mainContainer.classList.add(...workbenchClasses);
+		mainWindow.document.body.classList.add(platformClass); // used by our fonts
 
 		if (isWeb) {
-			document.body.classList.add('web');
+			mainWindow.document.body.classList.add('web');
 		}
 
 		// Apply font aliasing
@@ -363,7 +376,7 @@ export class Workbench extends Layout {
 		this.createNotificationsHandlers(instantiationService, notificationService);
 
 		// Add Workbench to DOM
-		this.parent.appendChild(this.container);
+		this.parent.appendChild(this.mainContainer);
 	}
 
 	private createPart(id: string, role: string, classes: string[]): HTMLElement {
@@ -381,8 +394,8 @@ export class Workbench extends Layout {
 	private createNotificationsHandlers(instantiationService: IInstantiationService, notificationService: NotificationService): void {
 
 		// Instantiate Notification components
-		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.container, notificationService.model));
-		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.container, notificationService.model));
+		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.mainContainer, notificationService.model));
+		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
 		this._register(instantiationService.createInstance(NotificationsTelemetry));
@@ -450,7 +463,7 @@ export class Workbench extends Layout {
 
 				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+					this._register(runWhenWindowIdle(mainWindow, () => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
 				}, 2500));
 				eventuallyPhaseScheduler.schedule();
 			})

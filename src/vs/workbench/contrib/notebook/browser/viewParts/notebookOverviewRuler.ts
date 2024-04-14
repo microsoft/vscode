@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
+import { getWindow } from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { INotebookEditorDelegate, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
@@ -25,7 +26,7 @@ export class NotebookOverviewRuler extends Themable {
 			this.layout();
 		}));
 
-		this._register(browser.PixelRatio.onDidChange(() => {
+		this._register(PixelRatio.getInstance(getWindow(this._domNode.domNode)).onDidChange(() => {
 			this.layout();
 		}));
 	}
@@ -35,7 +36,7 @@ export class NotebookOverviewRuler extends Themable {
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 		const scrollHeight = layoutInfo.scrollHeight;
 		const height = layoutInfo.height;
-		const ratio = browser.PixelRatio.value;
+		const ratio = PixelRatio.getInstance(getWindow(this._domNode.domNode)).value;
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 		this._domNode.domNode.width = width * ratio;

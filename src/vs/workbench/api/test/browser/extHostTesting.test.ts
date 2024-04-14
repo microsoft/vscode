@@ -5,23 +5,30 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
-import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import { mock, mockObject, MockObject } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import * as editorRange from 'vs/editor/common/core/range';
-import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostTesting, TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostTestItemCollection, TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Location, Position, Range, TestMessage, TestResultState, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from 'vs/workbench/api/common/extHostTypes';
+import { AnyCallRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import type { TestItem, TestRunRequest } from 'vscode';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import type { TestController, TestItem, TestRunProfile, TestRunRequest } from 'vscode';
 
 const simplify = (item: TestItem) => ({
 	id: item.id,
@@ -79,11 +86,14 @@ suite('ExtHost Testing', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let single: TestExtHostTestItemCollection;
+	let resolveCalls: (string | undefined)[] = [];
 	setup(() => {
+		resolveCalls = [];
 		single = ds.add(new TestExtHostTestItemCollection('ctrlId', 'root', {
 			getDocument: () => undefined,
 		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors));
 		single.resolveHandler = item => {
+			resolveCalls.push(item?.id);
 			if (item === undefined) {
 				const a = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
 				a.canResolveChildren = true;
@@ -299,7 +309,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded, item: { label: 'Hello world' } },
+					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { label: 'Hello world' } },
 				},
 				{
 					op: TestDiffOpType.DocumentSynced,
@@ -320,6 +330,40 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
+		suite('expandibility restoration', () => {
+			const doReplace = async (canResolveChildren = true) => {
+				const uri = single.root.children.get('id-a')!.uri;
+				const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', uri);
+				newA.canResolveChildren = canResolveChildren;
+				single.root.children.replace([
+					newA,
+					new TestItemImpl('ctrlId', 'id-b', single.root.children.get('id-b')!.label, uri),
+				]);
+				await timeout(0); // drain microtasks
+			};
+
+			test('does not restore an unexpanded state', async () => {
+				await single.expand(single.root.id, 0);
+				assert.deepStrictEqual(resolveCalls, [undefined]);
+				await doReplace();
+				assert.deepStrictEqual(resolveCalls, [undefined]);
+			});
+
+			test('restores resolve state on replacement', async () => {
+				await single.expand(single.root.id, Infinity);
+				assert.deepStrictEqual(resolveCalls, [undefined, 'id-a']);
+				await doReplace();
+				assert.deepStrictEqual(resolveCalls, [undefined, 'id-a', 'id-a']);
+			});
+
+			test('does not expand if new child is not expandable', async () => {
+				await single.expand(single.root.id, Infinity);
+				assert.deepStrictEqual(resolveCalls, [undefined, 'id-a']);
+				await doReplace(false);
+				assert.deepStrictEqual(resolveCalls, [undefined, 'id-a']);
+			});
+		});
+
 		test('treats in-place replacement as mutation deeply', () => {
 			single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -334,10 +378,6 @@ suite('ExtHost Testing', () => {
 			single.root.children.replace([newA, single.root.children.get('id-b')!]);
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				{
-					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded },
-				},
 				{
 					op: TestDiffOpType.Update,
 					item: { extId: TestId.fromExtHostTestItem(oldAB, 'ctrlId').toString(), item: { label: 'Hello world' } },
@@ -597,14 +637,19 @@ suite('ExtHost Testing', () => {
 		let req: TestRunRequest;
 
 		let dto: TestRunDto;
-		const ext: IRelaxedExtensionDescription = {} as any;
+
+		teardown(() => {
+			for (const { id } of c.trackers) {
+				c.disposeTestRun(id);
+			}
+		});
 
 		setup(async () => {
 			proxy = mockObject<MainThreadTestingShape>()();
 			cts = new CancellationTokenSource();
-			c = new TestRunCoordinator(proxy);
+			c = new TestRunCoordinator(proxy, new NullLogService());
 
-			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
+			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
 			await single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -625,11 +670,11 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('tracks a run started from a main thread request', () => {
-			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
+			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, configuration, cts.token));
 			assert.strictEqual(tracker.hasRunningTasks, false);
 
-			const task1 = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
-			const task2 = c.createTestRun(ext, 'ctrl', single, req, 'run2', true);
+			const task1 = c.createTestRun('ctrl', single, req, 'run1', true);
+			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
 			assert.strictEqual(proxy.$startedExtensionTestRun.called, false);
 			assert.strictEqual(tracker.hasRunningTasks, true);
 
@@ -650,8 +695,8 @@ suite('ExtHost Testing', () => {
 		test('run cancel force ends after a timeout', () => {
 			const clock = sinon.useFakeTimers();
 			try {
-				const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
-				const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+				const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, configuration, cts.token));
+				const task = c.createTestRun('ctrl', single, req, 'run1', true);
 				const onEnded = sinon.stub();
 				ds.add(tracker.onEnd(onEnded));
 
@@ -675,8 +720,8 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('run cancel force ends on second cancellation request', () => {
-			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
-			const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, configuration, cts.token));
+			const task = c.createTestRun('ctrl', single, req, 'run1', true);
 			const onEnded = sinon.stub();
 			ds.add(tracker.onEnd(onEnded));
 
@@ -694,7 +739,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('tracks a run started from an extension request', () => {
-			const task1 = c.createTestRun(ext, 'ctrl', single, req, 'hello world', false);
+			const task1 = c.createTestRun('ctrl', single, req, 'hello world', false);
 
 			const tracker = Iterable.first(c.trackers)!;
 			assert.strictEqual(tracker.hasRunningTasks, true);
@@ -710,8 +755,8 @@ suite('ExtHost Testing', () => {
 				}]
 			]);
 
-			const task2 = c.createTestRun(ext, 'ctrl', single, req, 'run2', true);
-			const task3Detached = c.createTestRun(ext, 'ctrl', single, { ...req }, 'task3Detached', true);
+			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
+			const task3Detached = c.createTestRun('ctrl', single, { ...req }, 'task3Detached', true);
 
 			task1.end();
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
@@ -725,7 +770,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('adds tests to run smartly', () => {
-			const task1 = c.createTestRun(ext, 'ctrlId', single, req, 'hello world', false);
+			const task1 = c.createTestRun('ctrlId', single, req, 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 			const expectedArgs: unknown[][] = [];
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
@@ -764,7 +809,7 @@ suite('ExtHost Testing', () => {
 			const test2 = new TestItemImpl('ctrlId', 'id-d', 'test d', URI.file('/testd.txt'));
 			test1.range = test2.range = new Range(new Position(0, 0), new Position(1, 0));
 			single.root.children.replace([test1, test2]);
-			const task = c.createTestRun(ext, 'ctrlId', single, req, 'hello world', false);
+			const task = c.createTestRun('ctrlId', single, req, 'hello world', false);
 
 			const message1 = new TestMessage('some message');
 			message1.location = new Location(URI.file('/a.txt'), new Position(0, 0));
@@ -797,7 +842,7 @@ suite('ExtHost Testing', () => {
 					contextValue: undefined,
 					expected: undefined,
 					actual: undefined,
-					location: convert.location.from({ uri: test2.uri!, range: test2.range! }),
+					location: convert.location.from({ uri: test2.uri!, range: test2.range }),
 				}]
 			]);
 
@@ -805,7 +850,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('guards calls after runs are ended', () => {
-			const task = c.createTestRun(ext, 'ctrl', single, req, 'hello world', false);
+			const task = c.createTestRun('ctrl', single, req, 'hello world', false);
 			task.end();
 
 			task.failed(single.root, new TestMessage('some message'));
@@ -817,7 +862,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('excludes tests outside tree or explicitly excluded', () => {
-			const task = c.createTestRun(ext, 'ctrlId', single, {
+			const task = c.createTestRun('ctrlId', single, {
 				profile: configuration,
 				include: [single.root.children.get('id-a')!],
 				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
@@ -846,7 +891,7 @@ suite('ExtHost Testing', () => {
 			const childB = new TestItemImpl('ctrlId', 'id-child', 'child', undefined);
 			testB!.children.replace([childB]);
 
-			const task1 = c.createTestRun(ext, 'ctrl', single, new TestRunRequestImpl(), 'hello world', false);
+			const task1 = c.createTestRun('ctrl', single, new TestRunRequestImpl(), 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 
 			task1.passed(childA);
@@ -865,6 +910,85 @@ suite('ExtHost Testing', () => {
 			]);
 
 			task1.end();
+		});
+	});
+
+	suite('service', () => {
+		let ctrl: TestExtHostTesting;
+
+		class TestExtHostTesting extends ExtHostTesting {
+			public getProfileInternalId(ctrl: TestController, profile: TestRunProfile) {
+				for (const [id, p] of this.controllers.get(ctrl.id)!.profiles) {
+					if (profile === p) {
+						return id;
+					}
+				}
+
+				throw new Error('profile not found');
+			}
+		}
+
+		setup(() => {
+			const rpcProtocol = AnyCallRPCProtocol();
+			ctrl = ds.add(new TestExtHostTesting(
+				rpcProtocol,
+				new NullLogService(),
+				new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
+					override onExtensionError(): boolean {
+						return true;
+					}
+				}),
+				new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService()),
+			));
+		});
+
+		test('exposes active profiles correctly', async () => {
+			const extA = { ...nullExtensionDescription, identifier: new ExtensionIdentifier('ext.a'), enabledApiProposals: ['testingActiveProfile'] };
+			const extB = { ...nullExtensionDescription, identifier: new ExtensionIdentifier('ext.b'), enabledApiProposals: ['testingActiveProfile'] };
+
+			const ctrlA = ds.add(ctrl.createTestController(extA, 'a', 'ctrla'));
+			const profAA = ds.add(ctrlA.createRunProfile('aa', TestRunProfileKind.Run, () => { }));
+			const profAB = ds.add(ctrlA.createRunProfile('ab', TestRunProfileKind.Run, () => { }));
+
+			const ctrlB = ds.add(ctrl.createTestController(extB, 'b', 'ctrlb'));
+			const profBA = ds.add(ctrlB.createRunProfile('ba', TestRunProfileKind.Run, () => { }));
+			const profBB = ds.add(ctrlB.createRunProfile('bb', TestRunProfileKind.Run, () => { }));
+			const neverCalled = sinon.stub();
+
+			// empty default state:
+			assert.deepStrictEqual(profAA.isDefault, false);
+			assert.deepStrictEqual(profBA.isDefault, false);
+			assert.deepStrictEqual(profBB.isDefault, false);
+
+			// fires a change event:
+			const changeA = Event.toPromise(profAA.onDidChangeDefault as Event<boolean>);
+			const changeBA = Event.toPromise(profBA.onDidChangeDefault as Event<boolean>);
+			const changeBB = Event.toPromise(profBB.onDidChangeDefault as Event<boolean>);
+
+			ds.add(profAB.onDidChangeDefault(neverCalled));
+			assert.strictEqual(neverCalled.called, false);
+
+			ctrl.$setDefaultRunProfiles({
+				a: [ctrl.getProfileInternalId(ctrlA, profAA)],
+				b: [ctrl.getProfileInternalId(ctrlB, profBA), ctrl.getProfileInternalId(ctrlB, profBB)]
+			});
+
+			assert.deepStrictEqual(await changeA, true);
+			assert.deepStrictEqual(await changeBA, true);
+			assert.deepStrictEqual(await changeBB, true);
+
+			// updates internal state:
+			assert.deepStrictEqual(profAA.isDefault, true);
+			assert.deepStrictEqual(profBA.isDefault, true);
+			assert.deepStrictEqual(profBB.isDefault, true);
+			assert.deepStrictEqual(profAB.isDefault, false);
+
+			// no-ops if equal
+			ds.add(profAA.onDidChangeDefault(neverCalled));
+			ctrl.$setDefaultRunProfiles({
+				a: [ctrl.getProfileInternalId(ctrlA, profAA)],
+			});
+			assert.strictEqual(neverCalled.called, false);
 		});
 	});
 });

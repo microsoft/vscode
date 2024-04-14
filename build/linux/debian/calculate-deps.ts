@@ -11,15 +11,15 @@ import * as manifests from '../../../cgmanifest.json';
 import { additionalDeps } from './dep-lists';
 import { DebianArchString } from './types';
 
-export function generatePackageDeps(files: string[], arch: DebianArchString, sysroot: string): Set<string>[] {
-	const dependencies: Set<string>[] = files.map(file => calculatePackageDeps(file, arch, sysroot));
+export function generatePackageDeps(files: string[], arch: DebianArchString, chromiumSysroot: string, vscodeSysroot: string): Set<string>[] {
+	const dependencies: Set<string>[] = files.map(file => calculatePackageDeps(file, arch, chromiumSysroot, vscodeSysroot));
 	const additionalDepsSet = new Set(additionalDeps);
 	dependencies.push(additionalDepsSet);
 	return dependencies;
 }
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/calculate_package_deps.py.
-function calculatePackageDeps(binaryPath: string, arch: DebianArchString, sysroot: string): Set<string> {
+function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromiumSysroot: string, vscodeSysroot: string): Set<string> {
 	try {
 		if (!(statSync(binaryPath).mode & constants.S_IXUSR)) {
 			throw new Error(`Binary ${binaryPath} needs to have an executable bit set.`);
@@ -42,22 +42,29 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, sysroo
 	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined'];
 	switch (arch) {
 		case 'amd64':
-			cmd.push(`-l${sysroot}/usr/lib/x86_64-linux-gnu`,
-				`-l${sysroot}/lib/x86_64-linux-gnu`);
+			cmd.push(`-l${chromiumSysroot}/usr/lib/x86_64-linux-gnu`,
+				`-l${chromiumSysroot}/lib/x86_64-linux-gnu`,
+				`-l${vscodeSysroot}/usr/lib/x86_64-linux-gnu`,
+				`-l${vscodeSysroot}/lib/x86_64-linux-gnu`);
 			break;
 		case 'armhf':
-			cmd.push(`-l${sysroot}/usr/lib/arm-linux-gnueabihf`,
-				`-l${sysroot}/lib/arm-linux-gnueabihf`);
+			cmd.push(`-l${chromiumSysroot}/usr/lib/arm-linux-gnueabihf`,
+				`-l${chromiumSysroot}/lib/arm-linux-gnueabihf`,
+				`-l${vscodeSysroot}/usr/lib/arm-linux-gnueabihf`,
+				`-l${vscodeSysroot}/lib/arm-linux-gnueabihf`);
 			break;
 		case 'arm64':
-			cmd.push(`-l${sysroot}/usr/lib/aarch64-linux-gnu`,
-				`-l${sysroot}/lib/aarch64-linux-gnu`);
+			cmd.push(`-l${chromiumSysroot}/usr/lib/aarch64-linux-gnu`,
+				`-l${chromiumSysroot}/lib/aarch64-linux-gnu`,
+				`-l${vscodeSysroot}/usr/lib/aarch64-linux-gnu`,
+				`-l${vscodeSysroot}/lib/aarch64-linux-gnu`);
 			break;
 	}
-	cmd.push(`-l${sysroot}/usr/lib`);
+	cmd.push(`-l${chromiumSysroot}/usr/lib`);
+	cmd.push(`-L${vscodeSysroot}/debian/libxkbfile1/DEBIAN/shlibs`);
 	cmd.push('-O', '-e', path.resolve(binaryPath));
 
-	const dpkgShlibdepsResult = spawnSync('perl', cmd, { cwd: sysroot });
+	const dpkgShlibdepsResult = spawnSync('perl', cmd, { cwd: chromiumSysroot });
 	if (dpkgShlibdepsResult.status !== 0) {
 		throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}. stderr:\n${dpkgShlibdepsResult.stderr} `);
 	}
@@ -83,9 +90,7 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, sysroo
 	// TODO(deepak1556): remove this workaround in favor of computing the
 	// versions from build container for native modules.
 	const filteredDeps = depsStr.split(', ').filter(dependency => {
-		return !dependency.startsWith('libgcc-s1') &&
-			!dependency.startsWith('libgssapi-krb5-2') &&
-			!dependency.startsWith('libkrb5-3');
+		return !dependency.startsWith('libgcc-s1');
 	}).sort();
 	const requires = new Set(filteredDeps);
 	return requires;

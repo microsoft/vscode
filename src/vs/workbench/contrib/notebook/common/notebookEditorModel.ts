@@ -52,11 +52,12 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
+		scratchpad: boolean,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
-		this.scratchPad = viewType === 'interactive';
+		this.scratchPad = scratchpad;
 	}
 
 	override dispose(): void {
@@ -136,7 +137,10 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				}
 				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
 			} else {
-				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
+				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
+					limits: options?.limits,
+					reload: options?.forceReadFromFile ? { async: false, force: true } : undefined
+				});
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(e => this._onDidSave.fire(e)));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
@@ -152,7 +156,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				reload: {
 					async: !options?.forceReadFromFile,
 					force: options?.forceReadFromFile
-				}
+				},
+				limits: options?.limits
 			});
 		}
 
@@ -213,28 +218,28 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			}
 		}));
 
-		if (_notebookModel.uri.scheme === Schemas.vscodeRemote) {
+		const saveWithReducedCommunication = this._configurationService.getValue(NotebookSetting.remoteSaving);
+
+		if (saveWithReducedCommunication || _notebookModel.uri.scheme === Schemas.vscodeRemote) {
 			this.configuration = {
-				// Intentionally pick a larger delay for triggering backups when
-				// we are connected to a remote. This saves us repeated roundtrips
-				// to the remote server when the content changes because the
-				// remote hosts the extension of the notebook with the contents truth
+				// Intentionally pick a larger delay for triggering backups to allow auto-save
+				// to complete first on the optimized save path
 				backupDelay: 10000
 			};
+		}
 
-			// Override save behavior to avoid transferring the buffer across the wire 3 times
-			if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
-				this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
-					const serializer = await this.getNotebookSerializer();
+		// Override save behavior to avoid transferring the buffer across the wire 3 times
+		if (saveWithReducedCommunication) {
+			this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
+				const serializer = await this.getNotebookSerializer();
 
-					if (token.isCancellationRequested) {
-						throw new CancellationError();
-					}
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 
-					const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
-					return stat;
-				};
-			}
+				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
+				return stat;
+			};
 		}
 	}
 
@@ -304,11 +309,11 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 
 	pushStackElement(): void {
-		this._notebookModel.pushStackElement('save', undefined, undefined);
+		this._notebookModel.pushStackElement();
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel> {
 
 	constructor(
 		private readonly _viewType: string,

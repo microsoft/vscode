@@ -4,80 +4,117 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { revive } from 'vs/base/common/marshalling';
-import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/languages';
-import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentInlineReference, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { contentRefUrl } from '../common/annotations';
 
 const variableRefUrl = 'http://_vscodedecoration_';
 
-export function convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
-	let result = '';
-	for (const part of parsedRequest.parts) {
-		if (part instanceof ChatRequestTextPart) {
-			result += part.text;
-		} else {
-			result += `[${part.text}](${variableRefUrl})`;
-		}
-	}
+export class ChatMarkdownDecorationsRenderer {
+	constructor(
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ILogService private readonly logService: ILogService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+	) { }
 
-	return result;
-}
-
-export function walkTreeAndAnnotateReferenceLinks(element: HTMLElement): void {
-	element.querySelectorAll('a').forEach(a => {
-		const href = a.getAttribute('data-href');
-		if (href) {
-			if (href.startsWith(variableRefUrl)) {
-				a.parentElement!.replaceChild(
-					renderResourceWidget(a.textContent!),
-					a);
-			} else if (href.startsWith(contentRefUrl)) {
-				renderFileWidget(href, a);
-			}
-		}
-	});
-}
-
-function renderResourceWidget(name: string): HTMLElement {
-	const container = dom.$('span.chat-resource-widget');
-	const alias = dom.$('span', undefined, name);
-	container.appendChild(alias);
-	return container;
-}
-
-function renderFileWidget(href: string, a: HTMLAnchorElement): void {
-	// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
-	const fullUri = URI.parse(href);
-	const location: Location | { uri: URI; range: undefined } = revive(JSON.parse(fullUri.fragment));
-	const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
-	a.setAttribute('data-href', location.uri.with({ fragment }).toString());
-}
-
-const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
-
-export function reduceInlineContentReferences(response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>): ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData> {
-	const result: (IMarkdownString | IChatResponseProgressFileTreeData)[] = [];
-	for (const item of response) {
-		const previousItem = result[result.length - 1];
-		if ('inlineReference' in item) {
-			const location = 'uri' in item.inlineReference ? item.inlineReference : { uri: item.inlineReference };
-			const printUri = URI.parse(contentRefUrl).with({ fragment: JSON.stringify(location) });
-			const markdownText = `[${item.name || basename(location.uri)}](${printUri.toString()})`;
-			if (isMarkdownString(previousItem)) {
-				result[result.length - 1] = new MarkdownString(previousItem.value + markdownText, { isTrusted: previousItem.isTrusted });
+	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
+		let result = '';
+		for (const part of parsedRequest.parts) {
+			if (part instanceof ChatRequestTextPart) {
+				result += part.text;
 			} else {
-				result.push(new MarkdownString(markdownText));
+				const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
+					|| undefined;
+				const title = uri ? encodeURIComponent(this.labelService.getUriLabel(uri, { relative: true })) :
+					part instanceof ChatRequestAgentPart ? part.agent.id :
+						'';
+
+				let text = part.text;
+				if (part instanceof ChatRequestAgentPart) {
+					const isDupe = this.chatAgentService.getAgentsByName(part.agent.name).length > 1;
+					if (isDupe) {
+						text += ` (${part.agent.extensionPublisher})`;
+					}
+				}
+
+				result += `[${text}](${variableRefUrl}?${title})`;
 			}
-		} else if (isMarkdownString(item) && isMarkdownString(previousItem)) {
-			result[result.length - 1] = new MarkdownString(previousItem.value + item.value, { isTrusted: previousItem.isTrusted });
-		} else {
-			result.push(item);
 		}
+
+		return result;
 	}
 
-	return result;
+	walkTreeAndAnnotateReferenceLinks(element: HTMLElement): void {
+		element.querySelectorAll('a').forEach(a => {
+			const href = a.getAttribute('data-href');
+			if (href) {
+				if (href.startsWith(variableRefUrl)) {
+					const title = decodeURIComponent(href.slice(variableRefUrl.length + 1));
+					a.parentElement!.replaceChild(
+						this.renderResourceWidget(a.textContent!, title),
+						a);
+				} else if (href.startsWith(contentRefUrl)) {
+					this.renderFileWidget(href, a);
+				} else if (href.startsWith('command:')) {
+					this.injectKeybindingHint(a, href, this.keybindingService);
+				}
+			}
+		});
+	}
+
+	private renderFileWidget(href: string, a: HTMLAnchorElement): void {
+		// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
+		const fullUri = URI.parse(href);
+		let location: Location | { uri: URI; range: undefined };
+		try {
+			location = revive(JSON.parse(fullUri.fragment));
+		} catch (err) {
+			this.logService.error('Invalid chat widget render data JSON', toErrorMessage(err));
+			return;
+		}
+
+		if (!location.uri || !URI.isUri(location.uri)) {
+			this.logService.error(`Invalid chat widget render data: ${fullUri.fragment}`);
+			return;
+		}
+
+		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
+		a.setAttribute('data-href', location.uri.with({ fragment }).toString());
+
+		const label = this.labelService.getUriLabel(location.uri, { relative: true });
+		a.title = location.range ?
+			`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
+			label;
+	}
+
+
+	private renderResourceWidget(name: string, title: string): HTMLElement {
+		const container = dom.$('span.chat-resource-widget');
+		const alias = dom.$('span', undefined, name);
+		alias.title = title;
+		container.appendChild(alias);
+		return container;
+	}
+
+
+	private injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingService: IKeybindingService): void {
+		const command = href.match(/command:([^\)]+)/)?.[1];
+		if (command) {
+			const kb = keybindingService.lookupKeybinding(command);
+			if (kb) {
+				const keybinding = kb.getLabel();
+				if (keybinding) {
+					a.textContent = `${a.textContent} (${keybinding})`;
+				}
+			}
+		}
+	}
 }

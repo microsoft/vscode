@@ -27,8 +27,8 @@ import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcomeGettingS
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
-import { IViewsService } from 'vs/workbench/common/views';
-import { localize } from 'vs/nls';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { localize, localize2 } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -645,7 +645,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	}
 }
 
-const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
+export const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
 
 export const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)
@@ -672,9 +672,12 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'resetGettingStartedProgress',
-			category: { original: 'Developer', value: localize('developer', "Developer") },
-			title: { original: 'Reset Welcome Page Walkthrough Progress', value: localize('resetWelcomePageWalkthroughProgress', "Reset Welcome Page Walkthrough Progress") },
-			f1: true
+			category: localize2('developer', "Developer"),
+			title: localize2('resetWelcomePageWalkthroughProgress', "Reset Welcome Page Walkthrough Progress"),
+			f1: true,
+			metadata: {
+				description: localize2('resetGettingStartedProgressDescription', 'Reset the progress of all Walkthrough steps on the Welcome Page to make them appear as if they are being viewed for the first time, providing a fresh start to the getting started experience.'),
+			}
 		});
 	}
 

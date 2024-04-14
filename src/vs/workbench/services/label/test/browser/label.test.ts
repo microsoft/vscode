@@ -28,6 +28,8 @@ suite('URI Label', () => {
 		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(URI.file('/foobar')), new TestRemoteAgentService(), storageService, new TestLifecycleService());
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('custom scheme', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',

@@ -40,7 +40,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 	private sessionPosition: Position | undefined = undefined;
 
 	private readonly position = derived(this, reader => {
-		const ghostText = this.model.read(reader)?.ghostText.read(reader);
+		const ghostText = this.model.read(reader)?.primaryGhostText.read(reader);
 
 		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
 			this.sessionPosition = undefined;
@@ -78,7 +78,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 				this.position,
 				model.selectedInlineCompletionIndex,
 				model.inlineCompletionsCount,
-				model.selectedInlineCompletion.map(v => /** @description commands */ v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+				model.activeCommands,
 			));
 			editor.addContentWidget(contentWidget);
 			store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
@@ -150,8 +150,6 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	private readonly disableButtonsDebounced = this._register(new RunOnceScheduler(() => {
 		this.previousAction.enabled = this.nextAction.enabled = false;
 	}, 100));
-
-	private lastCommands: Command[] = [];
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -225,13 +223,6 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this._register(autorun(reader => {
 			/** @description extra commands */
 			const extraCommands = this._extraCommands.read(reader);
-			if (equals(this.lastCommands, extraCommands)) {
-				// nothing to update
-				return;
-			}
-
-			this.lastCommands = extraCommands;
-
 			const extraActions = extraCommands.map<IAction>(c => ({
 				class: undefined,
 				id: c.id,
@@ -287,6 +278,10 @@ class ActionViewItemWithClassName extends ActionViewItem {
 			container.classList.add(this._className);
 		}
 	}
+
+	protected override updateTooltip(): void {
+		// NOOP, disable tooltip
+	}
 }
 
 class StatusBarViewItem extends MenuEntryActionViewItem {
@@ -298,12 +293,16 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 		if (this.label) {
 			const div = h('div.keybinding').root;
 
-			const k = new KeybindingLabel(div, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions });
+			const k = this._register(new KeybindingLabel(div, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions }));
 			k.set(kb);
 			this.label.textContent = this._action.label;
 			this.label.appendChild(div);
 			this.label.classList.add('inlineSuggestionStatusBarItemLabel');
 		}
+	}
+
+	protected override updateTooltip(): void {
+		// NOOP, disable tooltip
 	}
 }
 
@@ -320,9 +319,10 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		this._store.add(this.menu.onDidChange(() => this.updateToolbar()));
 		this.updateToolbar();

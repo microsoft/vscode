@@ -6,34 +6,29 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize2 } from 'vs/nls';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY, isChatViewTitleActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CHAT_VIEW_ID, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
-export const ACTION_ID_CLEAR_CHAT = `workbench.action.chat.clear`;
+export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 
-export function registerClearActions() {
-
-	registerAction2(class ClearEditorAction extends Action2 {
+export function registerNewChatActions() {
+	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chatEditor.clear',
-				title: {
-					value: localize('interactiveSession.clear.label', "Clear"),
-					original: 'Clear'
-				},
-				icon: Codicon.clearAll,
+				id: 'workbench.action.chatEditor.newChat',
+				title: localize2('chat.newChat.label', "New Chat"),
+				icon: Codicon.plus,
 				f1: false,
+				precondition: CONTEXT_CHAT_ENABLED,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
@@ -48,18 +43,14 @@ export function registerClearActions() {
 		}
 	});
 
-
 	registerAction2(class GlobalClearChatAction extends Action2 {
 		constructor() {
 			super({
-				id: ACTION_ID_CLEAR_CHAT,
-				title: {
-					value: localize('interactiveSession.clear.label', "Clear"),
-					original: 'Clear'
-				},
+				id: ACTION_ID_NEW_CHAT,
+				title: localize2('chat.newChat.label', "New Chat"),
 				category: CHAT_CATEGORY,
-				icon: Codicon.clearAll,
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				icon: Codicon.plus,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -68,55 +59,43 @@ export function registerClearActions() {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
 					when: CONTEXT_IN_CHAT_SESSION
-				}
+				},
+				menu: [{
+					id: MenuId.ChatContext,
+					group: 'z_clear'
+				},
+				{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
+					group: 'navigation',
+					order: -1
+				}]
 			});
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			announceChatCleared(accessor);
-			const widgetService = accessor.get(IChatWidgetService);
+			const context = args[0];
+			if (isChatViewTitleActionContext(context)) {
+				// Is running in the Chat view title
+				announceChatCleared(accessor);
+				context.chatView.clear();
+				context.chatView.widget.focusInput();
+			} else {
+				// Is running from f1 or keybinding
+				const widgetService = accessor.get(IChatWidgetService);
 
-			const widget = widgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
+				const widget = widgetService.lastFocusedWidget;
+				if (!widget) {
+					return;
+				}
+				announceChatCleared(accessor);
+				widget.clear();
+				widget.focusInput();
 			}
-
-			widget.clear();
 		}
 	});
 }
 
-const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	viewId,
-	id: `workbench.action.chat.${providerId}.clear`,
-	title: {
-		value: localize('interactiveSession.clear.label', "Clear"),
-		original: 'Clear'
-	},
-	menu: {
-		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.equals('view', viewId),
-		group: 'navigation',
-		order: 0
-	},
-	category: CHAT_CATEGORY,
-	icon: Codicon.clearAll,
-	f1: false
-});
-
-export function getClearAction(viewId: string, providerId: string) {
-	return class ClearAction extends ViewAction<ChatViewPane> {
-		constructor() {
-			super(getClearChatActionDescriptorForViewTitle(viewId, providerId));
-		}
-
-		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			announceChatCleared(accessor);
-			await view.clear();
-		}
-	};
-}
-
 function announceChatCleared(accessor: ServicesAccessor): void {
-	accessor.get(IAccessibleNotificationService).notify(AccessibleNotificationEvent.Clear);
+	accessor.get(IAccessibilitySignalService).playSignal(AccessibilitySignal.clear);
 }

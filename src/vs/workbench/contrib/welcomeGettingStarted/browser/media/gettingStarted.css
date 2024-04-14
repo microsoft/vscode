@@ -8,7 +8,7 @@
 	background-image: url('../../../../browser/media/code-icon.svg');
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer {
 	box-sizing: border-box;
 	line-height: 22px;
 	position: relative;
@@ -20,26 +20,26 @@
 	outline: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.loading {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.loading {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer img {
+.monaco-workbench .part.editor > .content .gettingStartedContainer img {
 	max-width: 100%;
 	max-height: 100%;
 	object-fit: contain;
 	pointer-events: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer {
 	font-size: 13px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStarted {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted {
 	height: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer h1 {
+.monaco-workbench .part.editor > .content .gettingStartedContainer h1 {
 	padding: 5px 0 0;
 	margin: 0;
 	border: none;
@@ -48,24 +48,24 @@
 	white-space: nowrap;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .title {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .title {
 	margin-top: 1em;
 	margin-bottom: 1em;
 	flex: 1 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .subtitle {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .subtitle {
 	margin-top: .6em;
 	font-size: 2em;
 	display: block;
 }
 
-.monaco-workbench.hc-black .part.editor>.content .gettingStartedContainer .subtitle,
-.monaco-workbench.hc-light .part.editor>.content .gettingStartedContainer .subtitle {
+.monaco-workbench.hc-black .part.editor > .content .gettingStartedContainer .subtitle,
+.monaco-workbench.hc-light .part.editor > .content .gettingStartedContainer .subtitle {
 	font-weight: 200;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer h2 {
+.monaco-workbench .part.editor > .content .gettingStartedContainer h2 {
 	font-weight: 400;
 	margin-top: 0;
 	margin-bottom: 5px;
@@ -73,12 +73,12 @@
 	line-height: initial;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer a:focus {
+.monaco-workbench .part.editor > .content .gettingStartedContainer a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide {
 	width: 100%;
 	height: 100%;
 	padding: 0;
@@ -88,23 +88,23 @@
 	top: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories {
 	padding: 12px 24px;
 }
 
 /* duplicated until the getting-started specific setting is removed */
-.monaco-workbench .part.editor>.content .gettingStartedContainer.animatable .gettingStartedSlide {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.animatable .gettingStartedSlide {
 	/* keep consistant with SLIDE_TRANSITION_TIME_MS in gettingStarted.ts */
 	transition: left 0.25s, opacity 0.25s;
 }
 
-.monaco-workbench.reduce-motion .part.editor>.content .gettingStartedContainer .gettingStartedSlide,
-.monaco-workbench.reduce-motion .part.editor>.content .gettingStartedContainer.animatable .gettingStartedSlide {
+.monaco-workbench.reduce-motion .part.editor > .content .gettingStartedContainer .gettingStartedSlide,
+.monaco-workbench.reduce-motion .part.editor > .content .gettingStartedContainer.animatable .gettingStartedSlide {
 	/* keep consistant with SLIDE_TRANSITION_TIME_MS in gettingStarted.ts */
 	transition: left 0.0s, opacity 0.0s;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
 	display: grid;
 	height: 100%;
 	max-width: 1200px;
@@ -117,73 +117,73 @@
 		". footer footer footer .";
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories>.gettingStartedCategoriesContainer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
 	grid-template-rows: auto min-content minmax(min-content, auto) min-content;
 	grid-template-columns: 1fr;
 	grid-template-areas: "header" "left-column" "right-column" "footer";
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.height-constrained .gettingStartedSlideCategories>.gettingStartedCategoriesContainer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
 	grid-template-rows: auto minmax(min-content, auto) min-content;
 	grid-template-areas: "header" "left-column right-column" "footer footer";
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.height-constrained.width-constrained .gettingStartedSlideCategories>.gettingStartedCategoriesContainer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
 	grid-template-rows: min-content minmax(min-content, auto) min-content;
 	grid-template-columns: 1fr;
 	grid-template-areas: "left-column" "right-column" "footer";
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.header, .monaco-workbench .part.editor>.content .gettingStartedContainer.height-constrained .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.header {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .header, .monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .header {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories li.showWalkthroughsEntry {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories li.showWalkthroughsEntry {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.noWalkthroughs .gettingStartedSlideCategories li.showWalkthroughsEntry, .gettingStartedContainer.noExtensions {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.noWalkthroughs .gettingStartedSlideCategories li.showWalkthroughsEntry, .gettingStartedContainer.noExtensions {
 	display: unset;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>* {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > * {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.categories-column>div {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .categories-column > div {
 	margin-bottom: 32px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.categories-column-left {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .categories-column-left {
 	grid-area: left-column;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.categories-column-right {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .categories-column-right {
 	grid-area: right-column;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.header {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .header {
 	grid-area: header;
 	align-self: end;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.footer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer {
 	grid-area: footer;
 	justify-self: center;
 	text-align: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .categories-slide-container {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .categories-slide-container {
 	width: 90%;
 	max-width: 1200px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .gap {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .gap {
 	flex: 150px 0 1000
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .category-title {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .category-title {
 	margin: 4px 0 4px;
 	font-size: 14px;
 	font-weight: 500;
@@ -194,58 +194,65 @@
 	white-space: nowrap;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .category-progress {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .category-progress {
 	position: absolute;
 	bottom: 0;
 	left: 0;
 	width: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category.no-progress {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category.no-progress {
 	padding: 3px 6px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .getting-started-category.no-progress .category-progress {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category.no-progress .category-progress {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories ul {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories ul {
 	list-style: none;
 	margin: 0;
 	line-height: 24px;
 	padding-left: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories li {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories li {
 	list-style: none;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .path {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .path {
 	padding-left: 1em;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .icon-widget,
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .icon-widget,
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .featured-icon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .icon-widget,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .icon-widget:not(.codicon-device-camera-video),
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .featured-icon {
 	font-size: 20px;
 	padding-right: 8px;
 	position: relative;
 	top: 3px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .codicon:not(.icon-widget, .featured-icon, .hide-category-button) {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .icon-widget.codicon-device-camera-video {
+	font-size: 20px;
+	padding-right: 8px;
+	position: relative;
+	transform: translateY(+100%);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .codicon:not(.icon-widget, .featured-icon, .hide-category-button) {
 	margin: 0 2px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .codicon:first-child {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .codicon:first-child {
 	margin-left: 0;
 }
 
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .start-container img {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .start-container img {
 	padding-right: 8px;
 	position: relative;
 	top: 3px;
@@ -253,20 +260,20 @@
 	max-height: 16px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .keybinding-label {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .keybinding-label {
 	padding-left: 1em;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-outer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-outer {
 	height: 4px;
 	margin-top: 4px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-inner {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-inner {
 	height: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category {
 	width: calc(100% - 16px);
 	font-size: 13px;
 	box-sizing: border-box;
@@ -276,45 +283,35 @@
 	text-align: left;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {
 	position: relative;
 	border-radius: 6px;
 	overflow: hidden;
 }
 
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .main-content {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .main-content {
 	display: flex;
 	align-items: center;
 	justify-content: flex-start;
 	width: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-description-content,
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content {
 	text-align: left;
 	margin-left: 28px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content > .codicon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content > .codicon {
 	padding-right: 1px;
 	font-size: 16px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content:not(:empty){
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content:not(:empty){
 	margin-bottom: 8px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-description-content:not(:empty){
-	margin-bottom: 8px;
-	margin-left: 32px;
-	overflow: hidden;
-	-webkit-line-clamp: 2;
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-}
-
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	justify-self: flex-end;
 	align-self: flex-start;
 	border-radius: 4px;
@@ -324,13 +321,13 @@
 	white-space: nowrap;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-badge {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-badge {
 	position: relative;
 	top: -4px;
 	left: -8px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured {
 	border-top: 30px solid var(--vscode-activityBarBadge-background);
 	width: 30px;
 	box-sizing: border-box;
@@ -339,23 +336,23 @@
 	position: absolute;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon {
 	top: -30px;
 	left: 4px;
 	font-size: 14px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
 	margin-left: auto;
 	top: 4px;
 	right: 8px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category.featured .icon-widget {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category.featured .icon-widget:not(.codicon-device-camera-video) {
 	visibility: hidden;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category img.category-icon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category img.category-icon {
 	padding-right: 8px;
 	max-width: 20px;
 	max-height: 20px;
@@ -363,7 +360,7 @@
 	top: auto;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category img.featured-icon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category img.featured-icon {
 	padding-right: 8px;
 	max-width: 24px;
 	max-height: 24px;
@@ -371,82 +368,80 @@
 	position: relative;
 	top: auto;
 }
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category img.category-icon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category img.category-icon {
 	margin-right: 10px;
 	margin-left: 10px;
 	max-width: 32px;
 	max-height: 32px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gap {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gap {
 	flex: 150px 0 1000
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category {
 	display: flex;
-	padding: 10px 0 20px 12px;
-	margin: 0;
+	margin-bottom: 24px;
 	min-height: auto;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns .gap {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns .gap {
 	flex: 150px 1 1000
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-category>.codicon-getting-started-setup {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-category > .codicon-getting-started-setup {
 	margin-right: 8px;
 	font-size: 28px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns {
 	display: flex;
 	justify-content: flex-start;
 	padding: 40px 40px 0;
 	max-height: calc(100% - 40px);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step {
 	display: flex;
 	width: 100%;
-	margin: 8px 0;
 	overflow: hidden;
 	border-radius: 6px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .button-container:not(:last-of-type) {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .button-container:not(:last-of-type) {
 	margin-bottom: 6px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded {
 	cursor: default !important;
 	border: 1px solid var(--vscode-welcomePage-tileBorder);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded h3 {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded h3 {
 	color: var(--vscode-walkthrough-stepTitle-foreground);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded>.codicon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded > .codicon {
 	cursor: pointer !important;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) {
 	height: 48px;
 	background: none;
 	color: var(--vscode-descriptionForeground);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded):hover {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded):hover {
 	background: var(--vscode-welcomePage-tileHoverBackground);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-title {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-title {
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	display: inline-block;
@@ -454,64 +449,66 @@
 	width: inherit;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-title .codicon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-title .codicon {
 	position: relative;
 	top: 2px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns .getting-started-detail-left>div {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns .getting-started-detail-left > div {
 	width: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-description-container {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-description-container {
 	visibility: hidden;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-container {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-container {
 	width: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description {
 	padding-top: 8px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .actions {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .actions {
 	margin-top: 12px;
 	display: flex;
 	align-items: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message {
+	display: flex;
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
+	margin-top: 12px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .keybinding {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .keybinding {
 	font-weight: 600;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-next {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-next {
 	margin-left: auto;
 	margin-right: 10px;
 	padding: 6px 12px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon.hidden {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon.hidden {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-unchecked,
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-checked {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-unchecked,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-checked {
 	margin-right: 8px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step-action {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step-action {
 	padding: 6px 12px;
 	font-size: 13px;
 	margin-bottom: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-left {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-left {
 	min-width: 330px;
 	width: 40%;
 	max-width: 400px;
@@ -519,17 +516,17 @@
 	flex-direction: column;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .full-height-scrollable {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .full-height-scrollable {
 	height: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-container {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-container {
 	height: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
-	max-width: 1600px;
+	max-width: 1200px;
 	margin: 0 auto;
 	padding: 0 32px;
 	display: grid;
@@ -543,7 +540,7 @@
 		". footer footer footer .";
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	max-width: 500px;
 	grid-template-columns: auto;
 	grid-template-rows: 30px max-content minmax(30%, max-content) minmax(30%, 1fr) auto;
@@ -551,45 +548,45 @@
 	grid-template-areas: "back" "title" "steps" "media" "footer";
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown {
 	grid-template-rows: 30px max-content minmax(30%, max-content) minmax(40%, 1fr) auto;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	grid-template-rows: 0 max-content minmax(25%, max-content) minmax(25%, 1fr) auto;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.prev-button {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .prev-button {
 	grid-area: back;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-category {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-category {
 	grid-area: title;
 	align-self: flex-end;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.steps-container {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .steps-container {
 	height: 100%;
 	grid-area: steps;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-media {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
 	grid-area: media;
 	align-self: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown>.getting-started-media {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown > .getting-started-media {
 	height: inherit;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.image>.getting-started-media {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.image > .getting-started-media {
 	grid-area: title-start / media-start / steps-end / media-end;
 	align-self: unset;
 	display: flex;
 	justify-content: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image>.getting-started-media {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image > .getting-started-media {
 	grid-area: media;
 	height: inherit;
 	width: inherit;
@@ -597,14 +594,14 @@
 	justify-content: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-footer {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer {
 	grid-area: footer;
 	align-self: flex-end;
 	justify-self: center;
 	text-align: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right {
 	display: flex;
 	align-items: flex-start;
 	justify-content: center;
@@ -615,36 +612,32 @@
 	max-width: 800px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started .button-link {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .index-list.getting-started .button-link {
 	margin: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started .see-all-walkthroughs {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .index-list.getting-started .see-all-walkthroughs {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.someWalkthroughsHidden .index-list.getting-started .see-all-walkthroughs {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.someWalkthroughsHidden .index-list.getting-started .see-all-walkthroughs {
 	display: inline;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.noExtensions .index-list.featured-extensions {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.noWalkthroughs .index-list.getting-started  {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.noWalkthroughs .index-list.getting-started  {
-	display: none;
-}
-
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right img {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right img {
 	object-fit: contain;
 	cursor: unset;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right img.clickable {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right img.clickable {
 	cursor: pointer;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer button {
+.monaco-workbench .part.editor > .content .gettingStartedContainer button {
 	border: none;
 	color: inherit;
 	text-align: left;
@@ -655,21 +648,21 @@
 	font-family: inherit;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer button:hover {
+.monaco-workbench .part.editor > .content .gettingStartedContainer button:hover {
 	cursor: pointer;
 }
 
 /* Don't show focus outline on mouse click. Instead only show outline on keyboard focus. */
-.monaco-workbench .part.editor>.content .gettingStartedContainer button:focus {
+.monaco-workbench .part.editor > .content .gettingStartedContainer button:focus {
 	outline: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer button:focus-visible {
+.monaco-workbench .part.editor > .content .gettingStartedContainer button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .prev-button.button-link {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {
 	position: absolute;
 	left: 40px;
 	top: 5px;
@@ -679,91 +672,91 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .prev-button.button-link {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .prev-button.button-link {
 	left: 0;
 	top: -10px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.height-constrained .prev-button.button-link {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .prev-button.button-link {
 	left: 0;
 	top: -10px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.height-constrained .prev-button.button-link .codicon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .prev-button.button-link .codicon {
 	font-size: 20px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.height-constrained .prev-button.button-link .moreText {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .prev-button.button-link .moreText {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .prev-button:hover {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button:hover {
 	cursor: pointer;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .prev-button .codicon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button .codicon {
 	position: relative;
 	top: 3px;
 	left: -4px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .button-link .codicon-arrow-right {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon-arrow-right {
 	padding-left: 4px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .button-link .codicon-check-all {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon-check-all {
 	padding-right: 4px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .skip {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .skip {
 	display: block;
 	margin: 2px auto;
 	width: fit-content;
 	text-align: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h2 {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h2 {
 	font-size: 26px;
 	font-weight: normal;
 	margin: 0 0 8px 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h2 .codicon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h2 .codicon {
 	font-size: 20px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h3 {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h3 {
 	font-size: 13px;
 	font-weight: 600;
 	margin: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .subtitle {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .subtitle {
 	font-size: 16px;
 	margin: 0;
 	padding: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStarted.showCategories .gettingStartedSlideDetails {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted.showCategories .gettingStartedSlideDetails {
 	left: 100%;
 	opacity: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStarted.showDetails .gettingStartedSlideCategories {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted.showDetails .gettingStartedSlideCategories {
 	left: -100%;
 	opacity: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStarted.showDetails .categoriesScrollbar .scrollbar.vertical {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted.showDetails .categoriesScrollbar .scrollbar.vertical {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .done-next-container {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .done-next-container {
 	display: flex;
-	padding: 8px 16px 16px;
+	padding: 16px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .button-link {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link {
 	padding: 0;
 	background: transparent;
 	margin: 2px;
@@ -773,20 +766,20 @@
 	max-width: 100%;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .done-next-container .button-link {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .done-next-container .button-link {
 	display: flex;
 	align-items: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .button-link.next {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link.next {
 	margin-left: auto;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .button-link:hover {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link:hover {
 	background: transparent;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .openAWalkthrough>button, .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .openAWalkthrough > button, .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
 	text-align: center;
 	display: flex;
 	justify-content: center;
@@ -794,7 +787,7 @@
 	gap: 8px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
 	color: inherit !important;
 	height: 18px;
 	width: 18px;
@@ -805,45 +798,45 @@
 }
 
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox.codicon:not(.checked)::before  {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox.codicon:not(.checked)::before  {
 	opacity: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.footer p {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer p {
 	margin: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer .index-list.start-container {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer .index-list.start-container {
 	min-height: 156px;
 	margin-bottom: 16px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.footer>button {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer > button {
 	text-align: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .getting-started-category .codicon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon {
 	top: 0px;
 }
 
-.monaco-workbench .part.editor>.content .getting-started-category .codicon-star-full::before {
+.monaco-workbench .part.editor > .content .getting-started-category .codicon-star-full::before {
 	vertical-align: middle;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .hide-category-button {
 	visibility: hidden;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .getting-started-category:focus-within .hide-category-button,
-.monaco-workbench .part.editor>.content .gettingStartedContainer .getting-started-category:hover .hide-category-button {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category:focus-within .hide-category-button,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category:hover .hide-category-button {
 	visibility: visible;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container span {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container span {
 	line-height: 1.3em;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button, .monaco-workbench .part.editor>.content .gettingStartedContainer .max-lines-3 {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button, .monaco-workbench .part.editor > .content .gettingStartedContainer .max-lines-3 {
 	/* Supported everywhere: https://developer.mozilla.org/en-US/docs/Web/CSS/-webkit-line-clamp#browser_compatibility */
 	-webkit-line-clamp: 3;
 	display: -webkit-box;
@@ -851,26 +844,25 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button {
-	height: 26px;
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button {
+	height: 24px;
 	width: fit-content;
 	display: flex;
 	padding: 0 11px;
-	margin-bottom: 12px;
 	align-items: center;
 	min-width: max-content;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .hide-category-button {
 	padding: 3px;
 	border-radius: 5px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button::before {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .hide-category-button::before {
 	vertical-align: unset;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button:hover {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .hide-category-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -981,26 +973,26 @@
 	background-color: var(--vscode-welcomePage-progress-foreground);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	color: var(--vscode-activityBarBadge-foreground);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon {
 	color: var(--vscode-activityBarBadge-foreground);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	background-color: var(--vscode-activityBarBadge-background);
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
 	background-color: var(--vscode-checkbox-background) !important;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
 	color: var(--vscode-checkbox-foreground) !important;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
 	border-color: var(--vscode-checkbox-border) !important;
 }

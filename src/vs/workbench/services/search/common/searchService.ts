@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -21,8 +21,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class SearchService extends Disposable implements ISearchService {
 
@@ -30,9 +30,11 @@ export class SearchService extends Disposable implements ISearchService {
 
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
+	private readonly aiTextSearchProviders = new Map<string, ISearchResultProvider>();
 
 	private deferredFileSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
+	private deferredAITextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 
 	private loggedSchemesMissingProviders = new Set<string>();
 
@@ -57,6 +59,9 @@ export class SearchService extends Disposable implements ISearchService {
 		} else if (type === SearchProviderType.text) {
 			list = this.textSearchProviders;
 			deferredMap = this.deferredTextSearchesByScheme;
+		} else if (type === SearchProviderType.aiText) {
+			list = this.aiTextSearchProviders;
+			deferredMap = this.deferredAITextSearchesByScheme;
 		} else {
 			throw new Error('Unknown SearchProviderType');
 		}
@@ -82,6 +87,24 @@ export class SearchService extends Disposable implements ISearchService {
 			results: [...otherResults.results, ...openEditorResults.results],
 			messages: [...otherResults.messages, ...openEditorResults.messages]
 		};
+	}
+
+	async aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		const onProviderProgress = (progress: ISearchProgressItem) => {
+			// Match
+			if (onProgress) { // don't override open editor results
+				if (isFileMatch(progress)) {
+					onProgress(progress);
+				} else {
+					onProgress(<IProgressMessage>progress);
+				}
+			}
+
+			if (isProgressMessage(progress)) {
+				this.logService.debug('SearchService#search', progress.message);
+			}
+		};
+		return this.doSearch(query, token, onProviderProgress);
 	}
 
 	textSearchSplitSyncAsync(
@@ -184,15 +207,7 @@ export class SearchService extends Disposable implements ISearchService {
 			};
 		})();
 
-		return new Promise((resolve, reject) => {
-			if (token) {
-				token.onCancellationRequested(() => {
-					reject(new CancellationError());
-				});
-			}
-
-			providerPromise.then(resolve, reject);
-		});
+		return token ? raceCancellationError<ISearchComplete>(providerPromise, token) : providerPromise;
 	}
 
 	private getSchemesInQuery(query: ISearchQuery): Set<string> {
@@ -205,9 +220,7 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private async waitForProvider(queryType: QueryType, scheme: string): Promise<ISearchResultProvider> {
-		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = queryType === QueryType.File ?
-			this.deferredFileSearchesByScheme :
-			this.deferredTextSearchesByScheme;
+		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = this.getDeferredTextSearchesByScheme(queryType);
 
 		if (deferredMap.has(scheme)) {
 			return deferredMap.get(scheme)!.p;
@@ -218,6 +231,32 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
+	private getSearchProvider(type: QueryType): Map<string, ISearchResultProvider> {
+		switch (type) {
+			case QueryType.File:
+				return this.fileSearchProviders;
+			case QueryType.Text:
+				return this.textSearchProviders;
+			case QueryType.aiText:
+				return this.aiTextSearchProviders;
+			default:
+				throw new Error(`Unknown query type: ${type}`);
+		}
+	}
+
+	private getDeferredTextSearchesByScheme(type: QueryType): Map<string, DeferredPromise<ISearchResultProvider>> {
+		switch (type) {
+			case QueryType.File:
+				return this.deferredFileSearchesByScheme;
+			case QueryType.Text:
+				return this.deferredTextSearchesByScheme;
+			case QueryType.aiText:
+				return this.deferredAITextSearchesByScheme;
+			default:
+				throw new Error(`Unknown query type: ${type}`);
+		}
+	}
+
 	private async searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
 		const e2eSW = StopWatch.create(false);
 
@@ -225,16 +264,15 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		const someSchemeHasProvider = [...fqs.keys()].some(scheme => {
-			return query.type === QueryType.File ?
-				this.fileSearchProviders.has(scheme) :
-				this.textSearchProviders.has(scheme);
+			return this.getSearchProvider(query.type).has(scheme);
 		});
 
+		if (query.type === QueryType.aiText && !someSchemeHasProvider) {
+			return [];
+		}
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			const schemeFQs = fqs.get(scheme)!;
-			let provider = query.type === QueryType.File ?
-				this.fileSearchProviders.get(scheme) :
-				this.textSearchProviders.get(scheme);
+			let provider = this.getSearchProvider(query.type).get(scheme);
 
 			if (!provider) {
 				if (someSchemeHasProvider) {
@@ -259,9 +297,18 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 			};
 
-			searchPs.push(query.type === QueryType.File ?
-				provider.fileSearch(<IFileQuery>oneSchemeQuery, token) :
-				provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token));
+			const doProviderSearch = () => {
+				switch (query.type) {
+					case QueryType.File:
+						return provider.fileSearch(<IFileQuery>oneSchemeQuery, token);
+					case QueryType.Text:
+						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
+					default:
+						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
+				}
+			};
+
+			searchPs.push(doProviderSearch());
 		}));
 
 		return Promise.all(searchPs).then(completes => {
@@ -311,14 +358,14 @@ export class SearchService extends Disposable implements ISearchService {
 					owner: 'roblourens';
 					comment: 'Fired when a file search is completed from previously cached results';
 					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates which extension or UI feature triggered this search' };
-					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of search results' };
-					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of folders in the workspace' };
-					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total search time' };
-					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent sorting results' };
+					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of search results' };
+					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of folders in the workspace' };
+					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The total search time' };
+					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The amount of time spent sorting results' };
 					cacheWasResolved: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the cache was already resolved when the search began' };
-					cacheLookupTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent looking up the cache to use for the search' };
-					cacheFilterTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent searching within the cache' };
-					cacheEntryCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of entries in the searched-in cache' };
+					cacheLookupTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The amount of time spent looking up the cache to use for the search' };
+					cacheFilterTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The amount of time spent searching within the cache' };
+					cacheEntryCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of entries in the searched-in cache' };
 					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
 				};
 				type CachedSearchCompleteEvent = {
@@ -352,15 +399,15 @@ export class SearchService extends Disposable implements ISearchService {
 					owner: 'roblourens';
 					comment: 'Fired when a file search is completed';
 					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates which extension or UI feature triggered this search' };
-					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of search results' };
-					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of folders in the workspace' };
-					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total search time' };
-					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent sorting results' };
-					fileWalkTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent walking file system' };
-					directoriesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of directories walked' };
-					filesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of files walked' };
-					cmdTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent running the search command' };
-					cmdResultCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of results returned from the search command' };
+					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of search results' };
+					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of folders in the workspace' };
+					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The total search time' };
+					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The amount of time spent sorting results' };
+					fileWalkTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The amount of time spent walking file system' };
+					directoriesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of directories walked' };
+					filesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of files walked' };
+					cmdTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The amount of time spent running the search command' };
+					cmdResultCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of results returned from the search command' };
 					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
 				};
 				type SearchCompleteEvent = {
@@ -408,8 +455,8 @@ export class SearchService extends Disposable implements ISearchService {
 				owner: 'roblourens';
 				comment: 'Fired when a text search is completed';
 				reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates which extension or UI feature triggered this search' };
-				workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of folders in the workspace' };
-				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total search time' };
+				workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of folders in the workspace' };
+				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The total search time' };
 				scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
 				error?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the error, if any' };
 			};
@@ -494,7 +541,7 @@ export class SearchService extends Disposable implements ISearchService {
 					openEditorResults.set(originalResource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
-					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
+					fileMatch.results = getTextSearchMatchWithModelContext(textSearchResults, model, query);
 				} else {
 					openEditorResults.set(originalResource, null);
 				}

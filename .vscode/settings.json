@@ -158,11 +158,19 @@
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
 	"typescript.preferences.autoImportFileExcludePatterns": [
-		"xterm",
-		"xterm-headless",
+		"@xterm/xterm",
+		"@xterm/headless",
 		"node-pty",
 		"vscode-notebook-renderer",
 		"src/vs/workbench/workbench.web.main.ts",
 		"src/vs/workbench/api/common/extHostTypes.ts"
-	]
+	],
+	"[github-issues]": {
+		"editor.wordWrap": "on"
+	},
+	"extensions.experimental.supportWorkspaceExtensions": true,
+	"css.format.spaceAroundSelectorSeparator": true,
+	"inlineChat.mode": "live",
+	"typescript.enablePromptUseWorkspaceTsdk": true,
+	"typescript.tsserver.experimental.useVsCodeWatcher": true
 }

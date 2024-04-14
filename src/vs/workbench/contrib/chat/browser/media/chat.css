@@ -14,10 +14,10 @@
 }
 
 .interactive-item-container {
-	padding: 16px 20px 16px 20px;
+	padding: 16px 20px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 8px;
 	color: var(--vscode-interactive-session-foreground);
 
 	cursor: default;
@@ -29,6 +29,11 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	position: relative;
+}
+
+.interactive-item-container .header.hidden {
+	display: none;
 }
 
 .interactive-item-container .header .user {
@@ -43,6 +48,52 @@
 	font-weight: 600;
 }
 
+.interactive-item-container .header .detail-container {
+	font-size: 0.9em;
+	opacity: 0.7;
+}
+
+.interactive-item-container .chat-animated-ellipsis {
+	display: inline-block;
+	width: 11px;
+}
+
+.interactive-item-container:not(.show-detail-progress) .chat-animated-ellipsis {
+	display: none;
+}
+
+@keyframes ellipsis {
+	0% {
+		content: "";
+	}
+	25% {
+		content: ".";
+	}
+	50% {
+		content: "..";
+	}
+	75% {
+		content: "...";
+	}
+	100% {
+		content: "";
+	}
+}
+
+.interactive-item-container .chat-animated-ellipsis::after {
+	content: '';
+	white-space: nowrap;
+	overflow: hidden;
+	width: 3em;
+	animation: ellipsis steps(4, end) 1s infinite;
+}
+
+.interactive-item-container .header .avatar-container {
+	display: flex;
+	pointer-events: none;
+	user-select: none;
+}
+
 .interactive-item-container .header .avatar {
 	display: flex;
 	align-items: center;
@@ -50,19 +101,44 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
-	background: var(--vscode-badge-background);
-	pointer-events: none;
-	user-select: none;
+	outline: 1px solid var(--vscode-chat-requestBorder)
+}
+
+.interactive-item-container .header .avatar.codicon-avatar {
+	background: var(--vscode-chat-avatarBackground);
+}
+
+.interactive-item-container .header .avatar+.avatar {
+	margin-left: -8px;
 }
 
 .interactive-item-container .header .avatar .icon {
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
+	background-color: var(--vscode-chat-list-background);
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-badge-foreground) !important;
+	color: var(--vscode-chat-avatarForeground) !important;
+	font-size: 14px;
+}
+
+.interactive-item-container .header .agent-avatar-container {
+	margin-left: -30px;
+	transition: margin 0.15s ease-out;
+	transition-delay: 0.5s;
+	z-index: -1;
+}
+
+.interactive-item-container .header .agent-avatar-container.loading {
+	margin-left: 0px;
+	z-index: 1;
+}
+
+.interactive-item-container .header .agent-avatar-container.complete {
+	margin-left: -12px;
+	z-index: 1;
 }
 
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
@@ -82,6 +158,17 @@
 .interactive-item-container .header .monaco-toolbar .action-label {
 	border: 1px solid transparent;
 	padding: 2px;
+}
+
+.interactive-item-container .header .monaco-toolbar {
+	position: absolute;
+	right: 0px;
+	background-color: var(--vscode-chat-list-background);
+}
+
+.interactive-item-container.interactive-request .header .monaco-toolbar {
+	/* Take the partially-transparent background color override for request rows */
+	background-color: inherit;
 }
 
 .interactive-item-container .header .monaco-toolbar .checked.action-label,
@@ -120,6 +207,11 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+.hc-black .interactive-item-container .value .rendered-markdown a code,
+.hc-light .interactive-item-container .value .rendered-markdown a code {
+	color: var(--vscode-textPreformat-foreground);
+}
+
 .interactive-list {
 	overflow: hidden;
 }
@@ -127,6 +219,13 @@
 .interactive-request {
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	border-top: 1px solid var(--vscode-chat-requestBorder);
+	background-color: var(--vscode-chat-requestBackground);
+}
+
+.hc-black .interactive-request,
+.hc-light .interactive-request {
+	border-left: 3px solid var(--vscode-chat-requestBorder);
+	border-right: 3px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .value {
@@ -162,6 +261,14 @@
 	line-height: 1.5em;
 }
 
+.interactive-item-container .value .rendered-markdown ul {
+	padding-inline-start: 24px;
+}
+
+.interactive-item-container .value .rendered-markdown ol {
+	padding-inline-start: 28px;
+}
+
 .interactive-item-container .value .rendered-markdown li {
 	line-height: 1.3rem;
 }
@@ -177,7 +284,12 @@
 }
 
 .interactive-item-container.interactive-item-compact {
-	padding: 8px 20px 0 20px;
+	padding: 8px 20px;
+}
+
+.interactive-item-container.interactive-item-compact.no-padding {
+	padding: unset;
+	gap: unset;
 }
 
 .interactive-item-container.interactive-item-compact .header {
@@ -185,13 +297,21 @@
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar {
-	width: 16px;
-	height: 16px;
+	width: 18px;
+	height: 18px;
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar .icon {
 	width: 16px;
 	height: 16px;
+}
+
+.interactive-item-container.interactive-item-compact .header .codicon-avatar .codicon {
+	font-size: 12px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar+.avatar {
+	margin-left: -4px;
 }
 
 .interactive-item-container.interactive-item-compact .value {
@@ -223,15 +343,18 @@
 	display: flex;
 	box-sizing: border-box;
 	cursor: text;
-	margin: 0px 20px;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
-	align-items: center;
+	align-items: flex-end;
 	justify-content: space-between;
+}
+
+.interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
+	margin-bottom: 0;
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -242,6 +365,10 @@
 
 .interactive-session .interactive-input-and-execute-toolbar.focused {
 	border-color: var(--vscode-focusBorder);
+}
+
+.interactive-session .interactive-input-and-execute-toolbar .monaco-editor .mtk1 {
+	color: var(--vscode-input-foreground);
 }
 
 .interactive-session .interactive-input-and-execute-toolbar .monaco-editor,
@@ -255,6 +382,14 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	height: 22px;
+
+	/* It's bottom-aligned, make it appear centered within the container */
+	margin-bottom: 7px;
+}
+
+.interactive-session .interactive-input-part .interactive-execute-toolbar .monaco-action-bar .actions-container {
+	display: flex;
+	gap: 4px;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
@@ -271,6 +406,9 @@
 	margin: 0 0 8px 0;
 }
 
+.interactive-item-container .interactive-result-code-block .monaco-toolbar .monaco-action-bar .actions-container {
+	padding-inline-start: unset;
+}
 
 .interactive-response .interactive-response-error-details {
 	display: flex;
@@ -294,14 +432,23 @@
 	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
-.interactive-item-container .value .interactive-slash-command {
-	color: var(--vscode-textLink-foreground);
-}
-
 .interactive-session .interactive-input-part {
+	margin: 0px 20px;
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
+}
+
+.interactive-session .interactive-input-part.compact {
+	margin: 0;
+	padding: 6px 0px;
+}
+
+.interactive-session .chat-implicit-context {
+	padding: 8px 8px 13px;
+	margin-bottom: -5px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
+	border-radius: 6px 6px 0px 0px;
 }
 
 .interactive-session-followups {
@@ -323,10 +470,6 @@
 
 .interactive-item-container .interactive-response-followups .monaco-button {
 	padding: 4px 8px;
-}
-
-.interactive-session .interactive-input-part .interactive-input-followups {
-	margin: 0px 20px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
@@ -362,19 +505,21 @@
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-item-container.filtered-response .value .rendered-markdown {
-	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
-	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+.interactive-item-container.filtered-response .value > .rendered-markdown {
+	pointer-events: none;
+	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
+	mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
 }
 
 /* #region Quick Chat */
 
 .quick-input-widget .interactive-session .interactive-input-part {
 	padding: 8px 6px 6px 6px;
+	margin: 0 3px;
 }
 
 .quick-input-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
-	bottom: 1px;
+	margin-bottom: 1px;
 }
 
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
@@ -386,6 +531,10 @@
 .quick-input-widget .interactive-list {
 	border-bottom-right-radius: 6px;
 	border-bottom-left-radius: 6px;
+}
+
+.quick-input-widget .interactive-response {
+	min-height: 86px;
 }
 
 /* #endregion */
@@ -409,6 +558,11 @@
 .interactive-item-container .value .interactive-response-placeholder-content {
 	color: var(--vscode-editorGhostText-foreground);
 	font-size: 12px;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .value .interactive-response-placeholder-content p {
+	margin: 0;
 }
 
 .interactive-response  .interactive-response-codicon-details {
@@ -417,7 +571,6 @@
 	gap: 6px;
 }
 
-.interactive-response-progress-tree .monaco-list,
 .chat-used-context-list .monaco-list {
 	border: none;
 	border-radius: 4px;
@@ -436,9 +589,17 @@
 	display: none;
 }
 
+.interactive-session .chat-used-context {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.interactive-response-progress-tree,
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
+	margin-bottom: 8px;
 	padding: 4px;
 }
 
@@ -450,6 +611,7 @@
 	font-size: 12px;
 	color: var(--vscode-foreground);
 	opacity: 0.8;
+	user-select: none;
 }
 
 .interactive-session .chat-used-context-label:hover {
@@ -464,13 +626,56 @@
 	padding: 0;
 	text-align: initial;
 	justify-content: initial;
-	margin-bottom: 6px;
 }
 
-.interactive-session .chat-used-context-label .monaco-text-button {
-	outline-offset: unset !important;
+.interactive-session .chat-used-context-label .monaco-text-button:focus {
+	outline: none;
+}
+
+.interactive-session .chat-used-context-label .monaco-text-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
-	margin: 0 2px 0 0;
+	margin: 0 0 0 4px;
+}
+
+.interactive-item-container .rendered-markdown.progress-step {
+	display: flex;
+	margin-left: 4px;
+	white-space: normal;
+}
+
+.interactive-item-container .rendered-markdown.progress-step > p {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+	opacity: 0.7;
+	margin-bottom: 4px;
+}
+
+.interactive-item-container .rendered-markdown.progress-step > p .codicon {
+	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.interactive-item-container .rendered-markdown.progress-step > p .codicon.codicon-check {
+	font-size: 14px;
+	color: var(--vscode-debugIcon-startForeground) !important;
+}
+
+.interactive-item-container .chat-command-button {
+	display: flex;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button {
+	text-align: left;
+	width: initial;
+	padding: 4px 8px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button .codicon {
+	margin-left: 0;
+	margin-top: 1px;
 }

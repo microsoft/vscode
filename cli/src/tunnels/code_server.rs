@@ -15,12 +15,14 @@ use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
 use crate::util::command::{
-	capture_command, capture_command_and_check_status, kill_tree, new_script_command,
+	capture_command, capture_command_and_check_status, check_output_status, kill_tree,
+	new_script_command,
 };
 use crate::util::errors::{wrap, AnyError, CodeError, ExtensionInstallFailed, WrappedError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
+use crate::util::prereqs::skip_requirements_check;
 use crate::{debug, info, log, spanf, trace, warning};
 use lazy_static::lazy_static;
 use opentelemetry::KeyValue;
@@ -55,9 +57,12 @@ pub struct CodeServerArgs {
 	pub log: Option<log::Level>,
 	pub accept_server_license_terms: bool,
 	pub verbose: bool,
+	pub server_data_dir: Option<String>,
+	pub extensions_dir: Option<String>,
 	// extension management
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
+	pub update_extensions: bool,
 	pub list_extensions: bool,
 	pub show_versions: bool,
 	pub category: Option<String>,
@@ -129,6 +134,9 @@ impl CodeServerArgs {
 		for extension in &self.uninstall_extensions {
 			args.push(format!("--uninstall-extension={}", extension));
 		}
+		if self.update_extensions {
+			args.push(String::from("--update-extensions"));
+		}
 		if self.list_extensions {
 			args.push(String::from("--list-extensions"));
 			if self.show_versions {
@@ -137,6 +145,12 @@ impl CodeServerArgs {
 			if let Some(i) = &self.category {
 				args.push(format!("--category={}", i));
 			}
+		}
+		if let Some(d) = &self.server_data_dir {
+			args.push(format!("--server-data-dir={}", d));
+		}
+		if let Some(d) = &self.extensions_dir {
+			args.push(format!("--extensions-dir={}", d));
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));
@@ -419,22 +433,30 @@ impl<'a> ServerBuilder<'a> {
 				.await?;
 
 				let server_dir = target_dir.join(SERVER_FOLDER_NAME);
-				unzip_downloaded_release(&archive_path, &server_dir, SilentCopyProgress())?;
+				unzip_downloaded_release(
+					&archive_path,
+					&server_dir,
+					self.logger.get_download_logger("server inflate progress:"),
+				)?;
 
-				let output = capture_command_and_check_status(
-					server_dir
-						.join("bin")
-						.join(self.server_params.release.quality.server_entrypoint()),
-					&["--version"],
-				)
-				.await
-				.map_err(|e| wrap(e, "error checking server integrity"))?;
+				if !skip_requirements_check().await {
+					let output = capture_command_and_check_status(
+						server_dir
+							.join("bin")
+							.join(self.server_params.release.quality.server_entrypoint()),
+						&["--version"],
+					)
+					.await
+					.map_err(|e| wrap(e, "error checking server integrity"))?;
 
-				trace!(
-					self.logger,
-					"Server integrity verified, version: {}",
-					String::from_utf8_lossy(&output.stdout).replace('\n', " / ")
-				);
+					trace!(
+						self.logger,
+						"Server integrity verified, version: {}",
+						String::from_utf8_lossy(&output.stdout).replace('\n', " / ")
+					);
+				} else {
+					info!(self.logger, "Skipping server integrity check");
+				}
 
 				Ok(())
 			})
@@ -477,6 +499,28 @@ impl<'a> ServerBuilder<'a> {
 			port,
 			origin: Arc::new(origin),
 		})
+	}
+
+	/// Runs the command that just installs extensions and exits.
+	pub async fn install_extensions(&self) -> Result<(), AnyError> {
+		// cmd already has --install-extensions from base
+		let mut cmd = self.get_base_command();
+		let cmd_str = || {
+			self.server_params
+				.code_server_args
+				.command_arguments()
+				.join(" ")
+		};
+
+		let r = cmd.output().await.map_err(|e| CodeError::CommandFailed {
+			command: cmd_str(),
+			code: -1,
+			output: e.to_string(),
+		})?;
+
+		check_output_status(r, cmd_str)?;
+
+		Ok(())
 	}
 
 	pub async fn listen_on_default_socket(&self) -> Result<SocketCodeServer, AnyError> {
@@ -562,7 +606,9 @@ impl<'a> ServerBuilder<'a> {
 		// Original issue: https://github.com/microsoft/vscode/issues/184058
 		// Partial fix: https://github.com/microsoft/vscode/pull/184621
 		#[cfg(target_os = "windows")]
-		let cmd = cmd.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+		let cmd = cmd.creation_flags(
+			winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+		);
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())

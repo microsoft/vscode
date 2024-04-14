@@ -5,10 +5,11 @@
 
 import * as assert from 'assert';
 import * as crypto from 'crypto';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/common/workspaceTags';
 
 function hash(value: string): string {
-	return crypto.createHash('sha1').update(value.toString()).digest('hex');
+	return crypto.createHash('sha1').update(value.toString()).digest('hex'); // CodeQL [SM04514] Using SHA1 to convert a URL to a fixed length
 }
 
 async function asyncHash(value: string): Promise<string> {
@@ -58,4 +59,6 @@ suite('Telemetry - WorkspaceTags', () => {
 	fetch = +refs/heads/*:refs/remotes/origin/*
 `;
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
