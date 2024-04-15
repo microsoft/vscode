@@ -18,12 +18,12 @@ import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comm
 import { DiffEditorActiveAnnouncementContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/openDiffEditorAnnouncement';
 import { SpeechAccessibilitySignalContribution } from 'vs/workbench/contrib/speech/browser/speechAccessibilitySignal';
 import { registerAudioCueConfiguration } from 'vs/workbench/contrib/accessibility/browser/audioCueConfiguration';
-import { AccessibleViewVisibilityService, IAccessibleViewVisibilityService } from 'vs/workbench/services/accessibility/common/accessibleViewVisibilityService';
+import { AccessibleViewInformationService, IAccessibleViewInformationService } from 'vs/workbench/services/accessibility/common/accessibleViewInformationService';
 
 registerAccessibilityConfiguration();
 registerAudioCueConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
-registerSingleton(IAccessibleViewVisibilityService, AccessibleViewVisibilityService, InstantiationType.Delayed);
+registerSingleton(IAccessibleViewInformationService, AccessibleViewInformationService, InstantiationType.Delayed);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);

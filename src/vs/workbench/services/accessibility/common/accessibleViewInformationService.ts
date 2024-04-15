@@ -8,14 +8,14 @@ import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX } from 'vs/platform/accessibility/
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
-export interface IAccessibleViewVisibilityService {
+export interface IAccessibleViewInformationService {
 	_serviceBrand: undefined;
 	hasShownAccessibleView(viewId: string): boolean;
 }
 
-export const IAccessibleViewVisibilityService = createDecorator<IAccessibleViewVisibilityService>('accessibleViewVisibilityService');
+export const IAccessibleViewInformationService = createDecorator<IAccessibleViewInformationService>('accessibleViewInformationService');
 
-export class AccessibleViewVisibilityService extends Disposable implements IAccessibleViewVisibilityService {
+export class AccessibleViewInformationService extends Disposable implements IAccessibleViewInformationService {
 	declare readonly _serviceBrand: undefined;
 	constructor(@IStorageService private readonly _storageService: IStorageService) {
 		super();
