@@ -439,3 +439,18 @@ class EventCoalescer {
 		}).concat(addOrChangeEvents);
 	}
 }
+
+export function isFiltered(event: IFileChange, filter?: WatchFilter): boolean {
+	if (typeof filter !== 'number') {
+		return false;
+	}
+
+	switch (event.type) {
+		case FileChangeType.ADDED:
+			return (filter & WatchFilter.Add) === 0;
+		case FileChangeType.DELETED:
+			return (filter & WatchFilter.Delete) === 0;
+		case FileChangeType.UPDATED:
+			return (filter & WatchFilter.Update) === 0;
+	}
+}
