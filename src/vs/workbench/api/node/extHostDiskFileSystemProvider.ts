@@ -22,6 +22,7 @@ export class ExtHostDiskFileSystemProvider {
 		// file operations can execute fast within the extension
 		// host without roundtripping.
 		extHostConsumerFileSystem.addFileSystemProvider(Schemas.file, new DiskFileSystemProviderAdapter(logService), { isCaseSensitive: isLinux });
+		extHostConsumerFileSystem.addFileSystemProvider(Schemas.vscodeUserData, new DiskFileSystemProviderAdapter(logService), { isCaseSensitive: isLinux });
 	}
 }
 
