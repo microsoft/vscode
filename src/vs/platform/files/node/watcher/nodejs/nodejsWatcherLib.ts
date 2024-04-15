@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, WatchFilter } from 'vs/platform/files/common/watcher';
+import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered } from 'vs/platform/files/common/watcher';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -467,55 +467,45 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		// Coalesce events: merge events of same kind
 		const coalescedFileChanges = coalesceEvents(fileChanges);
-		if (coalescedFileChanges.length > 0) {
-			const filteredEvents: IFileChange[] = [];
-			for (const event of coalescedFileChanges) {
-
-				// Filtering
-				if (this.shouldFilterEvent(event)) {
-					if (this.verboseLogging) {
-						this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
-					}
-
-					continue;
-				}
-
-				filteredEvents.push(event);
-			}
-
-			// Logging
-			if (this.verboseLogging) {
-				for (const event of filteredEvents) {
-					this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
-				}
-			}
-
-			// Broadcast to clients via throttled emitter
-			const worked = this.throttledFileChangesEmitter.work(filteredEvents);
-
-			// Logging
-			if (!worked) {
-				this.warn(`started ignoring events due to too many file change events at once (incoming: ${filteredEvents.length}, most recent change: ${filteredEvents[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-			} else {
-				if (this.throttledFileChangesEmitter.pending > 0) {
-					this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${filteredEvents[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-				}
-			}
-		}
-	}
-
-	private shouldFilterEvent(event: IFileChange): boolean {
-		if (typeof this.request.filter !== 'number') {
-			return false;
+		if (coalescedFileChanges.length === 0) {
+			return;
 		}
 
-		switch (event.type) {
-			case FileChangeType.ADDED:
-				return (this.request.filter & WatchFilter.Add) === 0;
-			case FileChangeType.DELETED:
-				return (this.request.filter & WatchFilter.Delete) === 0;
-			case FileChangeType.UPDATED:
-				return (this.request.filter & WatchFilter.Update) === 0;
+		const filteredEvents: IFileChange[] = [];
+		for (const event of coalescedFileChanges) {
+
+			// Filtering
+			if (isFiltered(event, this.request.filter)) {
+				if (this.verboseLogging) {
+					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
+				}
+
+				continue;
+			}
+
+			filteredEvents.push(event);
+		}
+		if (filteredEvents.length === 0) {
+			return;
+		}
+
+		// Logging
+		if (this.verboseLogging) {
+			for (const event of filteredEvents) {
+				this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+			}
+		}
+
+		// Broadcast to clients via throttled emitter
+		const worked = this.throttledFileChangesEmitter.work(filteredEvents);
+
+		// Logging
+		if (!worked) {
+			this.warn(`started ignoring events due to too many file change events at once (incoming: ${filteredEvents.length}, most recent change: ${filteredEvents[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		} else {
+			if (this.throttledFileChangesEmitter.pending > 0) {
+				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${filteredEvents[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			}
 		}
 	}
 
