@@ -104,6 +104,7 @@ import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { PreventDefaultContextMenuItemsContextKeyName } from 'vs/workbench/contrib/webview/browser/webview.contribution';
 import { NotebookAccessibilityProvider } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityProvider';
+import { NotebookPromptCellController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
 
 const $ = DOM.$;
 
@@ -2247,6 +2248,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (!cells) {
 			cells = this.viewModel.viewCells;
 		}
+
+		const promptCells = Array.from(cells).filter(cell => cell.language === 'prompt-cell');
+
+		if (promptCells.length) {
+			const promptCell = promptCells[0];
+			NotebookPromptCellController.get(this)?.acceptInput(promptCell);
+			return;
+		}
+
 		return this.notebookExecutionService.executeNotebookCells(this.textModel, Array.from(cells).map(c => c.model), this.scopedContextKeyService);
 	}
 

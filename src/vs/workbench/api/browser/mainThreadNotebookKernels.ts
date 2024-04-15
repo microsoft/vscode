@@ -57,7 +57,10 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.label = data.label;
 		this.description = data.description;
 		this.detail = data.detail;
-		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _languageService.getRegisteredLanguageIds();
+		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? [
+			...data.supportedLanguages,
+			'prompt-cell'
+		] : _languageService.getRegisteredLanguageIds();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
 		this.hasVariableProvider = data.hasVariableProvider ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);

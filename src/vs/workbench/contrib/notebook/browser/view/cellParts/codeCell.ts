@@ -232,6 +232,19 @@ export class CodeCell extends Disposable {
 			}
 
 			this._register(this._cellEditorOptions.onDidChange(() => this.updateCodeCellOptions(this.templateData)));
+
+			// update for language
+			if (this.viewCell.language === 'prompt-cell') {
+				this.templateData.editor?.updateOptions({ suggest: { showIcons: false } });
+			}
+
+			this._register(this.viewCell.model.onDidChangeLanguage(() => {
+				if (this.viewCell.language === 'prompt-cell') {
+					this.templateData.editor?.updateOptions({ suggest: { showIcons: false } });
+				} else {
+					this.templateData.editor?.updateOptions({ suggest: { showIcons: true } });
+				}
+			}));
 		});
 	}
 
