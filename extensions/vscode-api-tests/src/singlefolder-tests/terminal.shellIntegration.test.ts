@@ -5,13 +5,22 @@
 
 import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'assert';
 import { platform } from 'os';
-import { env, TerminalShellExecutionCommandLineConfidence, UIKind, window, type Disposable, type Terminal, type TerminalShellExecution, type TerminalShellExecutionCommandLine, type TerminalShellExecutionEndEvent, type TerminalShellIntegration } from 'vscode';
+import { env, TerminalShellExecutionCommandLineConfidence, UIKind, window, workspace, type Disposable, type Terminal, type TerminalShellExecution, type TerminalShellExecutionCommandLine, type TerminalShellExecutionEndEvent, type TerminalShellIntegration } from 'vscode';
 import { assertNoRpc } from '../utils';
 
-// Disable terminal tests:
-// - Web https://github.com/microsoft/vscode/issues/92826
+// Terminal integration tests are disabled on web https://github.com/microsoft/vscode/issues/92826
 (env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - Terminal.shellIntegration', () => {
 	const disposables: Disposable[] = [];
+
+	suiteSetup(async () => {
+		const config = workspace.getConfiguration('terminal.integrated');
+		await config.update('shellIntegration.enabled', true);
+	});
+
+	suiteTeardown(async () => {
+		const config = workspace.getConfiguration('terminal.integrated');
+		await config.update('shellIntegration.enabled', undefined);
+	});
 
 	teardown(async () => {
 		assertNoRpc();
