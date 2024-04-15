@@ -77,6 +77,9 @@ export class ExtensionContentProvider implements IBasicContentProvider {
 		public options: IAccessibleViewOptions,
 		public provideContent: () => string,
 		public onClose: () => void,
+		public next?: () => void,
+		public previous?: () => void,
+		public actions?: IAction[],
 	) { }
 }
 
@@ -85,6 +88,9 @@ export interface IBasicContentProvider {
 	options: IAccessibleViewOptions;
 	onClose(): void;
 	provideContent(): string;
+	actions?: IAction[];
+	previous?(): void;
+	next?(): void;
 }
 
 export interface IAccessibleViewContentProvider extends IBasicContentProvider {
@@ -94,10 +100,7 @@ export interface IAccessibleViewContentProvider extends IBasicContentProvider {
 	 * Note that a Codicon class should be provided for each action.
 	 * If not, a default will be used.
 	 */
-	actions?: IAction[];
 	onKeyDown?(e: IKeyboardEvent): void;
-	previous?(): void;
-	next?(): void;
 	/**
 	 * When the language is markdown, this is provided by default.
 	 */
@@ -384,15 +387,11 @@ export class AccessibleView extends Disposable {
 	}
 
 	previous(): void {
-		if (this._currentProvider instanceof AdvancedContentProvider) {
-			this._currentProvider.previous?.();
-		}
+		this._currentProvider?.previous?.();
 	}
 
 	next(): void {
-		if (this._currentProvider instanceof AdvancedContentProvider) {
-			this._currentProvider.next?.();
-		}
+		this._currentProvider?.next?.();
 	}
 
 	private _verbosityEnabled(): boolean {
@@ -530,11 +529,7 @@ export class AccessibleView extends Disposable {
 			this._accessibleViewIsShown.set(shown);
 			this._accessiblityHelpIsShown.reset();
 		}
-		if (this._currentProvider instanceof AdvancedContentProvider) {
-			this._accessibleViewSupportsNavigation.set(this._currentProvider.next !== undefined || this._currentProvider.previous !== undefined);
-		} else {
-			this._accessibleViewSupportsNavigation.reset();
-		}
+		this._accessibleViewSupportsNavigation.set(provider.next !== undefined || provider.previous !== undefined);
 		this._accessibleViewVerbosityEnabled.set(this._verbosityEnabled());
 		this._accessibleViewGoToSymbolSupported.set(this._goToSymbolsSupported() ? this.getSymbols()?.length! > 0 : false);
 	}
@@ -582,7 +577,7 @@ export class AccessibleView extends Disposable {
 			model.setLanguage(provider.options.language ?? 'markdown');
 			container.appendChild(this._container);
 			let actionsHint = '';
-			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || (this._currentProvider instanceof AdvancedContentProvider && this._currentProvider.actions);
+			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || provider.actions?.length;
 			if (verbose && !showAccessibleViewHelp && hasActions) {
 				actionsHint = provider.options.position ? localize('ariaAccessibleViewActionsBottom', 'Explore actions such as disabling this hint (Shift+Tab), use Escape to exit this dialog.') : localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
 			}
@@ -613,7 +608,7 @@ export class AccessibleView extends Disposable {
 				}
 			}
 		});
-		this._updateToolbar(this._currentProvider instanceof AdvancedContentProvider ? this._currentProvider.actions : undefined, provider.options.type);
+		this._updateToolbar(this._currentProvider.actions, provider.options.type);
 
 		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
 			provider.onClose();
@@ -715,7 +710,10 @@ export class AccessibleView extends Disposable {
 			provider.id,
 			provider.options,
 			provider.provideContent.bind(provider),
-			provider.onClose
+			provider.onClose,
+			provider.next,
+			provider.previous,
+			provider.actions
 		);
 		return lastProvider;
 	}
