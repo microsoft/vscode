@@ -41,6 +41,7 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { URI } from 'vs/base/common/uri';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);
@@ -410,9 +411,17 @@ function resolveExtensionHelpContent(keybindingService: IKeybindingService, cont
 		const commandId = match?.groups?.commandId;
 		if (match?.length && commandId) {
 			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
-			const kbLabel = keybinding ? ' (' + keybinding + ')' : ', which is not currently bound to a keybinding.';
+			let kbLabel = keybinding;
+			if (!kbLabel) {
+				const args = URI.parse(`command:workbench.action.openGlobalKeybindings?${encodeURIComponent(JSON.stringify(commandId))}`);
+				kbLabel = ` [Configure a keybinding](${args})`;
+			} else {
+				kbLabel = ' (' + keybinding + ')';
+			}
 			resolvedContent = resolvedContent.replace(match[0], kbLabel);
 		}
 	}
-	return new MarkdownString(resolvedContent);
+	const result = new MarkdownString(resolvedContent);
+	result.isTrusted = true;
+	return result;
 }
