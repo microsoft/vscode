@@ -46,6 +46,7 @@ interface IRelaxedScannedExtension {
 	manifest: IRelaxedExtensionManifest;
 	location: URI;
 	targetPlatform: TargetPlatform;
+	publisherDisplayName?: string;
 	metadata: Metadata | undefined;
 	isValid: boolean;
 	validations: readonly [Severity, string][];
@@ -652,13 +653,14 @@ class ExtensionsScanner extends Disposable {
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
-				const extension = {
+				const extension: IRelaxedScannedExtension = {
 					type,
 					identifier,
 					manifest,
 					location: input.location,
 					isBuiltin,
 					targetPlatform: metadata?.targetPlatform ?? TargetPlatform.UNDEFINED,
+					publisherDisplayName: metadata?.publisherDisplayName,
 					metadata,
 					isValid: true,
 					validations: []
@@ -979,6 +981,7 @@ export function toExtensionDescription(extension: IScannedExtension, isUnderDeve
 		extensionLocation: extension.location,
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
+		publisherDisplayName: extension.publisherDisplayName,
 		...extension.manifest,
 	};
 }

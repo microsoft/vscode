@@ -99,6 +99,7 @@ export interface IChatListItemRendererOptions {
 
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
+	renderFollowups?: boolean;
 	renderStyle?: 'default' | 'compact';
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;

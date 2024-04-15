@@ -21,6 +21,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -179,6 +180,18 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		return data.provider.provideLanguageModelResponse2(messages.map(typeConvert.LanguageModelMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
 	}
+
+
+	//#region --- token counting
+
+	$provideTokenLength(handle: number, value: string, token: CancellationToken): Promise<number> {
+		const data = this._languageModels.get(handle);
+		if (!data) {
+			return Promise.resolve(0);
+		}
+		return Promise.resolve(data.provider.provideTokenCount(value, token));
+	}
+
 
 	//#region --- making request
 
@@ -378,6 +391,23 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					return undefined;
 				}
 				return list.has(data.extension);
+			},
+			async computeTokenLength(languageModelId: string, value: string, token?: vscode.CancellationToken): Promise<number> {
+
+				token ??= CancellationToken.None;
+
+				const data = that._allLanguageModelData.get(languageModelId);
+				if (!data) {
+					throw LanguageModelError.NotFound(`Language model '${languageModelId}' is unknown.`);
+				}
+
+				const local = Iterable.find(that._languageModels.values(), candidate => candidate.languageModelId === languageModelId);
+				if (local) {
+					// stay inside the EH
+					return local.provider.provideTokenCount(value, token);
+				}
+
+				return that._proxy.$countTokens(data.identifier, value, token);
 			}
 		};
 	}

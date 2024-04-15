@@ -1031,6 +1031,9 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 30
+			},
+			metadata: {
+				description: nls.localize2('refreshExplorerMetadata', "Forces a refresh of the Explorer.")
 			}
 		});
 	}
@@ -1055,6 +1058,9 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 40
+			},
+			metadata: {
+				description: nls.localize2('collapseExplorerFoldersMetadata', "Folds all folders in the Explorer.")
 			}
 		});
 	}

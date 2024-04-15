@@ -6,7 +6,7 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { Schemas, matchesScheme } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -1389,11 +1389,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostInteractiveEditor.registerProvider(extension, provider, metadata);
 			},
-			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
-				// temp stub
-				checkProposedApiEnabled(extension, 'interactive');
-				return Disposable.None;
-			},
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChatAgents2.transferActiveChat(toWorkspace);
@@ -1601,6 +1596,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TerminalLocation: extHostTypes.TerminalLocation,
 			TerminalProfile: extHostTypes.TerminalProfile,
 			TerminalExitReason: extHostTypes.TerminalExitReason,
+			TerminalShellExecutionCommandLineConfidence: extHostTypes.TerminalShellExecutionCommandLineConfidence,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,
@@ -1698,7 +1694,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
+			ChatResponseMarkdownWithVulnerabilitiesPart: extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
+			ChatResponseDetectedParticipantPart: extHostTypes.ChatResponseDetectedParticipantPart,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatLocation: extHostTypes.ChatLocation,
