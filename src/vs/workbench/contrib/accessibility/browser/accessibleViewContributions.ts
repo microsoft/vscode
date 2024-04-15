@@ -255,7 +255,7 @@ export class CommentAccessibleViewContribution extends Disposable {
 					return false;
 				}
 
-				const commentNode = commentsView?.focusedCommentNode;
+				const commentNode = commentsView.focusedCommentNode;
 				const content = commentsView.focusedCommentInfo?.toString();
 				if (!commentNode || !content) {
 					return false;
