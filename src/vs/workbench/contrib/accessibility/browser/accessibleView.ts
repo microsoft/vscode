@@ -700,12 +700,23 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
-		const lastProvider = Object.assign({}, provider);
-		lastProvider.provideContent = provider.provideContent.bind(lastProvider);
-		lastProvider.options = Object.assign({}, provider.options);
-		if (provider instanceof AdvancedContentProvider) {
-			(lastProvider as AdvancedContentProvider).verbositySettingKey = provider.verbositySettingKey;
-		}
+		const lastProvider = provider instanceof AdvancedContentProvider ? new AdvancedContentProvider(
+			provider.id,
+			provider.options,
+			provider.provideContent.bind(provider),
+			provider.onClose,
+			provider.verbositySettingKey,
+			provider.actions,
+			provider.next,
+			provider.previous,
+			provider.onKeyDown,
+			provider.getSymbols,
+		) : new ExtensionContentProvider(
+			provider.id,
+			provider.options,
+			provider.provideContent.bind(provider),
+			provider.onClose
+		);
 		return lastProvider;
 	}
 
