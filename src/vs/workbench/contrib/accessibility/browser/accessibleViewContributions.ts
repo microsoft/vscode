@@ -388,7 +388,7 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 			viewDescriptor.id,
 			{ type: AccessibleViewType.Help },
 			() => helpContent.value,
-			() => viewsService.openView(viewDescriptor.id)
+			() => viewsService.openView(viewDescriptor.id, true)
 		));
 		return true;
 	}, FocusedViewContext.isEqualTo(viewDescriptor.id)));
