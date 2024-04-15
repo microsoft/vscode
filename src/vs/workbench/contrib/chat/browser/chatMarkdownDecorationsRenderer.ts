@@ -14,8 +14,16 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { contentRefUrl } from '../common/annotations';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { h } from 'vs/base/browser/dom';
+import { FileAccess } from 'vs/base/common/network';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { localize } from 'vs/nls';
+import { showExtensionsWithIdsCommandId } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 
 const variableRefUrl = 'http://_vscodedecoration_';
+const agentRefUrl = 'http://_chatagent_';
 
 export class ChatMarkdownDecorationsRenderer {
 	constructor(
@@ -23,6 +31,7 @@ export class ChatMarkdownDecorationsRenderer {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
@@ -30,6 +39,14 @@ export class ChatMarkdownDecorationsRenderer {
 		for (const part of parsedRequest.parts) {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
+			} else if (part instanceof ChatRequestAgentPart) {
+				let text = part.text;
+				const isDupe = this.chatAgentService.getAgentsByName(part.agent.name).length > 1;
+				if (isDupe) {
+					text += ` (${part.agent.extensionPublisher})`;
+				}
+
+				result += `[${text}](${agentRefUrl}?${encodeURIComponent(part.agent.id)})`;
 			} else {
 				const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
 					|| undefined;
@@ -37,14 +54,7 @@ export class ChatMarkdownDecorationsRenderer {
 					part instanceof ChatRequestAgentPart ? part.agent.id :
 						'';
 
-				let text = part.text;
-				if (part instanceof ChatRequestAgentPart) {
-					const isDupe = this.chatAgentService.getAgentsByName(part.agent.name).length > 1;
-					if (isDupe) {
-						text += ` (${part.agent.extensionPublisher})`;
-					}
-				}
-
+				const text = part.text;
 				result += `[${text}](${variableRefUrl}?${title})`;
 			}
 		}
@@ -56,7 +66,12 @@ export class ChatMarkdownDecorationsRenderer {
 		element.querySelectorAll('a').forEach(a => {
 			const href = a.getAttribute('data-href');
 			if (href) {
-				if (href.startsWith(variableRefUrl)) {
+				if (href.startsWith(agentRefUrl)) {
+					const title = decodeURIComponent(href.slice(agentRefUrl.length + 1));
+					a.parentElement!.replaceChild(
+						this.renderAgentWidget(a.textContent!, title),
+						a);
+				} else if (href.startsWith(variableRefUrl)) {
 					const title = decodeURIComponent(href.slice(variableRefUrl.length + 1));
 					a.parentElement!.replaceChild(
 						this.renderResourceWidget(a.textContent!, title),
@@ -68,6 +83,58 @@ export class ChatMarkdownDecorationsRenderer {
 				}
 			}
 		});
+	}
+
+	private renderAgentWidget(name: string, id: string): HTMLElement {
+		const agent = this.chatAgentService.getAgent(id)!;
+
+		const container = dom.$('span.chat-resource-widget');
+		const alias = dom.$('span', undefined, name);
+
+		const hoverElement = h(
+			'.chat-agent-hover@root',
+			[
+				h('.chat-agent-hover-header', [
+					h('.chat-agent-hover-icon@icon'),
+					h('.chat-agent-hover-details', [
+						h('.chat-agent-hover-name@name'),
+						h('.chat-agent-hover-extension', [
+							h('.chat-agent-hover-extension-name@extensionName'),
+							h('.chat-agent-hover-separator@separator'),
+							h('.chat-agent-hover-publisher@publisher'),
+						]),
+					]),
+				]),
+				h('.chat-agent-hover-description@description'),
+			]);
+
+		if (agent.metadata.icon instanceof URI) {
+			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
+			avatarIcon.src = FileAccess.uriToBrowserUri(agent.metadata.icon).toString(true);
+			hoverElement.icon.replaceChildren(dom.$('.avatar', undefined, avatarIcon));
+		} else if (agent.metadata.themeIcon) {
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(agent.metadata.themeIcon));
+			hoverElement.icon.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+		}
+
+		hoverElement.name.textContent = `@${agent.name}`;
+		hoverElement.extensionName.textContent = agent.extensionDisplayName;
+		hoverElement.separator.textContent = ' | ';
+		hoverElement.publisher.textContent = agent.extensionPublisher;
+
+		const description = agent.description && !agent.description.endsWith('.') ?
+			`${agent.description}. ` :
+			(agent.description || '');
+		hoverElement.description.textContent = description;
+
+		const marketplaceLink = document.createElement('a');
+		marketplaceLink.setAttribute('href', `command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([agent.extensionId.value]))}`);
+		marketplaceLink.textContent = localize('marketplaceLabel', "View in Marketplace") + '.';
+		hoverElement.description.appendChild(marketplaceLink);
+
+		this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, hoverElement.root);
+		container.appendChild(alias);
+		return container;
 	}
 
 	private renderFileWidget(href: string, a: HTMLAnchorElement): void {
