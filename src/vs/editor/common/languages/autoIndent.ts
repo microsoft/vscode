@@ -37,6 +37,7 @@ export interface IIndentConverter {
  * else: nearest preceding line of the same language
  */
 function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
+	// If the line contains only regex, string or comment tokens, then ignore this line.
 	const doesLineContainOtherStandardTokenType = (tokens: LineTokens) => {
 		const numberOfTokens = tokens.getCount();
 		let lineContainsOtherStandardTokenType = false;
@@ -243,7 +244,6 @@ export function getGoodIndentForLine(
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
 	// console.log('getGoodIndentForLine');
-
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -331,7 +331,6 @@ export function getIndentForEnter(
 	languageConfigurationService: ILanguageConfigurationService
 ): { beforeEnter: string; afterEnter: string } | null {
 	// console.log('getIndentForEnter');
-
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -350,7 +349,6 @@ export function getIndentForEnter(
 		beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
 	}
 
-	// combine with indent elsewhere
 	let _afterEnterText: string;
 	if (range.isEmpty()) {
 		_afterEnterText = scopedLineText.substring(range.startColumn - 1 - scopedLineTokens.firstCharOffset);

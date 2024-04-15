@@ -10,6 +10,7 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 import { getIndentationAtPosition, getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { getStrippedLineForLineAndTokens } from 'vs/editor/common/languages/autoIndent';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 
 export function getEnterAction(
 	autoIndent: EditorAutoIndentStrategy,
@@ -69,25 +70,9 @@ function getBeforeEnterText(
 	languageConfigurationService: ILanguageConfigurationService
 ) {
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-	const language = scopedLineTokens.languageId;
-	const scopedLineText = scopedLineTokens.getLineContent();
-	const columnIndexOfStart = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
-	const beforeEnterText = scopedLineText.substring(0, columnIndexOfStart);
-
-	const firstTokenIndex = scopedLineTokens.firstTokenIndex;
-	const lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(columnIndexOfStart) + 1;
-	const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
-	const firstCharOffset = scopedLineTokens.firstCharOffset;
-
-	const beforeEnterTokens = new ScopedLineTokens(
-		initialTokens,
-		language,
-		firstTokenIndex,
-		lastTokenIndex,
-		firstCharOffset,
-		columnIndexOfStart
-	);
-	return getStrippedLineForLineAndTokens(languageConfigurationService, language, beforeEnterText, beforeEnterTokens);
+	const initialLineTokens = model.tokenization.getLineTokens(range.startLineNumber);
+	const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+	return getStrippedScopedLineTextFor(languageConfigurationService, initialLineTokens, scopedLineTokens, { isStart: false, columnIndexWithinScope });
 }
 
 /** look at the following */
@@ -96,38 +81,58 @@ function getAfterEnterText(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ) {
-	const scopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-	const columnIndexOfEnd = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
-	let afterEnterText: string;
-	let tokensOfInterest: ScopedLineTokens;
-	let afterEnterTokens: ScopedLineTokens;
+
+	let initialLineTokens: LineTokens;
+	let scopedLineTokens: ScopedLineTokens;
+	let columnIndexWithinScope: number;
 
 	if (range.isEmpty()) {
-		const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-		const scopedLineText = scopedLineTokens.getLineContent();
-		afterEnterText = scopedLineText.substring(columnIndexOfEnd);
-		tokensOfInterest = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+		initialLineTokens = model.tokenization.getLineTokens(range.startLineNumber);
+		scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+		columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
 	} else {
-		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-		afterEnterText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - endScopedLineTokens.firstCharOffset);
-		tokensOfInterest = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+		initialLineTokens = model.tokenization.getLineTokens(range.endLineNumber);
+		scopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+		columnIndexWithinScope = range.endColumn - 1 - scopedLineTokens.firstCharOffset;
 	}
-	const text = tokensOfInterest.getLineContent();
-	const lastScopedCharOffset = text.length - 1;
-	const firstTokenIndex = tokensOfInterest.findTokenIndexAtOffset(columnIndexOfEnd);
-	const lastTokenIndex = tokensOfInterest.findTokenIndexAtOffset(lastScopedCharOffset);
-	const initialTokens = model.tokenization.getLineTokens(range.startLineNumber);
-	const language = initialTokens.getLanguageId(firstTokenIndex);
-	const lastCharOffset = tokensOfInterest.firstCharOffset + lastScopedCharOffset;
-	afterEnterTokens = new ScopedLineTokens(
-		initialTokens,
+
+	return getStrippedScopedLineTextFor(languageConfigurationService, initialLineTokens, scopedLineTokens, { isStart: true, columnIndexWithinScope });
+}
+
+function getStrippedScopedLineTextFor(languageConfigurationService: ILanguageConfigurationService, initialLineTokens: LineTokens, scopedLineTokens: ScopedLineTokens, opts: { columnIndexWithinScope: number, isStart: boolean }) {
+
+	const language = scopedLineTokens.languageId;
+	const scopedLineText = scopedLineTokens.getLineContent();
+	let text: string;
+	let firstCharacterOffset: number;
+	let lastCharacterOffset: number;
+	let firstTokenIndex: number;
+	let lastTokenIndex: number;
+
+	const isStart = opts.isStart;
+	if (isStart) {
+		text = scopedLineText.substring(opts.columnIndexWithinScope);
+		firstCharacterOffset = scopedLineTokens.firstCharOffset;
+		lastCharacterOffset = scopedLineTokens.firstCharOffset + opts.columnIndexWithinScope;
+		firstTokenIndex = scopedLineTokens.firstTokenIndex;
+		lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
+	} else {
+		text = scopedLineText.substring(0, opts.columnIndexWithinScope);
+		firstCharacterOffset = scopedLineTokens.firstCharOffset + opts.columnIndexWithinScope;
+		lastCharacterOffset = scopedLineTokens.firstCharOffset + text.length;
+		firstTokenIndex = scopedLineTokens.firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
+		lastTokenIndex = scopedLineTokens.firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(scopedLineText.length - 1) + 1;
+	}
+
+	const tokensOfText = new ScopedLineTokens(
+		initialLineTokens,
 		language,
 		firstTokenIndex,
 		lastTokenIndex,
-		columnIndexOfEnd,
-		lastCharOffset
+		firstCharacterOffset,
+		lastCharacterOffset
 	);
-	return getStrippedLineForLineAndTokens(languageConfigurationService, language, afterEnterText, afterEnterTokens);
+	return getStrippedLineForLineAndTokens(languageConfigurationService, language, text, tokensOfText);
 }
 
 function getPreviousLineText(
