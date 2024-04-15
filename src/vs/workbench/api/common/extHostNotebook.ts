@@ -312,68 +312,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata> {
-		const uri = URI.revive(uriComponents);
-		const serializer = this._notebookSerializer.get(handle);
-		if (!serializer) {
-			throw new Error('NO serializer found');
-		}
-
-		const document = this._documents.get(uri);
-		if (!document) {
-			throw new Error('Document NOT found');
-		}
-
-		if (document.versionId !== versionId) {
-			throw new Error('Document version mismatch');
-		}
-
-		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
-			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
-		}
-
-		// validate write
-		await this._validateWriteFile(uri, options);
-
-		const data: vscode.NotebookData = {
-			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
-			cells: [],
-		};
-
-		for (const cell of document.apiNotebook.getCells()) {
-			const cellData = new extHostTypes.NotebookCellData(
-				cell.kind,
-				cell.document.getText(),
-				cell.document.languageId,
-				cell.mime,
-				!(serializer.options?.transientOutputs) ? [...cell.outputs] : [],
-				cell.metadata,
-				cell.executionSummary
-			);
-
-			cellData.metadata = filter(cell.metadata, key => !(serializer.options?.transientCellMetadata ?? {})[key]);
-			data.cells.push(cellData);
-		}
-
-		const bytes = await serializer.serializer.serializeNotebook(data, token);
-		await this._extHostFileSystem.value.writeFile(uri, bytes);
-		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
-		const stat = await this._extHostFileSystem.value.stat(uri);
-
-		const fileStats = {
-			name: providerExtUri.basename(uri),
-			isFile: (stat.type & files.FileType.File) !== 0,
-			isDirectory: (stat.type & files.FileType.Directory) !== 0,
-			isSymbolicLink: (stat.type & files.FileType.SymbolicLink) !== 0,
-			mtime: stat.mtime,
-			ctime: stat.ctime,
-			size: stat.size,
-			readonly: Boolean((stat.permissions ?? 0) & files.FilePermission.Readonly) || !this._extHostFileSystem.value.isWritableFileSystem(uri.scheme),
-			locked: Boolean((stat.permissions ?? 0) & files.FilePermission.Locked),
-			etag: files.etag({ mtime: stat.mtime, size: stat.size }),
-			children: undefined
-		};
-
-		return fileStats;
+		return await this.$saveNotebookAs(handle, uriComponents, '', uriComponents, versionId, options, token);
 	}
 
 	async $saveNotebookAs(handle: number, target: UriComponents, preamble: string, documentLocation: UriComponents, versionId: number, options: files.IWriteFileOptions | undefined, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata> {
