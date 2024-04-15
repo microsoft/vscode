@@ -11,6 +11,12 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
+export const enum WatchFilter {
+	Update = 0,
+	Add = 1 << 1,
+	Delete = 1 << 2
+}
+
 interface IWatchRequest {
 
 	/**
@@ -34,6 +40,11 @@ interface IWatchRequest {
 	 * events.
 	 */
 	readonly includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * TODO
+	 */
+	readonly filter?: WatchFilter;
 
 	/**
 	 * If provided, file change events from the watcher that

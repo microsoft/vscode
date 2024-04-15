@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, WatchFilter } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ParcelWatcherInstance extends Disposable {
@@ -445,19 +445,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			return;
 		}
 
-		for (const event of events) {
-
-			// Emit to instance subscriptions if any
-			if (watcher.subscriptionsCount > 0) {
-				watcher.notifyFileChange(event.resource.fsPath, event);
-			}
-
-			// Logging
-			if (this.verboseLogging) {
-				this.traceEvent(event, watcher.request);
-			}
-		}
-
 		// Broadcast to clients via throttler
 		const worked = this.throttledFileChangesEmitter.work(events);
 
@@ -529,8 +516,28 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		let rootDeleted = false;
 
 		for (const event of events) {
-			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
 
+			// Emit to instance subscriptions if any
+			if (watcher.subscriptionsCount > 0) {
+				watcher.notifyFileChange(event.resource.fsPath, event);
+			}
+
+			// Filtering
+			if (this.shouldFilterEvent(event, watcher.request)) {
+				if (this.verboseLogging) {
+					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
+				}
+
+				continue;
+			}
+
+			// Logging
+			if (this.verboseLogging) {
+				this.traceEvent(event, watcher.request);
+			}
+
+			// Check for root being deleted
+			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
 			if (rootDeleted && !this.isCorrelated(watcher.request)) {
 
 				// Explicitly exclude changes to root if we have any
@@ -551,6 +558,21 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		}
 
 		return { events: filteredEvents, rootDeleted };
+	}
+
+	private shouldFilterEvent(event: IFileChange, request: IRecursiveWatchRequest): boolean {
+		if (typeof request.filter !== 'number') {
+			return false;
+		}
+
+		switch (event.type) {
+			case FileChangeType.ADDED:
+				return (request.filter & WatchFilter.Add) === 0;
+			case FileChangeType.DELETED:
+				return (request.filter & WatchFilter.Delete) === 0;
+			case FileChangeType.UPDATED:
+				return (request.filter & WatchFilter.Update) === 0;
+		}
 	}
 
 	private onWatchedPathDeleted(watcher: ParcelWatcherInstance): void {

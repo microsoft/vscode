@@ -519,6 +519,11 @@ export interface IWatchOptionsWithoutCorrelation {
 	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * TODO
+	 */
+	filter?: number;
 }
 
 export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
