@@ -57,7 +57,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
-		@IStorageService protected override  readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILogService private readonly logService: ILogService,

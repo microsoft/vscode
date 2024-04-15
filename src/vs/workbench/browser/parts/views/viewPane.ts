@@ -52,8 +52,7 @@ import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { PANEL_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from 'vs/workbench/common/theme';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibleViewVisibilityService } from 'vs/workbench/services/accessibility/common/accessibleViewVisibilityService';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -377,7 +376,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IHoverService protected readonly hoverService: IHoverService,
-		protected readonly storageService?: IStorageService,
+		@IAccessibleViewVisibilityService protected readonly accessibleViewService?: IAccessibleViewVisibilityService
 	) {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
@@ -553,7 +552,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private _getAriaLabel(title: string): string {
 		const viewHasAccessibilityHelpContent = this.viewDescriptorService.getViewDescriptorById(this.id)?.accessibilityHelpContent;
-		const accessibleViewHasShownForView = this.storageService?.getBoolean(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${this.id}`, StorageScope.APPLICATION, false);
+		const accessibleViewHasShownForView = this.accessibleViewService?.hasShownAccessibleView(this.id);
 		if (!viewHasAccessibilityHelpContent || accessibleViewHasShownForView) {
 			return title;
 		}
@@ -743,9 +742,9 @@ export abstract class FilterViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
-		@IStorageService storageService: IStorageService
+		@IAccessibleViewVisibilityService accessibleViewService: IAccessibleViewVisibilityService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, storageService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, accessibleViewService);
 		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
 	}
 

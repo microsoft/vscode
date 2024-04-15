@@ -2829,7 +2829,7 @@ export class SCMViewPane extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IStorageService protected override readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,

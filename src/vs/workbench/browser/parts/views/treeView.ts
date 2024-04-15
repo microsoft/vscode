@@ -75,7 +75,7 @@ import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/ho
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IAccessibleViewVisibilityService } from 'vs/workbench/services/accessibility/common/accessibleViewVisibilityService';
 
 export class TreeViewPane extends ViewPane {
 
@@ -96,9 +96,9 @@ export class TreeViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IHoverService hoverService: IHoverService,
-		@IStorageService storageService: IStorageService
+		@IAccessibleViewVisibilityService accessibleViewService: IAccessibleViewVisibilityService,
 	) {
-		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: false }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, storageService);
+		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: false }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, accessibleViewService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));

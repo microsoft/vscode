@@ -259,7 +259,7 @@ export class TimelinePane extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService protected override readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,

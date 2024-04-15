@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IAccessibleViewService, AccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibility/browser/unfocusedViewDimmingContribution';
-import { ExtensionAccessibilityHelpDialogContribution,CommentAccessibleViewContribution, HoverAccessibleViewContribution, InlineCompletionsAccessibleViewContribution, NotificationAccessibleViewContribution } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
+import { ExtensionAccessibilityHelpDialogContribution, CommentAccessibleViewContribution, HoverAccessibleViewContribution, InlineCompletionsAccessibleViewContribution, NotificationAccessibleViewContribution } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
 import { AccessibilityStatus } from 'vs/workbench/contrib/accessibility/browser/accessibilityStatus';
 import { EditorAccessibilityHelpContribution } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
 import { SaveAccessibilitySignalContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/saveAccessibilitySignal';
@@ -18,10 +18,12 @@ import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comm
 import { DiffEditorActiveAnnouncementContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/openDiffEditorAnnouncement';
 import { SpeechAccessibilitySignalContribution } from 'vs/workbench/contrib/speech/browser/speechAccessibilitySignal';
 import { registerAudioCueConfiguration } from 'vs/workbench/contrib/accessibility/browser/audioCueConfiguration';
+import { AccessibleViewVisibilityService, IAccessibleViewVisibilityService } from 'vs/workbench/services/accessibility/common/accessibleViewVisibilityService';
 
 registerAccessibilityConfiguration();
 registerAudioCueConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
+registerSingleton(IAccessibleViewVisibilityService, AccessibleViewVisibilityService, InstantiationType.Delayed);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);

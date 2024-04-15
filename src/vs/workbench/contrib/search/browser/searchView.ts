@@ -190,7 +190,7 @@ export class SearchView extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IStorageService protected override readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
