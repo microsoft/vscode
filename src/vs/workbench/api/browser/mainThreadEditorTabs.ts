@@ -605,7 +605,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		return;
 	}
 
-	$revealTab(tabId: string, preserveFocus?: boolean): void {
+	async $revealTab(tabId: string, preserveFocus?: boolean): Promise<void> {
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		if (!tabInfo) {
 			throw new Error(`Attempted to reveal tab with id ${tabId} which does not exist`);
@@ -617,7 +617,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		if (!preserveFocus) {
 			sourceGroup.focus();
 		}
-		sourceGroup.openEditor(tabInfo.editorInput, { revealIfOpened: true, preserveFocus });
+		await sourceGroup.openEditor(tabInfo.editorInput, { revealIfOpened: true, preserveFocus });
 		return;
 	}
 
