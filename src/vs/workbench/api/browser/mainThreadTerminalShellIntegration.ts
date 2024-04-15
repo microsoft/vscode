@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, type IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { TerminalCapability, type ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -25,6 +25,13 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		super();
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalShellIntegration);
+
+		const instanceDataListeners: Map<number, IDisposable> = new Map();
+		this._register(toDisposable(() => {
+			for (const listener of instanceDataListeners.values()) {
+				listener.dispose();
+			}
+		}));
 
 		// onDidChangeTerminalShellIntegration
 		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
@@ -47,14 +54,22 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			}
 			// String paths are not exposed in the extension API
 			currentCommand = e.data;
-			this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, this._convertCwdToUri(e.data.cwd));
+			const instanceId = e.instance.instanceId;
+			this._proxy.$shellExecutionStart(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, this._convertCwdToUri(e.data.cwd));
+
+			// TerminalShellExecution.createDataStream
+			// Debounce events to reduce the message count - when this listener is disposed the events will be flushed
+			instanceDataListeners.get(instanceId)?.dispose();
+			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => this._proxy.$shellExecutionData(instanceId, events.join())));
 		}));
 
 		// onDidEndTerminalShellExecution
 		const commandDetectionEndEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished));
 		this._store.add(commandDetectionEndEvent.event(e => {
 			currentCommand = undefined;
-			this._proxy.$shellExecutionEnd(e.instance.instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
+			const instanceId = e.instance.instanceId;
+			instanceDataListeners.get(instanceId)?.dispose();
+			this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
 		}));
 
 		// onDidChangeTerminalShellIntegration via cwd
@@ -65,12 +80,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// Clean up after dispose
 		this._store.add(this._terminalService.onDidDisposeInstance(e => this._proxy.$closeTerminal(e.instanceId)));
-
-		// TerminalShellExecution.createDataStream
-		// TODO: Support this on remote; it should go via the server
-		if (!workbenchEnvironmentService.remoteAuthority) {
-			this._store.add(this._terminalService.onAnyInstanceData(e => this._proxy.$shellExecutionData(e.instance.instanceId, e.data)));
-		}
 	}
 
 	$executeCommand(terminalId: number, commandLine: string): void {

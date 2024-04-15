@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { equals } from 'vs/base/common/objects';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
@@ -164,22 +165,19 @@ export class Response implements IResponse {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
-			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent') {
-				// The last part can't be merged with
+			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent' || !canMergeMarkdownStrings(lastResponsePart.content, progress.content)) {
+				// The last part can't be merged with- not markdown, or markdown with different permissions
 				this._responseParts.push(progress);
 			} else {
-				// Merge all enabled commands TODO
-				const lastPartEnabledCommands = typeof lastResponsePart.content.isTrusted === 'object' ?
-					lastResponsePart.content.isTrusted.enabledCommands :
-					[];
-				const thisPartEnabledCommands = typeof progress.content.isTrusted === 'object' ?
-					progress.content.isTrusted.enabledCommands :
-					[];
-				const enabledCommands = [...lastPartEnabledCommands, ...thisPartEnabledCommands];
-				this._responseParts[responsePartLength] = { content: new MarkdownString(lastResponsePart.content.value + progress.content.value, { isTrusted: { enabledCommands } }), kind: 'markdownContent' };
+				lastResponsePart.content = {
+					value: lastResponsePart.content.value + progress.content.value,
+					isTrusted: lastResponsePart.content.isTrusted,
+					supportThemeIcons: lastResponsePart.content.supportThemeIcons,
+					supportHtml: lastResponsePart.content.supportHtml,
+					baseUri: lastResponsePart.content.baseUri
+				} satisfies IMarkdownString;
 			}
 			this._updateRepr(quiet);
-
 		} else if (progress.kind === 'textEdit') {
 			if (progress.edits.length > 0) {
 				// merge text edits for the same file no matter when they come in
@@ -821,20 +819,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent ?
-						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
-						{
-							id: r.response.agent.id,
-							name: r.response.agent.name,
-							description: r.response.agent.description,
-							extensionId: r.response.agent.extensionId,
-							metadata: r.response.agent.metadata,
-							slashCommands: [],
-							locations: r.response.agent.locations,
-							isDefault: r.response.agent.isDefault,
-							extensionPublisher: r.response.agent.extensionPublisher
-						}
-						: undefined,
+					agent: r.response?.agent,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences
@@ -935,4 +920,23 @@ export function updateRanges(variableData: IChatRequestVariableData, diff: numbe
 			}
 		}))
 	};
+}
+
+export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownString): boolean {
+	if (md1.baseUri && md2.baseUri) {
+		const baseUriEquals = md1.baseUri.scheme === md2.baseUri.scheme
+			&& md1.baseUri.authority === md2.baseUri.authority
+			&& md1.baseUri.path === md2.baseUri.path
+			&& md1.baseUri.query === md2.baseUri.query
+			&& md1.baseUri.fragment === md2.baseUri.fragment;
+		if (!baseUriEquals) {
+			return false;
+		}
+	} else if (md1.baseUri || md2.baseUri) {
+		return false;
+	}
+
+	return equals(md1.isTrusted, md2.isTrusted) &&
+		md1.supportHtml === md2.supportHtml &&
+		md1.supportThemeIcons === md2.supportThemeIcons;
 }

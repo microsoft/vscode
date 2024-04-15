@@ -711,7 +711,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
-	handler: async (accessor: ServicesAccessor, debugType: string | unknown) => {
+	handler: async (accessor: ServicesAccessor, debugType: string | unknown, debugStartOptions?: { noDebug?: boolean }) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		const debugService = accessor.get(IDebugService);
 
@@ -723,7 +723,7 @@ CommandsRegistry.registerCommand({
 					const pick = await provider.pick();
 					if (pick) {
 						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
-						debugService.startDebugging(pick.launch, pick.config, { startedByUser: true });
+						debugService.startDebugging(pick.launch, pick.config, { noDebug: debugStartOptions?.noDebug, startedByUser: true });
 
 						return;
 					}
