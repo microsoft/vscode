@@ -21,6 +21,6 @@ export class AccessibleViewVisibilityService extends Disposable implements IAcce
 		super();
 	}
 	hasShownAccessibleView(viewId: string): boolean {
-		return !!this._storageService.getBoolean(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${viewId}`, StorageScope.APPLICATION);
+		return this._storageService.getBoolean(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${viewId}`, StorageScope.APPLICATION, false) === true;
 	}
 }
