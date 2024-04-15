@@ -26,6 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -53,8 +54,9 @@ export class WelcomeView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageSevice: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
 		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
@@ -165,8 +167,9 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 		{
 			key: 'customizeRunAndDebugOpenFolder',
 			comment: [
-				'Please do not translate the word "commmand", it is part of our internal syntax which must not change',
-				'{Locked="](command:{0})"}'
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'Please do not translate "launch.json", it is the specific configuration file name',
+				'{Locked="](command:{0})"}',
 			]
 		},
 		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),

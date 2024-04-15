@@ -32,7 +32,12 @@ declare module 'vscode' {
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+
+		/**
+		 * @deprecated, use previewDocument
+		 */
 		live: boolean;
+		previewDocument: TextDocument;
 		withIntentDetection: boolean;
 	}
 
@@ -105,46 +110,12 @@ declare module 'vscode' {
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
-	export interface InteractiveSessionParticipantInformation {
-		name: string;
-
-		/**
-		 * A full URI for the icon of the participant.
-		 */
-		icon?: Uri;
-	}
-
-	export interface InteractiveSession {
-		requester: InteractiveSessionParticipantInformation;
-		responder: InteractiveSessionParticipantInformation;
-		inputPlaceholder?: string;
-	}
-
-	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentReplyFollowup[];
-
-	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
-		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentReplyFollowup[]>;
-		prepareSession(token: CancellationToken): ProviderResult<S>;
-	}
-
-	export interface InteractiveSessionDynamicRequest {
-		/**
-		 * The message that will be displayed in the UI
-		 */
-		message: string;
-	}
-
 	export namespace interactive {
 		// current version of the proposal.
 		export const _version: 1 | number;
 
-		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
-
-		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
-
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider, metadata?: InteractiveEditorSessionProviderMetadata): Disposable;
 
-		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
+		export function transferActiveChat(toWorkspace: Uri): void;
 	}
 }

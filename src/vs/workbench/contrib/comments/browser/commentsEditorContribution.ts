@@ -25,8 +25,11 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { accessibilityHelpIsShown, accessibleViewCurrentProviderId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
+import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
+import { CommentsInputContentProvider } from 'vs/workbench/contrib/comments/browser/commentsInputContentProvider';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
+registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CommentCommandId.NextThread,

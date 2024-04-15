@@ -18,10 +18,12 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -40,14 +42,16 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	constructor(
 		private context: unknown,
 		action: IAction,
+		options: IBaseActionViewItemOptions,
 		@IDebugService private readonly debugService: IDebugService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
-		super(context, action);
+		super(context, action, options);
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.selectBox.setFocusable(false);
@@ -73,9 +77,10 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
 		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
 		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
-		this.start.title = this.action.label + keybindingLabel;
+		const title = this.action.label + keybindingLabel;
+		this.toDispose.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.start, title));
 		this.start.setAttribute('role', 'button');
-		this.start.ariaLabel = this.start.title;
+		this.start.ariaLabel = title;
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
 			this.start.blur();

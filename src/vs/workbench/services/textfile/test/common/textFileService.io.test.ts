@@ -375,7 +375,7 @@ export default function createSuite(params: Params) {
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
 
-		await service.write(resource, 'Hello World', { encoding: detectedEncoding! });
+		await service.write(resource, 'Hello World', { encoding: detectedEncoding });
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
 	});
@@ -603,7 +603,7 @@ export default function createSuite(params: Params) {
 		}
 
 		assert.ok(error);
-		assert.strictEqual(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+		assert.strictEqual(error.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
 
 		const result = await service.readStream(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
 		assert.strictEqual(result.name, 'small.txt');
@@ -620,7 +620,7 @@ export default function createSuite(params: Params) {
 		}
 
 		assert.ok(error);
-		assert.strictEqual(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+		assert.strictEqual(error.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
 
 		const result = await service.read(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
 		assert.strictEqual(result.name, 'small.txt');

@@ -161,7 +161,7 @@ export function prepareCommand(shell: string, args: string[], argsCanBeInterpret
 		case ShellType.bash: {
 
 			quote = (s: string) => {
-				s = s.replace(/(["'\\\$!><#()\[\]*&^| ;{}`])/g, '\\$1');
+				s = s.replace(/(["'\\\$!><#()\[\]*&^| ;{}?`])/g, '\\$1');
 				return s.length === 0 ? `""` : s;
 			};
 

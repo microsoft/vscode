@@ -15,7 +15,7 @@ import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/co
 const UPDATE_EXECUTION_ORDER_GRACE_PERIOD = 200;
 
 export class CellExecutionPart extends CellContentPart {
-	private kernelDisposables = this._register(new DisposableStore());
+	private readonly kernelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,

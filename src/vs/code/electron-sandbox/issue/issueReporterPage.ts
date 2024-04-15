@@ -83,6 +83,7 @@ export default (): string => `
 			<textarea name="description" id="description" placeholder="${escape(localize('details', "Please enter details."))}" required></textarea>
 		</div>
 		<div id="description-empty-error" class="validation-error hidden" role="alert">${escape(localize('descriptionEmptyValidation', "A description is required."))}</div>
+		<div id="description-short-error" class="validation-error hidden" role="alert">${escape(localize('descriptionTooShortValidation', "Please provide a longer description."))}</div>
 	</div>
 
 	<div class="system-info" id="block-container">
@@ -93,7 +94,7 @@ export default (): string => `
 				<span id="ext-loading" hidden></span>
 				<span class="ext-parens" hidden>(</span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a><span class="ext-parens" hidden>)</span>
 			</label>
-			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}">
+			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}" style="white-space: pre-wrap;">
 				<!-- To be dynamically filled -->
 			</pre>
 		</div>

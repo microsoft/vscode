@@ -70,6 +70,10 @@
 	display: inline-flex;
 }
 
+.monaco-workbench .notebook-action-view-item-unified .monaco-dropdown {
+	pointer-events: none;
+}
+
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .notebook-label {
 	background-size: 16px;
 	padding: 0px 5px 0px 2px;

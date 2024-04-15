@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -209,7 +209,7 @@ export interface IEditorGroupsView {
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
-	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
+	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -244,7 +244,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly onDidFocus: Event<void>;
 
+	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
 	readonly onDidOpenEditorFail: Event<EditorInput>;
+
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	readonly groupsView: IEditorGroupsView;

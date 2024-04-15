@@ -40,7 +40,7 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 	}
 
 	serialize(editorInput: EditorInput): string | undefined {
-		if (!this.filesConfigurationService.isHotExitEnabled || editorInput.isDisposed()) {
+		if (!this.canSerialize(editorInput)) {
 			return undefined;
 		}
 
@@ -85,6 +85,8 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 }
 
 export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
+
+	static readonly ID = 'workbench.contrib.untitledTextEditorWorkingCopyEditorHandler';
 
 	constructor(
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,

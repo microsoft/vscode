@@ -83,7 +83,7 @@ export interface IOutline<E> {
 	readonly activeElement: E | undefined;
 	readonly onDidChange: Event<OutlineChangeEvent>;
 
-	reveal(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
+	reveal(entry: E, options: IEditorOptions, sideBySide: boolean, select: boolean): Promise<void> | void;
 	preview(entry: E): IDisposable;
 	captureViewState(): IDisposable;
 	dispose(): void;

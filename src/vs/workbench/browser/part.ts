@@ -6,7 +6,7 @@
 import 'vs/css!./media/part';
 import { Component } from 'vs/workbench/common/component';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, IDimension, getActiveDocument } from 'vs/base/browser/dom';
+import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -20,8 +20,10 @@ export interface IPartOptions {
 }
 
 export interface ILayoutContentResult {
+	readonly headerSize: IDimension;
 	readonly titleSize: IDimension;
 	readonly contentSize: IDimension;
+	readonly footerSize: IDimension;
 }
 
 /**
@@ -33,12 +35,17 @@ export abstract class Part extends Component implements ISerializableView {
 	private _dimension: Dimension | undefined;
 	get dimension(): Dimension | undefined { return this._dimension; }
 
+	private _contentPosition: IDomPosition | undefined;
+	get contentPosition(): IDomPosition | undefined { return this._contentPosition; }
+
 	protected _onDidVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onDidVisibilityChange = this._onDidVisibilityChange.event;
 
 	private parent: HTMLElement | undefined;
+	private headerArea: HTMLElement | undefined;
 	private titleArea: HTMLElement | undefined;
 	private contentArea: HTMLElement | undefined;
+	private footerArea: HTMLElement | undefined;
 	private partLayout: PartLayout | undefined;
 
 	constructor(
@@ -50,7 +57,7 @@ export abstract class Part extends Component implements ISerializableView {
 	) {
 		super(id, themeService, storageService);
 
-		layoutService.registerPart(this);
+		this._register(layoutService.registerPart(this));
 	}
 
 	protected override onThemeChange(theme: IColorTheme): void {
@@ -59,10 +66,6 @@ export abstract class Part extends Component implements ISerializableView {
 		if (this.parent) {
 			super.onThemeChange(theme);
 		}
-	}
-
-	override updateStyles(): void {
-		super.updateStyles();
 	}
 
 	/**
@@ -117,6 +120,77 @@ export abstract class Part extends Component implements ISerializableView {
 	}
 
 	/**
+	 * Sets the header area
+	 */
+	protected setHeaderArea(headerContainer: HTMLElement): void {
+		if (this.headerArea) {
+			throw new Error('Header already exists');
+		}
+
+		if (!this.parent || !this.titleArea) {
+			return;
+		}
+
+		prepend(this.parent, headerContainer);
+		headerContainer.classList.add('header-or-footer');
+		headerContainer.classList.add('header');
+
+		this.headerArea = headerContainer;
+		this.partLayout?.setHeaderVisibility(true);
+		this.relayout();
+	}
+
+	/**
+	 * Sets the footer area
+	 */
+	protected setFooterArea(footerContainer: HTMLElement): void {
+		if (this.footerArea) {
+			throw new Error('Footer already exists');
+		}
+
+		if (!this.parent || !this.titleArea) {
+			return;
+		}
+
+		this.parent.appendChild(footerContainer);
+		footerContainer.classList.add('header-or-footer');
+		footerContainer.classList.add('footer');
+
+		this.footerArea = footerContainer;
+		this.partLayout?.setFooterVisibility(true);
+		this.relayout();
+	}
+
+	/**
+	 * removes the header area
+	 */
+	protected removeHeaderArea(): void {
+		if (this.headerArea) {
+			this.headerArea.remove();
+			this.headerArea = undefined;
+			this.partLayout?.setHeaderVisibility(false);
+			this.relayout();
+		}
+	}
+
+	/**
+	 * removes the footer area
+	 */
+	protected removeFooterArea(): void {
+		if (this.footerArea) {
+			this.footerArea.remove();
+			this.footerArea = undefined;
+			this.partLayout?.setFooterVisibility(false);
+			this.relayout();
+		}
+	}
+
+	private relayout() {
+		if (this.dimension && this.contentPosition) {
+			this.layout(this.dimension.width, this.dimension.height, this.contentPosition.top, this.contentPosition.left);
+		}
+	}
+	/**
 	 * Layout title and content area in the given dimension.
 	 */
 	protected layoutContents(width: number, height: number): ILayoutContentResult {
@@ -137,8 +211,9 @@ export abstract class Part extends Component implements ISerializableView {
 	abstract minimumHeight: number;
 	abstract maximumHeight: number;
 
-	layout(width: number, height: number, _top: number, _left: number): void {
+	layout(width: number, height: number, top: number, left: number): void {
 		this._dimension = new Dimension(width, height);
+		this._contentPosition = { top, left };
 	}
 
 	setVisible(visible: boolean) {
@@ -152,7 +227,12 @@ export abstract class Part extends Component implements ISerializableView {
 
 class PartLayout {
 
+	private static readonly HEADER_HEIGHT = 35;
 	private static readonly TITLE_HEIGHT = 35;
+	private static readonly Footer_HEIGHT = 35;
+
+	private headerVisible: boolean = false;
+	private footerVisible: boolean = false;
 
 	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 
@@ -166,20 +246,44 @@ class PartLayout {
 			titleSize = Dimension.None;
 		}
 
+		// Header Size: Width (Fill), Height (Variable)
+		let headerSize: Dimension;
+		if (this.headerVisible) {
+			headerSize = new Dimension(width, Math.min(height, PartLayout.HEADER_HEIGHT));
+		} else {
+			headerSize = Dimension.None;
+		}
+
+		// Footer Size: Width (Fill), Height (Variable)
+		let footerSize: Dimension;
+		if (this.footerVisible) {
+			footerSize = new Dimension(width, Math.min(height, PartLayout.Footer_HEIGHT));
+		} else {
+			footerSize = Dimension.None;
+		}
+
 		let contentWidth = width;
 		if (this.options && typeof this.options.borderWidth === 'function') {
 			contentWidth -= this.options.borderWidth(); // adjust for border size
 		}
 
 		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(contentWidth, height - titleSize.height);
+		const contentSize = new Dimension(contentWidth, height - titleSize.height - headerSize.height - footerSize.height);
 
 		// Content
 		if (this.contentArea) {
 			size(this.contentArea, contentSize.width, contentSize.height);
 		}
 
-		return { titleSize, contentSize };
+		return { headerSize, titleSize, contentSize, footerSize };
+	}
+
+	setFooterVisibility(visible: boolean): void {
+		this.footerVisible = visible;
+	}
+
+	setHeaderVisibility(visible: boolean): void {
+		this.headerVisible = visible;
 	}
 }
 
@@ -197,7 +301,7 @@ export abstract class MultiWindowParts<T extends IMultiWindowPart> extends Compo
 	registerPart(part: T): IDisposable {
 		this._parts.add(part);
 
-		return this._register(toDisposable(() => this.unregisterPart(part)));
+		return toDisposable(() => this.unregisterPart(part));
 	}
 
 	protected unregisterPart(part: T): void {

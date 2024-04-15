@@ -727,7 +727,7 @@ suite('KeybindingsEditorModel', () => {
 		assert.strictEqual(actual.command, expected.command);
 		if (actual.when) {
 			assert.ok(!!expected.when);
-			assert.strictEqual(actual.when.serialize(), expected.when!.serialize());
+			assert.strictEqual(actual.when.serialize(), expected.when.serialize());
 		} else {
 			assert.ok(!expected.when);
 		}
@@ -735,7 +735,7 @@ suite('KeybindingsEditorModel', () => {
 
 		if (actual.resolvedKeybinding) {
 			assert.ok(!!expected.resolvedKeybinding);
-			assert.strictEqual(actual.resolvedKeybinding.getLabel(), expected.resolvedKeybinding!.getLabel());
+			assert.strictEqual(actual.resolvedKeybinding.getLabel(), expected.resolvedKeybinding.getLabel());
 		} else {
 			assert.ok(!expected.resolvedKeybinding);
 		}

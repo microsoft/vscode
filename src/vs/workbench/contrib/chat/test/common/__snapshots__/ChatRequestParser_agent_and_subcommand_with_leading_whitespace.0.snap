@@ -27,8 +27,20 @@
       },
       agent: {
         id: "agent",
-        metadata: { description: "" },
-        provideSlashCommands: [Function provideSlashCommands]
+        name: "agent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        extensionPublisher: "",
+        locations: [ "panel" ],
+        metadata: {  },
+        slashCommands: [
+          {
+            name: "subCommand",
+            description: ""
+          }
+        ]
       },
       kind: "agent"
     },

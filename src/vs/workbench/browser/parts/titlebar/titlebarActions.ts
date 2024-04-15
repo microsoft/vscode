@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { ILocalizedString, localize, localize2 } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -19,11 +19,12 @@ import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from 'vs/pla
 
 class ToggleConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean) {
+	constructor(private readonly section: string, title: string, description: string | ILocalizedString | undefined, order: number, mainWindowOnly: boolean) {
 		const when = mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true();
 		super({
 			id: `toggle.${section}`,
 			title,
+			metadata: description ? { description } : undefined,
 			toggled: ContextKeyExpr.equals(`config.${section}`, true),
 			menu: [
 				{
@@ -51,13 +52,13 @@ class ToggleConfigAction extends Action2 {
 
 registerAction2(class ToggleCommandCenter extends ToggleConfigAction {
 	constructor() {
-		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1, false);
+		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), localize('toggle.commandCenterDescription', "Toggle visibility of the Command Center in title bar"), 1, false);
 	}
 });
 
 registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2, true);
+		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 2, true);
 	}
 });
 
@@ -116,7 +117,8 @@ class ToggleCustomTitleBar extends Action2 {
 								ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
 								ContextKeyExpr.equals('config.window.commandCenter', false),
 								ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
-								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top')
+								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top'),
+								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'bottom')
 							)?.negate()
 						),
 						IsMainWindowFullscreenContext
@@ -157,7 +159,7 @@ registerAction2(class ShowCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `showCustomTitleBar`,
-			title: { value: localize('showCustomTitleBar', 'Show Custom Title Bar'), original: 'Show Custom Title Bar' },
+			title: localize2('showCustomTitleBar', "Show Custom Title Bar"),
 			precondition: TitleBarVisibleContext.negate(),
 			f1: true
 		});
@@ -174,7 +176,7 @@ registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `hideCustomTitleBar`,
-			title: { value: localize('hideCustomTitleBar', 'Hide Custom Title Bar'), original: 'Hide Custom Title Bar' },
+			title: localize2('hideCustomTitleBar', "Hide Custom Title Bar"),
 			precondition: TitleBarVisibleContext,
 			f1: true
 		});
@@ -190,7 +192,7 @@ registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `hideCustomTitleBarInFullScreen`,
-			title: { value: localize('hideCustomTitleBarInFullScreen', 'Hide Custom Title Bar In Full Screen'), original: 'Hide Custom Title Bar In Full Screen' },
+			title: localize2('hideCustomTitleBarInFullScreen', "Hide Custom Title Bar In Full Screen"),
 			precondition: ContextKeyExpr.and(TitleBarVisibleContext, IsMainWindowFullscreenContext),
 			f1: true
 		});

@@ -937,7 +937,7 @@ function parseGitDiffShortStat(data: string): CommitShortStat {
 	return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
 }
 
-interface LsTreeElement {
+export interface LsTreeElement {
 	mode: string;
 	type: string;
 	object: string;
@@ -994,13 +994,10 @@ function parseGitStashes(raw: string): Stash[] {
 	return result;
 }
 
-// TODO@lszomoru - adopt in diffFiles()
 function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 	let index = 0;
 	const result: Change[] = [];
-	const segments = raw.trim()
-		.split('\x00')
-		.filter(s => s);
+	const segments = raw.trim().split('\x00').filter(s => s);
 
 	segmentsLoop:
 	while (index < segments.length - 1) {
@@ -1164,6 +1161,10 @@ export class Repository {
 			args.push(`-n${options?.maxEntries ?? 32}`);
 		}
 
+		if (options?.author) {
+			args.push(`--author="${options.author}"`);
+		}
+
 		if (options?.path) {
 			args.push('--', options.path);
 		}
@@ -1294,8 +1295,13 @@ export class Repository {
 		return { mode, object, size: parseInt(size) };
 	}
 
-	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.exec(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
+	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
+		const args = ['ls-tree', '-l', treeish];
+		if (path) {
+			args.push('--', sanitizePath(path));
+		}
+
+		const { stdout } = await this.exec(args);
 		return parseLsTree(stdout);
 	}
 
@@ -1487,70 +1493,7 @@ export class Repository {
 			return [];
 		}
 
-		const entries = gitResult.stdout.split('\x00');
-		let index = 0;
-		const result: Change[] = [];
-
-		entriesLoop:
-		while (index < entries.length - 1) {
-			const change = entries[index++];
-			const resourcePath = entries[index++];
-			if (!change || !resourcePath) {
-				break;
-			}
-
-			const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
-			let status: Status = Status.UNTRACKED;
-
-			// Copy or Rename status comes with a number, e.g. 'R100'. We don't need the number, so we use only first character of the status.
-			switch (change[0]) {
-				case 'M':
-					status = Status.MODIFIED;
-					break;
-
-				case 'A':
-					status = Status.INDEX_ADDED;
-					break;
-
-				case 'D':
-					status = Status.DELETED;
-					break;
-
-				// Rename contains two paths, the second one is what the file is renamed/copied to.
-				case 'R': {
-					if (index >= entries.length) {
-						break;
-					}
-
-					const newPath = entries[index++];
-					if (!newPath) {
-						break;
-					}
-
-					const uri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
-					result.push({
-						uri,
-						renameUri: uri,
-						originalUri,
-						status: Status.INDEX_RENAMED
-					});
-
-					continue;
-				}
-				default:
-					// Unknown status
-					break entriesLoop;
-			}
-
-			result.push({
-				status,
-				originalUri,
-				uri: originalUri,
-				renameUri: originalUri,
-			});
-		}
-
-		return result;
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
 	async getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
@@ -2582,7 +2525,7 @@ export class Repository {
 		// On Windows and macOS ref names are case insensitive so we add --ignore-case
 		// to handle the scenario where the user switched to a branch with incorrect
 		// casing
-		if (isWindows || isMacintosh) {
+		if (this.git.compareGitVersionTo('2.12') !== -1 && (isWindows || isMacintosh)) {
 			args.push('--ignore-case');
 		}
 

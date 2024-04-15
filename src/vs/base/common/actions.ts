@@ -264,7 +264,7 @@ export function toAction(props: { id: string; label: string; enabled?: boolean; 
 		label: props.label,
 		class: props.class,
 		enabled: props.enabled ?? true,
-		checked: props.checked ?? false,
+		checked: props.checked,
 		run: async (...args: unknown[]) => props.run(...args),
 		tooltip: props.label
 	};

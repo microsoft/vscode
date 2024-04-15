@@ -74,7 +74,7 @@ suite('TextEditorPane', () => {
 		pane.setSelection(new Selection(1, 1, 1, 1), EditorPaneSelectionChangeReason.USER);
 		const selection = pane.getSelection();
 		assert.ok(selection);
-		await pane.group?.closeAllEditors();
+		await pane.group.closeAllEditors();
 		const options = selection.restore({});
 		pane = (await accessor.editorService.openEditor({ resource, options }) as TestTextFileEditor);
 
@@ -85,7 +85,7 @@ suite('TextEditorPane', () => {
 		assert.strictEqual(newSelection.compare(selection), EditorPaneSelectionCompareResult.IDENTICAL);
 
 		await model.revert();
-		await pane.group?.closeAllEditors();
+		await pane.group.closeAllEditors();
 	});
 
 	test('TextEditorPaneSelection', function () {

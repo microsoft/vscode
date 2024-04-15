@@ -106,6 +106,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {
 					isFeatureTerminal: true,
+					// Since debug termnials are REPLs, we want shell integration to be enabled.
+					// Ignore isFeatureTerminal when evaluating shell integration enablement.
+					forceShellIntegration: true,
 					useShellEnvironment: true
 				});
 				this._integratedTerminalInstances.insert(terminal, shellConfig);
@@ -122,6 +125,10 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				// give a new terminal some time to initialize the shell
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			} else {
+				if (terminal.state.isInteractedWith) {
+					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
+				}
+
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
 					// clear terminal before reusing it
 					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
@@ -142,7 +149,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			// Mark terminal as unused when its session ends, see #112055
 			const sessionListener = this.onDidTerminateDebugSession(s => {
 				if (s.id === sessionId) {
-					this._integratedTerminalInstances.free(terminal!);
+					this._integratedTerminalInstances.free(terminal);
 					sessionListener.dispose();
 				}
 			});
@@ -182,7 +189,7 @@ class DebugTerminalCollection {
 
 	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number; config: string }>();
 
-	public async checkout(config: string, name: string) {
+	public async checkout(config: string, name: string, cleanupOthersByName = false) {
 		const entries = [...this._terminalInstances.entries()];
 		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
 
@@ -202,6 +209,9 @@ class DebugTerminalCollection {
 			}
 
 			if (termInfo.config !== config) {
+				if (cleanupOthersByName) {
+					terminal.dispose();
+				}
 				return null;
 			}
 

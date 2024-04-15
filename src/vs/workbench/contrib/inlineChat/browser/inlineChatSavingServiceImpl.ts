@@ -105,13 +105,13 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 		const queue = new Queue<void>();
 
 		const d1 = this._textFileService.files.addSaveParticipant({
-			participate: (model, context, progress, token) => {
-				return queue.queue(() => this._participate(model.textEditorModel?.uri, context.reason, progress, token));
+			participate: (model, ctx, progress, token) => {
+				return queue.queue(() => this._participate(ctx.savedFrom ?? model.textEditorModel?.uri, ctx.reason, progress, token));
 			}
 		});
 		const d2 = this._workingCopyFileService.addSaveParticipant({
-			participate: (workingCopy, env, progress, token) => {
-				return queue.queue(() => this._participate(workingCopy.resource, env.reason, progress, token));
+			participate: (workingCopy, ctx, progress, token) => {
+				return queue.queue(() => this._participate(ctx.savedFrom ?? workingCopy.resource, ctx.reason, progress, token));
 			}
 		});
 		this._saveParticipant.value = combinedDisposable(d1, d2, queue);

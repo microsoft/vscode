@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { mapFindFirst } from 'vs/base/common/arraysFind';
+import { assertNever } from 'vs/base/common/assert';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -21,7 +22,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, ITextModel, InjectedTextCursorStops, InjectedTextOptions } from 'vs/editor/common/model';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,7 +32,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { testingCoverageMissingBranch } from 'vs/workbench/contrib/testing/browser/icons';
 import { FileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { CoverageDetails, DetailType, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
 const MAX_HOVERED_LINES = 30;
@@ -81,7 +82,13 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 				return;
 			}
 
-			return report.getUri(model.uri);
+			const file = report.getUri(model.uri);
+			if (file) {
+				return file;
+			}
+
+			report.didAddCoverage.read(reader); // re-read if changes when there's no report
+			return undefined;
 		});
 
 		this._register(autorun(reader => {
@@ -264,7 +271,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 							};
 						} else {
 							target.className = `coverage-deco-inline ${cls}`;
-							if (primary) {
+							if (primary && typeof hits === 'number') {
 								target.before = countBadge(hits);
 							}
 						}
@@ -286,7 +293,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const applyHoverOptions = (target: IModelDecorationOptions) => {
 						target.className = `coverage-deco-inline ${cls}`;
 						target.hoverMessage = description;
-						if (primary) {
+						if (primary && typeof detail.count === 'number') {
 							target.before = countBadge(detail.count);
 						}
 					};
@@ -366,7 +373,7 @@ export class CoverageDetailsModel {
 
 		//#region decoration generation
 		// Coverage from a provider can have a range that contains smaller ranges,
-		// such as a function declarationt that has nested statements. In this we
+		// such as a function declaration that has nested statements. In this we
 		// make sequential, non-overlapping ranges for each detail for display in
 		// the editor without ugly overlaps.
 		const detailRanges: DetailRange[] = details.map(detail => ({
@@ -445,31 +452,41 @@ export class CoverageDetailsModel {
 
 	/** Gets the markdown description for the given detail */
 	public describe(detail: CoverageDetailsWithBranch, model: ITextModel): IMarkdownString | undefined {
-		if (detail.type === DetailType.Function) {
-			return new MarkdownString().appendMarkdown(localize('coverage.fnExecutedCount', 'Function `{0}` was executed {1} time(s).', detail.name, detail.count));
+		if (detail.type === DetailType.Declaration) {
+			return namedDetailLabel(detail.name, detail);
 		} else if (detail.type === DetailType.Statement) {
 			const text = wrapName(model.getValueInRange(tidyLocation(detail.location)).trim() || `<empty statement>`);
-			const str = new MarkdownString();
 			if (detail.branches?.length) {
-				const covered = detail.branches.filter(b => b.count > 0).length;
-				str.appendMarkdown(localize('coverage.branches', '{0} of {1} of branches in {2} were covered.', covered, detail.branches.length, text));
+				const covered = detail.branches.filter(b => !!b.count).length;
+				return new MarkdownString().appendMarkdown(localize('coverage.branches', '{0} of {1} of branches in {2} were covered.', covered, detail.branches.length, text));
 			} else {
-				str.appendMarkdown(localize('coverage.codeExecutedCount', '{0} was executed {1} time(s).', text, detail.count));
+				return namedDetailLabel(text, detail);
 			}
-			return str;
 		} else if (detail.type === DetailType.Branch) {
 			const text = wrapName(model.getValueInRange(tidyLocation(detail.detail.location)).trim() || `<empty statement>`);
 			const { count, label } = detail.detail.branches![detail.branch];
 			const label2 = label ? wrapInBackticks(label) : `#${detail.branch + 1}`;
-			if (count === 0) {
+			if (!count) {
 				return new MarkdownString().appendMarkdown(localize('coverage.branchNotCovered', 'Branch {0} in {1} was not covered.', label2, text));
+			} else if (count === true) {
+				return new MarkdownString().appendMarkdown(localize('coverage.branchCoveredYes', 'Branch {0} in {1} was executed.', label2, text));
 			} else {
 				return new MarkdownString().appendMarkdown(localize('coverage.branchCovered', 'Branch {0} in {1} was executed {2} time(s).', label2, text, count));
 			}
 		}
 
-		return undefined;
+		assertNever(detail);
 	}
+}
+
+function namedDetailLabel(name: string, detail: IStatementCoverage | IDeclarationCoverage) {
+	return new MarkdownString().appendMarkdown(
+		!detail.count // 0 or false
+			? localize('coverage.declExecutedNo', '`{0}` was not executed.', name)
+			: typeof detail.count === 'number'
+				? localize('coverage.declExecutedCount', '`{0}` was executed {1} time(s).', name, detail.count)
+				: localize('coverage.declExecutedYes', '`{0}` was executed.', name)
+	);
 }
 
 // 'tidies' the range by normalizing it into a range and removing leading
@@ -610,7 +627,7 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_INLINE_COMMAND_ID,
-			title: { value: localize('coverage.toggleInline', "Toggle Inline Coverage"), original: 'Toggle Inline Coverage' },
+			title: localize2('coverage.toggleInline', "Toggle Inline Coverage"),
 			category: Categories.Test,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

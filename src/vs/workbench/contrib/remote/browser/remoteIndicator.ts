@@ -49,6 +49,10 @@ import { infoIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcon
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { mainWindow } from 'vs/base/browser/window';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 
@@ -65,6 +69,8 @@ interface RemoteExtensionMetadata {
 }
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteStatusIndicator';
 
 	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 	private static readonly CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
@@ -95,7 +101,32 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private measureNetworkConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
-	private readonly remoteExtensionMetadata: RemoteExtensionMetadata[];
+
+	private _remoteExtensionMetadata: RemoteExtensionMetadata[] | undefined = undefined;
+	private get remoteExtensionMetadata(): RemoteExtensionMetadata[] {
+		if (!this._remoteExtensionMetadata) {
+			const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
+			this._remoteExtensionMetadata = Object.values(remoteExtensionTips).filter(value => value.startEntry !== undefined).map(value => {
+				return {
+					id: value.extensionId,
+					installed: false,
+					friendlyName: value.friendlyName,
+					isPlatformCompatible: false,
+					dependencies: [],
+					helpLink: value.startEntry?.helpLink ?? '',
+					startConnectLabel: value.startEntry?.startConnectLabel ?? '',
+					startCommand: value.startEntry?.startCommand ?? '',
+					priority: value.startEntry?.priority ?? 10,
+					supportedPlatforms: value.supportedPlatforms
+				};
+			});
+
+			this.remoteExtensionMetadata.sort((ext1, ext2) => ext1.priority - ext2.priority);
+		}
+
+		return this._remoteExtensionMetadata;
+	}
+
 	private remoteMetadataInitialized: boolean = false;
 	private readonly _onDidChangeEntries = this._register(new Emitter<void>());
 	private readonly onDidChangeEntries: Event<void> = this._onDidChangeEntries.event;
@@ -119,26 +150,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-
-		const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
-		this.remoteExtensionMetadata = Object.values(remoteExtensionTips).filter(value => value.startEntry !== undefined).map(value => {
-			return {
-				id: value.extensionId,
-				installed: false,
-				friendlyName: value.friendlyName,
-				isPlatformCompatible: false,
-				dependencies: [],
-				helpLink: value.startEntry?.helpLink ?? '',
-				startConnectLabel: value.startEntry?.startConnectLabel ?? '',
-				startCommand: value.startEntry?.startCommand ?? '',
-				priority: value.startEntry?.priority ?? 10,
-				supportedPlatforms: value.supportedPlatforms
-			};
-		});
-
-		this.remoteExtensionMetadata.sort((ext1, ext2) => ext1.priority - ext2.priority);
 
 		// Set initial connection state
 		if (this.remoteAuthority) {
@@ -156,16 +170,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private registerActions(): void {
-		const category = { value: nls.localize('remote.category', "Remote"), original: 'Remote' };
+		const category = nls.localize2('remote.category', "Remote");
 
 		// Show Remote Menu
 		const that = this;
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID,
 					category,
-					title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
+					title: nls.localize2('remote.showMenu', "Show Remote Menu"),
 					f1: true,
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -174,22 +188,22 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				});
 			}
 			run = () => that.showRemoteMenu();
-		});
+		}));
 
 		// Close Remote Connection
 		if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
-			registerAction2(class extends Action2 {
+			this._register(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
 						category,
-						title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
+						title: nls.localize2('remote.close', "Close Remote Connection"),
 						f1: true,
 						precondition: ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext)
 					});
 				}
 				run = () => that.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
-			});
+			}));
 			if (this.remoteAuthority) {
 				MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 					group: '6_close',
@@ -203,12 +217,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 
 		if (this.extensionGalleryService.isEnabled()) {
-			registerAction2(class extends Action2 {
+			this._register(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
 						category,
-						title: { value: nls.localize('remote.install', "Install Remote Development Extensions"), original: 'Install Remote Development Extensions' },
+						title: nls.localize2('remote.install', "Install Remote Development Extensions"),
 						f1: true
 					});
 				}
@@ -221,7 +235,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						}
 					});
 				};
-			});
+			}));
 		}
 	}
 
@@ -705,7 +719,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 
-			if (this.extensionGalleryService.isEnabled() && this.remoteMetadataInitialized) {
+			const showExtensionRecommendations = this.configurationService.getValue<boolean>('workbench.remoteIndicator.showExtensionRecommendations');
+			if (showExtensionRecommendations && this.extensionGalleryService.isEnabled() && this.remoteMetadataInitialized) {
 
 				const notInstalledItems: QuickPickItem[] = [];
 				for (const metadata of this.remoteExtensionMetadata) {
@@ -819,3 +834,15 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		quickPick.show();
 	}
 }
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		...workbenchConfigurationNodeBase,
+		properties: {
+			'workbench.remoteIndicator.showExtensionRecommendations': {
+				type: 'boolean',
+				markdownDescription: nls.localize('remote.showExtensionRecommendations', "When enabled, remote extensions recommendations will be shown in the Remote Indicator menu."),
+				default: true
+			},
+		}
+	});

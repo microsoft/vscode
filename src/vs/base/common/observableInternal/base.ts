@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { keepObserved, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
+import { DebugNameData, IDebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
 import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -224,6 +226,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 					}
 					return undefined;
 				},
+				debugReferenceFn: fn,
 			},
 			(reader) => fn(this.read(reader), reader),
 		);
@@ -245,6 +248,10 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	}
 
 	public abstract get debugName(): string;
+
+	protected get debugValue() {
+		return this.get();
+	}
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
@@ -355,105 +362,6 @@ export class TransactionImpl implements ITransaction {
 }
 
 /**
- * The owner object of an observable.
- * Is only used for debugging purposes, such as computing a name for the observable by iterating over the fields of the owner.
- */
-export type Owner = object | undefined;
-export type DebugNameFn = string | (() => string | undefined);
-
-const countPerName = new Map<string, number>();
-const cachedDebugName = new WeakMap<object, string>();
-
-export function getDebugName(self: object, debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: Owner): string | undefined {
-	const cached = cachedDebugName.get(self);
-	if (cached) {
-		return cached;
-	}
-
-	const dbgName = computeDebugName(self, debugNameFn, fn, owner);
-	if (dbgName) {
-		let count = countPerName.get(dbgName) ?? 0;
-		count++;
-		countPerName.set(dbgName, count);
-		const result = count === 1 ? dbgName : `${dbgName}#${count}`;
-		cachedDebugName.set(self, result);
-		return result;
-	}
-	return undefined;
-}
-
-function computeDebugName(self: object, debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: Owner): string | undefined {
-	const cached = cachedDebugName.get(self);
-	if (cached) {
-		return cached;
-	}
-
-	const ownerStr = owner ? formatOwner(owner) + `.` : '';
-
-	let result: string | undefined;
-	if (debugNameFn !== undefined) {
-		if (typeof debugNameFn === 'function') {
-			result = debugNameFn();
-			if (result !== undefined) {
-				return ownerStr + result;
-			}
-		} else {
-			return ownerStr + debugNameFn;
-		}
-	}
-
-	if (fn !== undefined) {
-		result = getFunctionName(fn);
-		if (result !== undefined) {
-			return ownerStr + result;
-		}
-	}
-
-	if (owner !== undefined) {
-		for (const key in owner) {
-			if ((owner as any)[key] === self) {
-				return ownerStr + key;
-			}
-		}
-	}
-	return undefined;
-}
-
-const countPerClassName = new Map<string, number>();
-const ownerId = new WeakMap<object, string>();
-
-function formatOwner(owner: object): string {
-	const id = ownerId.get(owner);
-	if (id) {
-		return id;
-	}
-	const className = getClassName(owner);
-	let count = countPerClassName.get(className) ?? 0;
-	count++;
-	countPerClassName.set(className, count);
-	const result = count === 1 ? className : `${className}#${count}`;
-	ownerId.set(owner, result);
-	return result;
-}
-
-function getClassName(obj: object): string {
-	const ctor = obj.constructor;
-	if (ctor) {
-		return ctor.name;
-	}
-	return 'Object';
-}
-
-export function getFunctionName(fn: Function): string | undefined {
-	const fnSrc = fn.toString();
-	// Pattern: /** @description ... */
-	const regexp = /\/\*\*\s*@description\s*([^*]*)\*\//;
-	const match = regexp.exec(fnSrc);
-	const result = match ? match[1] : undefined;
-	return result?.trim();
-}
-
-/**
  * A settable observable.
  */
 export interface ISettableObservable<T, TChange = void> extends IObservable<T, TChange>, ISettable<T, TChange> {
@@ -468,11 +376,26 @@ export interface ISettableObservable<T, TChange = void> extends IObservable<T, T
 export function observableValue<T, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange>;
 export function observableValue<T, TChange = void>(owner: object, initialValue: T): ISettableObservable<T, TChange>;
 export function observableValue<T, TChange = void>(nameOrOwner: string | object, initialValue: T): ISettableObservable<T, TChange> {
+	let debugNameData: DebugNameData;
 	if (typeof nameOrOwner === 'string') {
-		return new ObservableValue(undefined, nameOrOwner, initialValue);
+		debugNameData = new DebugNameData(undefined, nameOrOwner, undefined);
 	} else {
-		return new ObservableValue(nameOrOwner, undefined, initialValue);
+		debugNameData = new DebugNameData(nameOrOwner, undefined, undefined);
 	}
+	return new ObservableValue(debugNameData, initialValue, strictEquals);
+}
+
+export function observableValueOpts<T>(
+	options: IDebugNameData & {
+		equalsFn?: EqualityComparer<T>;
+	},
+	initialValue: T
+): ISettableObservable<T> {
+	return new ObservableValue(
+		new DebugNameData(options.owner, options.debugName, undefined),
+		initialValue,
+		options.equalsFn ?? strictEquals,
+	);
 }
 
 export class ObservableValue<T, TChange = void>
@@ -481,23 +404,23 @@ export class ObservableValue<T, TChange = void>
 	protected _value: T;
 
 	get debugName() {
-		return getDebugName(this, this._debugName, undefined, this._owner) ?? 'ObservableValue';
+		return this._debugNameData.getDebugName(this) ?? 'ObservableValue';
 	}
 
 	constructor(
-		private readonly _owner: Owner,
-		private readonly _debugName: string | undefined,
-		initialValue: T
+		private readonly _debugNameData: DebugNameData,
+		initialValue: T,
+		private readonly _equalityComparator: EqualityComparer<T>,
 	) {
 		super();
 		this._value = initialValue;
 	}
-	public get(): T {
+	public override get(): T {
 		return this._value;
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this._value === value) {
+		if (this._equalityComparator(this._value, value)) {
 			return;
 		}
 
@@ -535,11 +458,13 @@ export class ObservableValue<T, TChange = void>
  * When a new value is set, the previous value is disposed.
  */
 export function disposableObservableValue<T extends IDisposable | undefined, TChange = void>(nameOrOwner: string | object, initialValue: T): ISettableObservable<T, TChange> & IDisposable {
+	let debugNameData: DebugNameData;
 	if (typeof nameOrOwner === 'string') {
-		return new DisposableObservableValue(undefined, nameOrOwner, initialValue);
+		debugNameData = new DebugNameData(undefined, nameOrOwner, undefined);
 	} else {
-		return new DisposableObservableValue(nameOrOwner, undefined, initialValue);
+		debugNameData = new DebugNameData(nameOrOwner, undefined, undefined);
 	}
+	return new DisposableObservableValue(debugNameData, initialValue, strictEquals);
 }
 
 export class DisposableObservableValue<T extends IDisposable | undefined, TChange = void> extends ObservableValue<T, TChange> implements IDisposable {

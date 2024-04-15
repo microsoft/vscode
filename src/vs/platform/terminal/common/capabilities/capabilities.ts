@@ -175,7 +175,7 @@ export interface ICommandDetectionCapability {
 	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
-	readonly onCommandExecuted: Event<void>;
+	readonly onCommandExecuted: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
@@ -240,8 +240,10 @@ export interface IPartialCommandDetectionCapability {
 interface IBaseTerminalCommand {
 	// Mandatory
 	command: string;
+	commandLineConfidence: 'low' | 'medium' | 'high';
 	isTrusted: boolean;
 	timestamp: number;
+	duration: number;
 
 	// Optional serializable
 	cwd: string | undefined;
@@ -261,6 +263,7 @@ export interface ITerminalCommand extends IBaseTerminalCommand {
 	readonly aliases?: string[][];
 	readonly wasReplayed?: boolean;
 
+	extractCommandLine(): string;
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;

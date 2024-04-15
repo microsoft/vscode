@@ -21,7 +21,7 @@ export class TestInstantiationService extends InstantiationService implements ID
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: TestInstantiationService) {
+	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: TestInstantiationService, private _properDispose?: boolean) {
 		super(_serviceCollection, strict, parent);
 
 		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
@@ -130,8 +130,11 @@ export class TestInstantiationService extends InstantiationService implements ID
 		return new TestInstantiationService(services, false, this);
 	}
 
-	dispose() {
+	override dispose() {
 		sinon.restore();
+		if (this._properDispose) {
+			super.dispose();
+		}
 	}
 }
 

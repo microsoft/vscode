@@ -3,23 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 // --- other interested parties
 import { JSONValidationExtensionPoint } from 'vs/workbench/api/common/jsonValidationExtensionPoint';
 import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorExtensionPoint';
 import { IconExtensionPoint } from 'vs/workbench/services/themes/common/iconExtensionPoint';
 import { TokenClassificationExtensionPoints } from 'vs/workbench/services/themes/common/tokenClassificationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
+import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/common/languageConfigurationExtensionPoint';
 import { StatusBarItemsExtensionPoint } from 'vs/workbench/api/browser/statusBarExtensionPoint';
 
 // --- mainThread participants
 import './mainThreadLocalization';
 import './mainThreadBulkEdits';
-import './mainThreadChatProvider';
+import './mainThreadLanguageModels';
 import './mainThreadChatAgents2';
 import './mainThreadChatVariables';
 import './mainThreadCodeInsets';
@@ -61,6 +59,7 @@ import './mainThreadStatusBar';
 import './mainThreadStorage';
 import './mainThreadTelemetry';
 import './mainThreadTerminalService';
+import './mainThreadTerminalShellIntegration';
 import './mainThreadTheming';
 import './mainThreadTreeViews';
 import './mainThreadDownloadService';
@@ -77,7 +76,6 @@ import './mainThreadNotebookRenderers';
 import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
 import './mainThreadInlineChat';
-import './mainThreadChat';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
@@ -86,12 +84,13 @@ import './mainThreadTimeline';
 import './mainThreadTesting';
 import './mainThreadSecretState';
 import './mainThreadShare';
-import './mainThreadProfilContentHandlers';
+import './mainThreadProfileContentHandlers';
 import './mainThreadAiRelatedInformation';
 import './mainThreadAiEmbeddingVector';
-import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.extensionPoints';
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -106,4 +105,4 @@ export class ExtensionPoints implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, LifecyclePhase.Starting);
+registerWorkbenchContribution2(ExtensionPoints.ID, ExtensionPoints, WorkbenchPhase.BlockStartup);

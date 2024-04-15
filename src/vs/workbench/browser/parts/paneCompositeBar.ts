@@ -111,7 +111,7 @@ export class PaneCompositeBar extends Disposable {
 			? ViewContainerLocation.Panel : paneCompositePart.partId === Parts.AUXILIARYBAR_PART
 				? ViewContainerLocation.AuxiliaryBar : ViewContainerLocation.Sidebar;
 
-		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.location,
+		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.location, this.options.orientation,
 			async (id: string, focus?: boolean) => { return await this.paneCompositePart.openPaneComposite(id, focus) ?? null; },
 			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, this.options.orientation === ActionsOrientation.VERTICAL ? before?.verticallyBefore : before?.horizontallyBefore),
 			() => this.compositeBar.getCompositeBarItems(),
@@ -207,12 +207,6 @@ export class PaneCompositeBar extends Disposable {
 
 		if (to === this.location) {
 			this.onDidRegisterViewContainers([container]);
-
-			// Open view container if part is visible and there is no other view container opened
-			const visibleComposites = this.compositeBar.getVisibleComposites();
-			if (!this.paneCompositePart.getActivePaneComposite() && this.layoutService.isVisible(this.paneCompositePart.partId) && visibleComposites.length) {
-				this.paneCompositePart.openPaneComposite(visibleComposites[0].id);
-			}
 		}
 	}
 

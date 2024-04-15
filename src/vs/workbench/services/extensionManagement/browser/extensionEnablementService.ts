@@ -450,6 +450,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
+		if (this.contextService.isInsideWorkspace(extension.location)) {
+			return true;
+		}
+
 		return this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.manifest) === false;
 	}
 
@@ -687,7 +691,10 @@ class ExtensionsManager extends Disposable {
 
 	private async initialize(): Promise<void> {
 		try {
-			this._extensions = await this.extensionManagementService.getInstalled();
+			this._extensions = [
+				...await this.extensionManagementService.getInstalled(),
+				...await this.extensionManagementService.getInstalledWorkspaceExtensions(true)
+			];
 			if (this.disposed) {
 				return;
 			}

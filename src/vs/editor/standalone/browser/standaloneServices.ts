@@ -10,7 +10,7 @@ import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/editor/common/services/languageFeatureDebounce';
 import 'vs/editor/common/services/semanticTokensStylingService';
 import 'vs/editor/common/services/languageFeaturesService';
-import 'vs/editor/browser/services/hoverService';
+import 'vs/editor/browser/services/hoverService/hoverService';
 
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -88,12 +88,13 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService, Sound } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { mainWindow } from 'vs/base/browser/window';
+import { ResourceMap } from 'vs/base/common/map';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -629,9 +630,22 @@ export class StandaloneConfigurationService implements IConfigurationService {
 
 	private readonly _configuration: Configuration;
 
-	constructor() {
-		const defaultConfiguration = new DefaultConfiguration();
-		this._configuration = new Configuration(defaultConfiguration.reload(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+	constructor(
+		@ILogService private readonly logService: ILogService,
+	) {
+		const defaultConfiguration = new DefaultConfiguration(logService);
+		this._configuration = new Configuration(
+			defaultConfiguration.reload(),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			logService
+		);
 		defaultConfiguration.dispose();
 	}
 
@@ -660,7 +674,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		}
 
 		if (changedKeys.length > 0) {
-			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
+			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration, undefined, this.logService);
 			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
 			this._onDidChangeConfiguration.fire(configurationChangeEvent);
 		}
@@ -1057,33 +1071,33 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-class StandaloneAudioService implements IAudioCueService {
+class StandaloneAccessbilitySignalService implements IAccessibilitySignalService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
+	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
 	}
 
-	async playAudioCues(cues: AudioCue[]): Promise<void> {
+	async playSignals(cues: AccessibilitySignal[]): Promise<void> {
 	}
 
-	isCueEnabled(cue: AudioCue): boolean {
+	isSoundEnabled(cue: AccessibilitySignal): boolean {
 		return false;
 	}
 
-	isAlertEnabled(cue: AudioCue): boolean {
+	isAnnouncementEnabled(cue: AccessibilitySignal): boolean {
 		return false;
 	}
 
-	onEnabledChanged(cue: AudioCue): Event<void> {
+	onSoundEnabledChanged(cue: AccessibilitySignal): Event<void> {
 		return Event.None;
 	}
 
-	onAlertEnabledChanged(cue: AudioCue): Event<void> {
+	onAnnouncementEnabledChanged(cue: AccessibilitySignal): Event<void> {
 		return Event.None;
 	}
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
 	}
-	playAudioCueLoop(cue: AudioCue): IDisposable {
+	playSignalLoop(cue: AccessibilitySignal): IDisposable {
 		return toDisposable(() => { });
 	}
 }
@@ -1092,6 +1106,7 @@ export interface IEditorOverrideServices {
 	[index: string]: any;
 }
 
+registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourcePropertiesService, StandaloneResourcePropertiesService, InstantiationType.Eager);
@@ -1104,7 +1119,6 @@ registerSingleton(INotificationService, StandaloneNotificationService, Instantia
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Eager);
 registerSingleton(ILanguageService, StandaloneLanguageService, InstantiationType.Eager);
 registerSingleton(IStandaloneThemeService, StandaloneThemeService, InstantiationType.Eager);
-registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IModelService, ModelService, InstantiationType.Eager);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Eager);
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager);
@@ -1125,7 +1139,7 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Eager);
 registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.Eager);
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
-registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
+registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

@@ -6,13 +6,14 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
 import { CellEditState, CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class CellContextKeyPart extends CellContentPart {
@@ -45,6 +46,8 @@ export class CellContextKeyManager extends Disposable {
 	private cellOutputCollapsed!: IContextKey<boolean>;
 	private cellLineNumbers!: IContextKey<'on' | 'off' | 'inherit'>;
 	private cellResource!: IContextKey<string>;
+	private cellGeneratedByChat!: IContextKey<boolean>;
+	private cellHasErrorDiagnostics!: IContextKey<boolean>;
 
 	private markdownEditMode!: IContextKey<boolean>;
 
@@ -70,7 +73,9 @@ export class CellContextKeyManager extends Disposable {
 			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this._contextKeyService);
 			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this._contextKeyService);
 			this.cellLineNumbers = NOTEBOOK_CELL_LINE_NUMBERS.bindTo(this._contextKeyService);
+			this.cellGeneratedByChat = NOTEBOOK_CELL_GENERATED_BY_CHAT.bindTo(this._contextKeyService);
 			this.cellResource = NOTEBOOK_CELL_RESOURCE.bindTo(this._contextKeyService);
+			this.cellHasErrorDiagnostics = NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS.bindTo(this._contextKeyService);
 
 			if (element) {
 				this.updateForElement(element);
@@ -96,6 +101,7 @@ export class CellContextKeyManager extends Disposable {
 
 		if (element instanceof CodeCellViewModel) {
 			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
+			this.elementDisposables.add(element.cellDiagnostics.onDidDiagnosticsChange(() => this.updateForDiagnostics()));
 		}
 
 		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
@@ -112,10 +118,22 @@ export class CellContextKeyManager extends Disposable {
 			this.updateForEditState();
 			this.updateForCollapseState();
 			this.updateForOutputs();
+			this.updateForChat();
+			this.updateForDiagnostics();
 
 			this.cellLineNumbers.set(this.element!.lineNumbers);
 			this.cellResource.set(this.element!.uri.toString());
 		});
+
+		const chatController = NotebookChatController.get(this.notebookEditor);
+
+		if (chatController) {
+			this.elementDisposables.add(chatController.onDidChangePromptCache(e => {
+				if (e.cell.toString() === this.element!.uri.toString()) {
+					this.updateForChat();
+				}
+			}));
+		}
 	}
 
 	private onDidChangeState(e: CellViewModelStateChangeEvent) {
@@ -214,6 +232,23 @@ export class CellContextKeyManager extends Disposable {
 			this.cellHasOutputs.set(this.element.outputsViewModels.length > 0);
 		} else {
 			this.cellHasOutputs.set(false);
+		}
+	}
+
+	private updateForChat() {
+		const chatController = NotebookChatController.get(this.notebookEditor);
+
+		if (!chatController || !this.element) {
+			this.cellGeneratedByChat.set(false);
+			return;
+		}
+
+		this.cellGeneratedByChat.set(chatController.isCellGeneratedByChat(this.element));
+	}
+
+	private updateForDiagnostics() {
+		if (this.element instanceof CodeCellViewModel) {
+			this.cellHasErrorDiagnostics.set(!!this.element.cellDiagnostics.ErrorDetails);
 		}
 	}
 }
