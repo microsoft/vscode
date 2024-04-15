@@ -34,7 +34,6 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { Extensions, IViewDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { COMMENTS_VIEW_ID, CommentsMenus } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { CommentsPanel, CONTEXT_KEY_HAS_COMMENTS } from 'vs/workbench/contrib/comments/browser/commentsView';
@@ -378,7 +377,7 @@ export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
 
 function registerAccessibilityHelpAction(keybindingService: IKeybindingService, viewDescriptor: IViewDescriptor): IDisposable {
 	const disposableStore = new DisposableStore();
-	const helpContent = resolveExtensionHelpContent(keybindingService, viewDescriptor.accessibilityHelpContent);
+	const helpContent = viewDescriptor.accessibilityHelpContent;
 	if (!helpContent) {
 		throw new Error('No help content for view');
 	}
@@ -398,21 +397,4 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 		disposableStore.add(registerAccessibilityHelpAction(keybindingService, viewDescriptor));
 	}));
 	return disposableStore;
-}
-
-function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: MarkdownString): MarkdownString | undefined {
-	if (!content) {
-		return;
-	}
-	let resolvedContent = typeof content === 'string' ? content : content.value;
-	const matches = resolvedContent.matchAll(/\(kb\(command:(?<commandId>.*)\)\)/gm);
-	for (const match of [...matches]) {
-		const commandId = match?.groups?.commandId;
-		if (match?.length && commandId) {
-			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
-			const kbLabel = keybinding ? ' (' + keybinding + ')' : ', which is not currently bound to a keybinding.';
-			resolvedContent = resolvedContent.replace(match[0], kbLabel);
-		}
-	}
-	return new MarkdownString(resolvedContent);
 }
