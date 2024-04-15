@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { BackupToTargetFunction, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -272,19 +272,13 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		return { content };
 	}
 
-	shouldHandleBackupPersistence(): boolean {
-		return this.isResolved()
-			&& this.model?.shouldHandleSnapshotPersistence !== undefined
-			&& this.model.shouldHandleSnapshotPersistence();
-	}
-
-	async backupToTarget(target: URI, preamble: string, token: CancellationToken): Promise<void> {
-		if (!this.isResolved()) {
-			return;
+	getWriteBackupFunction(): BackupToTargetFunction | undefined {
+		if (this.isResolved()) {
+			return this.model.getWriteBackupFunction?.();
 		}
-
-		await this.model.writeSnapshot!(target, preamble, token);
+		return undefined;
 	}
+
 
 	//#endregion
 

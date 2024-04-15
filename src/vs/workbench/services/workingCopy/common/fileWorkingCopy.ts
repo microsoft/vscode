@@ -8,8 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { BackupToTargetFunction, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> {
 
@@ -78,16 +77,10 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
 
 	/**
-	 * Determine if this model can and should handle the file write operation
-	 * when taking a snapshot for backup purposes.
+	 * Determine if this model should handle the file write operation
+	 * and, if so, return a function to perform that action.
 	 */
-	shouldHandleSnapshotPersistence?(): boolean;
-
-	/**
-	 * Takes a snapshot of the model and writes it to the target file path,
-	 * prepending with the provided preamble.
-	 */
-	writeSnapshot?(target: URI, preamble: string, token: CancellationToken): Promise<IFileStatWithMetadata>;
+	getWriteBackupFunction?(): BackupToTargetFunction | undefined;
 
 	/**
 	 * Updates the model with the provided contents. The implementation should

@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export const enum WorkingCopyCapabilities {
 
@@ -49,6 +50,8 @@ export interface IWorkingCopyBackup {
 	 */
 	content?: VSBufferReadable | VSBufferReadableStream;
 }
+
+export type BackupToTargetFunction = (target: URI, preamble: string, token: CancellationToken) => Promise<IFileStatWithMetadata>;
 
 /**
  * Working copy backup metadata that can be associated
@@ -205,17 +208,10 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 
 	/**
 	 * Determine if the working copy should handle the file write operation
-	 * for backup purposes. If false, the Backup Service will handle it.
+	 * for backup purposes. If so, return a function that performs the backup.
 	 *
 	 */
-	shouldHandleBackupPersistence?(): boolean;
-
-	/**
-	 * Similar to `backup`, but will also store the backup in a target location
-	 * prefixed with the given preamble.
-	 *
-	 */
-	backupToTarget?(target: URI, preamble: string, token: CancellationToken): Promise<void>;
+	getWriteBackupFunction?(): BackupToTargetFunction | undefined;
 
 	/**
 	 * Asks the working copy to save. If the working copy was dirty, it is

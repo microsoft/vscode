@@ -25,7 +25,7 @@ import { IFileWorkingCopyModelConfiguration } from 'vs/workbench/services/workin
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { BackupToTargetFunction, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 //#region --- simple content provider
 
@@ -253,11 +253,13 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		return this._notebookModel;
 	}
 
-	shouldHandleSnapshotPersistence?(): boolean {
-		return this._configurationService.getValue(NotebookSetting.extensionHostBackup);
+	getWriteBackupFunction(): BackupToTargetFunction | undefined {
+		return this._configurationService.getValue(NotebookSetting.extensionHostBackup)
+			? this.writeSnapshot.bind(this)
+			: undefined;
 	}
 
-	async writeSnapshot(target: URI, preamble: string, token: CancellationToken): Promise<IFileStatWithMetadata> {
+	private async writeSnapshot(target: URI, preamble: string, token: CancellationToken): Promise<IFileStatWithMetadata> {
 		const serializer = await this.getNotebookSerializer();
 
 		if (token.isCancellationRequested) {
