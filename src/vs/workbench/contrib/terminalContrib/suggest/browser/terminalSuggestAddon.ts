@@ -416,7 +416,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 		// Left
-		if (data === '\x1b[D') {
+		else if (data === '\x1b[D') {
 			// If left goes beyond where the completion was requested, hide
 			if (this._cursorIndexDelta > 0) {
 				handled = true;
@@ -425,13 +425,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 		// Right
-		if (data === '\x1b[C') {
+		else if (data === '\x1b[C') {
 			// If right requests beyond where the completion was requested (potentially accepting a shell completion), hide
 			if (this._additionalInput?.length !== this._cursorIndexDelta) {
 				handled = true;
 				this._cursorIndexDelta++;
 				handledCursorDelta++;
 			}
+		}
+		// Other CSI sequence (ignore)
+		else if (data.match(/^\x1b\[.+[a-z@\^`{\|}~]$/i)) {
+			handled = true;
 		}
 		if (data.match(/^[a-z0-9]$/i)) {
 
