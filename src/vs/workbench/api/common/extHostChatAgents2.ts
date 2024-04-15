@@ -15,7 +15,6 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/languages';
-import { localize } from 'vs/nls';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
@@ -273,10 +272,9 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				}
 				return { errorDetails: result?.errorDetails, timings: stream.timings, metadata: result?.metadata };
 			}), token);
-
 		} catch (e) {
 			this._logService.error(e, agent.extension);
-			return { errorDetails: { message: localize('errorResponse', "Error from participant: {0}", toErrorMessage(e)), responseIsIncomplete: true } };
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true } };
 
 		} finally {
 			stream.close();
@@ -407,7 +405,6 @@ class ExtHostChatAgent {
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
-	private _sampleRequest?: string;
 	private _isSecondary: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatResultFeedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatUserActionEvent>();
@@ -512,7 +509,6 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
-					sampleRequest: this._sampleRequest,
 					supportIssueReporting: this._supportIssueReporting,
 					requester: this._requester
 				});
@@ -598,13 +594,6 @@ class ExtHostChatAgent {
 			set isSecondary(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._isSecondary = v;
-				updateMetadataSoon();
-			},
-			get sampleRequest() {
-				return that._sampleRequest;
-			},
-			set sampleRequest(v) {
-				that._sampleRequest = v;
 				updateMetadataSoon();
 			},
 			get supportIssueReporting() {

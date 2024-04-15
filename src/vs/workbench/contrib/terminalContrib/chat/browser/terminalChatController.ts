@@ -149,7 +149,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._chatWidget = new Lazy(() => {
-			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance));
+			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance, xterm));
 			this._register(chatWidget.focusTracker.onDidFocus(() => {
 				TerminalChatController.activeChatWidget = this;
 				if (!isDetachedTerminalInstance(this._instance)) {
@@ -364,7 +364,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
-			request.message.text,
+			// DEBT: Add hardcoded agent name until its removed
+			`@${this._terminalAgentName} ${request.message.text}`,
 			request.variableData,
 			request.attempt,
 			{

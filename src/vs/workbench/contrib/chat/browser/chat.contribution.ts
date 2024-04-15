@@ -265,15 +265,18 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			// Report agent list
 			const agentText = (await Promise.all(agents
 				.filter(a => a.id !== defaultAgent?.id)
+				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const agentWithLeader = `${chatAgentLeader}${a.name}`;
 					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
-					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${a.description}`;
+					const description = a.description ? `- ${a.description}` : '';
+					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) ${description}`;
 					const commandText = a.slashCommands.map(c => {
 						const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${chatSubcommandLeader}${c.name} ${c.sampleRequest ?? ''}` };
 						const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
-						return `\t* [\`${chatSubcommandLeader}${c.name}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${c.description}`;
+						const description = c.description ? `- ${c.description}` : '';
+						return `\t* [\`${chatSubcommandLeader}${c.name}\`](command:${SubmitAction.ID}?${urlSafeArg}) ${description}`;
 					}).join('\n');
 
 					return (agentLine + '\n' + commandText).trim();
