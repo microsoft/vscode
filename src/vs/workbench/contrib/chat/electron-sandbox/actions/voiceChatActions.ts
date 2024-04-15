@@ -896,6 +896,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		const onDidAddDefaultAgent = this._register(this.chatAgentService.onDidChangeAgents(() => {
 			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
 				this.updateConfiguration();
+				this.handleKeywordActivation();
+
 				onDidAddDefaultAgent.dispose();
 			}
 		}));
