@@ -17,7 +17,6 @@ function getKnownVariableNames() {
     }
     return knownVariables;
 }
-const iconVariable = /^--vscode-icon-.+-(content|font-family)$/;
 function getVariableNameValidator() {
     const allVariables = getKnownVariableNames();
     return (value, report) => {
@@ -25,7 +24,7 @@ function getVariableNameValidator() {
         let match;
         while (match = RE_VAR_PROP.exec(value)) {
             const variableName = match[1];
-            if (variableName && !allVariables.has(variableName) && !iconVariable.test(variableName)) {
+            if (variableName && !allVariables.has(variableName)) {
                 report(variableName);
             }
         }
