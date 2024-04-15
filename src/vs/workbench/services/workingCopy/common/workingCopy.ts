@@ -203,9 +203,19 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	 */
 	backup(token: CancellationToken): Promise<IWorkingCopyBackup>;
 
+	/**
+	 * Determine if the working copy should handle the file write operation
+	 * for backup purposes. If false, the Backup Service will handle it.
+	 *
+	 */
 	shouldHandleBackupPersistence?(): boolean;
 
-	persistBackup?(target: URI, preamble: string, token: CancellationToken): Promise<void>;
+	/**
+	 * Similar to `backup`, but will also store the backup in a target location
+	 * prefixed with the given preamble.
+	 *
+	 */
+	backupToTarget?(target: URI, preamble: string, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Asks the working copy to save. If the working copy was dirty, it is

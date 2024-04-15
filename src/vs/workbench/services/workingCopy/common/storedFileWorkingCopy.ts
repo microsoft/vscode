@@ -825,7 +825,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			&& this.model.shouldHandleSnapshotPersistence();
 	}
 
-	async persistBackup(target: URI, preamble: string, token: CancellationToken): Promise<void> {
+	async backupToTarget(target: URI, preamble: string, token: CancellationToken): Promise<void> {
 		if (!this.isResolved()) {
 			return;
 		}

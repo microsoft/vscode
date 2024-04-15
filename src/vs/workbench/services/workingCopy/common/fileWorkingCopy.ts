@@ -77,7 +77,10 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 */
 	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
 
-
+	/**
+	 * Determine if this model can and should handle the file write operation
+	 * when taking a snapshot for backup purposes.
+	 */
 	shouldHandleSnapshotPersistence?(): boolean;
 
 	/**
