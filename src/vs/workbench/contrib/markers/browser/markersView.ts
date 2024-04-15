@@ -55,7 +55,6 @@ import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable'
 import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IAccessibleViewVisibilityService } from 'vs/workbench/services/accessibility/common/accessibleViewVisibilityService';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -141,7 +140,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IAccessibleViewVisibilityService accessibleViewService: IAccessibleViewVisibilityService
 	) {
 		const memento = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
 		const panelState = memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -154,7 +152,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				text: panelState['filter'] || '',
 				history: panelState['filterHistory'] || []
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, accessibleViewService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.memento = memento;
 		this.panelState = panelState;
 

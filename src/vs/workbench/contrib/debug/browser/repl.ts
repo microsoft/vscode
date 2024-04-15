@@ -72,7 +72,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IAccessibleViewVisibilityService } from 'vs/workbench/services/accessibility/common/accessibleViewVisibilityService';
 
 const $ = dom.$;
 
@@ -139,7 +138,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILogService private readonly logService: ILogService,
-		@IAccessibleViewVisibilityService protected override readonly accessibleViewService: IAccessibleViewVisibilityService,
 	) {
 		const filterText = storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		super({
@@ -149,7 +147,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				text: filterText,
 				history: JSON.parse(storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[],
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, accessibleViewService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);

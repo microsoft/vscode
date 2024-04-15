@@ -37,7 +37,6 @@ import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/bro
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { IAccessibleViewVisibilityService } from 'vs/workbench/services/accessibility/common/accessibleViewVisibilityService';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -138,8 +137,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IStorageService storageService: IStorageService,
-		@IAccessibleViewVisibilityService protected override readonly accessibleViewService: IAccessibleViewVisibilityService
+		@IStorageService storageService: IStorageService
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -152,7 +150,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				text: viewState['filter'] || '',
 				focusContextKey: CommentsViewFilterFocusContextKey.key
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, accessibleViewService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeyService);
 		this.someCommentsExpandedContextKey = CONTEXT_KEY_SOME_COMMENTS_EXPANDED.bindTo(contextKeyService);
 		this.stateMemento = stateMemento;

@@ -376,7 +376,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IHoverService protected readonly hoverService: IHoverService,
-		@IAccessibleViewVisibilityService protected readonly accessibleViewService?: IAccessibleViewVisibilityService
+		protected readonly accessibleViewService?: IAccessibleViewVisibilityService
 	) {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
@@ -742,7 +742,7 @@ export abstract class FilterViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
-		@IAccessibleViewVisibilityService accessibleViewService: IAccessibleViewVisibilityService
+		accessibleViewService?: IAccessibleViewVisibilityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, accessibleViewService);
 		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
