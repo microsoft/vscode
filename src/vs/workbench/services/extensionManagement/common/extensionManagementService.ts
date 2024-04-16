@@ -405,13 +405,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	async getExtensions(locations: URI[]): Promise<IResourceExtension[]> {
-		if (!this.workspaceExtensionManagementService) {
-			return [];
-		}
 		const scannedExtensions = await this.extensionsScannerService.scanMultipleExtensions(locations, ExtensionType.User, { includeInvalid: true });
 		const result: IResourceExtension[] = [];
 		await Promise.all(scannedExtensions.map(async scannedExtension => {
-			const workspaceExtension = await this.workspaceExtensionManagementService?.toLocalWorkspaceExtension(scannedExtension);
+			const workspaceExtension = await this.workspaceExtensionManagementService.toLocalWorkspaceExtension(scannedExtension);
 			if (workspaceExtension) {
 				result.push({
 					identifier: workspaceExtension.identifier,
@@ -426,16 +423,12 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	async getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]> {
-		return this.workspaceExtensionManagementService?.getInstalled(includeInvalid) ?? [];
+		return this.workspaceExtensionManagementService.getInstalled(includeInvalid);
 	}
 
 	async installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
 		if (!installOptions.isWorkspaceScoped) {
 			return this.installFromLocation(extension.location);
-		}
-
-		if (!this.workspaceExtensionManagementService) {
-			throw new Error('Workspace Extensions are not supported');
 		}
 
 		this.logService.info(`Installing the extension ${extension.identifier.id} from ${extension.location.toString()} in workspace`);
@@ -483,10 +476,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	private async uninstallExtensionFromWorkspace(extension: ILocalExtension): Promise<void> {
 		if (!extension.isWorkspaceScoped) {
 			throw new Error('The extension is not a workspace extension');
-		}
-
-		if (!this.workspaceExtensionManagementService) {
-			throw new Error('Workspace Extensions are not supported');
 		}
 
 		this.logService.info(`Uninstalling the workspace extension ${extension.identifier.id} from ${extension.location.toString()}`);
