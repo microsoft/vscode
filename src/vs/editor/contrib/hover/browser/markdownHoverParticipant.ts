@@ -401,11 +401,12 @@ class MarkdownRenderedHoverParts extends Disposable {
 }
 
 export function renderMarkdownHovers(
-	context: IEditorHoverRenderContext,
+	container: DocumentFragment | HTMLElement,
 	hoverParts: MarkdownHover[],
 	editor: ICodeEditor,
 	languageService: ILanguageService,
 	openerService: IOpenerService,
+	onFinishedRendering: () => void
 ): IDisposable {
 
 	// Sort hover parts to keep them stable since they might come in async, out-of-order

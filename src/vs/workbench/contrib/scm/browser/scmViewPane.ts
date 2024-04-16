@@ -803,6 +803,7 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
@@ -818,7 +819,7 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 		const iconContainer = prepend(label.element, $('.icon-container'));
 
 		const templateDisposables = new DisposableStore();
-		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), { actionRunner: this.actionRunner, menuOptions: { shouldForwardArgs: true } }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
+		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), { actionRunner: this.actionRunner, menuOptions: { shouldForwardArgs: true } }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		templateDisposables.add(toolBar);
 
 		const countContainer = append(element, $('.count'));
@@ -1119,6 +1120,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) { }
@@ -1136,7 +1138,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		append(element, $('.separator'));
 		disposables.add(label);
 
-		const toolBar = new MenuWorkbenchToolBar(append(element, $('.actions')), MenuId.SCMChangesSeparator, { moreIcon: Codicon.gear }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
+		const toolBar = new MenuWorkbenchToolBar(append(element, $('.actions')), MenuId.SCMChangesSeparator, { moreIcon: Codicon.gear }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		disposables.add(toolBar);
 
 		return { label, disposables };
@@ -2076,7 +2078,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: MenuId.SCMInputBox, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+		super(container, { resetMenu: MenuId.SCMInputBox, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		this._dropdownAction = new Action(
 			'scmInputMoreActions',

@@ -126,17 +126,20 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		return [
 			...this.getCodeEditorCommandPicks(),
 			...this.getGlobalCommandPicks()
-		].map(picks => ({
-			...picks,
-			buttons: [{
-				iconClass: ThemeIcon.asClassName(Codicon.gear),
-				tooltip: localize('configure keybinding', "Configure Keybinding"),
-			}],
-			trigger: (): TriggerAction => {
-				this.preferencesService.openGlobalKeybindingSettings(false, { query: createKeybindingCommandQuery(picks.commandId, picks.commandWhen) });
-				return TriggerAction.CLOSE_PICKER;
-			},
-		}));
+		].map(picks => {
+			const hasKeybinding = !!this.keybindingService.lookupKeybindings(picks.commandId);
+			return {
+				...picks,
+				buttons: [{
+					iconClass: ThemeIcon.asClassName(Codicon.gear),
+					tooltip: hasKeybinding ? localize('change keybinding', "Change Keybinding") : localize('configure keybinding', "Configure Keybinding"),
+				}],
+				trigger: (): TriggerAction => {
+					this.preferencesService.openGlobalKeybindingSettings(false, { query: createKeybindingCommandQuery(picks.commandId, picks.commandWhen) });
+					return TriggerAction.CLOSE_PICKER;
+				},
+			};
+		});
 	}
 
 	protected hasAdditionalCommandPicks(filter: string, token: CancellationToken): boolean {

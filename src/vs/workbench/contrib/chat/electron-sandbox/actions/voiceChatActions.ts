@@ -847,8 +847,8 @@ registerThemingParticipant((theme, collector) => {
 	`);
 });
 
-function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService): boolean {
-	if (!speechService.hasSpeechProvider) {
+function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService, chatAgentService: IChatAgentService): boolean {
+	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
 		return false;
 	}
 
@@ -896,6 +896,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		const onDidAddDefaultAgent = this._register(this.chatAgentService.onDidChangeAgents(() => {
 			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
 				this.updateConfiguration();
+				this.handleKeywordActivation();
+
 				onDidAddDefaultAgent.dispose();
 			}
 		}));
@@ -945,7 +947,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 
 	private handleKeywordActivation(): void {
 		const enabled =
-			supportsKeywordActivation(this.configurationService, this.speechService) &&
+			supportsKeywordActivation(this.configurationService, this.speechService, this.chatAgentService) &&
 			!this.speechService.hasActiveSpeechToTextSession;
 		if (
 			(enabled && this.activeSession) ||
@@ -1031,6 +1033,7 @@ class KeywordActivationStatusEntry extends Disposable {
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -1051,7 +1054,7 @@ class KeywordActivationStatusEntry extends Disposable {
 	}
 
 	private updateStatusEntry(): void {
-		const visible = supportsKeywordActivation(this.configurationService, this.speechService);
+		const visible = supportsKeywordActivation(this.configurationService, this.speechService, this.chatAgentService);
 		if (visible) {
 			if (!this.entry.value) {
 				this.createStatusEntry();
