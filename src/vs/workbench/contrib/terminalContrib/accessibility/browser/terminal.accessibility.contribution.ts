@@ -185,8 +185,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		const command = filteredCommands[0];
 		this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
 		const commandLine = command.command.command;
-		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-		if (capability?.isWindowsPty && commandLine) {
+		if (commandLine) {
 			alert(localize2('terminal.command', "{0}", commandLine).value);
 		}
 		if (command.exitCode) {
