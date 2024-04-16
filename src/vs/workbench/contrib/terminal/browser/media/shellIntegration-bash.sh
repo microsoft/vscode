@@ -137,6 +137,9 @@ __vsc_escape_value() {
 # Send the IsWindows property if the environment looks like Windows
 if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
 	builtin printf '\e]633;P;IsWindows=True\a'
+	__vsc_is_windows=1
+else
+	__vsc_is_windows=0
 fi
 
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
@@ -168,7 +171,12 @@ __vsc_prompt_end() {
 }
 
 __vsc_update_cwd() {
-	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$PWD")"
+	if [ "$__vsc_is_windows" = "1" ]; then
+		__vsc_cwd="$(cygpath -m "$PWD")"
+	else
+		__vsc_cwd="$PWD"
+	fi
+	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
 __vsc_command_output_start() {
