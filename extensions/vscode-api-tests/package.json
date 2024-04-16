@@ -53,8 +53,7 @@
     "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry",
-    "windowActivity"
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],

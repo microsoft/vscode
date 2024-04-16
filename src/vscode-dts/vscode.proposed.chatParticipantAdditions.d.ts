@@ -83,20 +83,6 @@ declare module 'vscode' {
 		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
 
-	/** @deprecated */
-	export interface ChatProgressMessage {
-		message: string;
-	}
-
-	/** @deprecated */
-
-	export interface ChatContentReference {
-		/**
-		 * The resource that was referenced.
-		 */
-		reference: Uri | Location;
-	}
-
 	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
@@ -145,6 +131,7 @@ declare module 'vscode' {
 		insertText?: string;
 		detail?: string;
 		documentation?: string | MarkdownString;
+		command?: Command;
 
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}

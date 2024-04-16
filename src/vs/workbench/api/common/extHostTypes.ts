@@ -4245,6 +4245,7 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	values: vscode.ChatVariableValue[];
 	detail?: string;
 	documentation?: string | MarkdownString;
+	command?: vscode.Command;
 
 	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
 		this.label = label;
@@ -4272,6 +4273,10 @@ export enum ChatResultFeedbackKind {
 export class ChatResponseMarkdownPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
 		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
 	}
 }
@@ -4284,6 +4289,10 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 	value: vscode.MarkdownString;
 	vulnerabilities: vscode.ChatVulnerability[];
 	constructor(value: string | vscode.MarkdownString, vulnerabilities: vscode.ChatVulnerability[]) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
 		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
 		this.vulnerabilities = vulnerabilities;
 	}
