@@ -38,13 +38,13 @@ declare module 'vscode' {
 
 	export interface SourceControlHistoryItemGroup {
 		readonly id: string;
-		readonly label: string;
+		readonly name: string;
 		readonly base?: Omit<SourceControlRemoteHistoryItemGroup, 'base'>;
 	}
 
 	export interface SourceControlRemoteHistoryItemGroup {
 		readonly id: string;
-		readonly label: string;
+		readonly name: string;
 	}
 
 	export interface SourceControlHistoryItemStatistics {
@@ -56,8 +56,8 @@ declare module 'vscode' {
 	export interface SourceControlHistoryItem {
 		readonly id: string;
 		readonly parentIds: string[];
-		readonly label: string;
-		readonly description?: string;
+		readonly message: string;
+		readonly author?: string;
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;

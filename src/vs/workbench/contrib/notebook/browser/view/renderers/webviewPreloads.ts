@@ -311,6 +311,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 		if (!lastFocusedOutput?.id || !e.shiftKey) {
 			return;
 		}
+
+		// If we're pressing `Shift+Up/Down` then we want to select a line at a time.
+		if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+			e.stopPropagation(); // We don't want the notebook to handle this, default behavior is what we need.
+			return;
+		}
+
 		// We want to handle just `Shift + PageUp/PageDown` & `Shift + Cmd + ArrowUp/ArrowDown` (for mac)
 		if (!(e.code === 'PageUp' || e.code === 'PageDown') && !(e.metaKey && (e.code === 'ArrowDown' || e.code === 'ArrowUp'))) {
 			return;
@@ -350,7 +357,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 		const activeElement = window.document.activeElement;
 		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
-			e.preventDefault(); // We will handle selection in editor code.
+			// The input element will handle this.
 			return;
 		}
 
@@ -580,14 +587,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		if (node.hasAttribute('recentlyScrolled')) {
-			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 300) {
+			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 400) {
 				// it has been a while since we actually scrolled
-				// if scroll velocity increases, it's likely a new scroll event
-				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 2) {
+				// if scroll velocity increases significantly, it's likely a new scroll event
+				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 8) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
 					return false;
-				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 2) {
+				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 8) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
 					return false;

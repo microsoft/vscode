@@ -32,7 +32,6 @@ import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -43,6 +42,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MarshalledCommentThread, MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -135,7 +135,7 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 	}
 }
 
-class CommentsMenus implements IDisposable {
+export class CommentsMenus implements IDisposable {
 	private contextKeyService: IContextKeyService | undefined;
 
 	constructor(
@@ -191,6 +191,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		private menus: CommentsMenus,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IThemeService private themeService: IThemeService
 	) { }
 
@@ -201,7 +202,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const threadMetadata = {
 			icon: dom.append(metadata, dom.$('.icon')),
 			userNames: dom.append(metadata, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, dom.append(metadata, dom.$('.timestamp-container'))),
+			timestamp: new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container'))),
 			relevance: dom.append(metadata, dom.$('.relevance')),
 			separator: dom.append(metadata, dom.$('.separator')),
 			commentPreview: dom.append(metadata, dom.$('.text')),
@@ -221,7 +222,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			count: dom.append(snippetContainer, dom.$('.count')),
 			lastReplyDetail: dom.append(snippetContainer, dom.$('.reply-detail')),
 			separator: dom.append(snippetContainer, dom.$('.separator')),
-			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp-container'))),
+			timestamp: new TimestampWidget(this.configurationService, this.hoverService, dom.append(snippetContainer, dom.$('.timestamp-container'))),
 		};
 		repliesMetadata.separator.innerText = '\u00b7';
 		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
@@ -231,8 +232,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 
 	private getCountString(commentCount: number): string {
-		if (commentCount > 1) {
-			return nls.localize('commentsCount', "{0} comments", commentCount);
+		if (commentCount > 2) {
+			return nls.localize('commentsCountReplies', "{0} replies", commentCount - 1);
+		} else if (commentCount === 2) {
+			return nls.localize('commentsCountReply', "1 reply");
 		} else {
 			return nls.localize('commentCount', "1 comment");
 		}
@@ -300,7 +303,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
-			templateData.disposables.push(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.disposables.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {

@@ -280,7 +280,7 @@ export class SCMActiveRepositoryContextKeyController implements IWorkbenchContri
 
 	private updateContextKeys(repository: ISCMRepository | undefined): void {
 		this.activeRepositoryNameContextKey.set(repository?.provider.name ?? '');
-		this.activeRepositoryBranchNameContextKey.set(repository?.provider.historyProvider?.currentHistoryItemGroup?.label ?? '');
+		this.activeRepositoryBranchNameContextKey.set(repository?.provider.historyProvider?.currentHistoryItemGroup?.name ?? '');
 	}
 
 	dispose(): void {

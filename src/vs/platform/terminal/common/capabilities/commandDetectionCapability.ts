@@ -35,7 +35,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _commitCommandFinished?: RunOnceScheduler;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
-	private _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
+	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
 	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -83,9 +83,46 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	constructor(
 		private readonly _terminal: Terminal,
-		private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+
+		// Pull command line from the buffer if it was not set explicitly
+		this._register(this.onCommandExecuted(command => {
+			if (command.commandLineConfidence !== 'high') {
+				// HACK: onCommandExecuted actually fired with PartialTerminalCommand
+				const typedCommand = (command as ITerminalCommand | PartialTerminalCommand);
+				command.command = typedCommand.extractCommandLine();
+				command.commandLineConfidence = 'low';
+
+				// ITerminalCommand
+				if ('getOutput' in typedCommand) {
+					if (
+						// Markers exist
+						typedCommand.promptStartMarker && typedCommand.marker && typedCommand.executedMarker &&
+						// Single line command
+						command.command.indexOf('\n') === -1 &&
+						// Start marker is not on the left-most column
+						typedCommand.startX !== undefined && typedCommand.startX > 0
+					) {
+						command.commandLineConfidence = 'medium';
+					}
+				}
+				// PartialTerminalCommand
+				else {
+					if (
+						// Markers exist
+						typedCommand.promptStartMarker && typedCommand.commandStartMarker && typedCommand.commandExecutedMarker &&
+						// Single line command
+						command.command.indexOf('\n') === -1 &&
+						// Start marker is not on the left-most column
+						typedCommand.commandStartX !== undefined && typedCommand.commandStartX > 0
+					) {
+						command.commandLineConfidence = 'medium';
+					}
+				}
+			}
+		}));
 
 		// Set up platform-specific behaviors
 		const that = this;
@@ -353,6 +390,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	setCommandLine(commandLine: string, isTrusted: boolean) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
 		this._currentCommand.command = commandLine;
+		this._currentCommand.commandLineConfidence = 'high';
 		this._currentCommand.isTrusted = isTrusted;
 	}
 
@@ -514,7 +552,7 @@ const enum AdjustCommandStartMarkerConstants {
  */
 class WindowsPtyHeuristics extends Disposable {
 
-	private _onCursorMoveListener = this._register(new MutableDisposable());
+	private readonly _onCursorMoveListener = this._register(new MutableDisposable());
 
 	private _tryAdjustCommandStartMarkerScheduler?: RunOnceScheduler;
 	private _tryAdjustCommandStartMarkerScannedLineCount: number = 0;

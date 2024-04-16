@@ -29,7 +29,6 @@ import { localize } from 'vs/nls';
 import { CompositeDragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IPartOptions } from 'vs/workbench/browser/part';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -39,6 +38,8 @@ import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export enum CompositeBarPosition {
 	TOP,
@@ -115,13 +116,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private readonly location: ViewContainerLocation;
 	private titleContainer: HTMLElement | undefined;
 	private headerFooterCompositeBarContainer: HTMLElement | undefined;
-	protected headerFooterCompositeBarDispoables = this._register(new DisposableStore());
+	protected readonly headerFooterCompositeBarDispoables = this._register(new DisposableStore());
 	private paneCompositeBarContainer: HTMLElement | undefined;
-	private paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
+	private readonly paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private compositeBarPosition: CompositeBarPosition | undefined = undefined;
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
-	private globalToolBar: ToolBar | undefined;
+	private globalToolBar: WorkbenchToolBar | undefined;
 	private readonly globalActions: CompositeMenuActions;
 
 	private blockOpening = false;
@@ -141,6 +142,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
@@ -166,6 +168,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			contextMenuService,
 			layoutService,
 			keybindingService,
+			hoverService,
 			instantiationService,
 			themeService,
 			Registry.as<PaneCompositeRegistry>(registryId),
@@ -312,13 +315,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const globalTitleActionsContainer = titleArea.appendChild($('.global-actions'));
 
 		// Global Actions Toolbar
-		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
+		this.globalToolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, globalTitleActionsContainer, {
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('moreActions', "More Actions..."),
-			hoverDelegate: this.toolbarHoverDelegate
+			hoverDelegate: this.toolbarHoverDelegate,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide
 		}));
 
 		this.updateGlobalToolbarActions();

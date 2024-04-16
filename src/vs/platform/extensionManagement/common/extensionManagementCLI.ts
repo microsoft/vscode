@@ -100,7 +100,7 @@ export class ExtensionManagementCLI {
 				}
 			}
 
-			const installed = await this.extensionManagementService.getInstalled(ExtensionType.User, installOptions.profileLocation);
+			const installed = await this.extensionManagementService.getInstalled(undefined, installOptions.profileLocation);
 
 			if (installVSIXInfos.length) {
 				await Promise.all(installVSIXInfos.map(async ({ vsix, installOptions }) => {

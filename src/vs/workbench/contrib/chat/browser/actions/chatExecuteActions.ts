@@ -12,7 +12,9 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { chatAgentLeader, extractAgentAndCommand } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IVoiceChatExecuteActionContext {
@@ -31,16 +33,27 @@ export class SubmitAction extends Action2 {
 	constructor() {
 		super({
 			id: SubmitAction.ID,
-			title: localize2('interactive.submit.label', "Submit"),
+			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
 			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
-				group: 'navigation',
+			keybinding: {
+				when: CONTEXT_IN_CHAT_INPUT,
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
 			},
+			menu: [
+				{
+					id: MenuId.ChatExecuteSecondary,
+					group: 'group_1',
+				},
+				{
+					id: MenuId.ChatExecute,
+					when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
+					group: 'navigation',
+				},
+			]
 		});
 	}
 
@@ -50,6 +63,50 @@ export class SubmitAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		widget?.acceptInput(context?.inputValue);
+	}
+}
+
+
+export class ChatSubmitSecondaryAgentAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
+
+	constructor() {
+		super({
+			id: ChatSubmitSecondaryAgentAction.ID,
+			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
+			keybinding: {
+				when: CONTEXT_IN_CHAT_INPUT,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: {
+				id: MenuId.ChatExecuteSecondary,
+				group: 'group_1'
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+		const agentService = accessor.get(IChatAgentService);
+		const secondaryAgent = agentService.getSecondaryAgent();
+		if (!secondaryAgent) {
+			return;
+		}
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		if (extractAgentAndCommand(widget.parsedInput).agentPart) {
+			widget.acceptInput();
+		} else {
+			widget.lastSelectedAgent = secondaryAgent;
+			widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.name}`);
+		}
 	}
 }
 
@@ -100,19 +157,26 @@ export class CancelAction extends Action2 {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,
 				group: 'navigation',
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Escape,
 			}
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext = args[0];
-		if (!context.widget) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
 			return;
 		}
 
 		const chatService = accessor.get(IChatService);
-		if (context.widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(context.widget.viewModel.sessionId);
+		if (widget.viewModel) {
+			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionId);
 		}
 	}
 }
@@ -121,4 +185,5 @@ export function registerChatExecuteActions() {
 	registerAction2(SubmitAction);
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
+	registerAction2(ChatSubmitSecondaryAgentAction);
 }
