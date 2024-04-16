@@ -326,7 +326,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
-					"Outdated from ${0} at line {1} column {2} in {3}, comment: {4}",
+					"Outdated from {0} at line {1} column {2} in {3}, comment: {4}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
@@ -335,7 +335,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				) + replies;
 			} else {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
-					"${0} at line {1} column {2} in {3}, comment: {4}",
+					"{0} at line {1} column {2} in {3}, comment: {4}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
