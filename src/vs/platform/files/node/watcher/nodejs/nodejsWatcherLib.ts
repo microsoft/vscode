@@ -475,7 +475,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		for (const event of coalescedFileChanges) {
 
 			// Filtering
-			if (isFiltered(event, this.request)) {
+			if (isFiltered(event, this.request.filter)) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}

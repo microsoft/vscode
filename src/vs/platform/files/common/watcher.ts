@@ -438,31 +438,31 @@ class EventCoalescer {
 	}
 }
 
-export function isFiltered(event: IFileChange, request: IUniversalWatchRequest): boolean {
-	if (typeof request.filter === 'number') {
+export function isFiltered(event: IFileChange, filter: FileChangeFilter | undefined): boolean {
+	if (typeof filter === 'number') {
 		switch (event.type) {
 			case FileChangeType.ADDED:
-				return (request.filter & FileChangeFilter.ADDED) === 0;
+				return (filter & FileChangeFilter.ADDED) === 0;
 			case FileChangeType.DELETED:
-				return (request.filter & FileChangeFilter.DELETED) === 0;
+				return (filter & FileChangeFilter.DELETED) === 0;
 			case FileChangeType.UPDATED:
-				return (request.filter & FileChangeFilter.UPDATED) === 0;
+				return (filter & FileChangeFilter.UPDATED) === 0;
 		}
 	}
 
 	return false;
 }
 
-export function requestFilterToString(request: IUniversalWatchRequest): string {
-	if (typeof request.filter === 'number') {
+export function requestFilterToString(filter: FileChangeFilter | undefined): string {
+	if (typeof filter === 'number') {
 		const filters = [];
-		if (request.filter & FileChangeFilter.ADDED) {
+		if (filter & FileChangeFilter.ADDED) {
 			filters.push('Added');
 		}
-		if (request.filter & FileChangeFilter.DELETED) {
+		if (filter & FileChangeFilter.DELETED) {
 			filters.push('Deleted');
 		}
-		if (request.filter & FileChangeFilter.UPDATED) {
+		if (filter & FileChangeFilter.UPDATED) {
 			filters.push('Updated');
 		}
 
