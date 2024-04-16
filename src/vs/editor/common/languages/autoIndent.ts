@@ -549,20 +549,20 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 			// console.log('substringOfToken : ', substringOfToken);
 
 			let strippedSubstringOfToken = substringOfToken;
-			const _bracketsOpen = brackets?.brackets.map((brackets) => brackets.open).flat();
-			const _bracketsClose = brackets?.brackets.map((brackets) => brackets.close).flat();
+			const openBrackets = brackets?.brackets.map((brackets) => brackets.open).flat();
+			const closedBrackets = brackets?.brackets.map((brackets) => brackets.close).flat();
 
-			// console.log('_bracketsOpen : ', _bracketsOpen);
-			// console.log('_bracketsClose : ', _bracketsClose);
+			// console.log('openBrackets : ', openBrackets);
+			// console.log('closedBrackets : ', closedBrackets);
 
-			if (_bracketsOpen) {
-				_bracketsOpen.forEach((bracket) => {
+			if (openBrackets) {
+				openBrackets.forEach((bracket) => {
 					strippedSubstringOfToken = strippedSubstringOfToken.replace(bracket, '_');
 				});
 			}
 
-			if (_bracketsClose) {
-				_bracketsClose.forEach((bracket) => {
+			if (closedBrackets) {
+				closedBrackets.forEach((bracket) => {
 					strippedSubstringOfToken = strippedSubstringOfToken.replace(bracket, '_');
 				});
 			}
