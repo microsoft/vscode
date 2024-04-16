@@ -134,19 +134,21 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		}
 
 		let filter: FileChangeFilter | undefined;
-		if (options?.ignoreChangeEvents || options?.ignoreCreateEvents || options?.ignoreDeleteEvents) {
-			filter = FileChangeFilter.UPDATED | FileChangeFilter.ADDED | FileChangeFilter.DELETED;
+		if (correlate) {
+			if (options?.ignoreChangeEvents || options?.ignoreCreateEvents || options?.ignoreDeleteEvents) {
+				filter = FileChangeFilter.UPDATED | FileChangeFilter.ADDED | FileChangeFilter.DELETED;
 
-			if (options?.ignoreChangeEvents) {
-				filter &= ~FileChangeFilter.UPDATED;
-			}
+				if (options?.ignoreChangeEvents) {
+					filter &= ~FileChangeFilter.UPDATED;
+				}
 
-			if (options?.ignoreCreateEvents) {
-				filter &= ~FileChangeFilter.ADDED;
-			}
+				if (options?.ignoreCreateEvents) {
+					filter &= ~FileChangeFilter.ADDED;
+				}
 
-			if (options?.ignoreDeleteEvents) {
-				filter &= ~FileChangeFilter.DELETED;
+				if (options?.ignoreDeleteEvents) {
+					filter &= ~FileChangeFilter.DELETED;
+				}
 			}
 		}
 
