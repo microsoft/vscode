@@ -9,8 +9,8 @@ import { IndentAction, CompleteEnterAction } from 'vs/editor/common/languages/la
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { getIndentationAtPosition, getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { getStrippedLineForLineAndTokens } from 'vs/editor/common/languages/autoIndent';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export function getEnterAction(
 	autoIndent: EditorAutoIndentStrategy,
@@ -69,6 +69,7 @@ function getBeforeEnterText(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ) {
+	console.log('getBeforeEnterText');
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 	const initialLineTokens = model.tokenization.getLineTokens(range.startLineNumber);
 	const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
@@ -81,7 +82,7 @@ function getAfterEnterText(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ) {
-
+	console.log('getAfterEnterText');
 	let initialLineTokens: LineTokens;
 	let scopedLineTokens: ScopedLineTokens;
 	let columnIndexWithinScope: number;
@@ -100,6 +101,8 @@ function getAfterEnterText(
 }
 
 export function getStrippedScopedLineTextFor(languageConfigurationService: ILanguageConfigurationService, initialLineTokens: LineTokens, scopedLineTokens: ScopedLineTokens | LineTokens, opts: { columnIndexWithinScope: number, isStart: boolean }) {
+
+	console.log('getStrippedScopedLineTextFor');
 
 	const language = 'languageId' in scopedLineTokens ? scopedLineTokens.languageId : '';
 	const scopedLineText = scopedLineTokens.getLineContent();
@@ -140,6 +143,7 @@ function getPreviousLineText(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ) {
+	console.log('getPreviousLineText');
 	let previousLineText = '';
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 	const language = model.tokenization.getLanguageId();
@@ -152,5 +156,70 @@ function getPreviousLineText(
 			previousLineText = getStrippedLineForLineAndTokens(languageConfigurationService, language, _previousLineText, oneLineAboveScopedLineTokens);
 		}
 	}
+	console.log('previousLineText : ', previousLineText);
 	return previousLineText;
+}
+
+export function getStrippedLineForLineAndTokens(languageConfigurationService: ILanguageConfigurationService, languageId: string, line: string, tokens: LineTokens | ScopedLineTokens): string {
+
+	console.log('getStrippedLineForLineAndTokens');
+	const brackets = languageConfigurationService.getLanguageConfiguration(languageId).brackets;
+	// console.log('brackets : ', brackets);
+
+	let offset = 0;
+	let strippedLine = line;
+	const numberOfTokens = tokens.getCount();
+
+	for (let i = 0; i < numberOfTokens; i++) {
+
+		console.log('i : ', i);
+
+		const standardTokenType = tokens.getStandardTokenType(i);
+
+		if (standardTokenType === StandardTokenType.Comment) {
+
+			console.log('comment token');
+
+			const startOffset = tokens.getStartOffset(i);
+			const endOffset = tokens.getEndOffset(i);
+			strippedLine = strippedLine.substring(0, offset + startOffset) + strippedLine.substring(offset + endOffset);
+			offset += startOffset - endOffset;
+			console.log('strippedLine : ', strippedLine);
+			console.log('offset : ', offset);
+		}
+
+		if (standardTokenType === StandardTokenType.String || standardTokenType === StandardTokenType.RegEx) {
+
+			console.log('string or regex token');
+
+			const startTokenOffset = tokens.getStartOffset(i);
+			const endTokenOffset = tokens.getEndOffset(i);
+			const substringOfToken = line.substring(startTokenOffset, endTokenOffset);
+			console.log('substringOfToken : ', substringOfToken);
+
+			let strippedSubstringOfToken = substringOfToken;
+			const openBrackets = brackets?.brackets.map((brackets) => brackets.open).flat();
+			const closedBrackets = brackets?.brackets.map((brackets) => brackets.close).flat();
+
+			if (openBrackets) {
+				openBrackets.forEach((bracket) => {
+					strippedSubstringOfToken = strippedSubstringOfToken.replace(bracket, '_');
+				});
+			}
+
+			if (closedBrackets) {
+				closedBrackets.forEach((bracket) => {
+					strippedSubstringOfToken = strippedSubstringOfToken.replace(bracket, '_');
+				});
+			}
+
+			console.log('strippedSubstringOfToken : ', strippedSubstringOfToken);
+			offset += substringOfToken.length - strippedSubstringOfToken.length;
+			console.log('offset : ', offset);
+
+			strippedLine = strippedLine.substring(0, offset + startTokenOffset) + strippedSubstringOfToken + strippedLine.substring(offset + endTokenOffset);
+			console.log('strippedLine : ', strippedLine);
+		}
+	}
+	return strippedLine;
 }
