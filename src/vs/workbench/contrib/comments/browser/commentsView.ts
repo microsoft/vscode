@@ -82,7 +82,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (!this.focusedCommentNode) {
 			return;
 		}
-		return this.getScreenReaderInfoForNode(this.focusedCommentNode, false);
+		return this.getScreenReaderInfoForNode(this.focusedCommentNode);
 	}
 
 	focusNextNode(): void {
@@ -327,7 +327,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
-					"Outdated from {0} at line {1} column {2} in {3},{4}comment: {5}",
+					"Outdated from {0} at line {1} column {2} in {3},{4} comment: {5}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
@@ -337,7 +337,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				) + replies;
 			} else {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
-					"{0} at line {1} column {2} in {3},{4}comment: {5}",
+					"{0} at line {1} column {2} in {3},{4} comment: {5}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
@@ -349,7 +349,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		} else {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFileOutdated',
-					"Outdated from {0} in {1},{2}comment: {3}",
+					"Outdated from {0} in {1},{2} comment: {3}",
 					element.comment.userName,
 					basename(element.resource),
 					replyCount,
@@ -357,7 +357,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				) + replies;
 			} else {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFile',
-					"{0} in {1},{2}comment: {3}",
+					"{0} in {1},{2} comment: {3}",
 					element.comment.userName,
 					basename(element.resource),
 					replyCount,
@@ -371,7 +371,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (!node.replies.length || forAriaLabel) {
 			return '';
 		}
-		return node.replies.map(reply => nls.localize('resourceWithRepliesLabel',
+		return '\n' + node.replies.map(reply => nls.localize('resourceWithRepliesLabel',
 			"{0} {1}",
 			reply.comment.userName,
 			(typeof reply.comment.body === 'string') ? reply.comment.body : reply.comment.body.value)
@@ -379,7 +379,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	}
 
 	private getReplyCountAsString(node: CommentNode, forAriaLabel?: boolean): string {
-		return node.replies.length && !forAriaLabel ? nls.localize('replyCount', " {0} replies ", node.replies.length) : '';
+		return node.replies.length && !forAriaLabel ? nls.localize('replyCount', " {0} replies,", node.replies.length) : '';
 	}
 
 	private createTree(): void {
