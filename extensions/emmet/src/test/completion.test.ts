@@ -29,8 +29,14 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 	});
 
 	// https://github.com/microsoft/vscode/issues/86941
-	test('#86941, widows should not be completed', async () => {
-		await testCompletionProvider('css', `.foo { wi| }`, undefined);
+	test('#86941, widows should be completed after width', async () => {
+		const widthIndex = await completionProviderIndexOf('css', `.foo { wi| }`,
+			{ label: 'width: ;', documentation: `width: ;` });
+		const widowsIndex = await completionProviderIndexOf('css', `.foo { wi|: ; }`,
+			{ label: 'widows: ;', documentation: `widows: ;` });
+		assert.ok(widowsIndex !== -1);
+		assert.ok(widthIndex !== -1);
+		assert.ok(widowsIndex > widthIndex);
 	});
 
 	// https://github.com/microsoft/vscode/issues/117020
@@ -99,5 +105,40 @@ function testCompletionProvider(fileExtension: string, contents: string, expecte
 		});
 
 		return Promise.resolve();
+	});
+}
+
+function completionProviderIndexOf(fileExtension: string, contents: string, expectedItem: TestCompletionItem): Thenable<number> {
+	const cursorPos = contents.indexOf('|');
+	const slicedContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
+
+	let index = -1;
+	return withRandomFileEditor(slicedContents, fileExtension, async (editor, _doc) => {
+		const selection = new Selection(editor.document.positionAt(cursorPos), editor.document.positionAt(cursorPos));
+		editor.selection = selection;
+		const cancelSrc = new CancellationTokenSource();
+		const completionPromise = completionProvider.provideCompletionItems(
+			editor.document,
+			editor.selection.active,
+			cancelSrc.token,
+			{ triggerKind: CompletionTriggerKind.Invoke, triggerCharacter: undefined }
+		);
+		if (!completionPromise) {
+			return;
+		}
+		const completionList = await completionPromise;
+		if (!completionList) {
+			return;
+		}
+		const match = completionList.items.find(i => i.label === expectedItem.label);
+		if (match) {
+			assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
+			if (expectedItem.documentation && match.documentation !== expectedItem.documentation) {
+				return;
+			}
+			index = completionList.items.indexOf(match);
+		}
+	}).then(() => {
+		return Promise.resolve(index);
 	});
 }
