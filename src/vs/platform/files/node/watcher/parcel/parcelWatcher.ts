@@ -515,6 +515,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		const filteredEvents: IFileChange[] = [];
 		let rootDeleted = false;
 
+		const filter = isWatchRequestWithCorrelation(watcher.request) ? watcher.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
 		for (const event of events) {
 
 			// Emit to instance subscriptions if any before filtering
@@ -540,8 +541,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				continue;
 			}
 
-			// Filtering (only when correlating, because uncorrelated requests maybe de-duplicated)
-			if (isWatchRequestWithCorrelation(watcher.request) && isFiltered(event, watcher.request.filter)) {
+			// Filtering
+			if (isFiltered(event, filter)) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}

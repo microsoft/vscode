@@ -51,6 +51,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+	private readonly filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
 
 	private readonly cts = new CancellationTokenSource();
 
@@ -467,15 +468,13 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		// Coalesce events: merge events of same kind
 		const coalescedFileChanges = coalesceEvents(fileChanges);
-		if (coalescedFileChanges.length === 0) {
-			return;
-		}
 
+		// Filter events: based on request filter property
 		const filteredEvents: IFileChange[] = [];
 		for (const event of coalescedFileChanges) {
 
-			// Filtering (only when correlating, because uncorrelated requests maybe de-duplicated)
-			if (isWatchRequestWithCorrelation(this.request) && isFiltered(event, this.request.filter)) {
+			// Filtering
+			if (isFiltered(event, this.filter)) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}
@@ -485,6 +484,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 			filteredEvents.push(event);
 		}
+
 		if (filteredEvents.length === 0) {
 			return;
 		}
