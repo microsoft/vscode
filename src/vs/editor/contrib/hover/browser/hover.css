@@ -35,9 +35,10 @@
 .monaco-editor .monaco-hover .hover-row .verbosity-actions {
 	display: flex;
 	flex-direction: column;
+	padding-top: 5px;
 	padding-left: 5px;
 	padding-right: 5px;
-	justify-content: end;
+	justify-content: start;
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
