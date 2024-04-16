@@ -83,6 +83,8 @@ export interface IAccessibleViewService {
 	showAccessibleViewHelp(): void;
 	next(): void;
 	previous(): void;
+	navigateToNextCodeBlock(): void;
+	navigateToPreviousCodeBlock(): void;
 	goToSymbol(): void;
 	disableHint(): void;
 	getPosition(id: AccessibleViewProviderId): Position | undefined;
@@ -288,6 +290,32 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined };
+	}
+
+	navigateToNextCodeBlock(): void {
+		const position = this._editorWidget.getPosition();
+		if (!this._codeBlocks?.length || !position) {
+			return;
+		}
+		const codeBlockIndex = this._codeBlocks.findIndex(c => c.startLine > position.lineNumber);
+		if (codeBlockIndex === -1) {
+			return;
+		}
+		const codeBlock = this._codeBlocks[codeBlockIndex];
+		this.setPosition(new Position(codeBlock.startLine, 1), true);
+	}
+
+	navigateToPreviousCodeBlock(): void {
+		const position = this._editorWidget.getPosition();
+		if (!this._codeBlocks?.length || !position) {
+			return;
+		}
+		const codeBlockIndex = this._codeBlocks.findIndex(c => c.endLine >= position.lineNumber);
+		if (codeBlockIndex === -1) {
+			return;
+		}
+		const codeBlock = this._codeBlocks[codeBlockIndex];
+		this.setPosition(new Position(codeBlock.startLine, 1), true);
 	}
 
 	showLastProvider(id: AccessibleViewProviderId): void {
@@ -839,6 +867,12 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	getCodeBlockContext(): ICodeBlockActionContext | undefined {
 		return this._accessibleView?.getCodeBlockContext();
+	}
+	navigateToNextCodeBlock(): void {
+		this._accessibleView?.navigateToNextCodeBlock();
+	}
+	navigateToPreviousCodeBlock(): void {
+		this._accessibleView?.navigateToPreviousCodeBlock();
 	}
 }
 
