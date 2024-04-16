@@ -338,7 +338,6 @@ export function getIndentForEnter(
 	model.tokenization.forceTokenization(range.startLineNumber);
 	const lineTokens = model.tokenization.getLineTokens(range.startLineNumber);
 	const scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
-	const scopedLineText = scopedLineTokens.getLineContent();
 
 	let embeddedLanguage = false;
 	let beforeEnterText: string;
@@ -354,16 +353,15 @@ export function getIndentForEnter(
 		beforeEnterText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, lineTokens, { isStart: false, columnIndexWithinScope });
 	}
 
-	let _afterEnterText: string;
+	let afterEnterText: string;
 	if (range.isEmpty()) {
-		_afterEnterText = scopedLineText.substring(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+		afterEnterText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, scopedLineTokens, { isStart: true, columnIndexWithinScope });
 	} else {
 		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-		_afterEnterText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		const columnIndexWithinScope = range.endColumn - 1 - scopedLineTokens.firstCharOffset;
+		afterEnterText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, endScopedLineTokens, { isStart: true, columnIndexWithinScope });
 	}
-
-	// console.log('_afterEnterText : ', _afterEnterText);
-	const afterEnterText = _afterEnterText;
 
 	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).indentRulesSupport;
 	if (!indentRulesSupport) {
@@ -449,26 +447,29 @@ export function getIndentActionForType(
 		return null;
 	}
 
-	const scopedLineText = scopedLineTokens.getLineContent();
-	const beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+	const lineTokens = model.tokenization.getLineTokens(range.startLineNumber);
+	const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+	const beforeTypeText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, scopedLineTokens, { isStart: false, columnIndexWithinScope });
 
 	// selection support
 	let afterTypeText: string;
 	if (range.isEmpty()) {
-		afterTypeText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+		afterTypeText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, scopedLineTokens, { isStart: true, columnIndexWithinScope });
 	} else {
 		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-		afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		const columnIndexWithinScope = range.endColumn - 1 - scopedLineTokens.firstCharOffset;
+		afterTypeText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, endScopedLineTokens, { isStart: true, columnIndexWithinScope });
 	}
 
-	const fullText = beforeTypeText + afterTypeText;
+	const fullTypeText = beforeTypeText + afterTypeText;
 	// console.log('fullText : ', fullText);
-	const fullTextWithCharacter = beforeTypeText + ch + afterTypeText;
+	const fullTypeTextWithCharacter = beforeTypeText + ch + afterTypeText;
 	// console.log('fullTextWithCharacter : ', fullTextWithCharacter);
 
 	// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
 	// Users might change the indentation by purpose and we should honor that instead of readjusting.
-	if (!indentRulesSupport.shouldDecrease(fullText) && indentRulesSupport.shouldDecrease(fullTextWithCharacter)) {
+	if (!indentRulesSupport.shouldDecrease(fullTypeText) && indentRulesSupport.shouldDecrease(fullTypeTextWithCharacter)) {
 		// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
 		// 1. Get inherited indent action
 		const r = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
