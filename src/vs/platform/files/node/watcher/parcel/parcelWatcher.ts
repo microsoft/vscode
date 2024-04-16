@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ParcelWatcherInstance extends Disposable {
@@ -236,7 +236,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		for (const watcher of this.watchers) {
 
 			// Requests or watchers with correlation always match on that
-			if (isWatchRequestWithCorrelation(request) || isWatchRequestWithCorrelation(watcher.request)) {
+			if (this.isCorrelated(request) || this.isCorrelated(watcher.request)) {
 				if (watcher.request.correlationId === request.correlationId) {
 					return watcher;
 				}
@@ -515,7 +515,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		const filteredEvents: IFileChange[] = [];
 		let rootDeleted = false;
 
-		const filter = isWatchRequestWithCorrelation(watcher.request) ? watcher.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
+		const filter = this.isCorrelated(watcher.request) ? watcher.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
 		for (const event of events) {
 
 			// Emit to instance subscriptions if any before filtering
@@ -523,10 +523,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				watcher.notifyFileChange(event.resource.fsPath, event);
 			}
 
-			// Check for root being deleted
+			// Filtering
 			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
-			if (rootDeleted && !this.isCorrelated(watcher.request)) {
-
+			if (
+				isFiltered(event, filter) ||
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
 				// can happen e.g. in case of network connectivity
@@ -537,12 +537,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				// really do not want to skip over file events any
 				// more, so we only ignore this event for non-correlated
 				// watch requests.
-
-				continue;
-			}
-
-			// Filtering
-			if (isFiltered(event, filter)) {
+				(rootDeleted && !this.isCorrelated(watcher.request))
+			) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}
