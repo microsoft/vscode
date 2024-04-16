@@ -186,7 +186,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
 		const commandLine = command.command.command;
 		if (commandLine) {
-			alert(localize2('terminal.command', "{0}", commandLine).value);
+			alert(commandLine);
 		}
 		if (command.exitCode) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
