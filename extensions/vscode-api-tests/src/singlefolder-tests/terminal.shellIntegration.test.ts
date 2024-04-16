@@ -136,7 +136,7 @@ import { assertNoRpc } from '../utils';
 		}
 		await endEvent;
 
-		ok(events.length >= 3);
+		ok(events.length >= 3, `should have at least 3 events ${JSON.stringify(events)}`);
 		strictEqual(events[0], 'start');
 		strictEqual(events.at(-1), 'end');
 		for (let i = 1; i < events.length - 1; i++) {
@@ -156,7 +156,7 @@ import { assertNoRpc } from '../utils';
 		}
 		await endEvent;
 
-		ok(events.join('').includes('hello'));
+		ok(events.join('').includes('hello'), `should include 'hello' in ${JSON.stringify(events)}`);
 
 		await closeTerminalAsync(terminal);
 	});
@@ -191,7 +191,7 @@ import { assertNoRpc } from '../utils';
 		]);
 		await endEvent;
 
-		ok(firstReadEvents.join('').includes('hello'));
+		ok(firstReadEvents.join('').includes('hello'), `should include 'hello' in ${JSON.stringify(firstReadEvents)}`);
 		deepStrictEqual(firstReadEvents, secondReadEvents);
 
 		await closeTerminalAsync(terminal);
