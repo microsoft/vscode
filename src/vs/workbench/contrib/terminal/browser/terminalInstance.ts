@@ -165,6 +165,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _layoutSettingsChanged: boolean = true;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
 	private _areLinksReady: boolean = false;
+	private readonly _initialDataEventsListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _initialDataEvents: string[] | undefined = [];
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
@@ -550,6 +551,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let initialDataEventsTimeout: number | undefined = dom.getWindow(this._container).setTimeout(() => {
 			initialDataEventsTimeout = undefined;
 			this._initialDataEvents = undefined;
+			this._initialDataEventsListener.clear();
 		}, 10000);
 		this._register(toDisposable(() => {
 			if (initialDataEventsTimeout) {
@@ -1394,6 +1396,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
+		this._initialDataEventsListener.value = processManager.onProcessData(ev => this._initialDataEvents?.push(ev.data));
 		this._register(processManager.onProcessReplayComplete(() => this._onProcessReplayComplete.fire()));
 		this._register(processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e)));
 		this._register(processManager.onPtyDisconnect(() => {
@@ -1476,9 +1479,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
-		// TODO: Move to separate listener
-		this._initialDataEvents?.push(ev.data);
-
 		// Ensure events are split by SI command execute sequence to ensure the output of the
 		// command can be read by extensions. This must be done here as xterm.js does not currently
 		// have a listener for when individual data events are parsed, only `onWriteParsed` which
