@@ -47,15 +47,15 @@ interface IWatchRequest {
 	 * id.
 	 */
 	readonly correlationId?: number;
-}
-
-export interface IWatchRequestWithCorrelation extends IWatchRequest {
-	readonly correlationId: number;
 
 	/**
 	 * TODO
 	 */
 	readonly filter?: WatchFilter;
+}
+
+export interface IWatchRequestWithCorrelation extends IWatchRequest {
+	readonly correlationId: number;
 }
 
 export function isWatchRequestWithCorrelation(request: IWatchRequest): request is IWatchRequestWithCorrelation {

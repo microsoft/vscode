@@ -540,6 +540,10 @@ export interface IWatchOptionsWithCorrelation extends IWatchOptions {
 	filter?: number;
 }
 
+export function isWatchOptionsWithCorrelation(options: IWatchOptions): options is IWatchOptionsWithCorrelation {
+	return typeof options.correlationId === 'number';
+}
+
 export interface IFileSystemWatcher extends IDisposable {
 
 	/**
