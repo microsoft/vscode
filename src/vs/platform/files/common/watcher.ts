@@ -454,3 +454,26 @@ export function isFiltered(event: IFileChange, filter?: WatchFilter): boolean {
 			return (filter & WatchFilter.Update) === 0;
 	}
 }
+
+export function requestFilterToString(filter: WatchFilter | undefined): string {
+	if (typeof filter === 'number') {
+		const filters = [];
+		if (filter & WatchFilter.Add) {
+			filters.push('Added');
+		}
+		if (filter & WatchFilter.Delete) {
+			filters.push('Deleted');
+		}
+		if (filter & WatchFilter.Update) {
+			filters.push('Updated');
+		}
+
+		if (filters.length === 0) {
+			return '<all>';
+		}
+
+		return filters.join(', ');
+	}
+
+	return '<none>';
+}
