@@ -524,7 +524,8 @@ export interface IWatchOptionsWithoutCorrelation {
 	 * If provided, allows to filter the events that the watcher should consider
 	 * for emitting. If not provided, all events are emitted.
 	 *
-	 * For example, to emit added and updated events, set to `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
+	 * For example, to emit added and updated events, set to:
+	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
 	 */
 	filter?: FileChangeFilter;
 }
