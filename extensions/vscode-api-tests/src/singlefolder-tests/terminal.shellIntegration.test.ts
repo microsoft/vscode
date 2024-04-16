@@ -9,7 +9,8 @@ import { env, TerminalShellExecutionCommandLineConfidence, UIKind, window, works
 import { assertNoRpc } from '../utils';
 
 // Terminal integration tests are disabled on web https://github.com/microsoft/vscode/issues/92826
-(env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - Terminal.shellIntegration', () => {
+// Windows images will often not have functional shell integration
+(env.uiKind === UIKind.Web || platform() === 'win32' ? suite.skip : suite)('vscode API - Terminal.shellIntegration', () => {
 	const disposables: Disposable[] = [];
 
 	suiteSetup(async () => {
@@ -96,9 +97,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	// TODO: Exit code and command line in end events is flaky currently, marker adjustments are
-	//       likely the cause which make end events fire with undefined command line and exit codes
-	(platform() === 'win32' ? test.skip : test)('end execution event should report zero exit code for successful commands', async () => {
+	test('end execution event should report zero exit code for successful commands', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
 		disposables.push(window.onDidStartTerminalShellExecution(() => events.push('start')));
@@ -110,9 +109,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	// TODO: Exit code and command line in end events is flaky currently, marker adjustments are
-	//       likely the cause which make end events fire with undefined command line and exit codes
-	(platform() === 'win32' ? test.skip : test)('end execution event should report non-zero exit code for failed commands', async () => {
+	test('end execution event should report non-zero exit code for failed commands', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
 		disposables.push(window.onDidStartTerminalShellExecution(() => events.push('start')));
@@ -137,10 +134,10 @@ import { assertNoRpc } from '../utils';
 		await endEvent;
 
 		ok(events.length >= 3, `should have at least 3 events ${JSON.stringify(events)}`);
-		strictEqual(events[0], 'start');
-		strictEqual(events.at(-1), 'end');
+		strictEqual(events[0], 'start', `first event should be 'start' ${JSON.stringify(events)}`);
+		strictEqual(events.at(-1), 'end', `last event should be 'end' ${JSON.stringify(events)}`);
 		for (let i = 1; i < events.length - 1; i++) {
-			strictEqual(events[i], 'data', 'all middle events should be data');
+			strictEqual(events[i], 'data', `all middle events should be 'data' ${JSON.stringify(events)}`);
 		}
 
 		await closeTerminalAsync(terminal);
@@ -197,9 +194,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	// TODO: Exit code and command line in end events is flaky currently, marker adjustments are
-	//       likely the cause which make end events fire with undefined command line and exit codes
-	(platform() === 'win32' ? test.skip : test)('executeCommand(commandLine)', async () => {
+	test('executeCommand(commandLine)', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo hello');
 		const executionSync = await execution;
@@ -214,9 +209,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	// TODO: Exit code and command line in end events is flaky currently, marker adjustments are
-	//       likely the cause which make end events fire with undefined command line and exit codes
-	(platform() === 'win32' ? test.skip : test)('executeCommand(executable, args)', async () => {
+	test('executeCommand(executable, args)', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo', ['hello']);
 		const executionSync = await execution;
