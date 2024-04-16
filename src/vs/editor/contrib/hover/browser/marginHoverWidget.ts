@@ -4,26 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { asArray } from 'vs/base/common/arrays';
-import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
+import { HoverOperation, HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { GlyphMarginLane } from 'vs/editor/common/model';
 import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer } from 'vs/editor/contrib/hover/browser/marginHoverComputer';
 
 const $ = dom.$;
-
-export interface IHoverMessage {
-	value: IMarkdownString;
-}
-
-type LaneOrLineNumber = GlyphMarginLane | 'lineNo';
 
 export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHoverWidget {
 
@@ -188,65 +180,5 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		const left = editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth + (this._computer.lane === 'lineNo' ? editorLayout.lineNumbersWidth : 0);
 		this._hover.containerDomNode.style.left = `${left}px`;
 		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
-	}
-}
-
-class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
-
-	private _lineNumber: number = -1;
-	private _laneOrLine: LaneOrLineNumber = GlyphMarginLane.Center;
-
-	public get lineNumber(): number {
-		return this._lineNumber;
-	}
-
-	public set lineNumber(value: number) {
-		this._lineNumber = value;
-	}
-
-	public get lane(): LaneOrLineNumber {
-		return this._laneOrLine;
-	}
-
-	public set lane(value: LaneOrLineNumber) {
-		this._laneOrLine = value;
-	}
-
-	constructor(
-		private readonly _editor: ICodeEditor
-	) {
-	}
-
-	public computeSync(): IHoverMessage[] {
-
-		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
-			return {
-				value: contents
-			};
-		};
-
-		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
-
-		const result: IHoverMessage[] = [];
-		const isLineHover = this._laneOrLine === 'lineNo';
-		if (!lineDecorations) {
-			return result;
-		}
-
-		for (const d of lineDecorations) {
-			const lane = d.options.glyphMargin?.position ?? GlyphMarginLane.Center;
-			if (!isLineHover && lane !== this._laneOrLine) {
-				continue;
-			}
-
-			const hoverMessage = isLineHover ? d.options.lineNumberHoverMessage : d.options.glyphMarginHoverMessage;
-			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
-				continue;
-			}
-
-			result.push(...asArray(hoverMessage).map(toHoverMessage));
-		}
-
-		return result;
 	}
 }
