@@ -7,9 +7,9 @@ import Parser = require('web-tree-sitter');
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
-import { FileAccess } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { TreeSitterTree as TreeSitterTree } from 'vs/editor/browser/services/treeSitterServices/treeSitterTree';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -116,7 +116,7 @@ export class TreeSitterService implements ITreeSitterService {
 		if (!this.supportedLanguages.has(language)) {
 			throw new Error('Unsupported language in tree-sitter');
 		}
-		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)!, require)));
+		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)! as AppResourcePath)));
 		return Parser.Language.load(languageFile.value.buffer).then((language: Parser.Language) => {
 			return new Promise(function (resolve, _reject) {
 				resolve(language);
@@ -140,4 +140,4 @@ export class TreeSitterService implements ITreeSitterService {
 	}
 }
 
-registerSingleton(ITreeSitterService, TreeSitterService, true);
+registerSingleton(ITreeSitterService, TreeSitterService, InstantiationType.Delayed);

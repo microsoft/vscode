@@ -5,7 +5,6 @@
 
 // eslint-disable-next-line local/code-import-patterns
 import Parser = require('web-tree-sitter');
-import { runWhenIdle } from 'vs/base/common/async';
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
