@@ -9,13 +9,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/
 import { isAbsolute } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
-
-export const enum WatchFilter {
-	Update = 0,
-	Add = 1 << 1,
-	Delete = 1 << 2
-}
+import { FileChangeFilter, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
 interface IWatchRequest {
 
@@ -49,9 +43,12 @@ interface IWatchRequest {
 	readonly correlationId?: number;
 
 	/**
-	 * TODO
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
 	 */
-	readonly filter?: WatchFilter;
+	readonly filter?: FileChangeFilter;
 }
 
 export interface IWatchRequestWithCorrelation extends IWatchRequest {
@@ -441,16 +438,14 @@ class EventCoalescer {
 }
 
 export function isFiltered(event: IFileChange, request: IUniversalWatchRequest): boolean {
-	if (isWatchRequestWithCorrelation(request)) {
-		if (typeof request.filter === 'number') {
-			switch (event.type) {
-				case FileChangeType.ADDED:
-					return (request.filter & WatchFilter.Add) === 0;
-				case FileChangeType.DELETED:
-					return (request.filter & WatchFilter.Delete) === 0;
-				case FileChangeType.UPDATED:
-					return (request.filter & WatchFilter.Update) === 0;
-			}
+	if (typeof request.filter === 'number') {
+		switch (event.type) {
+			case FileChangeType.ADDED:
+				return (request.filter & FileChangeFilter.ADDED) === 0;
+			case FileChangeType.DELETED:
+				return (request.filter & FileChangeFilter.DELETED) === 0;
+			case FileChangeType.UPDATED:
+				return (request.filter & FileChangeFilter.UPDATED) === 0;
 		}
 	}
 
@@ -458,25 +453,23 @@ export function isFiltered(event: IFileChange, request: IUniversalWatchRequest):
 }
 
 export function requestFilterToString(request: IUniversalWatchRequest): string {
-	if (isWatchRequestWithCorrelation(request)) {
-		if (typeof request.filter === 'number') {
-			const filters = [];
-			if (request.filter & WatchFilter.Add) {
-				filters.push('Added');
-			}
-			if (request.filter & WatchFilter.Delete) {
-				filters.push('Deleted');
-			}
-			if (request.filter & WatchFilter.Update) {
-				filters.push('Updated');
-			}
-
-			if (filters.length === 0) {
-				return '<all>';
-			}
-
-			return filters.join(', ');
+	if (typeof request.filter === 'number') {
+		const filters = [];
+		if (request.filter & FileChangeFilter.ADDED) {
+			filters.push('Added');
 		}
+		if (request.filter & FileChangeFilter.DELETED) {
+			filters.push('Deleted');
+		}
+		if (request.filter & FileChangeFilter.UPDATED) {
+			filters.push('Updated');
+		}
+
+		if (filters.length === 0) {
+			return '<all>';
+		}
+
+		return filters.join(', ');
 	}
 
 	return '<none>';

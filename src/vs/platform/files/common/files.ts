@@ -531,13 +531,22 @@ export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
 	readonly correlationId?: number;
 }
 
+export const enum FileChangeFilter {
+	UPDATED = 0,
+	ADDED = 1 << 1,
+	DELETED = 1 << 2
+}
+
 export interface IWatchOptionsWithCorrelation extends IWatchOptions {
 	readonly correlationId: number;
 
 	/**
-	 * TODO
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
 	 */
-	filter?: number;
+	filter?: FileChangeFilter;
 }
 
 export function isWatchOptionsWithCorrelation(options: IWatchOptions): options is IWatchOptionsWithCorrelation {

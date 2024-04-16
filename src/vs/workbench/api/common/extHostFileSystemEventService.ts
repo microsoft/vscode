@@ -12,12 +12,11 @@ import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, Sou
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileOperation } from 'vs/platform/files/common/files';
+import { FileChangeFilter, FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { Lazy } from 'vs/base/common/lazy';
-import { WatchFilter } from 'vs/platform/files/common/watcher';
 
 export interface FileSystemWatcherCreateOptions {
 	readonly correlate: boolean;
@@ -134,20 +133,20 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		let filter: WatchFilter | undefined;
+		let filter: FileChangeFilter | undefined;
 		if (options?.ignoreChangeEvents || options?.ignoreCreateEvents || options?.ignoreDeleteEvents) {
-			filter = WatchFilter.Update | WatchFilter.Add | WatchFilter.Delete;
+			filter = FileChangeFilter.UPDATED | FileChangeFilter.ADDED | FileChangeFilter.DELETED;
 
 			if (options?.ignoreChangeEvents) {
-				filter &= ~WatchFilter.Update;
+				filter &= ~FileChangeFilter.UPDATED;
 			}
 
 			if (options?.ignoreCreateEvents) {
-				filter &= ~WatchFilter.Add;
+				filter &= ~FileChangeFilter.ADDED;
 			}
 
 			if (options?.ignoreDeleteEvents) {
-				filter &= ~WatchFilter.Delete;
+				filter &= ~FileChangeFilter.DELETED;
 			}
 		}
 
