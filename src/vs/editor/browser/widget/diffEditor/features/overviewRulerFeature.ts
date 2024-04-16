@@ -23,7 +23,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class OverviewRulerFeature extends Disposable {
 	private static readonly ONE_OVERVIEW_WIDTH = 15;
-	public static readonly ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerFeature.ONE_OVERVIEW_WIDTH * 2;
+	public static readonly ENTIRE_DIFF_OVERVIEW_WIDTH = this.ONE_OVERVIEW_WIDTH * 2;
 	public readonly width = OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
 	constructor(
