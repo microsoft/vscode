@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -332,7 +333,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		const mightTriggerFocus = (
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
-				&& resolvedKeyboardEvent.commandId === 'editor.action.showHover'
+				&& resolvedKeyboardEvent.commandId === SHOW_OR_FOCUS_HOVER_ACTION_ID
 				&& this._contentWidget?.isVisible
 			)
 		);
