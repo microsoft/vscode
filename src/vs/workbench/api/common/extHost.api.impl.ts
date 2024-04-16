@@ -1712,9 +1712,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,
 			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
-			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
-			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage,
-			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
+			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage, // TODO@jrieken REMOVE
+			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage, // TODO@jrieken REMOVE
+			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage, // TODO@jrieken REMOVE
 			LanguageModelError: extHostTypes.LanguageModelError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
