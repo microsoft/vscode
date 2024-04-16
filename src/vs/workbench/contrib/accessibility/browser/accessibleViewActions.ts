@@ -74,7 +74,7 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).navigateToNextCodeBlock();
+		accessor.get(IAccessibleViewService).navigateToCodeBlock('next');
 	}
 }
 registerAction2(AccessibleViewNextCodeBlockAction);
@@ -102,7 +102,7 @@ class AccessibleViewPreviousCodeBlockAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).navigateToNextCodeBlock();
+		accessor.get(IAccessibleViewService).navigateToCodeBlock('previous');
 	}
 }
 registerAction2(AccessibleViewPreviousCodeBlockAction);
