@@ -372,7 +372,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			return '';
 		}
 		return node.replies.map(reply => nls.localize('resourceWithRepliesLabel',
-			"${0} {1}",
+			"{0} {1}",
 			reply.comment.userName,
 			(typeof reply.comment.body === 'string') ? reply.comment.body : reply.comment.body.value)
 		).join('\n');
