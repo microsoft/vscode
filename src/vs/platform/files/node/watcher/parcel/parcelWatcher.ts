@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ParcelWatcherInstance extends Disposable {
@@ -236,7 +236,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		for (const watcher of this.watchers) {
 
 			// Requests or watchers with correlation always match on that
-			if (typeof request.correlationId === 'number' || typeof watcher.request.correlationId === 'number') {
+			if (isWatchRequestWithCorrelation(request) || isWatchRequestWithCorrelation(watcher.request)) {
 				if (watcher.request.correlationId === request.correlationId) {
 					return watcher;
 				}
@@ -540,8 +540,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				continue;
 			}
 
-			// Filtering
-			if (isFiltered(event, watcher.request.filter)) {
+			// Filtering (only when correlating, because uncorrelated requests maybe de-duplicated)
+			if (isWatchRequestWithCorrelation(watcher.request) && isFiltered(event, watcher.request.filter)) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}

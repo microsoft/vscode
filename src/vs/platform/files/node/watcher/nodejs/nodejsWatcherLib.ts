@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered } from 'vs/platform/files/common/watcher';
+import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from 'vs/platform/files/common/watcher';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -474,8 +474,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		const filteredEvents: IFileChange[] = [];
 		for (const event of coalescedFileChanges) {
 
-			// Filtering
-			if (isFiltered(event, this.request.filter)) {
+			// Filtering (only when correlating, because uncorrelated requests maybe de-duplicated)
+			if (isWatchRequestWithCorrelation(this.request) && isFiltered(event, this.request.filter)) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}
