@@ -519,8 +519,8 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 	const brackets = languageConfigurationService.getLanguageConfiguration(languageId).brackets;
 	// console.log('brackets : ', brackets);
 
-	let res = line;
 	let offset = 0;
+	let strippedLine = line;
 	const numberOfTokens = tokens.getCount();
 
 	for (let i = 0; i < numberOfTokens; i++) {
@@ -535,43 +535,45 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 
 			const startOffset = tokens.getStartOffset(i);
 			const endOffset = tokens.getEndOffset(i);
-			res = res.substring(0, offset + startOffset) + res.substring(offset + endOffset);
+			strippedLine = strippedLine.substring(0, offset + startOffset) + strippedLine.substring(offset + endOffset);
 			offset += startOffset - endOffset;
 			// console.log('res : ', res);
 			// console.log('offset : ', offset);
 		}
 
 		if (standardTokenType === StandardTokenType.String || standardTokenType === StandardTokenType.RegEx) {
-			const startOffset = tokens.getStartOffset(i);
-			const endOffset = tokens.getEndOffset(i);
+			const startTokenOffset = tokens.getStartOffset(i);
+			const endTokenOffset = tokens.getEndOffset(i);
 			// const substringOfToken = res.substr(offset + startOffset, offset + endOffset);
-			const substringOfToken = line.substring(startOffset, endOffset);
+			const substringOfToken = line.substring(startTokenOffset, endTokenOffset);
 			// console.log('substringOfToken : ', substringOfToken);
 
-			let modifiedString = substringOfToken;
+			let strippedSubstringOfToken = substringOfToken;
 			const _bracketsOpen = brackets?.brackets.map((brackets) => brackets.open).flat();
 			const _bracketsClose = brackets?.brackets.map((brackets) => brackets.close).flat();
+
 			// console.log('_bracketsOpen : ', _bracketsOpen);
 			// console.log('_bracketsClose : ', _bracketsClose);
 
 			if (_bracketsOpen) {
 				_bracketsOpen.forEach((bracket) => {
-					modifiedString = modifiedString.replace(bracket, '_');
+					strippedSubstringOfToken = strippedSubstringOfToken.replace(bracket, '_');
 				});
 			}
 
 			if (_bracketsClose) {
 				_bracketsClose.forEach((bracket) => {
-					modifiedString = modifiedString.replace(bracket, '_');
+					strippedSubstringOfToken = strippedSubstringOfToken.replace(bracket, '_');
 				});
 			}
 
 			// console.log('modifiedString : ', modifiedString);
-			offset += substringOfToken.length - modifiedString.length;
+			offset += substringOfToken.length - strippedSubstringOfToken.length;
 			// console.log('offset : ', offset);
-			res = res.substring(0, offset + startOffset) + modifiedString + res.substring(offset + endOffset);
+
+			strippedLine = strippedLine.substring(0, offset + startTokenOffset) + strippedSubstringOfToken + strippedLine.substring(offset + endTokenOffset);
 			// console.log('res : ', res);
 		}
 	}
-	return res;
+	return strippedLine;
 }
