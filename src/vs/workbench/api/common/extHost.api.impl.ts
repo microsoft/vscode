@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
@@ -749,7 +749,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidEndTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			get state() {
-				return extHostWindow.getState(extension);
+				return extHostWindow.getState();
 			},
 			onDidChangeWindowState(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostWindow.onDidChangeWindowState)(listener, thisArg, disposables);
@@ -1448,6 +1448,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			sendChatRequest(languageModel: string, messages: vscode.LanguageModelChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostLanguageModels.sendChatRequest(extension, languageModel, messages, options, token);
+			},
+			computeTokenLength(languageModel: string, text: string | vscode.LanguageModelChatMessage, token?: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'languageModels');
+				token ??= CancellationToken.None;
+				return extHostLanguageModels.computeTokenLength(languageModel, text, token);
+			},
+			getLanguageModelInformation(languageModel: string) {
+				checkProposedApiEnabled(extension, 'languageModels');
+				return extHostLanguageModels.getLanguageModelInfo(languageModel);
 			}
 		};
 
@@ -1703,9 +1712,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,
 			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
-			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
-			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage,
-			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
+			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage, // TODO@jrieken REMOVE
+			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage, // TODO@jrieken REMOVE
+			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage, // TODO@jrieken REMOVE
 			LanguageModelError: extHostTypes.LanguageModelError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
