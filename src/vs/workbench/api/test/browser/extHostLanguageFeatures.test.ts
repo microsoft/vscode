@@ -23,6 +23,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import * as languages from 'vs/editor/common/languages';
 import { getCodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
+import { getHoversPromise } from 'vs/editor/contrib/hover/browser/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
@@ -55,7 +56,6 @@ import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/typ
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { getHoversPromise } from 'vs/editor/contrib/hover/browser/getHover';
 
 suite('ExtHostLanguageFeatures', function () {
 

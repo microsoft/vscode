@@ -204,7 +204,6 @@ export class HoverOperation<T> extends Disposable {
 
 export class DisposableHoverOperation<T extends IOptionalDisposable> extends HoverOperation<T> {
 
-
 	override cancel(): void {
 		super.cancel();
 		this._result?.forEach(item => {
