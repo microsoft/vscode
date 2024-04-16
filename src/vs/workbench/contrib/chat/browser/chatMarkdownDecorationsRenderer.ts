@@ -5,22 +5,20 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/languages';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { contentRefUrl } from '../common/annotations';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { h } from 'vs/base/browser/dom';
-import { FileAccess } from 'vs/base/common/network';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { showExtensionsWithIdsCommandId } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 
 const variableRefUrl = 'http://_vscodedecoration_';
 const agentRefUrl = 'http://_chatagent_';
@@ -31,6 +29,7 @@ export class ChatMarkdownDecorationsRenderer {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
@@ -62,14 +61,15 @@ export class ChatMarkdownDecorationsRenderer {
 		return result;
 	}
 
-	walkTreeAndAnnotateReferenceLinks(element: HTMLElement): void {
+	walkTreeAndAnnotateReferenceLinks(element: HTMLElement): IDisposable {
+		const store = new DisposableStore();
 		element.querySelectorAll('a').forEach(a => {
 			const href = a.getAttribute('data-href');
 			if (href) {
 				if (href.startsWith(agentRefUrl)) {
 					const title = decodeURIComponent(href.slice(agentRefUrl.length + 1));
 					a.parentElement!.replaceChild(
-						this.renderAgentWidget(a.textContent!, title),
+						this.renderAgentWidget(a.textContent!, title, store),
 						a);
 				} else if (href.startsWith(variableRefUrl)) {
 					const title = decodeURIComponent(href.slice(variableRefUrl.length + 1));
@@ -83,57 +83,17 @@ export class ChatMarkdownDecorationsRenderer {
 				}
 			}
 		});
+
+		return store;
 	}
 
-	private renderAgentWidget(name: string, id: string): HTMLElement {
-		const agent = this.chatAgentService.getAgent(id)!;
+	private renderAgentWidget(name: string, id: string, store: DisposableStore): HTMLElement {
+		const container = dom.$('span.chat-resource-widget', undefined, dom.$('span', undefined, name));
 
-		const container = dom.$('span.chat-resource-widget');
-		const alias = dom.$('span', undefined, name);
-
-		const hoverElement = h(
-			'.chat-agent-hover@root',
-			[
-				h('.chat-agent-hover-header', [
-					h('.chat-agent-hover-icon@icon'),
-					h('.chat-agent-hover-details', [
-						h('.chat-agent-hover-name@name'),
-						h('.chat-agent-hover-extension', [
-							h('.chat-agent-hover-extension-name@extensionName'),
-							h('.chat-agent-hover-separator@separator'),
-							h('.chat-agent-hover-publisher@publisher'),
-						]),
-					]),
-				]),
-				h('.chat-agent-hover-description@description'),
-			]);
-
-		if (agent.metadata.icon instanceof URI) {
-			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
-			avatarIcon.src = FileAccess.uriToBrowserUri(agent.metadata.icon).toString(true);
-			hoverElement.icon.replaceChildren(dom.$('.avatar', undefined, avatarIcon));
-		} else if (agent.metadata.themeIcon) {
-			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(agent.metadata.themeIcon));
-			hoverElement.icon.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
-		}
-
-		hoverElement.name.textContent = `@${agent.name}`;
-		hoverElement.extensionName.textContent = agent.extensionDisplayName;
-		hoverElement.separator.textContent = ' | ';
-		hoverElement.publisher.textContent = agent.extensionPublisher;
-
-		const description = agent.description && !agent.description.endsWith('.') ?
-			`${agent.description}. ` :
-			(agent.description || '');
-		hoverElement.description.textContent = description;
-
-		const marketplaceLink = document.createElement('a');
-		marketplaceLink.setAttribute('href', `command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([agent.extensionId.value]))}`);
-		marketplaceLink.textContent = localize('marketplaceLabel', "View in Marketplace") + '.';
-		hoverElement.description.appendChild(marketplaceLink);
-
-		this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, hoverElement.root);
-		container.appendChild(alias);
+		store.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, () => {
+			const hover = this.instantiationService.createInstance(ChatAgentHover, id);
+			return hover.domNode;
+		}));
 		return container;
 	}
 

@@ -71,10 +71,14 @@ import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/text
 import { TextEdit } from 'vs/editor/common/languages';
 import { IChatListItemRendererOptions } from './chat';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
 
 const $ = dom.$;
 
 interface IChatListItemTemplate {
+	currentElement?: ChatTreeItem;
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly avatarContainer: HTMLElement;
@@ -146,6 +150,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -283,6 +288,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}));
 		}
+
+		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), header, () => {
+			if (isResponseVM(template.currentElement) && template.currentElement.agent) {
+				const hover = this.instantiationService.createInstance(ChatAgentHover, template.currentElement.agent.id);
+				return hover.domNode;
+			}
+
+			return undefined;
+		}));
+
 		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
@@ -292,6 +307,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
+		templateData.currentElement = element;
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
 				'welcome';
@@ -399,11 +415,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.detail.textContent = progressMsg;
-		if (element.agent) {
-			templateData.detail.title = progressMsg + (element.slashCommand?.description ? `\n${element.slashCommand.description}` : '');
-		} else {
-			templateData.detail.title = '';
-		}
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
@@ -1021,7 +1032,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
 
-		this.markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element);
+		disposables.add(this.markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {
