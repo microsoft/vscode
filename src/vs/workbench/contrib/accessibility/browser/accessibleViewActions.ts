@@ -62,15 +62,13 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
-			icon: Codicon.arrowDown,
-			menu: [
-				commandPalette,
-				{
-					...accessibleViewMenu,
-					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
-				}
-			],
-			title: localize('editor.action.accessibleViewNextCodeBlock', "Navigate to the next code block in the accessible view")
+			icon: Codicon.arrowRight,
+			menu:
+			{
+				...accessibleViewMenu,
+				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+			},
+			title: localize('editor.action.accessibleViewNextCodeBlock', "Accessible View: Next Code Block")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -90,15 +88,12 @@ class AccessibleViewPreviousCodeBlockAction extends Action2 {
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
-			icon: Codicon.arrowDown,
-			menu: [
-				commandPalette,
-				{
-					...accessibleViewMenu,
-					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
-				}
-			],
-			title: localize('editor.action.accessibleViewPreviousCodeBlock', "Navigate to the previous code block in the accessible view")
+			icon: Codicon.arrowLeft,
+			menu: {
+				...accessibleViewMenu,
+				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+			},
+			title: localize('editor.action.accessibleViewPreviousCodeBlock', "Accessible View: Previous Code Block")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
