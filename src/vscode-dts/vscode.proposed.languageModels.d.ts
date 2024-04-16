@@ -203,6 +203,24 @@ declare module 'vscode' {
 	export namespace lm {
 
 		/**
+		 * The identifiers of all language models that are currently available.
+		 */
+		export const languageModels: readonly string[];
+
+		/**
+		 * An event that is fired when the set of available language models changes.
+		 */
+		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
+
+		/**
+		 * Retrieve information about a language model.
+		 *
+		 * @param languageModel A language model identifier.
+		 * @returns A {@link LanguageModelInformation} instance or `undefined` if the language model does not exist.
+		 */
+		export function getLanguageModelInformation(languageModel: string): LanguageModelInformation | undefined;
+
+		/**
 		 * Make a chat request using a language model.
 		 *
 		 * - *Note 1:* language model use may be subject to access restrictions and user consent.
@@ -226,19 +244,17 @@ declare module 'vscode' {
 		 */
 		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
-		export function getLanguageModelInformation(languageModel: string): LanguageModelInformation | undefined;
-
-		export function computeTokenLength(languageModel: string, text: string, token?: CancellationToken): Thenable<number>;
-
 		/**
-		 * The identifiers of all language models that are currently available.
+		 * Uses the language model specific tokenzier and computes the length in token of a given message.
+		 *
+		 * *Note* that this function will throw when the language model does not exist.
+		 *
+		 * @param languageModel A language model identifier.
+		 * @param text A string or a message instance.
+		 * @param token Optional cancellation token.
+		 * @returns A thenable that resolves to the length of the message in tokens.
 		 */
-		export const languageModels: readonly string[];
-
-		/**
-		 * An event that is fired when the set of available language models changes.
-		 */
-		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
+		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
 	}
 
 	/**
@@ -261,7 +277,6 @@ declare module 'vscode' {
 		 * model does not exist or consent hasn't been asked for.
 		 */
 		canSendRequest(languageModelId: string): boolean | undefined;
-
 	}
 
 	export interface ExtensionContext {

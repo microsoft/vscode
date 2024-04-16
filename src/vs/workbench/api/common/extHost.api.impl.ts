@@ -1449,7 +1449,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostLanguageModels.sendChatRequest(extension, languageModel, messages, options, token);
 			},
-			computeTokenLength(languageModel: string, text: string, token?: vscode.CancellationToken) {
+			computeTokenLength(languageModel: string, text: string | vscode.LanguageModelChatMessage, token?: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'languageModels');
 				token ??= CancellationToken.None;
 				return extHostLanguageModels.computeTokenLength(languageModel, text, token);

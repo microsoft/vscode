@@ -18,7 +18,7 @@ declare module 'vscode' {
 	export interface ChatResponseProvider {
 		provideLanguageModelResponse2(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 
-		provideTokenCount(text: string, token: CancellationToken): Thenable<number>;
+		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
 	}
 
 	export interface ChatResponseProviderMetadata {

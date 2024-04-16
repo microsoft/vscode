@@ -42,7 +42,7 @@ export interface ILanguageModelChatMetadata {
 export interface ILanguageModelChat {
 	metadata: ILanguageModelChatMetadata;
 	provideChatResponse(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
-	provideTokenCount(str: string, token: CancellationToken): Promise<number>;
+	provideTokenCount(message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
@@ -61,7 +61,7 @@ export interface ILanguageModelsService {
 
 	makeLanguageModelChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 
-	computeTokenLength(identifier: string, message: string, token: CancellationToken): Promise<number>;
+	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export class LanguageModelsService implements ILanguageModelsService {
@@ -106,7 +106,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return provider.provideChatResponse(messages, from, options, progress, token);
 	}
 
-	computeTokenLength(identifier: string, message: string, token: CancellationToken): Promise<number> {
+	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
 		const provider = this._providers.get(identifier);
 		if (!provider) {
 			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
