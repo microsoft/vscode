@@ -279,19 +279,6 @@ export interface IDisposable {
 }
 
 /**
- * An object that performs an optional cleanup operation when `.dispose()` is called.
- *
- * Some examples of how disposables are used:
- *
- * - An event listener that removes itself when `.dispose()` is called.
- * - A resource such as a file system watcher that cleans up the resource when `.dispose()` is called.
- * - The return value from registering a provider. When `.dispose()` is called, the provider is unregistered.
- */
-export interface IOptionalDisposable {
-	dispose?(): void;
-}
-
-/**
  * Check if `thing` is {@link IDisposable disposable}.
  */
 export function isDisposable<E extends any>(thing: E): thing is E & IDisposable {

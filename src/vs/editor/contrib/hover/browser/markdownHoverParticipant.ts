@@ -33,7 +33,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
+import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -167,7 +167,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	private _getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
 		const position = anchor.range.getStartPosition();
-		const hoverProviderResults = getHover(hoverProviderRegistry, model, position, token);
+		const hoverProviderResults = getHoverProviderResultsAsAsyncIterable(hoverProviderRegistry, model, position, token);
 		const markdownHovers = hoverProviderResults.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const range = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
@@ -182,7 +182,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return this._renderedHoverParts;
 	}
 
-	public updateFocusedHoverPartVerbosityLevel(action: HoverVerbosityAction) {
+	public updateFocusedMarkdownHoverPartVerbosityLevel(action: HoverVerbosityAction) {
 		this._renderedHoverParts?.updateFocusedHoverPartVerbosityLevel(action);
 	}
 }

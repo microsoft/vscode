@@ -181,12 +181,6 @@ export interface Hover {
 }
 
 /**
- * A hover represents additional information for a symbol or word. Hovers are
- * rendered in a tooltip-like widget.
- */
-export interface DisposableHover extends Hover, IDisposable { }
-
-/**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
@@ -196,7 +190,7 @@ export interface HoverProvider<THover = Hover> {
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<THover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<Hover>;
 }
 
 export interface HoverContext<THover = Hover> {
