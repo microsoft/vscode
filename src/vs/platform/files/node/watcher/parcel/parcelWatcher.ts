@@ -839,7 +839,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher) });
 	}
 
-	private error(message: string, watcher: ParcelWatcherInstance | undefined) {
+	private error(message: string, watcher?: ParcelWatcherInstance) {
 		this._onDidLogMessage.fire({ type: 'error', message: this.toMessage(message, watcher) });
 	}
 
