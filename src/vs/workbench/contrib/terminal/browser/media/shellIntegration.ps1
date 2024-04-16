@@ -87,7 +87,13 @@ function Global:Prompt() {
 		Write-Error "failure" -ea ignore
 	}
 	# Run the original prompt
-	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
+	$OriginalPrompt += $Global:__VSCodeOriginalPrompt.Invoke()
+	$Result += $OriginalPrompt
+
+	# Prompt height
+	# OSC 633 ; <Property>=<Value> ST
+	$Result += "$([char]0x1b)]633;P;PromptHeight=$(__VSCode-Escape-Value ($OriginalPrompt -Split '\n').Count)`a"
+
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
 	$Global:__LastHistoryId = $LastHistoryEntry.Id

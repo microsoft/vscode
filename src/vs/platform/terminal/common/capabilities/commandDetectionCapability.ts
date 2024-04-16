@@ -198,6 +198,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._cwd = value;
 	}
 
+	setPromptHeight(value: number) {
+		this._currentCommand.promptHeight = value;
+	}
+
 	setIsWindowsPty(value: boolean) {
 		if (value && !(this._ptyHeuristics.value instanceof WindowsPtyHeuristics)) {
 			const that = this;
@@ -646,7 +650,9 @@ class WindowsPtyHeuristics extends Disposable {
 	}
 
 	handleInput() {
-		if (this._capability.currentCommand.isAdjusted === true || this._capability.currentCommand.isInputAdjusted === true) {
+		const hasActiveCommand = this._capability.currentCommand.commandStartX !== undefined && this._capability.currentCommand.commandExecutedX === undefined;
+		const hasAdjusted = this._capability.currentCommand.isAdjusted === true || this._capability.currentCommand.isInputAdjusted === true;
+		if (!hasActiveCommand || hasAdjusted) {
 			return;
 		}
 		this._capability.currentCommand.isInputAdjusted = true;
@@ -723,14 +729,14 @@ class WindowsPtyHeuristics extends Disposable {
 					// Adjust the prompt start marker to the command start marker
 					this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
 					this._capability.currentCommand.promptStartMarker?.dispose();
-					this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
+					this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker, -(this._capability.currentCommand.promptHeight ?? 0));
 
 					// Adjust the last command if it's not in the same position as the following
 					// prompt start marker
 					const lastCommand = this._capability.commands.at(-1);
 					if (lastCommand && this._capability.currentCommand.commandStartMarker.line !== lastCommand.endMarker?.line) {
 						lastCommand.endMarker?.dispose();
-						lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
+						lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker, -(this._capability.currentCommand.promptHeight ?? 0));
 					}
 
 					// use the regex to set the position as it's possible input has occurred

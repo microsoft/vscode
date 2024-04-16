@@ -213,6 +213,7 @@ export class TerminalCommand implements ITerminalCommand {
 
 export interface ICurrentPartialCommand {
 	promptStartMarker?: IMarker;
+	promptHeight?: number;
 
 	commandStartMarker?: IMarker;
 	commandStartX?: number;
@@ -260,6 +261,7 @@ export interface ICurrentPartialCommand {
 
 export class PartialTerminalCommand implements ICurrentPartialCommand {
 	promptStartMarker?: IMarker;
+	promptHeight?: number;
 
 	commandStartMarker?: IMarker;
 	commandStartX?: number;
