@@ -98,10 +98,12 @@ declare module 'vscode' {
 	 */
 	export type LanguageModelChatMessage = LanguageModelChatSystemMessage | LanguageModelChatUserMessage | LanguageModelChatAssistantMessage;
 
-	// TODO@API have `lm.getLanguageModelInformation(languageModelId: string): LanguageModelInformation`
+	/**
+	 * Represents information about a registered language model.
+	 */
 	export interface LanguageModelInformation {
 		/**
-		 * The identifier of the language model
+		 * The identifier of the language model.
 		 */
 		readonly id: string;
 
@@ -116,9 +118,11 @@ declare module 'vscode' {
 		readonly version: string;
 
 		/**
-		 * The number of available tokens for this language model.
+		 * The number of available tokens that can be used when sending requests
+		 * to the language model.
+		 *
+		 * @see {@link lm.sendChatRequest}
 		 */
-		// TODO@API merge with computeTokenLength?
 		readonly tokens: number;
 	}
 
