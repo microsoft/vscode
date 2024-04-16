@@ -541,9 +541,9 @@ export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
 }
 
 export const enum FileChangeFilter {
-	UPDATED = 0,
-	ADDED = 1 << 1,
-	DELETED = 1 << 2
+	UPDATED = 1 << 1,
+	ADDED = 1 << 2,
+	DELETED = 1 << 3
 }
 
 export interface IWatchOptionsWithCorrelation extends IWatchOptions {
