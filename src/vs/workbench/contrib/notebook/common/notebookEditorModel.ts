@@ -260,6 +260,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			cells: [],
 		};
 
+		let outputSize = 0;
 		for (const cell of this._notebookModel.cells) {
 			const cellData: ICellDto2 = {
 				cellKind: cell.cellKind,
@@ -272,20 +273,17 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 			const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
 			if (forBackup && outputSizeLimit > 0) {
-				let outputSize = 0;
 				cell.outputs.forEach(output => {
 					output.outputs.forEach(item => {
 						outputSize += item.data.byteLength;
 					});
 				});
 				if (outputSize > outputSizeLimit) {
-					cellData.outputs = [];
-				} else {
-					cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
+					throw new Error('Notebook too large to backup');
 				}
-			} else {
-				cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
 			}
+
+			cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
 			cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);
 
 			data.cells.push(cellData);
