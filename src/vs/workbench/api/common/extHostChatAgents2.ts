@@ -10,7 +10,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
-import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -198,20 +198,22 @@ class ChatAgentResponseStream {
 	}
 }
 
-export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
+export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsShape2 {
 
 	private static _idPool = 0;
 
 	private readonly _agents = new Map<number, ExtHostChatAgent>();
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
-	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = new DisposableMap();
+	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
+	private readonly _completionDisposables = this._register(new DisposableStore());
 
 	constructor(
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly commands: ExtHostCommands,
 	) {
+		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
@@ -373,7 +375,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 
 		const items = await agent.invokeCompletionProvider(query, token);
-		return items.map(typeConvert.ChatAgentCompletionItem.from);
+
+		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this.commands.converter, this._completionDisposables));
 	}
 
 	async $provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
