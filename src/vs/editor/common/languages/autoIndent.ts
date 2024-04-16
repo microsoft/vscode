@@ -13,6 +13,7 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 import { getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { getStrippedScopedLineTextFor } from 'vs/editor/common/languages/enterAction';
 
 export interface IVirtualModel {
 	tokenization: {
@@ -344,9 +345,13 @@ export function getIndentForEnter(
 	if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
 		// we are in the embeded language content
 		embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
-		beforeEnterText = scopedLineText.substring(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		// beforeEnterText = scopedLineText.substring(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+		beforeEnterText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, scopedLineTokens, { isStart: false, columnIndexWithinScope });
 	} else {
-		beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
+		// beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
+		const columnIndexWithinScope = range.startColumn - 1;
+		beforeEnterText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, lineTokens, { isStart: false, columnIndexWithinScope });
 	}
 
 	let _afterEnterText: string;

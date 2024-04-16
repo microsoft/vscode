@@ -99,9 +99,9 @@ function getAfterEnterText(
 	return getStrippedScopedLineTextFor(languageConfigurationService, initialLineTokens, scopedLineTokens, { isStart: true, columnIndexWithinScope });
 }
 
-function getStrippedScopedLineTextFor(languageConfigurationService: ILanguageConfigurationService, initialLineTokens: LineTokens, scopedLineTokens: ScopedLineTokens, opts: { columnIndexWithinScope: number, isStart: boolean }) {
+export function getStrippedScopedLineTextFor(languageConfigurationService: ILanguageConfigurationService, initialLineTokens: LineTokens, scopedLineTokens: ScopedLineTokens | LineTokens, opts: { columnIndexWithinScope: number, isStart: boolean }) {
 
-	const language = scopedLineTokens.languageId;
+	const language = 'languageId' in scopedLineTokens ? scopedLineTokens.languageId : '';
 	const scopedLineText = scopedLineTokens.getLineContent();
 	let text: string;
 	let firstCharacterOffset: number;
@@ -112,16 +112,16 @@ function getStrippedScopedLineTextFor(languageConfigurationService: ILanguageCon
 	const isStart = opts.isStart;
 	if (isStart) {
 		text = scopedLineText.substring(opts.columnIndexWithinScope);
-		firstCharacterOffset = scopedLineTokens.firstCharOffset;
-		lastCharacterOffset = scopedLineTokens.firstCharOffset + opts.columnIndexWithinScope;
-		firstTokenIndex = scopedLineTokens.firstTokenIndex;
+		firstCharacterOffset = 'firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0;
+		lastCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope;
+		firstTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0);
 		lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
 	} else {
 		text = scopedLineText.substring(0, opts.columnIndexWithinScope);
-		firstCharacterOffset = scopedLineTokens.firstCharOffset + opts.columnIndexWithinScope;
-		lastCharacterOffset = scopedLineTokens.firstCharOffset + text.length;
-		firstTokenIndex = scopedLineTokens.firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
-		lastTokenIndex = scopedLineTokens.firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(scopedLineText.length - 1) + 1;
+		firstCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope;
+		lastCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + text.length;
+		firstTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0) + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
+		lastTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0) + scopedLineTokens.findTokenIndexAtOffset(scopedLineText.length - 1) + 1;
 	}
 
 	const tokensOfText = new ScopedLineTokens(
