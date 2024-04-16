@@ -21,6 +21,10 @@ export class StopWatch {
 
 	constructor(highResolution?: boolean) {
 		this._now = hasPerformanceNow && highResolution === false ? Date.now : globalThis.performance!.now.bind(globalThis.performance);
+		this.reset();
+	}
+
+	public reset(): void {
 		this._startTime = this._now();
 		this._stopTime = -1;
 	}

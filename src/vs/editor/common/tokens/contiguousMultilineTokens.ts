@@ -53,6 +53,13 @@ export class ContiguousMultilineTokens {
 	}
 
 	/**
+	 * Set the start line number of the token
+	 */
+	public set startLineNumber(line) {
+		this._startLineNumber = line;
+	}
+
+	/**
 	 * (Inclusive) end line number for these tokens.
 	 */
 	public get endLineNumber(): number {
