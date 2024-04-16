@@ -289,12 +289,12 @@ class HoverAdapter {
 		if (!value.range) {
 			value.range = new Range(pos, pos);
 		}
-		const disposableHover: languages.Hover = typeConvert.Hover.from(value);
+		const convertedHover: languages.Hover = typeConvert.Hover.from(value);
 		const id = this._hoverCounter;
 		this._hoverMap.set(id, value);
 		this._hoverCounter += 1;
 		const hover: extHostProtocol.HoverWithId = {
-			...disposableHover,
+			...convertedHover,
 			id
 		};
 		return hover;

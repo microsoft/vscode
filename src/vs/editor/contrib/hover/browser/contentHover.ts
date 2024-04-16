@@ -8,7 +8,7 @@ import { HoverAction, HoverWidget, getHoverAccessibleViewHint } from 'vs/base/br
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { DisposableHoverOperation, HoverOperation, HoverStartMode, HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
+import { HoverOperation, HoverStartMode, HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -41,7 +41,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	private readonly _participants: IEditorHoverParticipant[];
 	// TODO@aiday-mar make array of participants, dispatch between them
 	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-	private readonly _hoverOperation: DisposableHoverOperation<IHoverPart>;
+	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -69,17 +69,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._register(this._hoverOperation.onResult((result) => {
 			if (!this._computer.anchor) {
 				// invalid state, ignore result
-				// What to do here?
-				// this._disposeUnusedHoverParts(result.value);
 				return;
 			}
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
-			this._withResult(new HoverResult(this._computer.anchor, messages.map(i => {
-				if (i.clone) {
-					return i.clone();
-				}
-				return i;
-			}), result.isComplete));
+			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
 		}));
 		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
@@ -177,11 +170,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		if (hoverResult && hoverResult.messages.length === 0) {
 			hoverResult = null;
 		}
-		this._currentResult?.messages?.forEach(m => {
-			if (m.dispose) {
-				m.dispose();
-			}
-		});
 		this._currentResult = hoverResult;
 		if (this._currentResult) {
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
@@ -205,29 +193,16 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	private _withResult(hoverResult: HoverResult): void {
-		// becomes the new owner of hoverResult
-		// (dispose it when not needed anymore)
-
 		if (this._widget.position && this._currentResult && this._currentResult.isComplete) {
 			// The hover is visible with a previous complete result.
 
 			if (!hoverResult.isComplete) {
 				// Instead of rendering the new partial result, we wait for the result to be complete.
-				hoverResult.messages.forEach(m => {
-					if (m.dispose) {
-						m.dispose();
-					}
-				});
 				return;
 			}
 
 			if (this._computer.insistOnKeepingHoverVisible && hoverResult.messages.length === 0) {
 				// The hover would now hide normally, so we'll keep the previous messages
-				hoverResult.messages.forEach(m => {
-					if (m.dispose) {
-						m.dispose();
-					}
-				});
 				return;
 			}
 		}
@@ -467,9 +442,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 }
 
-class HoverResult implements IDisposable { // dispose messages
-
-	private _refCount = 1;
+class HoverResult {
 
 	constructor(
 		public readonly anchor: HoverAnchor,
@@ -477,28 +450,12 @@ class HoverResult implements IDisposable { // dispose messages
 		public readonly isComplete: boolean
 	) { }
 
-	clone() {
-		this._refCount++;
-		return this;
-	}
-
-	dispose() {
-		if (--this._refCount === 0) {
-			this.messages.forEach(m => {
-				if (m.dispose) {
-					m.dispose();
-				}
-			});
-		}
-	}
-
 	public filter(anchor: HoverAnchor): HoverResult {
 		const filteredMessages = this.messages.filter((m) => m.isValidForHoverAnchor(anchor));
 		if (filteredMessages.length === this.messages.length) {
 			return this;
 		}
-		const cloned = this.clone();
-		return new FilteredHoverResult(cloned, this.anchor, filteredMessages, this.isComplete);
+		return new FilteredHoverResult(this, this.anchor, filteredMessages, this.isComplete);
 	}
 }
 
@@ -511,10 +468,6 @@ class FilteredHoverResult extends HoverResult {
 		isComplete: boolean
 	) {
 		super(anchor, messages, isComplete);
-	}
-
-	override dispose(): void {
-		this.original.dispose();
 	}
 
 	public override filter(anchor: HoverAnchor): HoverResult {

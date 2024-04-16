@@ -36,15 +36,6 @@ export interface IHoverPart {
 	 * Is this hover part still valid for this new anchor?
 	 */
 	isValidForHoverAnchor(anchor: HoverAnchor): boolean;
-
-	/**
-	 * If dipose is provided, clone has to be implemented.
-	 */
-	dispose?(): void;
-	/**
-	 * Creates a copy with its own lifetime. If clone is provided, dispose has to be implemented.
-	 */
-	clone?(): IHoverPart;
 }
 
 export const enum HoverAnchorType {

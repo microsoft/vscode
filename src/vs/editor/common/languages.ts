@@ -190,7 +190,7 @@ export interface DisposableHover extends Hover, IDisposable { }
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
-export interface HoverProvider<THover = DisposableHover> {
+export interface HoverProvider<THover = Hover> {
 	/**
 	 * Provide a hover for the given position, context and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
@@ -199,7 +199,7 @@ export interface HoverProvider<THover = DisposableHover> {
 	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<THover>;
 }
 
-export interface HoverContext<THover = DisposableHover> {
+export interface HoverContext<THover = Hover> {
 	/**
 	 * Whether to increase or decrease the hover's verbosity
 	 */
