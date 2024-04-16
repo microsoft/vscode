@@ -2001,6 +2001,12 @@ export enum TerminalExitReason {
 	Extension = 4
 }
 
+export enum TerminalShellExecutionCommandLineConfidence {
+	Low = 0,
+	Medium = 1,
+	High = 2
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
@@ -2794,9 +2800,9 @@ export class DocumentDropEdit {
 
 	additionalEdit?: WorkspaceEdit;
 
-	kind?: DocumentPasteEditKind;
+	kind?: DocumentDropOrPasteEditKind;
 
-	constructor(insertText: string | SnippetString, title?: string, kind?: DocumentPasteEditKind) {
+	constructor(insertText: string | SnippetString, title?: string, kind?: DocumentDropOrPasteEditKind) {
 		this.insertText = insertText;
 		this.title = title;
 		this.kind = kind;
@@ -2808,8 +2814,8 @@ export enum DocumentPasteTriggerKind {
 	PasteAs = 1,
 }
 
-export class DocumentPasteEditKind {
-	static Empty: DocumentPasteEditKind;
+export class DocumentDropOrPasteEditKind {
+	static Empty: DocumentDropOrPasteEditKind;
 
 	private static sep = '.';
 
@@ -2817,29 +2823,28 @@ export class DocumentPasteEditKind {
 		public readonly value: string
 	) { }
 
-	public append(...parts: string[]): DocumentPasteEditKind {
-		return new DocumentPasteEditKind((this.value ? [this.value, ...parts] : parts).join(DocumentPasteEditKind.sep));
+	public append(...parts: string[]): DocumentDropOrPasteEditKind {
+		return new DocumentDropOrPasteEditKind((this.value ? [this.value, ...parts] : parts).join(DocumentDropOrPasteEditKind.sep));
 	}
 
-	public intersects(other: DocumentPasteEditKind): boolean {
+	public intersects(other: DocumentDropOrPasteEditKind): boolean {
 		return this.contains(other) || other.contains(this);
 	}
 
-	public contains(other: DocumentPasteEditKind): boolean {
-		return this.value === other.value || other.value.startsWith(this.value + DocumentPasteEditKind.sep);
+	public contains(other: DocumentDropOrPasteEditKind): boolean {
+		return this.value === other.value || other.value.startsWith(this.value + DocumentDropOrPasteEditKind.sep);
 	}
 }
-DocumentPasteEditKind.Empty = new DocumentPasteEditKind('');
+DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
 
-@es5ClassCompat
 export class DocumentPasteEdit {
 
 	title: string;
 	insertText: string | SnippetString;
 	additionalEdit?: WorkspaceEdit;
-	kind: DocumentPasteEditKind;
+	kind: DocumentDropOrPasteEditKind;
 
-	constructor(insertText: string | SnippetString, title: string, kind: DocumentPasteEditKind) {
+	constructor(insertText: string | SnippetString, title: string, kind: DocumentDropOrPasteEditKind) {
 		this.title = title;
 		this.insertText = insertText;
 		this.kind = kind;
@@ -4208,7 +4213,7 @@ export class InteractiveWindowInput {
 }
 
 export class ChatEditorTabInput {
-	constructor(readonly providerId: string) { }
+	constructor() { }
 }
 
 export class TextMultiDiffTabInput {
@@ -4240,6 +4245,7 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	values: vscode.ChatVariableValue[];
 	detail?: string;
 	documentation?: string | MarkdownString;
+	command?: vscode.Command;
 
 	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
 		this.label = label;
@@ -4267,7 +4273,38 @@ export enum ChatResultFeedbackKind {
 export class ChatResponseMarkdownPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
 		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+/**
+ * TODO if 'vulnerabilities' is finalized, this should be merged with the base ChatResponseMarkdownPart. I just don't see how to do that while keeping
+ * vulnerabilities in a seperate API proposal in a clean way.
+ */
+export class ChatResponseMarkdownWithVulnerabilitiesPart {
+	value: vscode.MarkdownString;
+	vulnerabilities: vscode.ChatVulnerability[];
+	constructor(value: string | vscode.MarkdownString, vulnerabilities: vscode.ChatVulnerability[]) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+		this.vulnerabilities = vulnerabilities;
+	}
+}
+
+export class ChatResponseDetectedParticipantPart {
+	participant: string;
+	// TODO@API validate this against statically-declared slash commands?
+	command?: vscode.ChatCommand;
+	constructor(participant: string, command?: vscode.ChatCommand) {
+		this.participant = participant;
+		this.command = command;
 	}
 }
 
@@ -4310,6 +4347,14 @@ export class ChatResponseReferencePart {
 	}
 }
 
+export class ChatResponseTextEditPart {
+	uri: vscode.Uri;
+	edits: vscode.TextEdit[];
+	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+		this.uri = uri;
+		this.edits = Array.isArray(edits) ? edits : [edits];
+	}
+}
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(

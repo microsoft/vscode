@@ -94,6 +94,7 @@ import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { mainWindow } from 'vs/base/browser/window';
+import { ResourceMap } from 'vs/base/common/map';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -629,9 +630,22 @@ export class StandaloneConfigurationService implements IConfigurationService {
 
 	private readonly _configuration: Configuration;
 
-	constructor() {
-		const defaultConfiguration = new DefaultConfiguration();
-		this._configuration = new Configuration(defaultConfiguration.reload(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+	constructor(
+		@ILogService private readonly logService: ILogService,
+	) {
+		const defaultConfiguration = new DefaultConfiguration(logService);
+		this._configuration = new Configuration(
+			defaultConfiguration.reload(),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			logService
+		);
 		defaultConfiguration.dispose();
 	}
 
@@ -660,7 +674,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		}
 
 		if (changedKeys.length > 0) {
-			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
+			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration, undefined, this.logService);
 			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
 			this._onDidChangeConfiguration.fire(configurationChangeEvent);
 		}
@@ -1092,6 +1106,7 @@ export interface IEditorOverrideServices {
 	[index: string]: any;
 }
 
+registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourcePropertiesService, StandaloneResourcePropertiesService, InstantiationType.Eager);
@@ -1104,7 +1119,6 @@ registerSingleton(INotificationService, StandaloneNotificationService, Instantia
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Eager);
 registerSingleton(ILanguageService, StandaloneLanguageService, InstantiationType.Eager);
 registerSingleton(IStandaloneThemeService, StandaloneThemeService, InstantiationType.Eager);
-registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IModelService, ModelService, InstantiationType.Eager);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Eager);
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager);

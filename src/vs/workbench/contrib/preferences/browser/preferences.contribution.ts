@@ -239,6 +239,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: 'workbench.action.openSettingsJson',
 					title: OPEN_USER_SETTINGS_JSON_TITLE,
+					metadata: {
+						description: nls.localize2('workbench.action.openSettingsJson.description', "Opens the JSON file containing the current user profile settings")
+					},
 					category,
 					f1: true,
 				});

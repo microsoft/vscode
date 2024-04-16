@@ -28,7 +28,9 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		if (query && query !== '') {
 			const filters = splitGlobAware(query, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
-				if (f.startsWith('!')) {
+				if (f.startsWith('\\')) {
+					this._parsedQueries.push({ type: 'include', query: f.slice(1) });
+				} else if (f.startsWith('!')) {
 					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) });
 				} else {
 					this._parsedQueries.push({ type: 'include', query: f });

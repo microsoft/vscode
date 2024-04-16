@@ -134,16 +134,21 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
-		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
+		const renderedMarkdown = $('div.hover-row');
+		context.fragment.appendChild(renderedMarkdown);
+		const renderedMarkdownContents = $('div.hover-row-contents');
+		renderedMarkdown.appendChild(renderedMarkdownContents);
+		return renderMarkdownHovers(renderedMarkdownContents, hoverParts, this._editor, this._languageService, this._openerService, context.onContentsChanged);
 	}
 }
 
 export function renderMarkdownHovers(
-	context: IEditorHoverRenderContext,
+	container: DocumentFragment | HTMLElement,
 	hoverParts: MarkdownHover[],
 	editor: ICodeEditor,
 	languageService: ILanguageService,
 	openerService: IOpenerService,
+	onFinishedRendering: () => void
 ): IDisposable {
 
 	// Sort hover parts to keep them stable since they might come in async, out-of-order
@@ -155,16 +160,16 @@ export function renderMarkdownHovers(
 			if (isEmptyMarkdownString(contents)) {
 				continue;
 			}
-			const markdownHoverElement = $('div.hover-row.markdown-hover');
+			const markdownHoverElement = $('div.markdown-hover');
 			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
 			const renderer = disposables.add(new MarkdownRenderer({ editor }, languageService, openerService));
 			disposables.add(renderer.onDidRenderAsync(() => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
-				context.onContentsChanged();
+				onFinishedRendering();
 			}));
 			const renderedContents = disposables.add(renderer.render(contents));
 			hoverContentsElement.appendChild(renderedContents.element);
-			context.fragment.appendChild(markdownHoverElement);
+			container.appendChild(markdownHoverElement);
 		}
 	}
 	return disposables;

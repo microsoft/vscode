@@ -106,6 +106,38 @@
 	padding-left: 10px;
 }
 
+/* Tab Background Color in/active group/tab */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	background-color: var(--vscode-tab-unfocusedInactiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab {
+	background-color: var(--vscode-tab-inactiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	background-color: var(--vscode-tab-unfocusedActiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
+	background-color: var(--vscode-tab-activeBackground);
+}
+
+/* Tab Foreground Color in/active group/tab */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	color: var(--vscode-tab-unfocusedInactiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab {
+	color: var(--vscode-tab-inactiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	color: var(--vscode-tab-unfocusedActiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
+	color: var(--vscode-tab-activeForeground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) {
+	box-shadow: none;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
 	margin-right: var(--last-tab-margin-right); /* when tabs wrap, we need a margin away from the absolute positioned editor actions */
 }
@@ -204,11 +236,14 @@
 	left: unset !important;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-action-off::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.close-action-off::after {
-	content: '';
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-fade-hider {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left .tab-fade-hider,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-action-off .tab-fade-hider,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-left .tab-fade-hider,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.close-action-off .tab-fade-hider {
 	display: flex;
 	flex: 0;
 	width: 5px; /* reserve space to hide tab fade when close button is left or off (fixes https://github.com/microsoft/vscode/issues/45728) */
@@ -385,14 +420,16 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
-	font-family: 'codicon';
+	/* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	content: var(--vscode-icon-pinned-dirty-content);
+	font-family: var(--vscode-icon-pinned-dirty-font-family);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
-	font-family: 'codicon';
+	/* use `circle-filled` icon unicode for dirty indication */
+	content: var(--vscode-icon-circle-filled-content);
+	font-family: var(--vscode-icon-circle-filled-font-family);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,

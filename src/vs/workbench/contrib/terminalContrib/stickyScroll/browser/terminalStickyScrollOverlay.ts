@@ -48,7 +48,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
 	private _serializeAddon?: SerializeAddonType;
 
-	private _canvasAddon = this._register(new MutableDisposable<CanvasAddonType>());
+	private readonly _canvasAddon = this._register(new MutableDisposable<CanvasAddonType>());
 	private _pendingCanvasAddon?: CancelablePromise<void>;
 
 	private _element?: HTMLElement;
@@ -56,7 +56,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _currentContent?: string;
 	private _contextMenu: IMenu;
 
-	private _refreshListeners = this._register(new MutableDisposable());
+	private readonly _refreshListeners = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
@@ -127,6 +127,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 			this._syncGpuAccelerationState();
 		});
+	}
+
+	lockHide() {
+		this._element?.classList.add('lock-hide');
+	}
+
+	unlockHide() {
+		this._element?.classList.remove('lock-hide');
 	}
 
 	private _setState(state: OverlayState) {

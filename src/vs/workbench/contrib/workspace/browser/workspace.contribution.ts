@@ -13,7 +13,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
@@ -561,16 +561,13 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	//#region Statusbar
 
-	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
-		const text = workspaceTrustToString(trusted);
-
+	private getRestrictedModeStatusbarEntry(): IStatusbarEntry {
 		let ariaLabel = '';
 		let toolTip: IMarkdownString | string | undefined;
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
-				ariaLabel = trusted ? localize('status.ariaTrustedWindow', "This window is trusted.") :
-					localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
-				toolTip = trusted ? ariaLabel : {
+				ariaLabel = localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
+				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedWindow2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `window is not trusted`. Do not change brackets and parentheses or {n}'] },
 						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [window is not trusted]({1}).",
@@ -583,9 +580,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				break;
 			}
 			case WorkbenchState.FOLDER: {
-				ariaLabel = trusted ? localize('status.ariaTrustedFolder', "This folder is trusted.") :
-					localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
-				toolTip = trusted ? ariaLabel : {
+				ariaLabel = localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
+				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedFolder2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `folder is not trusted`. Do not change brackets and parentheses or {n}'] },
 						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [folder is not trusted]({1}).",
@@ -598,9 +594,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
-				ariaLabel = trusted ? localize('status.ariaTrustedWorkspace', "This workspace is trusted.") :
-					localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
-				toolTip = trusted ? ariaLabel : {
+				ariaLabel = localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
+				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedWorkspace2', comment: ['[abc]({n}) are links. Only translate `features are disabled` and `workspace is not trusted`. Do not change brackets and parentheses or {n}'] },
 						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [workspace is not trusted]({1}).",
@@ -616,7 +611,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 		return {
 			name: localize('status.WorkspaceTrust', "Workspace Trust"),
-			text: trusted ? `$(shield)` : `$(shield) ${text}`,
+			text: `$(shield) ${localize('untrusted', "Restricted Mode")}`,
 			ariaLabel: ariaLabel,
 			tooltip: toolTip,
 			command: MANAGE_TRUST_COMMAND_ID,
@@ -631,7 +626,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		}
 
 		if (!trusted && !this.statusbarEntryAccessor.value) {
-			const entry = this.getStatusbarEntry(trusted);
+			const entry = this.getRestrictedModeStatusbarEntry();
 			this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 		}
 	}
@@ -831,7 +826,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		type WorkspaceTrustInfoEventClassification = {
 			owner: 'sbatten';
 			comment: 'Information about the workspaces trusted on the machine';
-			trustedFoldersCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of trusted folders on the machine' };
+			trustedFoldersCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of trusted folders on the machine' };
 		};
 
 		type WorkspaceTrustInfoEvent = {
@@ -857,7 +852,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			owner: 'sbatten';
 			comment: 'Logged when the workspace transitions between trusted and restricted modes';
 			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'An id of the workspace' };
-			isTrusted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'true if the workspace is trusted' };
+			isTrusted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'true if the workspace is trusted' };
 		};
 
 		this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
@@ -869,9 +864,9 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			type WorkspaceTrustFolderInfoEventClassification = {
 				owner: 'sbatten';
 				comment: 'Some metrics on the trusted workspaces folder structure';
-				trustedFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of directories deep of the trusted path' };
-				workspaceFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of directories deep of the workspace path' };
-				delta: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The difference between the trusted path and the workspace path directories depth' };
+				trustedFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of directories deep of the trusted path' };
+				workspaceFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of directories deep of the workspace path' };
+				delta: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The difference between the trusted path and the workspace path directories depth' };
 			};
 
 			type WorkspaceTrustFolderInfoEvent = {

@@ -52,8 +52,8 @@ export class StickyModelProvider extends Disposable implements IStickyModelProvi
 	constructor(
 		private readonly _editor: IActiveCodeEditor,
 		onProviderUpdate: () => void,
-		@IInstantiationService readonly _languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService _languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -308,7 +308,6 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 			return res;
 		}
 	}
-
 }
 
 abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandidateProvider<FoldingRegions | null> {

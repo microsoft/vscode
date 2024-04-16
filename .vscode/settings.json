@@ -168,8 +168,8 @@
 	"[github-issues]": {
 		"editor.wordWrap": "on"
 	},
-	"extensions.experimental.supportWorkspaceExtensions": true,
 	"css.format.spaceAroundSelectorSeparator": true,
 	"inlineChat.mode": "live",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
+	"typescript.tsserver.experimental.useVsCodeWatcher": true
 }
