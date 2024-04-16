@@ -218,28 +218,28 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			}
 		}));
 
-		if (_notebookModel.uri.scheme === Schemas.vscodeRemote) {
+		const saveWithReducedCommunication = this._configurationService.getValue(NotebookSetting.remoteSaving);
+
+		if (saveWithReducedCommunication || _notebookModel.uri.scheme === Schemas.vscodeRemote) {
 			this.configuration = {
-				// Intentionally pick a larger delay for triggering backups when
-				// we are connected to a remote. This saves us repeated roundtrips
-				// to the remote server when the content changes because the
-				// remote hosts the extension of the notebook with the contents truth
+				// Intentionally pick a larger delay for triggering backups to allow auto-save
+				// to complete first on the optimized save path
 				backupDelay: 10000
 			};
+		}
 
-			// Override save behavior to avoid transferring the buffer across the wire 3 times
-			if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
-				this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
-					const serializer = await this.getNotebookSerializer();
+		// Override save behavior to avoid transferring the buffer across the wire 3 times
+		if (saveWithReducedCommunication) {
+			this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
+				const serializer = await this.getNotebookSerializer();
 
-					if (token.isCancellationRequested) {
-						throw new CancellationError();
-					}
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 
-					const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
-					return stat;
-				};
-			}
+				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
+				return stat;
+			};
 		}
 	}
 

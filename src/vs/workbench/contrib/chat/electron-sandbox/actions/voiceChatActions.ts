@@ -38,7 +38,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_HAS_DEFAULT_AGENT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -63,7 +63,7 @@ const CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('term
 const CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInViewInProgress', false, { type: 'boolean', description: localize('voiceChatInViewInProgress', "True when voice recording from microphone is in progress in the chat view.") });
 const CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInEditorInProgress', false, { type: 'boolean', description: localize('voiceChatInEditorInProgress', "True when voice recording from microphone is in progress in the chat editor.") });
 
-const CanVoiceChat = ContextKeyExpr.and(CONTEXT_HAS_DEFAULT_AGENT, HasSpeechProvider);
+const CanVoiceChat = ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, HasSpeechProvider);
 const FocusInChatInput = assertIsDefined(ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT));
 
 type VoiceChatSessionContext = 'inline' | 'terminal' | 'quick' | 'view' | 'editor';
@@ -847,8 +847,8 @@ registerThemingParticipant((theme, collector) => {
 	`);
 });
 
-function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService): boolean {
-	if (!speechService.hasSpeechProvider) {
+function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService, chatAgentService: IChatAgentService): boolean {
+	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
 		return false;
 	}
 
@@ -896,6 +896,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		const onDidAddDefaultAgent = this._register(this.chatAgentService.onDidChangeAgents(() => {
 			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
 				this.updateConfiguration();
+				this.handleKeywordActivation();
+
 				onDidAddDefaultAgent.dispose();
 			}
 		}));
@@ -945,7 +947,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 
 	private handleKeywordActivation(): void {
 		const enabled =
-			supportsKeywordActivation(this.configurationService, this.speechService) &&
+			supportsKeywordActivation(this.configurationService, this.speechService, this.chatAgentService) &&
 			!this.speechService.hasActiveSpeechToTextSession;
 		if (
 			(enabled && this.activeSession) ||
@@ -1031,6 +1033,7 @@ class KeywordActivationStatusEntry extends Disposable {
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -1051,7 +1054,7 @@ class KeywordActivationStatusEntry extends Disposable {
 	}
 
 	private updateStatusEntry(): void {
-		const visible = supportsKeywordActivation(this.configurationService, this.speechService);
+		const visible = supportsKeywordActivation(this.configurationService, this.speechService, this.chatAgentService);
 		if (visible) {
 			if (!this.entry.value) {
 				this.createStatusEntry();

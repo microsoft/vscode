@@ -27,7 +27,6 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import type * as vscode from 'vscode';
 import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { createHash } from 'crypto';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -90,8 +89,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
 
-			const termKey = createKeyForShell(shell, shellArgs, args);
-			let terminal = await this._integratedTerminalInstances.checkout(termKey, terminalName, true);
+			const shellConfig = JSON.stringify({ shell, shellArgs });
+			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
 
 			let cwdForPrepareCommand: string | undefined;
 			let giveShellTimeToInitialize = false;
@@ -103,7 +102,6 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					cwd: args.cwd,
 					name: terminalName,
 					iconPath: new ThemeIcon('debug'),
-					env: args.env,
 				};
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {
@@ -113,7 +111,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					forceShellIntegration: true,
 					useShellEnvironment: true
 				});
-				this._integratedTerminalInstances.insert(terminal, termKey);
+				this._integratedTerminalInstances.insert(terminal, shellConfig);
 
 			} else {
 				cwdForPrepareCommand = args.cwd;
@@ -145,7 +143,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				}
 			}
 
-			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand);
+			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand, args.env);
 			terminal.sendText(command);
 
 			// Mark terminal as unused when its session ends, see #112055
@@ -163,14 +161,6 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		}
 		return super.$runInTerminal(args, sessionId);
 	}
-}
-
-/** Creates a key that determines how terminals get reused */
-function createKeyForShell(shell: string, shellArgs: string | string[], args: DebugProtocol.RunInTerminalRequestArguments) {
-	const hash = createHash('sha256');
-	hash.update(JSON.stringify({ shell, shellArgs }));
-	hash.update(JSON.stringify(Object.entries(args.env || {}).sort(([k1], [k2]) => k1.localeCompare(k2))));
-	return hash.digest('base64');
 }
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;

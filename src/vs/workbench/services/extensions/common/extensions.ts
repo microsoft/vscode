@@ -564,7 +564,8 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid,
-		targetPlatform: extension.targetPlatform
+		targetPlatform: extension.targetPlatform,
+		publisherDisplayName: extension.publisherDisplayName,
 	};
 }
 

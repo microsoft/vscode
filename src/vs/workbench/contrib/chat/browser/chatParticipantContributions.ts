@@ -194,14 +194,15 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					}
 
 					const store = new DisposableStore();
-					if (providerDescriptor.isDefault) {
-						store.add(this.registerDefaultParticipant(providerDescriptor));
+					if (providerDescriptor.isDefault && (!providerDescriptor.locations || providerDescriptor.locations?.includes(ChatAgentLocation.Panel))) {
+						store.add(this.registerDefaultParticipantView(providerDescriptor));
 					}
 
 					store.add(this._chatAgentService.registerAgent(
 						providerDescriptor.id,
 						{
 							extensionId: extension.description.identifier,
+							extensionPublisher: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
 							id: providerDescriptor.id,
 							description: providerDescriptor.description,
 							metadata: {
@@ -217,7 +218,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						} satisfies IChatAgentData));
 
 					this._participantRegistrationDisposables.set(
-						getParticipantKey(extension.description.identifier, providerDescriptor.name),
+						getParticipantKey(extension.description.identifier, providerDescriptor.id),
 						store
 					);
 				}
@@ -249,7 +250,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		return viewContainer;
 	}
 
-	private registerDefaultParticipant(defaultParticipantDescriptor: IRawChatParticipantContribution): IDisposable {
+	private registerDefaultParticipantView(defaultParticipantDescriptor: IRawChatParticipantContribution): IDisposable {
 		// Register View
 		const viewDescriptor: IViewDescriptor[] = [{
 			id: CHAT_VIEW_ID,

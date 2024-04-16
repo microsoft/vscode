@@ -16,6 +16,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import type { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -94,7 +95,7 @@ export class ChatEditorInput extends EditorInput {
 		if (typeof this.sessionId === 'string') {
 			this.model = this.chatService.getOrRestoreSession(this.sessionId);
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(CancellationToken.None);
+			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
