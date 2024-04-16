@@ -42,7 +42,7 @@ export interface IHoverPart {
 	 */
 	dispose?(): void;
 	/**
-	 * Creates a copy with its own lifetime.
+	 * Creates a copy with its own lifetime. If clone is provided, dispose has to be implemented.
 	 */
 	clone?(): IHoverPart;
 }

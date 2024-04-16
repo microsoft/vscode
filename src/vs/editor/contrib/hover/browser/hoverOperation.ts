@@ -7,7 +7,7 @@ import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsy
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IOptionalDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
@@ -70,7 +70,8 @@ export class HoverOperation<T> extends Disposable {
 	private _state = HoverOperationState.Idle;
 	private _asyncIterable: CancelableAsyncIterableObject<T> | null = null;
 	private _asyncIterableDone: boolean = false;
-	private _result: T[] = [];
+
+	protected _result: T[] = [];
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -202,5 +203,14 @@ export class HoverOperation<T> extends Disposable {
 }
 
 export class DisposableHoverOperation<T extends IOptionalDisposable> extends HoverOperation<T> {
-	// make sure when we lose a reference to T, we dispose it
+
+
+	override cancel(): void {
+		super.cancel();
+		this._result?.forEach(item => {
+			if (item && item.dispose) {
+				item.dispose();
+			}
+		});
+	}
 }

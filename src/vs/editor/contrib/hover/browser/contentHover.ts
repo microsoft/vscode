@@ -69,11 +69,17 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._register(this._hoverOperation.onResult((result) => {
 			if (!this._computer.anchor) {
 				// invalid state, ignore result
-				this._disposeUnusedHoverParts(result.value);
+				// What to do here?
+				// this._disposeUnusedHoverParts(result.value);
 				return;
 			}
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
-			this._withResult(new HoverResult(this._computer.anchor, messages.map(i => i.clone()), result.isComplete));
+			this._withResult(new HoverResult(this._computer.anchor, messages.map(i => {
+				if (i.clone) {
+					return i.clone();
+				}
+				return i;
+			}), result.isComplete));
 		}));
 		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
@@ -171,12 +177,16 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		if (hoverResult && hoverResult.messages.length === 0) {
 			hoverResult = null;
 		}
-		this._disposeUnusedHoverParts(this._currentResult?.messages, hoverResult?.messages);
+		this._currentResult?.messages?.forEach(m => {
+			if (m.dispose) {
+				m.dispose();
+			}
+		});
 		this._currentResult = hoverResult;
 		if (this._currentResult) {
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
 		} else {
-			this._hideWidget();
+			this._widget.hide();
 		}
 	}
 
@@ -203,27 +213,26 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 			if (!hoverResult.isComplete) {
 				// Instead of rendering the new partial result, we wait for the result to be complete.
-				this._disposeUnusedHoverParts(hoverResult.messages);
+				hoverResult.messages.forEach(m => {
+					if (m.dispose) {
+						m.dispose();
+					}
+				});
 				return;
 			}
 
 			if (this._computer.insistOnKeepingHoverVisible && hoverResult.messages.length === 0) {
 				// The hover would now hide normally, so we'll keep the previous messages
-				this._disposeUnusedHoverParts(hoverResult.messages);
+				hoverResult.messages.forEach(m => {
+					if (m.dispose) {
+						m.dispose();
+					}
+				});
 				return;
 			}
 		}
 
 		this._setCurrentResult(hoverResult);
-	}
-
-	private _disposeUnusedHoverParts(hoverPartsToDispose: IHoverPart[] | undefined, currentHoverParts: IHoverPart[] | undefined = undefined) {
-		hoverPartsToDispose?.forEach(hoverPart => {
-			const currentHoverPartsContainPart = currentHoverParts?.includes(hoverPart);
-			if (!currentHoverPartsContainPart) {
-				hoverPart.dispose();
-			}
-		});
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
@@ -283,10 +292,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		} else {
 			disposables.dispose();
 		}
-	}
-
-	private _hideWidget(): void {
-		this._widget.hide();
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -463,6 +468,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 }
 
 class HoverResult implements IDisposable { // dispose messages
+
 	private _refCount = 1;
 
 	constructor(
@@ -478,7 +484,11 @@ class HoverResult implements IDisposable { // dispose messages
 
 	dispose() {
 		if (--this._refCount === 0) {
-			this.messages.forEach(m => m.dispose());
+			this.messages.forEach(m => {
+				if (m.dispose) {
+					m.dispose();
+				}
+			});
 		}
 	}
 

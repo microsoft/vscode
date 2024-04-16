@@ -55,6 +55,7 @@ import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/typ
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { getHoversPromise } from 'vs/editor/contrib/hover/browser/getHover';
 
 suite('ExtHostLanguageFeatures', function () {
 

@@ -59,15 +59,15 @@ export class MarkdownHover implements IHoverPart {
 	}
 
 	dispose() {
-		this.source?.hover.dispose();
+		this.source?.dispose();
 	}
 
 	clone() {
-		return this;	// use ref counting
+		return this;
 	}
 }
 
-class HoverSource {
+class HoverSource implements IDisposable {
 
 	constructor(
 		readonly hover: DisposableHover,
@@ -82,6 +82,10 @@ class HoverSource {
 			case HoverVerbosityAction.Decrease:
 				return this.hover.canDecreaseVerbosity ?? false;
 		}
+	}
+
+	dispose() {
+		this.hover.dispose();
 	}
 }
 

@@ -251,6 +251,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
+
 		interface IDisposableHoverWithId extends languages.DisposableHover {
 			id: number;
 		}

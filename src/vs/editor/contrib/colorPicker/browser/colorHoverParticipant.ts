@@ -44,10 +44,6 @@ export class ColorHover implements IHoverPart {
 			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
-
-	dispose(): void {
-		// noop
-	}
 }
 
 export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover> {

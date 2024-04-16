@@ -51,13 +51,13 @@ export function getHovers(registry: LanguageFeatureRegistry<HoverProvider>, mode
 		.map(item => item.convertDisposableHoverToHover());
 }
 
-export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
+export function getHoversPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
 	return getHovers(registry, model, position, token).map(item => item.hover).toPromise();
 }
 
 registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position): Promise<Hover[]> => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	return getHoverPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
+	return getHoversPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
 });
 
 function isValid(result: DisposableHover) {

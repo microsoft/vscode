@@ -36,10 +36,6 @@ export class InlineCompletionsHover implements IHoverPart {
 			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
-
-	dispose() {
-		// noop
-	}
 }
 
 export class InlineCompletionsHoverParticipant implements IEditorHoverParticipant<InlineCompletionsHover> {

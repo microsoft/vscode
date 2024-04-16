@@ -12,7 +12,6 @@ import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { MicrotaskDelay } from './symbols';
 import { Lazy } from 'vs/base/common/lazy';
-import { isDefined } from 'vs/base/common/types';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -1884,9 +1883,6 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		return AsyncIterableObject.map(this, mapFn);
 	}
 
-
-	public static filter<T, TResult extends T>(iterable: AsyncIterable<T>, filterFn: (item: T) => item is TResult): AsyncIterableObject<TResult>;
-	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableObject<T>;
 	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableObject<T> {
 		return new AsyncIterableObject<T>(async (emitter) => {
 			for await (const item of iterable) {
@@ -1902,7 +1898,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	}
 
 	public static coalesce<T>(iterable: AsyncIterable<T | undefined | null>): AsyncIterableObject<T> {
-		return AsyncIterableObject.filter(iterable, isDefined);
+		return <AsyncIterableObject<T>>AsyncIterableObject.filter(iterable, item => !!item);
 	}
 
 	public coalesce(): AsyncIterableObject<NonNullable<T>> {
