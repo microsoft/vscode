@@ -10,7 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IFileChange, IFileSystemProvider, isWatchOptionsWithCorrelation, IWatchOptions } from 'vs/platform/files/common/files';
+import { IFileChange, IFileSystemProvider, IWatchOptions } from 'vs/platform/files/common/files';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, reviveFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
@@ -72,15 +72,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch universally
-		let pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive };
-		if (isWatchOptionsWithCorrelation(opts)) {
-			pathToWatch = {
-				...pathToWatch,
-				filter: opts.filter,
-				correlationId: opts.correlationId
-			};
-		}
-
+		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive, filter: opts.filter, correlationId: opts.correlationId };
 		const remove = insert(this.universalPathsToWatch, pathToWatch);
 
 		// Trigger update
@@ -161,14 +153,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch non-recursively
-		let pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive };
-		if (isWatchOptionsWithCorrelation(opts)) {
-			pathToWatch = {
-				...pathToWatch,
-				filter: opts.filter,
-				correlationId: opts.correlationId
-			};
-		}
+		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: false, filter: opts.filter, correlationId: opts.correlationId };
 		const remove = insert(this.nonRecursivePathsToWatch, pathToWatch);
 
 		// Trigger update

@@ -519,6 +519,14 @@ export interface IWatchOptionsWithoutCorrelation {
 	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
+	 */
+	filter?: FileChangeFilter;
 }
 
 export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
@@ -539,18 +547,6 @@ export const enum FileChangeFilter {
 
 export interface IWatchOptionsWithCorrelation extends IWatchOptions {
 	readonly correlationId: number;
-
-	/**
-	 * If provided, allows to filter the events that the watcher should consider
-	 * for emitting. If not provided, all events are emitted.
-	 *
-	 * For example, to emit added and updated events, set to `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
-	 */
-	filter?: FileChangeFilter;
-}
-
-export function isWatchOptionsWithCorrelation(options: IWatchOptions): options is IWatchOptionsWithCorrelation {
-	return typeof options.correlationId === 'number';
 }
 
 export interface IFileSystemWatcher extends IDisposable {
