@@ -165,6 +165,7 @@ export interface ICommandDetectionCapability {
 	/** The command currently being executed, otherwise undefined. */
 	readonly executingCommand: string | undefined;
 	readonly executingCommandObject: ITerminalCommand | undefined;
+	readonly isWindowsPty: boolean;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
 	/**
