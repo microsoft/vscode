@@ -29,8 +29,10 @@ export interface IChatResponseFragment {
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
 	readonly identifier: string;
-	readonly model: string;
-	readonly description?: string;
+	readonly name: string;
+	readonly version: string;
+	readonly tokens: number;
+
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;

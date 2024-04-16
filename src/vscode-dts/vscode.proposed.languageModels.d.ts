@@ -222,9 +222,9 @@ declare module 'vscode' {
 		 */
 		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
-		// export function getLanguageModelInformation(languageModel: string): LanguageModelInformation | undefined;
+		export function getLanguageModelInformation(languageModel: string): LanguageModelInformation | undefined;
 
-		// export function computeTokenLength(languageModel: string, text: string, token?: CancellationToken): Thenable<number>;
+		export function computeTokenLength(languageModel: string, text: string, token?: CancellationToken): Thenable<number>;
 
 		/**
 		 * The identifiers of all language models that are currently available.
@@ -258,20 +258,6 @@ declare module 'vscode' {
 		 */
 		canSendRequest(languageModelId: string): boolean | undefined;
 
-		// TODO@API SYNC or ASYNC?
-		// TODO@API future
-		// retrieveQuota(languageModelId: string): { remaining: number; resets: Date };
-
-		// TODO@API SHOULD THIS BE in vscode.lm?
-		// TODO@API should this check for access/permissions?
-		/**
-		 *
-		 * Compute the token length for the given text
-		 * @param languageModelId
-		 * @param text
-		 * @param token
-		 */
-		computeTokenLength(languageModelId: string, text: string, token?: CancellationToken): Thenable<number>;
 	}
 
 	export interface ExtensionContext {

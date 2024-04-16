@@ -29,6 +29,10 @@ declare module 'vscode' {
 		// TODO@API rename to model
 		name: string;
 
+		version: string;
+
+		tokens: number;
+
 		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
 		 * the user must approve of another extension accessing the models contributed by this extension.
