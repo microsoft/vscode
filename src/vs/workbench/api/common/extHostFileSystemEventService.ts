@@ -17,6 +17,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { Lazy } from 'vs/base/common/lazy';
+import { WatchFilter } from 'vs/platform/files/common/watcher';
 
 export interface FileSystemWatcherCreateOptions {
 	readonly correlate: boolean;
@@ -122,6 +123,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			return disposable; // workspace is already watched by default, no need to watch again!
 		}
 
+		if (options?.ignoreChangeEvents && options?.ignoreCreateEvents && options?.ignoreDeleteEvents) {
+			return disposable; // no need to watch if we ignore all events
+		}
+
 		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystemEventService);
 
 		let recursive = false;
@@ -129,7 +134,24 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [] }, Boolean(correlate));
+		let filter: WatchFilter | undefined;
+		if (options?.ignoreChangeEvents || options?.ignoreCreateEvents || options?.ignoreDeleteEvents) {
+			filter = WatchFilter.Update | WatchFilter.Add | WatchFilter.Delete;
+
+			if (options?.ignoreChangeEvents) {
+				filter &= ~WatchFilter.Update;
+			}
+
+			if (options?.ignoreCreateEvents) {
+				filter &= ~WatchFilter.Add;
+			}
+
+			if (options?.ignoreDeleteEvents) {
+				filter &= ~WatchFilter.Delete;
+			}
+		}
+
+		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [], filter }, Boolean(correlate));
 
 		return Disposable.from({ dispose: () => proxy.$unwatch(this.session) });
 	}
