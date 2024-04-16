@@ -251,11 +251,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
-
 		interface IDisposableHoverWithId extends languages.DisposableHover {
 			id: number;
 		}
-
 		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider<IDisposableHoverWithId>>{
 			provideHover: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context?: languages.HoverContext<IDisposableHoverWithId>): Promise<IDisposableHoverWithId | undefined> => {
 				const hover = await this._proxy.$provideHover(handle, model.uri, position, context, token);
