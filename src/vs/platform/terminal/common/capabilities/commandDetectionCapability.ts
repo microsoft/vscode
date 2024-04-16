@@ -344,7 +344,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.markExecutedTime();
 	}
 
-	isWindowsPty(): boolean {
+	get isWindowsPty(): boolean {
 		return this._ptyHeuristics.value instanceof WindowsPtyHeuristics;
 	}
 
