@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 
-export interface IHoverPart extends IDisposable {
+export interface IHoverPart {
 	/**
 	 * The creator of this hover part.
 	 */
@@ -36,6 +36,15 @@ export interface IHoverPart extends IDisposable {
 	 * Is this hover part still valid for this new anchor?
 	 */
 	isValidForHoverAnchor(anchor: HoverAnchor): boolean;
+
+	/**
+	 * If dipose is provided, clone has to be implemented.
+	 */
+	dispose?(): void;
+	/**
+	 * Creates a copy with its own lifetime.
+	 */
+	clone?(): IHoverPart;
 }
 
 export const enum HoverAnchorType {

@@ -1625,13 +1625,6 @@ export interface HoverWithId extends languages.Hover {
 	id: number;
 }
 
-export interface DisposableHoverWithId extends languages.DisposableHover {
-	/**
-	 * Id of the hover
-	 */
-	id: number;
-}
-
 // -- extension host
 
 export interface ICommandMetadataDto {

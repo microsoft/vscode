@@ -200,3 +200,7 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 }
+
+export class DisposableHoverOperation<T extends IOptionalDisposable> extends HoverOperation<T> {
+	// make sure when we lose a reference to T, we dispose it
+}

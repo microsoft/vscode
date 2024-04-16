@@ -269,7 +269,7 @@ class HoverAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		let value: vscode.Hover | null | undefined;
-		if (context && context.previousHover?.id !== undefined && context.action !== undefined) {
+		if (context && context.previousHover !== undefined && context.action !== undefined) {
 			const previousHoverId = context.previousHover.id;
 			const previousHover = this._hoverMap.get(previousHoverId);
 			if (!previousHover) {

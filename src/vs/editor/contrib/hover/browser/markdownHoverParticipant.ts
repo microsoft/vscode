@@ -31,7 +31,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ClickAction, KeyDownAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { createHoverProviderResultsPromise } from 'vs/editor/contrib/hover/browser/getHover';
+import { fetchDisposableHovers } from 'vs/editor/contrib/hover/browser/getHover';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
@@ -61,6 +61,10 @@ export class MarkdownHover implements IHoverPart {
 	dispose() {
 		this.source?.hover.dispose();
 	}
+
+	clone() {
+		return this;	// use ref counting
+	}
 }
 
 class HoverSource {
@@ -85,7 +89,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public readonly hoverOrdinal: number = 3;
 
-	private _renderedHoverParts: RenderedHoverParts | undefined;
+	private _renderedHoverParts: MarkdownRenderedHoverParts | undefined;
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -166,12 +170,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			return AsyncIterableObject.EMPTY;
 		}
 		const markdownHovers = this._getMarkdownHovers(hoverProviderRegistry, model, anchor, token);
-		return AsyncIterableObject.fromPromise(markdownHovers);
+		return markdownHovers;
 	}
 
-	private async _getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider<DisposableHover>>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): Promise<MarkdownHover[]> {
+	private _getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider<DisposableHover>>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
 		const position = anchor.range.getStartPosition();
-		const hoverProviderResults = await createHoverProviderResultsPromise(hoverProviderRegistry, model, position, token);
+		const hoverProviderResults = fetchDisposableHovers(hoverProviderRegistry, model, position, token);
 		const markdownHovers = hoverProviderResults.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const range = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
@@ -182,7 +186,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
-		this._renderedHoverParts = new RenderedHoverParts(hoverParts, context.fragment, this._editor, this._languageService, this._openerService, this._keybindingService, this._hoverService, context.onContentsChanged);
+		this._renderedHoverParts = new MarkdownRenderedHoverParts(hoverParts.map(c => c.clone()), context.fragment, this._editor, this._languageService, this._openerService, this._keybindingService, this._hoverService, context.onContentsChanged);
 		return this._renderedHoverParts;
 	}
 
@@ -203,13 +207,13 @@ interface FocusedHoverInfo {
 	focusRemains: boolean;
 }
 
-class RenderedHoverParts extends Disposable {
+class MarkdownRenderedHoverParts extends Disposable {
 
 	private _renderedHoverParts: RenderedHoverPart[];
 	private _hoverFocusInfo: FocusedHoverInfo = { hoverPartIndex: -1, focusRemains: false };
 
 	constructor(
-		hoverParts: MarkdownHover[],
+		hoverParts: MarkdownHover[], // we own!
 		hoverPartsContainer: DocumentFragment,
 		private readonly _editor: ICodeEditor,
 		private readonly _languageService: ILanguageService,

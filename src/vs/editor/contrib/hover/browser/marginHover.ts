@@ -33,7 +33,6 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	private readonly _hover: HoverWidget;
 
 	private _isVisible: boolean;
-	private _messages: IHoverMessage[];
 
 	private readonly _markdownRenderer: MarkdownRenderer;
 	private readonly _computer: MarginHoverComputer;
@@ -49,7 +48,6 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		this._editor = editor;
 
 		this._isVisible = false;
-		this._messages = [];
 
 		this._hover = this._register(new HoverWidget());
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
@@ -141,10 +139,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	}
 
 	private _withResult(result: IHoverMessage[]): void {
-		this._messages = result;
-
-		if (this._messages.length > 0) {
-			this._renderMessages(this._computer.lineNumber, this._messages);
+		if (result.length > 0) {
+			this._renderMessages(this._computer.lineNumber, result);
 		} else {
 			this.hide();
 		}
