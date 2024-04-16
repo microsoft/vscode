@@ -129,6 +129,10 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return this.grammarTokens.hasTokens;
 	}
 
+	public setTokens(tokens: ContiguousMultilineTokens[]): void {
+		this.grammarTokens.setTokens(tokens);
+	}
+
 	public resetTokenization() {
 		this.grammarTokens.resetTokenization();
 	}
@@ -521,7 +525,7 @@ class GrammarTokens extends Disposable {
 		}
 	}
 
-	private setTokens(tokens: ContiguousMultilineTokens[]): { changes: { fromLineNumber: number; toLineNumber: number }[] } {
+	public setTokens(tokens: ContiguousMultilineTokens[]): { changes: { fromLineNumber: number; toLineNumber: number }[] } {
 		const { changes } = this._tokens.setMultilineTokens(tokens, this._textModel);
 
 		if (changes.length > 0) {

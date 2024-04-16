@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as nls from 'vs/nls';
 // eslint-disable-next-line local/code-import-patterns
 import { init } from 'web-tree-sitter';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
-import { FileAccess } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, nodeModulesPath } from 'vs/base/common/network';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -52,7 +53,8 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 	private _initializeTreeSitterService(asynchronous: boolean = true) {
 		init({
 			locateFile(_file: string, _folder: string) {
-				return FileAccess.asBrowserUri('../../../../../../node_modules/web-tree-sitter/tree-sitter.wasm', require).toString(true);
+				const wasmPath: AppResourcePath = `${nodeModulesPath}/web-tree-sitter/tree-sitter.wasm`;
+				return FileAccess.asBrowserUri(wasmPath).toString(true);
 			}
 		}).then(async () => {
 			this._disposableStore.add(this._modelService.onModelAdded((model) => {
@@ -96,12 +98,12 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 	}
 }
 
-registerSingleton(ITreeSitterColorizationService, TreeSitterColorizationService, true);
+registerSingleton(ITreeSitterColorizationService, TreeSitterColorizationService, InstantiationType.Delayed);
 
 // Asynchronous colorization that runs when the process is idle
 registerAction2(class extends Action2 {
 	constructor() {
-		super({ id: 'toggleAsynchronousTreeSitterColorization', title: 'Toggle Asynchronous Tree-Sitter Colorization', f1: true });
+		super({ id: 'toggleAsynchronousTreeSitterColorization', title: { value: nls.localize('toggleAsyncTreeSitter', "Toggle Asynchronous Tree-Sitter Colorization"), original: 'Toggle Asynchronous Tree-Sitter Colorization' }, f1: true });
 	}
 	run(accessor: ServicesAccessor) {
 		const treeSitterTokenizationService = accessor.get(ITreeSitterColorizationService);
@@ -113,7 +115,7 @@ registerAction2(class extends Action2 {
 // Synchronous colorization for testing the performance
 registerAction2(class extends Action2 {
 	constructor() {
-		super({ id: 'toggleSynchronousTreeSitterColorization', title: 'Toggle Synchronous Tree-Sitter Colorization', f1: true });
+		super({ id: 'toggleSynchronousTreeSitterColorization', title: { value: nls.localize('toggleSyncTreeSitter', "Toggle Synchronous Tree-Sitter Colorization"), original: 'Toggle Synchronous Tree-Sitter Colorization' }, f1: true });
 	}
 	run(accessor: ServicesAccessor) {
 		const treeSitterTokenizationService = accessor.get(ITreeSitterColorizationService);

@@ -10,8 +10,8 @@ const hasPerformanceNow = (globalThis.performance && typeof globalThis.performan
 
 export class StopWatch {
 
-	private _startTime: number;
-	private _stopTime: number;
+	private _startTime!: number;
+	private _stopTime!: number;
 
 	private readonly _now: () => number;
 
@@ -22,11 +22,6 @@ export class StopWatch {
 	constructor(highResolution?: boolean) {
 		this._now = hasPerformanceNow && highResolution === false ? Date.now : globalThis.performance!.now.bind(globalThis.performance);
 		this.reset();
-	}
-
-	public reset(): void {
-		this._startTime = this._now();
-		this._stopTime = -1;
 	}
 
 	public stop(): void {
