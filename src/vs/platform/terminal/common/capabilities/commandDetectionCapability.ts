@@ -35,7 +35,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _commitCommandFinished?: RunOnceScheduler;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
-	private _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
+	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
 	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -83,9 +83,46 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	constructor(
 		private readonly _terminal: Terminal,
-		private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+
+		// Pull command line from the buffer if it was not set explicitly
+		this._register(this.onCommandExecuted(command => {
+			if (command.commandLineConfidence !== 'high') {
+				// HACK: onCommandExecuted actually fired with PartialTerminalCommand
+				const typedCommand = (command as ITerminalCommand | PartialTerminalCommand);
+				command.command = typedCommand.extractCommandLine();
+				command.commandLineConfidence = 'low';
+
+				// ITerminalCommand
+				if ('getOutput' in typedCommand) {
+					if (
+						// Markers exist
+						typedCommand.promptStartMarker && typedCommand.marker && typedCommand.executedMarker &&
+						// Single line command
+						command.command.indexOf('\n') === -1 &&
+						// Start marker is not on the left-most column
+						typedCommand.startX !== undefined && typedCommand.startX > 0
+					) {
+						command.commandLineConfidence = 'medium';
+					}
+				}
+				// PartialTerminalCommand
+				else {
+					if (
+						// Markers exist
+						typedCommand.promptStartMarker && typedCommand.commandStartMarker && typedCommand.commandExecutedMarker &&
+						// Single line command
+						command.command.indexOf('\n') === -1 &&
+						// Start marker is not on the left-most column
+						typedCommand.commandStartX !== undefined && typedCommand.commandStartX > 0
+					) {
+						command.commandLineConfidence = 'medium';
+					}
+				}
+			}
+		}));
 
 		// Set up platform-specific behaviors
 		const that = this;
@@ -281,6 +318,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandStart(options?: IHandleCommandOptions): void {
 		this._handleCommandStartOptions = options;
+		this._currentCommand.cwd = this._cwd;
 		// Only update the column if the line has already been set
 		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
@@ -352,6 +390,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	setCommandLine(commandLine: string, isTrusted: boolean) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
 		this._currentCommand.command = commandLine;
+		this._currentCommand.commandLineConfidence = 'high';
 		this._currentCommand.isTrusted = isTrusted;
 	}
 
@@ -500,7 +539,7 @@ class UnixPtyHeuristics extends Disposable {
 }
 
 const enum AdjustCommandStartMarkerConstants {
-	MaxCheckLineCount = 5,
+	MaxCheckLineCount = 10,
 	Interval = 20,
 	MaximumPollCount = 50,
 }
@@ -513,7 +552,7 @@ const enum AdjustCommandStartMarkerConstants {
  */
 class WindowsPtyHeuristics extends Disposable {
 
-	private _onCursorMoveListener = this._register(new MutableDisposable());
+	private readonly _onCursorMoveListener = this._register(new MutableDisposable());
 
 	private _tryAdjustCommandStartMarkerScheduler?: RunOnceScheduler;
 	private _tryAdjustCommandStartMarkerScannedLineCount: number = 0;
@@ -891,6 +930,15 @@ class WindowsPtyHeuristics extends Disposable {
 		const customPrompt = lineText.match(/.*\u276f(?=[^\u276f]*$)/g)?.[0];
 		if (customPrompt) {
 			const adjustedPrompt = this._adjustPrompt(customPrompt, lineText, '\u276f');
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
+		}
+
+		// Bash Prompt
+		const bashPrompt = lineText.match(/^(?<prompt>.*\$)/)?.groups?.prompt;
+		if (bashPrompt) {
+			const adjustedPrompt = this._adjustPrompt(bashPrompt, lineText, '$');
 			if (adjustedPrompt) {
 				return adjustedPrompt;
 			}

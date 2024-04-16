@@ -9,8 +9,9 @@ import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IListEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -103,7 +104,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
 	private _cachedMaxDetailsHeight?: number;
-	private _hover?: ICustomHover;
+	private _hover?: IUpdatableHover;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -152,7 +153,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	private setTitle(title: string): void {
 		if (!this._hover && title) {
-			this._hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.selectElement, title));
+			this._hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.selectElement, title));
 		} else if (this._hover) {
 			this._hover.update(title);
 		}

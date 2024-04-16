@@ -7,12 +7,15 @@ import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ITooltipMarkdownString, setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IMatch } from 'vs/base/common/filters';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { isString } from 'vs/base/common/types';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -22,8 +25,8 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelValueOptions {
-	title?: string | ITooltipMarkdownString;
-	descriptionTitle?: string | ITooltipMarkdownString;
+	title?: string | IUpdatableHoverTooltipMarkdownString;
+	descriptionTitle?: string | IUpdatableHoverTooltipMarkdownString;
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
@@ -175,7 +178,7 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private setupHover(htmlElement: HTMLElement, tooltip: string | ITooltipMarkdownString | undefined): void {
+	private setupHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
 		const previousCustomHover = this.customHovers.get(htmlElement);
 		if (previousCustomHover) {
 			previousCustomHover.dispose();
@@ -188,9 +191,19 @@ export class IconLabel extends Disposable {
 		}
 
 		if (this.hoverDelegate.showNativeHover) {
+			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
+				if (isString(tooltip)) {
+					// Icons don't render in the native hover so we strip them out
+					htmlElement.title = stripIcons(tooltip);
+				} else if (tooltip?.markdownNotSupportedFallback) {
+					htmlElement.title = tooltip.markdownNotSupportedFallback;
+				} else {
+					htmlElement.removeAttribute('title');
+				}
+			}
 			setupNativeHover(htmlElement, tooltip);
 		} else {
-			const hoverDisposable = setupCustomHover(this.hoverDelegate, htmlElement, tooltip);
+			const hoverDisposable = getBaseLayerHoverDelegate().setupUpdatableHover(this.hoverDelegate, htmlElement, tooltip);
 			if (hoverDisposable) {
 				this.customHovers.set(htmlElement, hoverDisposable);
 			}

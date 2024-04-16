@@ -48,7 +48,6 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/con
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -63,6 +62,7 @@ import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -102,12 +102,12 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	private _editorGroupService: IEditorGroupsService;
 	private _notebookExecutionStateService: INotebookExecutionStateService;
 	private _extensionService: IExtensionService;
-	private _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
+	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
 	private _editorOptions: IEditorOptions;
 	private _notebookOptions: NotebookOptions;
 	private _editorMemento: IEditorMemento<InteractiveEditorViewState>;
-	private _groupListener = this._register(new MutableDisposable());
+	private readonly _groupListener = this._register(new MutableDisposable());
 	private _runbuttonToolbar: ToolBar | undefined;
 
 	private _onDidFocusWidget = this._register(new Emitter<void>());

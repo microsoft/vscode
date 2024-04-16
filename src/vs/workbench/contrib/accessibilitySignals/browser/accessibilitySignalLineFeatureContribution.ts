@@ -25,6 +25,7 @@ export class SignalLineFeatureContribution
 	extends Disposable
 	implements IWorkbenchContribution {
 	private readonly store = this._register(new DisposableStore());
+	private _previousLineNumber: number | undefined = undefined;
 
 	private readonly features: LineFeature[] = [
 		this.instantiationService.createInstance(MarkerLineFeature, AccessibilitySignal.error, MarkerSeverity.Error),
@@ -127,7 +128,10 @@ export class SignalLineFeatureContribution
 					if (!position) {
 						return false;
 					}
-					return lineFeatureState.isPresent(position, reader);
+					const lineChanged = this._previousLineNumber !== position.lineNumber;
+					const isPresent = lineFeatureState.isPresent?.(position, reader) || (lineChanged && lineFeatureState.isPresentOnLine(position.lineNumber, reader));
+					this._previousLineNumber = position.lineNumber;
+					return isPresent;
 				}
 			);
 			return derivedOpts(
@@ -175,13 +179,14 @@ interface LineFeature {
 	): LineFeatureSource;
 }
 
+
 interface LineFeatureSource {
-	isPresent(position: Position, reader: IReader): boolean;
+	isPresentOnLine(lineNumber: number, reader: IReader): boolean;
+	isPresent?(position: Position, reader: IReader): boolean;
 }
 
 class MarkerLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
-	private _previousLine: number = 0;
 	constructor(
 		public readonly signal: AccessibilitySignal,
 		private readonly severity: MarkerSeverity,
@@ -194,17 +199,30 @@ class MarkerLineFeature implements LineFeature {
 		return {
 			isPresent: (position, reader) => {
 				obs.read(reader);
-				const lineChanged = position.lineNumber !== this._previousLine;
-				this._previousLine = position.lineNumber;
 				const hasMarker = this.markerService
 					.read({ resource: model.uri })
 					.some(
-						(m) => {
-							const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
-							return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
-						});
+						(m) =>
+							m.severity === this.severity &&
+							m.startLineNumber <= position.lineNumber &&
+							position.lineNumber <= m.endLineNumber &&
+							m.startColumn <= position.column &&
+							position.column <= m.endColumn
+					);
 				return hasMarker;
 			},
+			isPresentOnLine: (lineNumber, reader) => {
+				obs.read(reader);
+				const hasMarker = this.markerService
+					.read({ resource: model.uri })
+					.some(
+						(m) =>
+							m.severity === this.severity &&
+							m.startLineNumber <= lineNumber &&
+							lineNumber <= m.endLineNumber
+					);
+				return hasMarker;
+			}
 		};
 	}
 }
@@ -215,19 +233,20 @@ class FoldedAreaLineFeature implements LineFeature {
 	createSource(editor: ICodeEditor, _model: ITextModel): LineFeatureSource {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
-			return { isPresent: () => false, };
+			return { isPresentOnLine: () => false };
 		}
+
 		const foldingModel = observableFromPromise(foldingController.getFoldingModel() ?? Promise.resolve(undefined));
 		return {
-			isPresent: (position, reader) => {
+			isPresentOnLine(lineNumber: number, reader: IReader): boolean {
 				const m = foldingModel.read(reader);
-				const regionAtLine = m.value?.getRegionAtLine(position.lineNumber);
+				const regionAtLine = m.value?.getRegionAtLine(lineNumber);
 				const hasFolding = !regionAtLine
 					? false
 					: regionAtLine.isCollapsed &&
-					regionAtLine.startLineNumber === position.lineNumber;
+					regionAtLine.startLineNumber === lineNumber;
 				return hasFolding;
-			},
+			}
 		};
 	}
 }
@@ -239,15 +258,16 @@ class BreakpointLineFeature implements LineFeature {
 
 	createSource(editor: ICodeEditor, model: ITextModel): LineFeatureSource {
 		const signal = observableSignalFromEvent('onDidChangeBreakpoints', this.debugService.getModel().onDidChangeBreakpoints);
+		const debugService = this.debugService;
 		return {
-			isPresent: (position, reader) => {
+			isPresentOnLine(lineNumber: number, reader: IReader): boolean {
 				signal.read(reader);
-				const breakpoints = this.debugService
+				const breakpoints = debugService
 					.getModel()
-					.getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
+					.getBreakpoints({ uri: model.uri, lineNumber });
 				const hasBreakpoints = breakpoints.length > 0;
 				return hasBreakpoints;
-			},
+			}
 		};
 	}
 }
