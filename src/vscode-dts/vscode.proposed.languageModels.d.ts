@@ -98,9 +98,34 @@ declare module 'vscode' {
 	 */
 	export type LanguageModelChatMessage = LanguageModelChatSystemMessage | LanguageModelChatUserMessage | LanguageModelChatAssistantMessage;
 
+	// TODO@API have `lm.getLanguageModelInformation(languageModelId: string): LanguageModelInformation`
+	export interface LanguageModelInformation {
+		/**
+		 * The identifier of the language model
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable name of the language model.
+		 */
+		readonly name: string;
+
+		/**
+		 * The version of the language model.
+		 */
+		readonly version: string;
+
+		/**
+		 * The number of available tokens for this language model.
+		 */
+		// TODO@API merge with computeTokenLength?
+		readonly tokens: number;
+	}
+
 	/**
 	 * An event describing the change in the set of available language models.
 	 */
+	// TODO@API use LanguageModelInformation instead of string?
 	export interface LanguageModelChangeEvent {
 		/**
 		 * Added language models.
@@ -196,6 +221,10 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
 		 */
 		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
+
+		// export function getLanguageModelInformation(languageModel: string): LanguageModelInformation | undefined;
+
+		// export function computeTokenLength(languageModel: string, text: string, token?: CancellationToken): Thenable<number>;
 
 		/**
 		 * The identifiers of all language models that are currently available.
