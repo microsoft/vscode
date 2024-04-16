@@ -70,7 +70,7 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
 				}
 			],
-			title: localize('editor.action.accessibleViewNextCodeBlock', "Navigate to the next code block in Accessible View")
+			title: localize('editor.action.accessibleViewNextCodeBlock', "Navigate to the next code block in the accessible view")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -98,7 +98,7 @@ class AccessibleViewPreviousCodeBlockAction extends Action2 {
 					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
 				}
 			],
-			title: localize('editor.action.accessibleViewPreviousCodeBlock', "Navigate to the previous code block in Accessible View")
+			title: localize('editor.action.accessibleViewPreviousCodeBlock', "Navigate to the previous code block in the accessible view")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
