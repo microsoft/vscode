@@ -541,7 +541,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			}
 
 			// Filtering
-			if (isFiltered(event, watcher.request.filter)) {
+			if (isFiltered(event, watcher.request)) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}

@@ -1389,7 +1389,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 }
 
 export interface MainThreadFileSystemEventServiceShape extends IDisposable {
-	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions, correlate: boolean): void;
+	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptionsWithoutCorrelation | files.IWatchOptionsWithCorrelation, correlate: boolean): void;
 	$unwatch(session: number): void;
 }
 

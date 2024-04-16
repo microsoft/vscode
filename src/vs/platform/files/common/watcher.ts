@@ -42,11 +42,6 @@ interface IWatchRequest {
 	readonly includes?: Array<string | IRelativePattern>;
 
 	/**
-	 * TODO
-	 */
-	readonly filter?: WatchFilter;
-
-	/**
 	 * If provided, file change events from the watcher that
 	 * are a result of this watch request will carry the same
 	 * id.
@@ -56,6 +51,11 @@ interface IWatchRequest {
 
 export interface IWatchRequestWithCorrelation extends IWatchRequest {
 	readonly correlationId: number;
+
+	/**
+	 * TODO
+	 */
+	readonly filter?: WatchFilter;
 }
 
 export function isWatchRequestWithCorrelation(request: IWatchRequest): request is IWatchRequestWithCorrelation {
@@ -440,39 +440,43 @@ class EventCoalescer {
 	}
 }
 
-export function isFiltered(event: IFileChange, filter?: WatchFilter): boolean {
-	if (typeof filter !== 'number') {
-		return false;
+export function isFiltered(event: IFileChange, request: IUniversalWatchRequest): boolean {
+	if (isWatchRequestWithCorrelation(request)) {
+		if (typeof request.filter === 'number') {
+			switch (event.type) {
+				case FileChangeType.ADDED:
+					return (request.filter & WatchFilter.Add) === 0;
+				case FileChangeType.DELETED:
+					return (request.filter & WatchFilter.Delete) === 0;
+				case FileChangeType.UPDATED:
+					return (request.filter & WatchFilter.Update) === 0;
+			}
+		}
 	}
 
-	switch (event.type) {
-		case FileChangeType.ADDED:
-			return (filter & WatchFilter.Add) === 0;
-		case FileChangeType.DELETED:
-			return (filter & WatchFilter.Delete) === 0;
-		case FileChangeType.UPDATED:
-			return (filter & WatchFilter.Update) === 0;
-	}
+	return false;
 }
 
-export function requestFilterToString(filter: WatchFilter | undefined): string {
-	if (typeof filter === 'number') {
-		const filters = [];
-		if (filter & WatchFilter.Add) {
-			filters.push('Added');
-		}
-		if (filter & WatchFilter.Delete) {
-			filters.push('Deleted');
-		}
-		if (filter & WatchFilter.Update) {
-			filters.push('Updated');
-		}
+export function requestFilterToString(request: IUniversalWatchRequest): string {
+	if (isWatchRequestWithCorrelation(request)) {
+		if (typeof request.filter === 'number') {
+			const filters = [];
+			if (request.filter & WatchFilter.Add) {
+				filters.push('Added');
+			}
+			if (request.filter & WatchFilter.Delete) {
+				filters.push('Deleted');
+			}
+			if (request.filter & WatchFilter.Update) {
+				filters.push('Updated');
+			}
 
-		if (filters.length === 0) {
-			return '<all>';
-		}
+			if (filters.length === 0) {
+				return '<all>';
+			}
 
-		return filters.join(', ');
+			return filters.join(', ');
+		}
 	}
 
 	return '<none>';

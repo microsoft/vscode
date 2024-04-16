@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions, IWatchOptionsWithCorrelation, IWatchOptionsWithoutCorrelation } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemEventServiceShape, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
@@ -212,7 +212,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this._proxy.$onDidRunFileOperation(e.operation, e.files)));
 	}
 
-	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
+	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptionsWithoutCorrelation | IWatchOptionsWithCorrelation, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
 
 		const opts: IWatchOptions = {
