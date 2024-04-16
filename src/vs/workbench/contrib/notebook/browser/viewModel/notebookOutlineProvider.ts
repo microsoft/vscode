@@ -18,7 +18,6 @@ import { OutlineEntry } from './OutlineEntry';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookOutlineConstants, NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
-import { StopWatch } from 'vs/base/common/stopwatch';
 import { Delayer } from 'vs/base/common/async';
 
 export class NotebookCellOutlineProvider {
@@ -59,7 +58,6 @@ export class NotebookCellOutlineProvider {
 			(last, _current) => last,
 			200
 		)(() => {
-			console.log('1');
 			this._recomputeActive();
 		}, this))
 		this._disposables.add(Event.debounce<INotebookViewCellsUpdateEvent, INotebookViewCellsUpdateEvent>(
@@ -67,7 +65,6 @@ export class NotebookCellOutlineProvider {
 			(last, _current) => last ?? _current,
 			200
 		)(() => {
-			console.log('2');
 			this._recomputeActive();
 		}, this)
 		);
@@ -144,7 +141,6 @@ export class NotebookCellOutlineProvider {
 	private handle = 0;
 	private _recomputeState(): void {
 		this.handle = this.handle + 1;
-		const start = new StopWatch(true);
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._uri = undefined;
@@ -260,7 +256,6 @@ export class NotebookCellOutlineProvider {
 		}));
 
 		this._recomputeActive();
-		console.log('recomputeState', start.elapsed());
 		this._onDidChange.fire({});
 	}
 
