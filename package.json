@@ -64,7 +64,8 @@
     "extensions-ci": "node --max-old-space-size=8095 ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
-    "update-build-ts-version": "yarn add typescript@next && tsc -p ./build/tsconfig.build.json"
+    "update-build-ts-version": "yarn add typescript@next && tsc -p ./build/tsconfig.build.json",
+    "generate-tree-sitter-wasm": "npx tree-sitter build-wasm node_modules/tree-sitter-typescript/typescript"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -104,6 +105,7 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.0.0",
+    "web-tree-sitter": "^0.20.7",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
@@ -205,6 +207,8 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^3.3.2",
+    "tree-sitter-cli": "^0.20.6",
+    "tree-sitter-typescript": "^0.20.1",
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
