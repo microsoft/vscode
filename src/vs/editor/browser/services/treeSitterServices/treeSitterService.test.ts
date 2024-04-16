@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ITreeSitterService, TreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -23,12 +21,14 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 /* eslint-enable*/
 
 suite('Testing the Tree-Sitter Service', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('editor', { 'detectIndentation': false });
@@ -39,13 +39,9 @@ suite('Testing the Tree-Sitter Service', () => {
 	const modelService = new ModelService(
 		configService,
 		new TestTextResourcePropertiesService(configService),
-		new TestThemeService(),
-		nullLogService,
 		new UndoRedoService(dialogService, notificationService),
 		new LanguageService(),
-		new TestLanguageConfigurationService(),
-		new LanguageFeatureDebounceService(logService),
-		new LanguageFeaturesService()
+		new TestLanguageConfigurationService()
 	);
 
 	const diskFileSystemProvider = new DiskFileSystemProvider(logService);

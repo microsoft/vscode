@@ -10,7 +10,7 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 
-const enum SemanticTokensProviderStylingConstants {
+export const enum SemanticTokensProviderStylingConstants {
 	NO_STYLING = 0b01111111111111111111111111111111
 }
 
