@@ -70,7 +70,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			const instanceId = e.instance.instanceId;
 			instanceDataListeners.get(instanceId)?.dispose();
 			// Send end in a microtask to ensure the data events are sent first
-			queueMicrotask(() => {
+			setTimeout(() => {
 				this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
 			});
 		}));
