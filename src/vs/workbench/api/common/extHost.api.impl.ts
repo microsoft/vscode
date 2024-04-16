@@ -749,7 +749,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidEndTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			get state() {
-				return extHostWindow.getState(extension);
+				return extHostWindow.getState();
 			},
 			onDidChangeWindowState(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostWindow.onDidChangeWindowState)(listener, thisArg, disposables);
