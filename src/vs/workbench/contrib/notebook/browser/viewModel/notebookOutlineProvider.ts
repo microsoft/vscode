@@ -42,6 +42,7 @@ export class NotebookCellOutlineProvider {
 	}
 
 	private readonly _outlineEntryFactory: NotebookOutlineEntryFactory;
+	private readonly delayRecomputeActive: () => void;
 	constructor(
 		private readonly _editor: INotebookEditor,
 		private readonly _target: OutlineTarget,
@@ -52,20 +53,27 @@ export class NotebookCellOutlineProvider {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService);
+		const delayerRecomputeActive = this._disposables.add(new Delayer(10));
+		this.delayRecomputeActive = () => delayerRecomputeActive.trigger(() => {
+			const { changeEventTriggered } = this._recomputeActive();
+			if (!changeEventTriggered) {
+				this._onDidChange.fire({});
+			}
+		});
 
 		this._disposables.add(Event.debounce<void, void>(
 			_editor.onDidChangeSelection,
 			(last, _current) => last,
 			200
 		)(() => {
-			this._recomputeActive();
+			this.delayRecomputeActive();
 		}, this))
 		this._disposables.add(Event.debounce<INotebookViewCellsUpdateEvent, INotebookViewCellsUpdateEvent>(
 			_editor.onDidChangeViewCells,
 			(last, _current) => last ?? _current,
 			200
 		)(() => {
-			this._recomputeActive();
+			this.delayRecomputeActive();
 		}, this)
 		);
 
@@ -253,10 +261,7 @@ export class NotebookCellOutlineProvider {
 			}
 		}));
 
-		const { changeEventTriggered } = this._recomputeActive();
-		if (!changeEventTriggered) {
-			this._onDidChange.fire({});
-		}
+		this.delayRecomputeActive();
 	}
 
 	private _recomputeActive(): { changeEventTriggered: boolean } {
