@@ -130,8 +130,20 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					// TODO: Detect continuation
 					//       For pwsh: (Get-PSReadLineOption).ContinuationPrompt
 					// TODO: Wide/emoji length support
-					this._cursorIndex = Math.max(this._value.length - lineText.length + buffer.cursorX, 0);
+					this._cursorIndex = Math.max(this._value.length - lineText.length - (this._continuationPrompt?.length ?? 0) + buffer.cursorX, 0);
 				}
+			}
+		}
+
+		// TODO: Check below the cursor for continuations
+		for (let y = absoluteCursorY + 1; y < buffer.baseY + this._xterm.rows; y++) {
+			let lineText = buffer.getLine(y)?.translateToString(true);
+			if (lineText) {
+				// TODO: Detect line continuation if it's not set
+				if (this._continuationPrompt && lineText.startsWith(this._continuationPrompt)) {
+					lineText = lineText.substring(this._continuationPrompt.length);
+				}
+				this._value += `\n${lineText}`;
 			}
 		}
 
