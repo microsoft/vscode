@@ -30,13 +30,19 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 
 	// https://github.com/microsoft/vscode/issues/86941
 	test('#86941, widows should be completed after width', async () => {
-		const widthIndex = await completionProviderIndexOf('css', `.foo { wi| }`,
-			{ label: 'width: ;', documentation: `width: ;` });
-		const widowsIndex = await completionProviderIndexOf('css', `.foo { wi|: ; }`,
-			{ label: 'widows: ;', documentation: `widows: ;` });
-		assert.ok(widowsIndex !== -1);
-		assert.ok(widthIndex !== -1);
-		assert.ok(widowsIndex > widthIndex);
+		await testCompletionProvider('css', `.foo { wi| }`, [
+			{ label: 'width: ;', documentation: `width: ;` }
+		]);
+		try {
+			await testCompletionProvider('css', `.foo { wi| }`, [
+				{ label: 'widows: ;', documentation: `widows: ;` }
+			]);
+		} catch (e) {
+			assert.strictEqual(e.message, "Didn't find completion item with label widows: ;");
+		}
+		await testCompletionProvider('css', `.foo { wido| }`, [
+			{ label: 'widows: ;', documentation: `widows: ;` }
+		]);
 	});
 
 	// https://github.com/microsoft/vscode/issues/117020
