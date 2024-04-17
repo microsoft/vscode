@@ -42,7 +42,7 @@ export class ProgressBar extends Disposable {
 	 */
 	private static readonly LONG_RUNNING_INFINITE_THRESHOLD = 10000;
 	private static readonly PROGRESS_SIGNAL_DEFAULT_DELAY = 3000;
-	private static readonly PROGRESS_SIGNAL_LOOP_DELAY = 4000;
+	private static readonly PROGRESS_SIGNAL_LOOP_DELAY = 2000;
 
 	private workedVal: number;
 	private element!: HTMLElement;
@@ -218,6 +218,7 @@ export class ProgressBar extends Disposable {
 	}
 
 	hide(): void {
+		this.progressSignal?.dispose();
 		hide(this.element);
 		this.showDelayedScheduler.cancel();
 	}
