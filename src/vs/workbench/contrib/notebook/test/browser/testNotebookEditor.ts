@@ -67,6 +67,7 @@ import { mainWindow } from 'vs/base/browser/window';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
+import { INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -200,6 +201,7 @@ export function setupInstantiationService(disposables: DisposableStore) {
 	instantiationService.stub(INotebookCellStatusBarService, disposables.add(new NotebookCellStatusBarService()));
 	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService)));
 	instantiationService.stub(IInlineChatService, instantiationService.createInstance(InlineChatServiceImpl));
+	instantiationService.stub(INotebookCellOutlineProviderFactory, instantiationService.createInstance(NotebookCellOutlineProviderFactory));
 	return instantiationService;
 }
 
@@ -228,6 +230,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 	let visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
 
+	const id = Date.now().toString();
 	const notebookEditor: IActiveNotebookEditorDelegate = new class extends mock<IActiveNotebookEditorDelegate>() {
 		// eslint-disable-next-line local/code-must-use-super-dispose
 		override dispose() {
@@ -313,7 +316,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 			visibleRanges = _ranges;
 		}
 
-		override getId(): string { return ''; }
+		override getId(): string { return id; }
 		override setScrollTop(scrollTop: number): void {
 			cellList.scrollTop = scrollTop;
 		}
