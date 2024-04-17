@@ -287,7 +287,11 @@ export class PackageJSONContribution implements IJSONContribution {
 		return new Promise((resolve, _reject) => {
 			const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
-			cp.execFile(npmCommandPath, args, { cwd }, (error, stdout) => {
+
+			// corepack npm wrapper would automatically update package.json, which is surprising.
+			// disable that behavior.
+			const env = { COREPACK_ENABLE_AUTO_PIN: "0" };
+			cp.execFile(npmCommandPath, args, { cwd, env }, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);
