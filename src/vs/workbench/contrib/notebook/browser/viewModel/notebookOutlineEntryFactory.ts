@@ -59,7 +59,6 @@ export class NotebookOutlineEntryFactory {
 			}
 
 			if (!hasHeader) {
-				const fullContent = cell.getText().substring(0, 10000);
 				// no markdown syntax headers, try to find html tags
 				const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
 				if (match) {
