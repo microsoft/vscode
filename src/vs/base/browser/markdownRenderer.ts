@@ -381,6 +381,7 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 function sanitizeRenderedMarkdown(
 	options: { isTrusted?: boolean | MarkdownStringTrustedOptions },
 	renderedMarkdown: string,
+	returnAsTrustedType = true
 ): TrustedHTML {
 	const { config, allowedSchemes } = getSanitizerOptions(options);
 	dompurify.addHook('uponSanitizeAttribute', (element, e) => {
@@ -419,7 +420,7 @@ function sanitizeRenderedMarkdown(
 	const hook = DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes);
 
 	try {
-		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
+		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: returnAsTrustedType }) as unknown as TrustedHTML;
 	} finally {
 		dompurify.removeHook('uponSanitizeAttribute');
 		hook.dispose();
@@ -502,7 +503,7 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 
 	const html = marked.parse(value, { renderer: plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html, false).toString();
 }
 
 const unescapeInfo = new Map<string, string>([
