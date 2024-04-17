@@ -4,22 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignal';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class EditorProgressIndicator extends Disposable implements IProgressIndicator {
-	private pendingSignalMap: DisposableMap<number, AccessibilityProgressSignalScheduler> = this._register(new DisposableMap());
-	private progressStartId: number = 0;
 
 	constructor(
 		private readonly progressBar: ProgressBar,
-		private readonly group: IEditorGroupView,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		private readonly group: IEditorGroupView
 	) {
 		super();
 
@@ -38,7 +33,6 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 				(e.kind === GroupModelChangeKind.EDITOR_CLOSE && this.group.isEmpty)
 			) {
 				this.progressBar.stop().hide();
-				this.pendingSignalMap.clearAndDisposeAll();
 			}
 		}));
 	}
@@ -67,8 +61,6 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 		} else {
 			this.progressBar.total(infiniteOrTotal).show(delay);
 		}
-		const progressStartId = this.progressStartId++;
-		this.pendingSignalMap.set(progressStartId, this.instantiationService.createInstance(AccessibilityProgressSignalScheduler, 3000, delay ?? 1000));
 
 		return {
 			total: (total: number) => {
@@ -85,7 +77,6 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 
 			done: () => {
 				this.progressBar.stop().hide();
-				this.pendingSignalMap.deleteAndDispose(progressStartId);
 			}
 		};
 	}
@@ -105,16 +96,14 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 	}
 
 	private async doShowWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
-		const progressStartId = this.progressStartId++;
 		try {
 			this.progressBar.infinite().show(delay);
-			this.pendingSignalMap.set(progressStartId, this.instantiationService.createInstance(AccessibilityProgressSignalScheduler, 3000, delay ?? 1000));
+
 			await promise;
 		} catch (error) {
 			// ignore
 		} finally {
 			this.progressBar.stop().hide();
-			this.pendingSignalMap.deleteAndDispose(progressStartId);
 		}
 	}
 }

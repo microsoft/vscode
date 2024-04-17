@@ -196,7 +196,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Scoped instantiation service
 			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 				[IContextKeyService, this.scopedContextKeyService],
-				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this, this.instantiationService))]
+				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
 			));
 
 			// Context keys

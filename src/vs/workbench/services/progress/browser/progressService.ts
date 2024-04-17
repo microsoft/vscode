@@ -6,7 +6,7 @@
 import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
-import { IDisposable, dispose, DisposableStore, Disposable, toDisposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
@@ -27,15 +27,10 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignal';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ProgressService extends Disposable implements IProgressService {
 
 	declare readonly _serviceBrand: undefined;
-
-	private pendingSignalMap: DisposableMap<number, AccessibilityProgressSignalScheduler> = this._register(new DisposableMap());
-	private progressStartId: number = 0;
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
@@ -45,8 +40,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -69,56 +63,46 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			throw new Error(`Bad progress location: ${location}`);
 		};
-		const progressStartId = this.progressStartId++;
-		let promise;
-		if (typeof location === 'string') {
-			promise = handleStringLocation(location);
-		} else {
-			switch (location) {
-				case ProgressLocation.Notification: {
-					let priority = (options as IProgressNotificationOptions).priority;
-					if (priority !== NotificationPriority.URGENT) {
-						if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
-							priority = NotificationPriority.SILENT;
-						} else if (isNotificationSource(options.source) && this.notificationService.getFilter(options.source) === NotificationsFilter.ERROR) {
-							priority = NotificationPriority.SILENT;
-						}
-					}
 
-					promise = this.withNotificationProgress({ ...options, location, priority }, task, onDidCancel);
-					break;
-				}
-				case ProgressLocation.Window: {
-					const type = (options as IProgressWindowOptions).type;
-					if ((options as IProgressWindowOptions).command) {
-						// Window progress with command get's shown in the status bar
-						promise = this.withWindowProgress({ ...options, location, type }, task);
-					}
-					// Window progress without command can be shown as silent notification
-					// which will first appear in the status bar and can then be brought to
-					// the front when clicking.
-					promise = this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, priority: NotificationPriority.SILENT, location: ProgressLocation.Notification, type }, task, onDidCancel);
-					break;
-				}
-				case ProgressLocation.Explorer:
-					promise = this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
-					break;
-				case ProgressLocation.Scm:
-					promise = handleStringLocation('workbench.scm');
-					break;
-				case ProgressLocation.Extensions:
-					promise = this.withPaneCompositeProgress('workbench.view.extensions', ViewContainerLocation.Sidebar, task, { ...options, location });
-					break;
-				case ProgressLocation.Dialog:
-					promise = this.withDialogProgress(options, task, onDidCancel);
-					break;
-				default:
-					throw new Error(`Bad progress location: ${location}`);
-			}
+		if (typeof location === 'string') {
+			return handleStringLocation(location);
 		}
-		this.pendingSignalMap.set(progressStartId, this.instantiationService.createInstance(AccessibilityProgressSignalScheduler, 3000, 1000));
-		promise.finally(() => this.pendingSignalMap.deleteAndDispose(progressStartId));
-		return promise;
+
+		switch (location) {
+			case ProgressLocation.Notification: {
+				let priority = (options as IProgressNotificationOptions).priority;
+				if (priority !== NotificationPriority.URGENT) {
+					if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
+						priority = NotificationPriority.SILENT;
+					} else if (isNotificationSource(options.source) && this.notificationService.getFilter(options.source) === NotificationsFilter.ERROR) {
+						priority = NotificationPriority.SILENT;
+					}
+				}
+
+				return this.withNotificationProgress({ ...options, location, priority }, task, onDidCancel);
+			}
+			case ProgressLocation.Window: {
+				const type = (options as IProgressWindowOptions).type;
+				if ((options as IProgressWindowOptions).command) {
+					// Window progress with command get's shown in the status bar
+					return this.withWindowProgress({ ...options, location, type }, task);
+				}
+				// Window progress without command can be shown as silent notification
+				// which will first appear in the status bar and can then be brought to
+				// the front when clicking.
+				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, priority: NotificationPriority.SILENT, location: ProgressLocation.Notification, type }, task, onDidCancel);
+			}
+			case ProgressLocation.Explorer:
+				return this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
+			case ProgressLocation.Scm:
+				return handleStringLocation('workbench.scm');
+			case ProgressLocation.Extensions:
+				return this.withPaneCompositeProgress('workbench.view.extensions', ViewContainerLocation.Sidebar, task, { ...options, location });
+			case ProgressLocation.Dialog:
+				return this.withDialogProgress(options, task, onDidCancel);
+			default:
+				throw new Error(`Bad progress location: ${location}`);
+		}
 	}
 
 	private readonly windowProgressStack: [IProgressWindowOptions, Progress<IProgressStep>][] = [];
