@@ -95,7 +95,7 @@ function Global:Prompt() {
 
 	# Prompt height
 	# OSC 633 ; <Property>=<Value> ST
-	$Result += "$([char]0x1b)]633;P;PromptHeight=$(__VSCode-Escape-Value ($OriginalPrompt -Split '\n').Count)`a"
+	$Result += "$([char]0x1b)]633;P;PromptHeight=$(__VSCode-Escape-Value ($OriginalPrompt -Split '\n').Count - 1)`a"
 
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"

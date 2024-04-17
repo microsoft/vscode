@@ -733,14 +733,14 @@ class WindowsPtyHeuristics extends Disposable {
 					// Adjust the prompt start marker to the command start marker
 					this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
 					this._capability.currentCommand.promptStartMarker?.dispose();
-					this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker, -(this._capability.currentCommand.promptHeight ?? 0));
+					this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker, -((this._capability.currentCommand.promptHeight ?? 1) - 1));
 
 					// Adjust the last command if it's not in the same position as the following
 					// prompt start marker
 					const lastCommand = this._capability.commands.at(-1);
 					if (lastCommand && this._capability.currentCommand.commandStartMarker.line !== lastCommand.endMarker?.line) {
 						lastCommand.endMarker?.dispose();
-						lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker, -(this._capability.currentCommand.promptHeight ?? 0));
+						lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker, -((this._capability.currentCommand.promptHeight ?? 1) - 1));
 					}
 
 					// use the regex to set the position as it's possible input has occurred
@@ -1070,5 +1070,5 @@ function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number
 function cloneMarker(xterm: Terminal, marker: IXtermMarker, offset: number = 0): IXtermMarker | undefined {
 	const cursorY = xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
 	const cursorYOffset = marker.line - cursorY + offset;
-	return xterm.registerMarker((cursorY + cursorYOffset) < 0 ? 0 : cursorYOffset);
+	return xterm.registerMarker((cursorY + cursorYOffset) < 0 ? -cursorY : cursorYOffset);
 }
