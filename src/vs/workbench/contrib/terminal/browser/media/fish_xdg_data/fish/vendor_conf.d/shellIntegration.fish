@@ -173,11 +173,11 @@ function __init_vscode_shell_integration
 		function fish_mode_prompt
 			__vsc_fish_prompt_start
 			__vsc_fish_mode_prompt
-			__vsc_fish_cmd_start
 		end
 
 		function fish_prompt
 			__vsc_fish_prompt
+			__vsc_fish_cmd_start
 		end
 	else
 		# No fish_mode_prompt, so put everything in fish_prompt.
