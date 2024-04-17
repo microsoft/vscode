@@ -33,8 +33,18 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 		await testCompletionProvider('css', `.foo { wi| }`, [
 			{ label: 'width: ;', documentation: `width: |;` }
 		]);
+		await testCompletionProvider('css', `.foo { wid| }`, [
+			{ label: 'width: ;', documentation: `width: |;` }
+		]);
 		try {
 			await testCompletionProvider('css', `.foo { wi| }`, [
+				{ label: 'widows: ;', documentation: `widows: |;` }
+			]);
+		} catch (e) {
+			assert.strictEqual(e.message, "Didn't find completion item with label widows: ;");
+		}
+		try {
+			await testCompletionProvider('css', `.foo { wid| }`, [
 				{ label: 'widows: ;', documentation: `widows: |;` }
 			]);
 		} catch (e) {
