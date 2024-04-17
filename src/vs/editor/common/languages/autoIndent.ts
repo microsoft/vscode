@@ -47,7 +47,13 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 		let lineContainsOtherStandardTokenType = false;
 		for (let i = 0; i < numberOfTokens; i++) {
 			const tokenType = tokens.getStandardTokenType(i);
-			if (tokenType === StandardTokenType.Other) {
+			const startOffset = tokens.getStartOffset(i);
+			const endOffset = tokens.getEndOffset(i);
+			const text = tokens.getLineContent().substring(startOffset, endOffset);
+			console.log('text : ', text);
+			console.log('tokenType : ', tokenType);
+
+			if (tokenType === StandardTokenType.Other && text.trim() !== '') {
 				lineContainsOtherStandardTokenType = true;
 				break;
 			}
