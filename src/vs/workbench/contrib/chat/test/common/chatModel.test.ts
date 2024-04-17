@@ -11,10 +11,12 @@ import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -30,11 +32,12 @@ suite('ChatModel', () => {
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 	});
 
 	test('Waits for initialization', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -45,13 +48,13 @@ suite('ChatModel', () => {
 		assert.strictEqual(hasInitialized, false);
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
+		model.initialize(undefined);
 		await timeout(0);
 		assert.strictEqual(hasInitialized, true);
 	});
 
 	test('must call startInitialize before initialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -61,12 +64,12 @@ suite('ChatModel', () => {
 		await timeout(0);
 		assert.strictEqual(hasInitialized, false);
 
-		assert.throws(() => model.initialize({} as any, undefined));
+		assert.throws(() => model.initialize(undefined));
 		assert.strictEqual(hasInitialized, false);
 	});
 
 	test('deinitialize/reinitialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -74,7 +77,7 @@ suite('ChatModel', () => {
 		});
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
+		model.initialize(undefined);
 		await timeout(0);
 		assert.strictEqual(hasInitialized, true);
 
@@ -85,33 +88,33 @@ suite('ChatModel', () => {
 		});
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
+		model.initialize(undefined);
 		await timeout(0);
 		assert.strictEqual(hasInitialized2, true);
 	});
 
 	test('cannot initialize twice', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
-		assert.throws(() => model.initialize({} as any, undefined));
+		model.initialize(undefined);
+		assert.throws(() => model.initialize(undefined));
 	});
 
 	test('Initialization fails when model is disposed', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 		model.dispose();
 
-		assert.throws(() => model.initialize({} as any, undefined));
+		assert.throws(() => model.initialize(undefined));
 	});
 
 	test('removeRequest', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
+		model.initialize(undefined);
 		const text = 'hello';
-		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] });
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1);
 
@@ -123,27 +126,29 @@ suite('ChatModel', () => {
 suite('Response', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('content, markdown', async () => {
+	test('mergeable markdown', async () => {
 		const response = new Response([]);
-		response.updateContent({ content: 'text', kind: 'content' });
-		response.updateContent({ content: new MarkdownString('markdown'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('markdown1'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 
-		assert.strictEqual(response.asString(), 'textmarkdown');
+		assert.strictEqual(response.asString(), 'markdown1markdown2');
 	});
 
-	test('markdown, content', async () => {
+	test('not mergeable markdown', async () => {
 		const response = new Response([]);
-		response.updateContent({ content: new MarkdownString('markdown'), kind: 'markdownContent' });
-		response.updateContent({ content: 'text', kind: 'content' });
+		const md1 = new MarkdownString('markdown1');
+		md1.supportHtml = true;
+		response.updateContent({ content: md1, kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 	});
 
 	test('inline reference', async () => {
 		const response = new Response([]);
-		response.updateContent({ content: 'text before', kind: 'content' });
+		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
 		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
-		response.updateContent({ content: 'text after', kind: 'content' });
+		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 	});
 });

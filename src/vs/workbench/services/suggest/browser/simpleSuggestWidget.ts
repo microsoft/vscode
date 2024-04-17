@@ -208,6 +208,10 @@ export class SimpleSuggestWidget implements IDisposable {
 		this._completionModel = completionModel;
 	}
 
+	hasCompletions(): boolean {
+		return this._completionModel?.items.length !== 0;
+	}
+
 	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
 		this._cursorPosition = cursorPosition;
 

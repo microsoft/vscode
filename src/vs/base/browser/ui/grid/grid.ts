@@ -13,7 +13,8 @@ import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./gridview.css', import.meta.url);
 
-export { type IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
+export type { IViewSize };
+export { LayoutPriority, Orientation, orthogonal } from './gridview';
 
 export const enum Direction {
 	Up,

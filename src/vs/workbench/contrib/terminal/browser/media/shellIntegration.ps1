@@ -21,6 +21,9 @@ $Global:__LastHistoryId = -1
 $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
+$osVersion = [System.Environment]::OSVersion.Version
+$isWindows10 = $IsWindows10 -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+
 if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
 	foreach ($Item in $Split) {
@@ -105,9 +108,12 @@ if (Get-Module -Name PSReadLine) {
 		# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
 		$Result = "$([char]0x1b)]633;E;"
 		$Result += $(__VSCode-Escape-Value $CommandLine)
-		$Result += ";$Nonce"
+		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
+		# sometimes
+		if ($IsWindows10 -eq $false) {
+			$Result += ";$Nonce"
+		}
 		$Result += "`a"
-		[Console]::Write($Result)
 
 		# Command executed
 		# OSC 633 ; C ST

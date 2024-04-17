@@ -64,7 +64,7 @@ suite('Workbench - TerminalColorRegistry', () => {
 		assert.deepStrictEqual(colors, [
 			'#000000',
 			'#cd3131',
-			'#00bc00',
+			'#107c10',
 			'#949800',
 			'#0451a5',
 			'#bc05bc',

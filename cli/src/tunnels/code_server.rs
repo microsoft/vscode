@@ -606,7 +606,9 @@ impl<'a> ServerBuilder<'a> {
 		// Original issue: https://github.com/microsoft/vscode/issues/184058
 		// Partial fix: https://github.com/microsoft/vscode/pull/184621
 		#[cfg(target_os = "windows")]
-		let cmd = cmd.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+		let cmd = cmd.creation_flags(
+			winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+		);
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())

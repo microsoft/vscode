@@ -1558,4 +1558,123 @@ suite('Async', () => {
 			assert.strictEqual(counter, 4);
 		});
 	});
+
+	suite('AsyncIterableObject', function () {
+
+
+		test('onReturn NOT called', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
+
+		});
+
+		test('onReturn called on break', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn called on return', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			await (async function test() {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					return;
+				}
+			})();
+
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+
+		test('onReturn called on throwing', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			try {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					throw new Error();
+				}
+			} catch (e) {
+
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+		});
+	});
+
+	suite('AsyncIterableSource', function () {
+
+		test('onReturn is wired up', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn is wired up 2', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
+		});
+	});
 });

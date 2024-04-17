@@ -113,7 +113,8 @@ suite('Objects', () => {
 			c: [
 				obj1, obj2
 			],
-			d: null
+			d: null,
+			e: BigInt(42)
 		};
 
 		arr.push(circular);
@@ -135,7 +136,8 @@ suite('Objects', () => {
 				},
 				'[Circular]'
 			],
-			d: [1, '[Circular]', '[Circular]']
+			d: [1, '[Circular]', '[Circular]'],
+			e: '[BigInt 42]'
 		});
 	});
 
