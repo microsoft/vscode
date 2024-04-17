@@ -108,11 +108,12 @@ if (Get-Module -Name PSReadLine) {
 		# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
 		$Result = "$([char]0x1b)]633;E;"
 		$Result += $(__VSCode-Escape-Value $CommandLine)
+		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
+		# sometimes
 		if ($IsWindows10 -eq $false) {
 			$Result += ";$Nonce"
 		}
 		$Result += "`a"
-		[Console]::Write($Result)
 
 		# Command executed
 		# OSC 633 ; C ST
