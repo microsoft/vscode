@@ -307,6 +307,10 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.getValue();
 	}
 
+	getAlternativeId(): number {
+		return this.model.alternativeId;
+	}
+
 	getTextLength(): number {
 		return this.model.getTextLength();
 	}
