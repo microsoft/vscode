@@ -11,6 +11,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable } from 'vs/base/common/observable';
 import { observableValue } from 'vs/base/common/observableInternal/base';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
@@ -380,7 +381,7 @@ export class ChatAgentNameService implements IChatAgentNameService {
 	declare _serviceBrand: undefined;
 
 	private readonly url!: string;
-	private registry = observableValue<Map<string, (extensionId: string) => boolean>>(this, new Map());
+	private registry = observableValue<IChatParticipantRegistry>(this, Object.create(null));
 	private disposed = false;
 
 	constructor(
@@ -430,25 +431,19 @@ export class ChatAgentNameService implements IChatAgentNameService {
 			throw new Error('Unexpected chat participant registry response.');
 		}
 
-		const registry = new Map<string, (extensionId: string) => boolean>();
-
-		for (const [name, patterns] of Object.entries(result.restrictedChatParticipants)) {
-			if (patterns.length === 0) {
-				registry.set(name.toLowerCase(), () => false);
-			} else {
-				const rx = new RegExp(patterns.map(p => p.includes('.') ? `^${p}$` : `^${p}\\.`).join('|'), 'i');
-				registry.set(name.toLowerCase(), id => rx.test(id));
-			}
-		}
-
+		const registry = result.restrictedChatParticipants;
 		this.registry.set(registry, undefined);
 		this.storageService.store(ChatAgentNameService.StorageKey, JSON.stringify(registry), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	getAgentNameRestriction(chatAgentData: IChatAgentData): IObservable<boolean> {
-		return this.registry.map(registry => {
-			const isAllowedFn = registry.get(chatAgentData.name.toLowerCase());
-			return isAllowedFn ? isAllowedFn(chatAgentData.extensionId.value) : true;
+		const allowList = this.registry.map<string[] | undefined>(registry => registry[chatAgentData.name.toLowerCase()]);
+		return allowList.map(allowList => {
+			if (!allowList) {
+				return true;
+			}
+
+			return allowList.some(id => equalsIgnoreCase(id, id.includes('.') ? chatAgentData.extensionId.value : chatAgentData.extensionPublisher));
 		});
 	}
 
