@@ -48,14 +48,14 @@ const nullScopedAccessibilityProgressSignalFactory = () => ({
 	msDelayTime: 0,
 	dispose: () => { },
 });
-let progressAccessibilitySignalSchedulerFactory: (msLoopTime: number, msDelayTime: number) => IScopedAccessibilityProgressSignalDelegate = nullScopedAccessibilityProgressSignalFactory;
+let progressAccessibilitySignalSchedulerFactory: (msDelayTime: number, msLoopTime?: number) => IScopedAccessibilityProgressSignalDelegate = nullScopedAccessibilityProgressSignalFactory;
 
-export function setProgressAcccessibilitySignalScheduler(progressAccessibilitySignalScheduler: (msLoopTime: number, msDelayTime: number) => IScopedAccessibilityProgressSignalDelegate) {
+export function setProgressAcccessibilitySignalScheduler(progressAccessibilitySignalScheduler: (msDelayTime: number, msLoopTime?: number) => IScopedAccessibilityProgressSignalDelegate) {
 	progressAccessibilitySignalSchedulerFactory = progressAccessibilitySignalScheduler;
 }
 
-export function getProgressAcccessibilitySignalScheduler(msLoopTime: number, msDelayTime: number): IScopedAccessibilityProgressSignalDelegate {
-	return progressAccessibilitySignalSchedulerFactory(msLoopTime, msDelayTime);
+export function getProgressAcccessibilitySignalScheduler(msDelayTime: number, msLoopTime?: number): IScopedAccessibilityProgressSignalDelegate {
+	return progressAccessibilitySignalSchedulerFactory(msDelayTime, msLoopTime);
 }
 
 /**

@@ -159,7 +159,7 @@ export class Workbench extends Layout {
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
 
-				setProgressAcccessibilitySignalScheduler((msLoopTime: number, msDelayTime: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msLoopTime, msDelayTime));
+				setProgressAcccessibilitySignalScheduler((msDelayTime: number, msLoopTime?: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msDelayTime, msLoopTime));
 
 				// Default Hover Delegate must be registered before creating any workbench/layout components
 				// as these possibly will use the default hover delegate
