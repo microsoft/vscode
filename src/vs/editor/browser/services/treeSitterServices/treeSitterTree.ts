@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // eslint-disable-next-line local/code-import-patterns
-import Parser = require('web-tree-sitter');
+import type Parser = require('web-tree-sitter');
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -12,10 +12,10 @@ import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { importAMDNodeModule } from 'vs/amdX';
 
 export class TreeSitterTree {
 
-	private readonly _parser: Parser;
 	private _tree: Parser.Tree | undefined;
 	private _edits: Parser.Edit[];
 	private _nCallsParseTree: number;
@@ -27,10 +27,10 @@ export class TreeSitterTree {
 		private readonly _model: ITextModel,
 		_language: Parser.Language,
 		_modelService: IModelService,
-		private readonly _asynchronous: boolean = true
+		private readonly _asynchronous: boolean = true,
+		private readonly _parser: Parser
 	) {
 		this._modelService = _modelService;
-		this._parser = new Parser();
 		this._parser.setLanguage(_language);
 		this._edits = [];
 		this._nCallsParseTree = 0;
@@ -38,6 +38,11 @@ export class TreeSitterTree {
 		this._store.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
 			this.registerTreeEdits(contentChangeEvent);
 		}));
+	}
+
+	public static async create(model: ITextModel, language: Parser.Language, modelService: IModelService, asynchronous: boolean = true): Promise<TreeSitterTree> {
+		const Parser = await importAMDNodeModule<typeof import('web-tree-sitter')>('web-tree-sitter', 'tree-sitter.js');
+		return new TreeSitterTree(model, language, modelService, asynchronous, new Parser());
 	}
 
 	public registerTreeEdits(contentChangeEvent: IModelContentChangedEvent): void {
@@ -102,8 +107,8 @@ export class TreeSitterTree {
 		// Initially synchronous
 		try {
 			const result = this._parser.parse(
-				(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
-					this._retrieveTextAtPosition(this._model, startIndex, startPoint, endIndex),
+				(startIndex: number, startPoint: Parser.Point | undefined) =>
+					this._retrieveTextAtPosition(this._model, startIndex, startPoint),
 				tree
 			);
 			this._tree = result;
@@ -142,8 +147,8 @@ export class TreeSitterTree {
 				let result: Parser.Tree;
 				try {
 					result = this._parser.parse(
-						(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
-							this._retrieveTextAtPosition(textModel, startIndex, startPoint, endIndex),
+						(startIndex: number, startPoint: Parser.Point | undefined) =>
+							this._retrieveTextAtPosition(textModel, startIndex, startPoint),
 						tree
 					);
 					// Case 1: Either we obtain the result this iteration in which case we resolve
@@ -161,11 +166,11 @@ export class TreeSitterTree {
 		});
 	}
 
-	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined, endIndex: number | undefined) {
+	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined) {
 		const startPosition: Position = model.getPositionAt(startIndex);
-		if (typeof endIndex !== 'number') {
-			endIndex = startIndex + 5000;
-		}
+		// TODO: @alexr00 what do use as an actual end index? It used to come from the parser
+		const endIndex = startIndex + 5000;
+
 		const endPosition: Position = model.getPositionAt(endIndex);
 		return model.getValueInRange(Range.fromPositions(startPosition, endPosition));
 	}

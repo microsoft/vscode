@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // eslint-disable-next-line local/code-import-patterns
-import Parser = require('web-tree-sitter');
+import type Parser = require('web-tree-sitter');
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
@@ -14,6 +14,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { importAMDNodeModule } from 'vs/amdX';
 
 export const ITreeSitterService = createDecorator<ITreeSitterService>('ITreeSitterService');
 
@@ -72,7 +73,8 @@ export class TreeSitterService implements ITreeSitterService {
 			throw new Error('Parser language should be defined');
 		}
 		if (!this._trees.has(model.uri)) {
-			this._trees.set(model.uri, new TreeSitterTree(model, this._language, this._modelService, asynchronous));
+			const newTree = await TreeSitterTree.create(model, this._language, this._modelService, asynchronous);
+			this._trees.set(model.uri, newTree);
 		}
 
 		const tree = this._trees.get(model.uri);
@@ -82,7 +84,7 @@ export class TreeSitterService implements ITreeSitterService {
 		console.log('Time to parse tree : ', timeTreeParse);
 		const query = this._language.query(queryString);
 		sw.reset();
-		const captures = query.captures(parsedTree.rootNode, { row: startLine ? startLine : 1, column: 1 } as Parser.Point);
+		const captures = query.captures(parsedTree.rootNode, { startPosition: { row: startLine ? startLine : 1, column: 1 } });
 		const timeCaptureQueries = sw.elapsed();
 		console.log('Time to get the query captures : ', timeCaptureQueries);
 		query.delete();
@@ -100,14 +102,15 @@ export class TreeSitterService implements ITreeSitterService {
 		}
 	}
 
-	private _getTreeSitterTree(model: ITextModel): TreeSitterTree {
+	private async _getTreeSitterTree(model: ITextModel): Promise<TreeSitterTree> {
 		if (!this._language) {
 			throw new Error('Parser language should be defined');
 		}
 		if (this._trees.has(model.uri)) {
 			return this._trees.get(model.uri)!;
 		} else {
-			this._trees.set(model.uri, new TreeSitterTree(model, this._language, this._modelService));
+			const newTree = await TreeSitterTree.create(model, this._language, this._modelService);
+			this._trees.set(model.uri, newTree);
 			return this._trees.get(model.uri)!;
 		}
 	}
@@ -117,6 +120,8 @@ export class TreeSitterService implements ITreeSitterService {
 			throw new Error('Unsupported language in tree-sitter');
 		}
 		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)! as AppResourcePath)));
+		const Parser = await importAMDNodeModule<typeof import('web-tree-sitter')>('web-tree-sitter', 'tree-sitter.js');
+
 		return Parser.Language.load(languageFile.value.buffer).then((language: Parser.Language) => {
 			return new Promise(function (resolve, _reject) {
 				resolve(language);
