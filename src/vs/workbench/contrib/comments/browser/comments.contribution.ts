@@ -25,6 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
 	constructor() {
@@ -74,11 +75,15 @@ registerAction2(class Reply extends Action2 {
 			id: 'comments.reply',
 			title: nls.localize('reply', "Reply"),
 			icon: Codicon.reply,
-			menu: {
+			precondition: ContextKeyExpr.equals('canReply', true),
+			menu: [{
 				id: MenuId.CommentsViewThreadActions,
-				order: 100,
-				when: ContextKeyExpr.equals('canReply', true)
+				order: 100
 			},
+			{
+				id: MenuId.AccessibleView,
+				when: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Comments)),
+			}]
 		});
 	}
 

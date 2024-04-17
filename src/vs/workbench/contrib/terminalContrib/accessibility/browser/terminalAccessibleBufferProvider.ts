@@ -87,7 +87,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 			if (lineNumber === undefined) {
 				continue;
 			}
-			result.push({ command, lineNumber });
+			result.push({ command, lineNumber, exitCode: command.exitCode });
 		}
 		if (currentCommand) {
 			const lineNumber = this._getEditorLineForCommand(currentCommand);
@@ -114,5 +114,5 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		return line + 1;
 	}
 }
-export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
+export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number; exitCode?: number }
 

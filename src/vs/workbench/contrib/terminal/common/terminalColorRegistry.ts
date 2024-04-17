@@ -143,10 +143,10 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 	'terminal.ansiGreen': {
 		index: 2,
 		defaults: {
-			light: '#00BC00',
+			light: '#107C10',
 			dark: '#0DBC79',
 			hcDark: '#00cd00',
-			hcLight: '#00bc00'
+			hcLight: '#136C13'
 		}
 	},
 	'terminal.ansiYellow': {

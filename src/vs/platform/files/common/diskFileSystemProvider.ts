@@ -72,7 +72,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch universally
-		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive, correlationId: opts.correlationId };
+		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive, filter: opts.filter, correlationId: opts.correlationId };
 		const remove = insert(this.universalPathsToWatch, pathToWatch);
 
 		// Trigger update
@@ -153,7 +153,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch non-recursively
-		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: false, correlationId: opts.correlationId };
+		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: false, filter: opts.filter, correlationId: opts.correlationId };
 		const remove = insert(this.nonRecursivePathsToWatch, pathToWatch);
 
 		// Trigger update

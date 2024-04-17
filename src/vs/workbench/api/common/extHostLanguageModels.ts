@@ -21,6 +21,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -154,7 +155,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._proxy.$registerLanguageModelProvider(handle, identifier, {
 			extension: extension.identifier,
 			identifier: identifier,
-			model: metadata.name ?? '',
+			name: metadata.name ?? '',
+			version: metadata.version,
+			tokens: metadata.tokens,
 			auth
 		});
 
@@ -180,6 +183,18 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return data.provider.provideLanguageModelResponse2(messages.map(typeConvert.LanguageModelMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
 	}
 
+
+	//#region --- token counting
+
+	$provideTokenLength(handle: number, value: string, token: CancellationToken): Promise<number> {
+		const data = this._languageModels.get(handle);
+		if (!data) {
+			return Promise.resolve(0);
+		}
+		return Promise.resolve(data.provider.provideTokenCount(value, token));
+	}
+
+
 	//#region --- making request
 
 	$updateLanguageModels(data: { added?: ILanguageModelChatMetadata[] | undefined; removed?: string[] | undefined }): void {
@@ -188,7 +203,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (data.added) {
 			for (const metadata of data.added) {
 				this._allLanguageModelData.set(metadata.identifier, metadata);
-				added.push(metadata.model);
+				added.push(metadata.identifier);
 			}
 		}
 		if (data.removed) {
@@ -346,7 +361,36 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				this._logService.error(err);
 			}
 		}
+	}
 
+	async computeTokenLength(languageModelId: string, value: string | vscode.LanguageModelChatMessage, token: vscode.CancellationToken): Promise<number> {
+
+		const data = this._allLanguageModelData.get(languageModelId);
+		if (!data) {
+			throw LanguageModelError.NotFound(`Language model '${languageModelId}' is unknown.`);
+		}
+
+		const local = Iterable.find(this._languageModels.values(), candidate => candidate.languageModelId === languageModelId);
+		if (local) {
+			// stay inside the EH
+			return local.provider.provideTokenCount(value, token);
+		}
+
+		return this._proxy.$countTokens(data.identifier, (typeof value === 'string' ? value : typeConvert.LanguageModelMessage.from(value)), token);
+	}
+
+	getLanguageModelInfo(languageModelId: string): vscode.LanguageModelInformation | undefined {
+		const data = this._allLanguageModelData.get(languageModelId);
+		if (!data) {
+			return undefined;
+		}
+
+		return {
+			id: data.identifier,
+			name: data.name,
+			version: data.version,
+			tokens: data.tokens,
+		};
 	}
 
 	private readonly _languageAccessInformationExtensions = new Set<Readonly<IExtensionDescription>>();
