@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, MandatoryMutableDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalLogService, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
