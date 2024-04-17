@@ -456,7 +456,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 
 			// Hide and clear model if there are no more items
-			if (!this._suggestWidget?.hasCompletions() || !nonUserInput) {
+			if (!this._suggestWidget?.hasCompletions() || nonUserInput) {
 				this._additionalInput = undefined;
 				this.hideSuggestWidget();
 				// TODO: Don't request every time; refine completions

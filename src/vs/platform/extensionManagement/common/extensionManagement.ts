@@ -426,6 +426,7 @@ export enum ExtensionManagementErrorCode {
 	Signature = 'Signature',
 	NotAllowed = 'NotAllowed',
 	Gallery = 'Gallery',
+	Cancelled = 'Cancelled',
 	Unknown = 'Unknown',
 	Internal = 'Internal',
 }

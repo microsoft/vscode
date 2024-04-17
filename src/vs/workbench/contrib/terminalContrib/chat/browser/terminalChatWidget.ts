@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
+import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
@@ -100,11 +100,18 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	private _doLayout(heightInPixel: number) {
-		const width = Math.min(640, this._terminalElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin);
+		const xtermElement = this._xterm.raw!.element;
+		if (!xtermElement) {
+			return;
+		}
+		const style = getActiveWindow().getComputedStyle(xtermElement);
+		const xtermPadding = parseInt(style.paddingLeft) + parseInt(style.paddingRight);
+		const width = Math.min(640, xtermElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin - xtermPadding);
 		const height = Math.min(480, heightInPixel, this._getTerminalWrapperHeight() ?? Number.MAX_SAFE_INTEGER);
 		if (width === 0 || height === 0) {
 			return;
 		}
+		this._container.style.paddingLeft = style.paddingLeft;
 		this._dimension = new Dimension(width, height);
 		this._inlineChatWidget.layout(this._dimension);
 
