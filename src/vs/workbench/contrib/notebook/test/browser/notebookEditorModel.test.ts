@@ -19,6 +19,7 @@ import { CellKind, NotebookData, TransientOptions } from 'vs/workbench/contrib/n
 import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
 suite('NotebookFileWorkingCopyModel', function () {
 
@@ -63,7 +64,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(false, CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -84,7 +85,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(false, CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 	});
@@ -119,7 +120,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(false, CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -140,7 +141,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(false, CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 	});
@@ -174,7 +175,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(false, CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -195,7 +196,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(false, CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 	});
