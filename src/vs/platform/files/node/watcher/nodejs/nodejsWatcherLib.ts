@@ -254,7 +254,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 					return; // ignore if already disposed
 				}
 
-				this.trace(`[raw] ["${type}"] ${raw}`);
+				if (this.verboseLogging) {
+					this.traceWithCorrelation(`[raw] ["${type}"] ${raw}`);
+				}
 
 				// Normalize file name
 				let changedFileName = '';
@@ -447,17 +449,17 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		// Logging
 		if (this.verboseLogging) {
-			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+			this.traceWithCorrelation(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
 		}
 
 		// Add to aggregator unless excluded or not included (not if explicitly disabled)
 		if (!skipIncludeExcludeChecks && this.excludes.some(exclude => exclude(event.resource.fsPath))) {
 			if (this.verboseLogging) {
-				this.trace(` >> ignored (excluded) ${event.resource.fsPath}`);
+				this.traceWithCorrelation(` >> ignored (excluded) ${event.resource.fsPath}`);
 			}
 		} else if (!skipIncludeExcludeChecks && this.includes && this.includes.length > 0 && !this.includes.some(include => include(event.resource.fsPath))) {
 			if (this.verboseLogging) {
-				this.trace(` >> ignored (not included) ${event.resource.fsPath}`);
+				this.traceWithCorrelation(` >> ignored (not included) ${event.resource.fsPath}`);
 			}
 		} else {
 			this.fileChangesAggregator.work(event);
@@ -474,7 +476,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		for (const event of coalescedFileChanges) {
 			if (isFiltered(event, this.filter)) {
 				if (this.verboseLogging) {
-					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
+					this.traceWithCorrelation(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}
 
 				continue;
@@ -490,7 +492,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		// Logging
 		if (this.verboseLogging) {
 			for (const event of filteredEvents) {
-				this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+				this.traceWithCorrelation(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
 			}
 		}
 
@@ -543,6 +545,12 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	private trace(message: string): void {
 		if (!this.cts.token.isCancellationRequested && this.verboseLogging) {
 			this.onLogMessage?.({ type: 'trace', message: `[File Watcher (node.js)] ${message}` });
+		}
+	}
+
+	private traceWithCorrelation(message: string): void {
+		if (!this.cts.token.isCancellationRequested && this.verboseLogging) {
+			this.trace(`${message}${typeof this.request.correlationId === 'number' ? ` <${this.request.correlationId}> ` : ``}`);
 		}
 	}
 

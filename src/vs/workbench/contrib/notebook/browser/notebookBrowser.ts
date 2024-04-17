@@ -260,6 +260,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	focusedOutputId?: string | undefined;
 	outputIsHovered: boolean;
 	getText(): string;
+	getAlternativeId(): number;
 	getTextLength(): number;
 	getHeight(lineHeight: number): number;
 	metadata: NotebookCellMetadata;
