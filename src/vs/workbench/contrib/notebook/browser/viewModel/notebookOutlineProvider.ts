@@ -138,9 +138,7 @@ export class NotebookCellOutlineProvider {
 
 		this._recomputeState();
 	}
-	private handle = 0;
 	private _recomputeState(): void {
-		this.handle = this.handle + 1;
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._uri = undefined;
