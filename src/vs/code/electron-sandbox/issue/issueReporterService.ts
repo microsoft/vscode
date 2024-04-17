@@ -496,7 +496,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		// Initial check when first opened.
-		this.parseGitHubUrl(this.getIssueUrl());
+		this.getExtensionGitHubUrl();
 	}
 
 	private isPreviewEnabled() {
@@ -1294,7 +1294,6 @@ export class IssueReporter extends Disposable {
 		this.searchExtensionIssues(title);
 
 		this.updatePreviewButtonState();
-		this.parseGitHubUrl(this.getIssueUrl());
 		this.renderBlocks();
 	}
 
