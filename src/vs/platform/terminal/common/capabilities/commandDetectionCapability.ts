@@ -1068,5 +1068,5 @@ function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number
 }
 
 function cloneMarker(xterm: Terminal, marker: IXtermMarker, offset: number = 0): IXtermMarker | undefined {
-	return xterm.registerMarker(marker.line - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY) + offset);
+	return xterm.registerMarker(Math.max(0, marker.line - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY) + offset));
 }
