@@ -1049,7 +1049,7 @@ export class IssueReporter extends Disposable {
 		const bugsUrl = this.getExtensionBugsUrl();
 		const extensionUrl = this.getExtensionRepositoryUrl();
 		// If given, try to match the extension's bug url
-		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/([^\/]*)$/)) {
+		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?([^\/]*)$/)) {
 			// matches exactly: https://github.com/owner/repo/issues
 			repositoryUrl = normalizeGitHubUrl(bugsUrl);
 		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)$/)) {
