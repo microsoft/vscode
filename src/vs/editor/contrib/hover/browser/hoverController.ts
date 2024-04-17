@@ -12,7 +12,6 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
@@ -22,6 +21,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import 'vs/css!./hover';
+import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
