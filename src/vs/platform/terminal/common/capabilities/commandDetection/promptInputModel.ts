@@ -26,6 +26,8 @@ export interface IPromptInputModel {
 
 	readonly value: string;
 	readonly cursorIndex: number;
+
+	setContinuationPrompt(value: string): void;
 }
 
 export class PromptInputModel extends Disposable implements IPromptInputModel {
@@ -33,6 +35,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _commandStartMarker: IMarker | undefined;
 	private _commandStartX: number = 0;
+	private _continuationPrompt: string | undefined;
 
 	private _value: string = '';
 	get value() { return this._value; }
@@ -61,7 +64,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
+	}
 
+	setContinuationPrompt(value: string): void {
+		this._continuationPrompt = value;
 	}
 
 	private _handleCommandStart(command: { marker: IMarker }) {
@@ -116,13 +122,17 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Add multi-lines
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
-			const text = buffer.getLine(y)?.translateToString(true);
-			if (text) {
-				this._value += `\n${text}`;
+			let lineText = buffer.getLine(y)?.translateToString(true);
+			if (lineText) {
+				if (this._continuationPrompt && lineText.startsWith(this._continuationPrompt)) {
+					lineText = lineText.substring(this._continuationPrompt.length);
+				}
+				this._value += `\n${lineText}`;
 				if (y === absoluteCursorY) {
 					// TODO: Detect continuation
+					//       For pwsh: (Get-PSReadLineOption).ContinuationPrompt
 					// TODO: Wide/emoji length support
-					this._cursorIndex = Math.max(this._value.length - text.length + buffer.cursorX, 0);
+					this._cursorIndex = Math.max(this._value.length - lineText.length + buffer.cursorX, 0);
 				}
 			}
 		}

@@ -160,6 +160,8 @@ const enum VSCodeOscPt {
 	 * - `IsWindows` - Indicates whether the terminal is using a Windows backend like winpty or
 	 *   conpty. This may be used to enable additional heuristics as the positioning of the shell
 	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
+	 * - `ContinuationPrompt` - Reports the continuation prompt that is printed at the start of
+	 *   multi-line inputs.
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
@@ -379,6 +381,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					return true;
 				}
 				switch (key) {
+					case 'ContinuationPrompt': {
+						this._updateContinuationPrompt(value);
+						return true;
+					}
 					case 'Cwd': {
 						this._updateCwd(value);
 						return true;
@@ -402,6 +408,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Unrecognized sequence
 		return false;
+	}
+
+	private _updateContinuationPrompt(value: string) {
+		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		commandDetection?.setContinuationPrompt(value);
 	}
 
 	private _updateCwd(value: string) {
