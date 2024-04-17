@@ -206,12 +206,11 @@ export class ProgressBar extends Disposable {
 	show(delay?: number): void {
 		this.showDelayedScheduler.cancel();
 		this.progressSignal?.dispose();
+		this.progressSignal = this._register(getProgressAcccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY));
 
 		if (typeof delay === 'number') {
-			this.progressSignal = this._register(getProgressAcccessibilitySignalScheduler(delay));
 			this.showDelayedScheduler.schedule(delay);
 		} else {
-			this.progressSignal = this._register(getProgressAcccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY));
 			show(this.element);
 		}
 	}
