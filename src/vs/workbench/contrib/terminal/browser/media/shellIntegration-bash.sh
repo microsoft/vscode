@@ -180,7 +180,7 @@ __vsc_update_cwd() {
 }
 
 __vsc_update_prompt_height() {
-	__vsc_prompt_height="$(builtin printf "%s" "${PS1@P}" | wc -l)"
+	__vsc_prompt_height="$(("$(builtin printf "%s" "${PS1@P}" | wc -l)" + 1))"
 	builtin printf '\e]633;P;PromptHeight=%s\a' "$(__vsc_escape_value "$__vsc_prompt_height")"
 }
 
