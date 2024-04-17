@@ -70,6 +70,7 @@ function getBeforeEnterText(
 	languageConfigurationService: ILanguageConfigurationService
 ) {
 	console.log('getBeforeEnterText');
+	console.log('range : ', JSON.stringify(range));
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 	const initialLineTokens = model.tokenization.getLineTokens(range.startLineNumber);
 	const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
@@ -83,6 +84,7 @@ function getAfterEnterText(
 	languageConfigurationService: ILanguageConfigurationService
 ) {
 	console.log('getAfterEnterText');
+	console.log('range : ', JSON.stringify(range));
 	let initialLineTokens: LineTokens;
 	let scopedLineTokens: ScopedLineTokens;
 	let columnIndexWithinScope: number;
@@ -103,6 +105,8 @@ function getAfterEnterText(
 export function getStrippedScopedLineTextFor(languageConfigurationService: ILanguageConfigurationService, initialLineTokens: LineTokens, scopedLineTokens: ScopedLineTokens | LineTokens, opts: { columnIndexWithinScope: number, isStart: boolean }) {
 
 	console.log('getStrippedScopedLineTextFor');
+	console.log('opts : ', opts);
+	console.log('scopedLineTokens : ', scopedLineTokens);
 
 	const language = 'languageId' in scopedLineTokens ? scopedLineTokens.languageId : '';
 	const scopedLineText = scopedLineTokens.getLineContent();
@@ -115,17 +119,22 @@ export function getStrippedScopedLineTextFor(languageConfigurationService: ILang
 	const isStart = opts.isStart;
 	if (isStart) {
 		text = scopedLineText.substring(opts.columnIndexWithinScope);
-		firstCharacterOffset = 'firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0;
-		lastCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope;
-		firstTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0);
-		lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
-	} else {
-		text = scopedLineText.substring(0, opts.columnIndexWithinScope);
 		firstCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope;
 		lastCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + text.length;
 		firstTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0) + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
 		lastTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0) + scopedLineTokens.findTokenIndexAtOffset(scopedLineText.length - 1) + 1;
+	} else {
+		text = scopedLineText.substring(0, opts.columnIndexWithinScope);
+		firstCharacterOffset = 'firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0;
+		lastCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope;
+		firstTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0);
+		lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
 	}
+
+	console.log('firstCharacterOffset : ', firstCharacterOffset);
+	console.log('lastCharacterOffset : ', lastCharacterOffset);
+	console.log('firstTokenIndex : ', firstTokenIndex);
+	console.log('lastTokenIndex : ', lastTokenIndex);
 
 	const tokensOfText = new ScopedLineTokens(
 		initialLineTokens,
@@ -163,12 +172,15 @@ function getPreviousLineText(
 export function getStrippedLineForLineAndTokens(languageConfigurationService: ILanguageConfigurationService, languageId: string, line: string, tokens: LineTokens | ScopedLineTokens): string {
 
 	console.log('getStrippedLineForLineAndTokens');
+	console.log('line : ', line);
+
 	const brackets = languageConfigurationService.getLanguageConfiguration(languageId).brackets;
 	// console.log('brackets : ', brackets);
 
 	let offset = 0;
 	let strippedLine = line;
 	const numberOfTokens = tokens.getCount();
+	console.log('numberOfTokens : ', numberOfTokens);
 
 	for (let i = 0; i < numberOfTokens; i++) {
 
