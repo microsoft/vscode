@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 // TODO: fix the imports
 // eslint-disable-next-line local/code-import-patterns
-import Parser = require('web-tree-sitter');
+import type Parser = require('web-tree-sitter');
 // eslint-disable-next-line local/code-import-patterns
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { DisposableStore } from 'vs/base/common/lifecycle';
