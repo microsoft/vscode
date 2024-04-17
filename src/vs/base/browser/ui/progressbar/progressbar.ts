@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hide, show } from 'vs/base/browser/dom';
-import { getProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/aria/aria';
+import { getProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';

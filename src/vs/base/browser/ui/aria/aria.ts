@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IScopedAccessibilityProgressSignalDelegate } from 'vs/base/browser/ui/aria/ariaDelegate';
 import 'vs/css!./aria';
 
 // Use a max length since we are inserting the whole msg in the DOM and that can cause browsers to freeze for long messages #94233
@@ -41,21 +40,6 @@ export function setARIAContainer(parent: HTMLElement) {
 	statusContainer2 = createStatusContainer();
 
 	parent.appendChild(ariaContainer);
-}
-
-const nullScopedAccessibilityProgressSignalFactory = () => ({
-	msLoopTime: -1,
-	msDelayTime: -1,
-	dispose: () => { },
-});
-let progressAccessibilitySignalSchedulerFactory: (msDelayTime: number, msLoopTime?: number) => IScopedAccessibilityProgressSignalDelegate = nullScopedAccessibilityProgressSignalFactory;
-
-export function setProgressAcccessibilitySignalScheduler(progressAccessibilitySignalScheduler: (msDelayTime: number, msLoopTime?: number) => IScopedAccessibilityProgressSignalDelegate) {
-	progressAccessibilitySignalSchedulerFactory = progressAccessibilitySignalScheduler;
-}
-
-export function getProgressAcccessibilitySignalScheduler(msDelayTime: number, msLoopTime?: number): IScopedAccessibilityProgressSignalDelegate {
-	return progressAccessibilitySignalSchedulerFactory(msDelayTime, msLoopTime);
 }
 
 /**

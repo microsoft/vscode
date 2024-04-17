@@ -30,7 +30,7 @@ import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { setARIAContainer, setProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/aria/aria';
+import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -47,6 +47,7 @@ import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser
 import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { setBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
+import { setProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
 
 export interface IWorkbenchOptions {
 
