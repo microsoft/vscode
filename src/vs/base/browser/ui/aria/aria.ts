@@ -44,8 +44,8 @@ export function setARIAContainer(parent: HTMLElement) {
 }
 
 const nullScopedAccessibilityProgressSignalFactory = () => ({
-	msLoopTime: 0,
-	msDelayTime: 0,
+	msLoopTime: -1,
+	msDelayTime: -1,
 	dispose: () => { },
 });
 let progressAccessibilitySignalSchedulerFactory: (msDelayTime: number, msLoopTime?: number) => IScopedAccessibilityProgressSignalDelegate = nullScopedAccessibilityProgressSignalFactory;
