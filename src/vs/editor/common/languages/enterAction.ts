@@ -74,11 +74,14 @@ function getBeforeEnterText(
 	console.log('getBeforeEnterText');
 	console.log('range : ', JSON.stringify(range));
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+	model.tokenization.forceTokenization(range.startLineNumber);
 	const initialLineTokens = model.tokenization.getLineTokens(range.startLineNumber);
+	const nextLineTokens = model.tokenization.getLineTokens(range.startLineNumber + 1);
+	console.log('initialLineTokens : ', initialLineTokens);
 	const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
 	// do not strip the comments when we are inside of the comment itself
 	// if not inside of the comment, can strip the comment
-	return getStrippedScopedLineTextFor(languageConfigurationService, initialLineTokens, scopedLineTokens, { isStart: false, columnIndexWithinScope });
+	return getStrippedScopedLineTextFor(languageConfigurationService, initialLineTokens, scopedLineTokens, nextLineTokens, { isStart: false, columnIndexWithinScope }).strippedLine;
 }
 
 /** look at the following */
@@ -90,26 +93,36 @@ function getAfterEnterText(
 	console.log('getAfterEnterText');
 	console.log('range : ', JSON.stringify(range));
 	let initialLineTokens: LineTokens;
+	let nextLineTokens: LineTokens;
 	let scopedLineTokens: ScopedLineTokens;
 	let columnIndexWithinScope: number;
 
 	if (range.isEmpty()) {
+		model.tokenization.forceTokenization(range.startLineNumber);
 		initialLineTokens = model.tokenization.getLineTokens(range.startLineNumber);
+		nextLineTokens = model.tokenization.getLineTokens(range.startLineNumber + 1);
 		scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
 	} else {
+		model.tokenization.forceTokenization(range.endLineNumber);
 		initialLineTokens = model.tokenization.getLineTokens(range.endLineNumber);
+		nextLineTokens = model.tokenization.getLineTokens(range.endLineNumber + 1);
 		scopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
 		columnIndexWithinScope = range.endColumn - 1 - scopedLineTokens.firstCharOffset;
 	}
 
-	return getStrippedScopedLineTextFor(languageConfigurationService, initialLineTokens, scopedLineTokens, { isStart: true, columnIndexWithinScope });
+	return getStrippedScopedLineTextFor(languageConfigurationService, initialLineTokens, scopedLineTokens, nextLineTokens, { isStart: true, columnIndexWithinScope }).strippedLine;
 }
 
-export function getStrippedScopedLineTextFor(languageConfigurationService: ILanguageConfigurationService, initialLineTokens: LineTokens, scopedLineTokens: ScopedLineTokens | LineTokens, opts: { columnIndexWithinScope: number, isStart: boolean }) {
+export function getStrippedScopedLineTextFor(languageConfigurationService: ILanguageConfigurationService, initialLineTokens: LineTokens, scopedLineTokens: ScopedLineTokens | LineTokens, nextLineTokens: LineTokens, opts: { columnIndexWithinScope: number, isStart: boolean }): {
+	line: string;
+	strippedLine: string;
+	tokens: ScopedLineTokens | LineTokens;
+} {
 
 	console.log('getStrippedScopedLineTextFor');
 	console.log('opts : ', opts);
+	console.log('initialLineTokens : ', initialLineTokens);
 	console.log('scopedLineTokens : ', scopedLineTokens);
 
 	const language = 'languageId' in scopedLineTokens ? scopedLineTokens.languageId : '';
@@ -120,11 +133,14 @@ export function getStrippedScopedLineTextFor(languageConfigurationService: ILang
 	let firstTokenIndex: number;
 	let lastTokenIndex: number;
 
+	let modifiedLineTokens: LineTokens;
+
 	const isStart = opts.isStart;
+	console.log('isStart : ', isStart);
 	if (isStart) {
 		text = scopedLineText.substring(opts.columnIndexWithinScope);
-		firstCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope;
-		lastCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + text.length;
+		firstCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope + 1;
+		lastCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope + text.length + 1;
 		firstTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0) + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
 		lastTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0) + scopedLineTokens.findTokenIndexAtOffset(scopedLineText.length - 1) + 1;
 	} else {
@@ -132,7 +148,7 @@ export function getStrippedScopedLineTextFor(languageConfigurationService: ILang
 		firstCharacterOffset = 'firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0;
 		lastCharacterOffset = ('firstCharOffset' in scopedLineTokens ? scopedLineTokens.firstCharOffset : 0) + opts.columnIndexWithinScope;
 		firstTokenIndex = ('firstTokenIndex' in scopedLineTokens ? scopedLineTokens.firstTokenIndex : 0);
-		lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope) + 1;
+		lastTokenIndex = firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope);
 	}
 
 	console.log('firstCharacterOffset : ', firstCharacterOffset);
@@ -140,15 +156,48 @@ export function getStrippedScopedLineTextFor(languageConfigurationService: ILang
 	console.log('firstTokenIndex : ', firstTokenIndex);
 	console.log('lastTokenIndex : ', lastTokenIndex);
 
+	// divid the initial line tokens so that the indices coincide
+	// const modifiedInitialLineTokens = new LineTokens(initialLineTokens.getLineContent());
+
+	const initialTokens: number[] = [];
+	initialLineTokens.tokens().forEach((token) => {
+		initialTokens.push(token);
+	});
+	console.log('initialTokens : ', initialTokens);
+	const tokenIndex = scopedLineTokens.findTokenIndexAtOffset(opts.columnIndexWithinScope);
+
+	let middleArray: [number, number];
+	console.log('tokenIndex : ', tokenIndex);
+	if (firstCharacterOffset === lastCharacterOffset && firstCharacterOffset >= initialLineTokens.getLineContent().length) {
+		middleArray = [opts.columnIndexWithinScope, nextLineTokens.getStandardTokenType(0)];
+	} else {
+		middleArray = [opts.columnIndexWithinScope, initialTokens[2 * tokenIndex + 1]];
+	}
+
+	console.log('middleArray : ', middleArray);
+	console.log('initialTokens.slice(0, 2 * (tokenIndex + 1)) : ', initialTokens.slice(0, 2 * (tokenIndex + 1)));
+	console.log('initialTokens.slice(2 * (tokenIndex + 2) : ', initialTokens.slice(2 * (tokenIndex + 2)));
+
+	const modifiedTokens = new Uint32Array([...initialTokens.slice(0, 2 * (tokenIndex + 1)), ...middleArray, ...initialTokens.slice(2 * (tokenIndex + 2))]);
+	console.log('modifiedtokens : ', modifiedTokens);
+
+	modifiedLineTokens = new LineTokens(modifiedTokens, initialLineTokens.getLineContent(), {
+		encodeLanguageId: () => 0,
+		decodeLanguageId: () => ''
+	});
+	console.log('modifiedLineTokens : ', modifiedLineTokens);
+
 	const tokensOfText = new ScopedLineTokens(
-		initialLineTokens,
+		modifiedLineTokens,
 		language,
 		firstTokenIndex,
 		lastTokenIndex,
 		firstCharacterOffset,
 		lastCharacterOffset
 	);
-	return getStrippedLineForLineAndTokens(languageConfigurationService, language, text, tokensOfText);
+	console.log('tokensOfText : ', tokensOfText);
+	const strippedLine = getStrippedLineForLineAndTokens(languageConfigurationService, language, text, tokensOfText);
+	return { line: text, strippedLine, tokens: tokensOfText }
 }
 
 function getPreviousLineText(

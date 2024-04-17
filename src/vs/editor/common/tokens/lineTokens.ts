@@ -51,6 +51,10 @@ export class LineTokens implements IViewLineTokens {
 		this._languageIdCodec = decoder;
 	}
 
+	public tokens(): Uint32Array {
+		return this._tokens;
+	}
+
 	public equals(other: IViewLineTokens): boolean {
 		if (other instanceof LineTokens) {
 			return this.slicedEquals(other, 0, this._tokensCount);

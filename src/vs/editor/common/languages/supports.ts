@@ -72,6 +72,10 @@ export class ScopedLineTokens {
 	}
 
 	public findTokenIndexAtOffset(offset: number): number {
+		console.log('findTokenIndexAtOffset');
+		console.log('offset', offset);
+		console.log('this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) : ', this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset));
+		console.log('this.firstTokenIndex : ', this.firstTokenIndex);
 		return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this.firstTokenIndex;
 	}
 

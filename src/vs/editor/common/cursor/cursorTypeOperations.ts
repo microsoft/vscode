@@ -151,13 +151,14 @@ export class TypeOperations {
 		}
 	}
 
-	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string | null {
+	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, position: Position): string | null {
 		console.log('_goodIndentForLine');
 
 		let action: IndentAction | EnterAction | null = null;
 		let indentation: string = '';
+		const lineNumber = position.lineNumber;
 
-		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, lineNumber, false, config.languageConfigurationService);
+		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, position, false, config.languageConfigurationService);
 		if (expectedIndentAction) {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
@@ -231,7 +232,7 @@ export class TypeOperations {
 				const lineText = model.getLineContent(selection.startLineNumber);
 
 				if (/^\s*$/.test(lineText) && model.tokenization.isCheapToTokenize(selection.startLineNumber)) {
-					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
+					let goodIndent = this._goodIndentForLine(config, model, selection.getStartPosition());
 					goodIndent = goodIndent || '\t';
 					const possibleTypeText = config.normalizeIndentation(goodIndent);
 					if (!lineText.startsWith(possibleTypeText)) {

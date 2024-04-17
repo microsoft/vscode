@@ -25,6 +25,7 @@ import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
 import { getReindentEditOperations } from '../common/indentation';
+import { Position } from 'vs/editor/common/core/position';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static readonly ID = 'editor.action.indentationToSpaces';
@@ -449,7 +450,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		let firstLineText = model.getLineContent(startLineNumber);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
-			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
+			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), range.getStartPosition(), indentConverter, this._languageConfigurationService);
 
 			if (indentOfFirstLine !== null) {
 				const oldIndentation = strings.getLeadingWhitespace(firstLineText);
@@ -509,7 +510,9 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService);
+
+			const position = new Position(startLineNumber + 1, 1);
+			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), position, indentConverter, this._languageConfigurationService);
 			if (indentOfSecondLine !== null) {
 				const newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				const oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);

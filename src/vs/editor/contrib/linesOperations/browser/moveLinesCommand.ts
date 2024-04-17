@@ -16,6 +16,7 @@ import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import * as indentUtils from 'vs/editor/contrib/indentation/common/indentUtils';
 import { getGoodIndentForLine, getIndentMetadata, IIndentConverter, IVirtualModel } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
+import { Position } from 'vs/editor/common/core/position';
 
 export class MoveLinesCommand implements ICommand {
 
@@ -127,11 +128,12 @@ export class MoveLinesCommand implements ICommand {
 								return model.getLineContent(lineNumber);
 							}
 						};
+						const startPosition = s.getStartPosition();
 						const indentOfMovingLine = getGoodIndentForLine(
 							this._autoIndent,
 							virtualModel,
 							model.getLanguageIdAtPosition(movingLineNumber, 1),
-							s.startLineNumber,
+							startPosition,
 							indentConverter,
 							this._languageConfigurationService
 						);
@@ -168,12 +170,12 @@ export class MoveLinesCommand implements ICommand {
 								return model.getLineContent(lineNumber);
 							}
 						};
-
+						const position = new Position(s.startLineNumber + 1, 1);
 						const newIndentatOfMovingBlock = getGoodIndentForLine(
 							this._autoIndent,
 							virtualModel,
 							model.getLanguageIdAtPosition(movingLineNumber, 1),
-							s.startLineNumber + 1,
+							position,
 							indentConverter,
 							this._languageConfigurationService
 						);
@@ -220,11 +222,12 @@ export class MoveLinesCommand implements ICommand {
 						}
 					} else {
 						// it doesn't match any onEnter rule, let's check indentation rules then.
+						const position = new Position(movingLineNumber + 1, 1)
 						const indentOfFirstLine = getGoodIndentForLine(
 							this._autoIndent,
 							virtualModel,
 							model.getLanguageIdAtPosition(s.startLineNumber, 1),
-							movingLineNumber,
+							position,
 							indentConverter,
 							this._languageConfigurationService
 						);
