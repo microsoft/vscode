@@ -68,6 +68,7 @@ import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices
 import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -202,6 +203,17 @@ export function setupInstantiationService(disposables: DisposableStore) {
 	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService)));
 	instantiationService.stub(IInlineChatService, instantiationService.createInstance(InlineChatServiceImpl));
 	instantiationService.stub(INotebookCellOutlineProviderFactory, instantiationService.createInstance(NotebookCellOutlineProviderFactory));
+
+	instantiationService.stub(ILanguageDetectionService, new class MockLanguageDetectionService implements ILanguageDetectionService {
+		_serviceBrand: undefined;
+		isEnabledForLanguage(languageId: string): boolean {
+			return false;
+		}
+		async detectLanguage(resource: URI, supportedLangs?: string[] | undefined): Promise<string | undefined> {
+			return undefined;
+		}
+	});
+
 	return instantiationService;
 }
 
