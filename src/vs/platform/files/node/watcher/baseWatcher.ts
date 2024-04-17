@@ -231,8 +231,16 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	protected traceEvent(event: IFileChange, request: IUniversalWatchRequest): void {
-		const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
-		this.trace(typeof request.correlationId === 'number' ? `${traceMsg} (correlationId: ${request.correlationId})` : traceMsg);
+		if (this.verboseLogging) {
+			const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
+			this.traceWithCorrelation(traceMsg, request);
+		}
+	}
+
+	protected traceWithCorrelation(message: string, request: IUniversalWatchRequest): void {
+		if (this.verboseLogging) {
+			this.trace(`${message}${typeof request.correlationId === 'number' ? ` <${request.correlationId}> ` : ``}`);
+		}
 	}
 
 	protected requestToString(request: IUniversalWatchRequest): string {
@@ -247,5 +255,10 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	protected abstract warn(message: string): void;
 
 	abstract onDidError: Event<string>;
-	abstract setVerboseLogging(enabled: boolean): Promise<void>;
+
+	protected verboseLogging = false;
+
+	async setVerboseLogging(enabled: boolean): Promise<void> {
+		this.verboseLogging = enabled;
+	}
 }
