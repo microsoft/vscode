@@ -76,6 +76,8 @@ function getBeforeEnterText(
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 	const initialLineTokens = model.tokenization.getLineTokens(range.startLineNumber);
 	const columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
+	// do not strip the comments when we are inside of the comment itself
+	// if not inside of the comment, can strip the comment
 	return getStrippedScopedLineTextFor(languageConfigurationService, initialLineTokens, scopedLineTokens, { isStart: false, columnIndexWithinScope });
 }
 
@@ -190,10 +192,9 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 
 		const standardTokenType = tokens.getStandardTokenType(i);
 
+		/*
 		if (standardTokenType === StandardTokenType.Comment) {
-
 			console.log('comment token');
-
 			const startOffset = tokens.getStartOffset(i);
 			const endOffset = tokens.getEndOffset(i);
 			strippedLine = strippedLine.substring(0, offset + startOffset) + strippedLine.substring(offset + endOffset);
@@ -201,8 +202,13 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 			console.log('strippedLine : ', strippedLine);
 			console.log('offset : ', offset);
 		}
+		*/
 
-		if (standardTokenType === StandardTokenType.String || standardTokenType === StandardTokenType.RegEx) {
+		if (
+			standardTokenType === StandardTokenType.String
+			|| standardTokenType === StandardTokenType.RegEx
+			|| standardTokenType === StandardTokenType.Comment
+		) {
 
 			console.log('string or regex token');
 
