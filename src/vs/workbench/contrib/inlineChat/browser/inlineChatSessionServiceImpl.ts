@@ -506,7 +506,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							} else if (item.kind === 'textEdit') {
 								for (const edit of item.edits) {
 									raw.edits.edits.push({
-										resource: session.textModelN.uri,
+										resource: item.uri,
 										textEdit: edit,
 										versionId: undefined
 									});
@@ -570,19 +570,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const id = generateUuid();
 		const targetUri = textModel.uri;
 
-		let textModelN: ITextModel;
-		if (options.editMode === EditMode.Preview) {
-			// AI edits happen in a copy
-			textModelN = store.add(this._modelService.createModel(
-				createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
-				{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-				targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: '', query: new URLSearchParams({ id, 'textModelN': '' }).toString() })
-			));
-		} else {
-			// AI edits happen in the actual model, keep a reference but make no copy
-			store.add((await this._textModelService.createModelReference(textModel.uri)));
-			textModelN = textModel;
-		}
+		// AI edits happen in the actual model, keep a reference but make no copy
+		store.add((await this._textModelService.createModelReference(textModel.uri)));
+		const textModelN = textModel;
 
 		// create: keep a snapshot of the "actual" model
 		const textModel0 = store.add(this._modelService.createModel(

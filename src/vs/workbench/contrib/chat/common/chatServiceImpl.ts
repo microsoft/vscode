@@ -212,6 +212,7 @@ export class ChatService extends Disposable implements IChatService {
 				newFile: !!action.action.newFile
 			});
 		} else if (action.action.kind === 'command') {
+			// TODO not currently called
 			const command = CommandsRegistry.getCommand(action.action.commandButton.command.id);
 			const commandId = command ? action.action.commandButton.command.id : 'INVALID';
 			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
@@ -406,7 +407,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const location = options?.location ?? ChatAgentLocation.Panel;
+		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
 		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
@@ -483,8 +484,8 @@ export class ChatService extends Disposable implements IChatService {
 
 				gotProgress = true;
 
-				if (progress.kind === 'content' || progress.kind === 'markdownContent') {
-					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
+				if (progress.kind === 'markdownContent') {
+					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.value.length} chars`);
 				} else {
 					this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);
 				}
@@ -639,7 +640,8 @@ export class ChatService extends Disposable implements IChatService {
 			message;
 		const request = model.addRequest(parsedRequest, variableData || { variables: [] }, attempt ?? 0);
 		if (typeof response.message === 'string') {
-			model.acceptResponseProgress(request, { content: response.message, kind: 'content' });
+			// TODO is this possible?
+			model.acceptResponseProgress(request, { content: new MarkdownString(response.message), kind: 'markdownContent' });
 		} else {
 			for (const part of response.message) {
 				model.acceptResponseProgress(request, part, true);

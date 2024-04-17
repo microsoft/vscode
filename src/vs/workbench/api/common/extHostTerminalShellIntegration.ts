@@ -11,7 +11,7 @@ import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThread
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, type Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+import { isUriComponents, URI } from 'vs/base/common/uri';
 import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from 'vs/base/common/async';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
@@ -62,12 +62,12 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		// 	console.log('*** onDidStartTerminalShellExecution', e);
 		// 	// new Promise<void>(r => {
 		// 	// 	(async () => {
-		// 	// 		for await (const d of e.createDataStream()) {
+		// 	// 		for await (const d of e.execution.read()) {
 		// 	// 			console.log('data2', d);
 		// 	// 		}
 		// 	// 	})();
 		// 	// });
-		// 	for await (const d of e.createDataStream()) {
+		// 	for await (const d of e.execution.read()) {
 		// 		console.log('data', d);
 		// 	}
 		// });
@@ -132,7 +132,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 
 	public $cwdChange(instanceId: number, cwd: URI | undefined): void {
-		this._activeShellIntegrations.get(instanceId)?.setCwd(cwd);
+		this._activeShellIntegrations.get(instanceId)?.setCwd(isUriComponents(cwd) ? URI.revive(cwd) : cwd);
 	}
 
 	public $closeTerminal(instanceId: number): void {

@@ -8,10 +8,8 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { GeneratingPhrase, IChatAccessibilityService, IChatCodeBlockContextProviderService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -90,7 +88,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
-		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -108,10 +105,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
-
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
 
 		if (!this.initTerminalAgent()) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => this.initTerminalAgent()));
@@ -155,11 +148,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
 		this._chatWidget = new Lazy(() => {
-			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance));
+			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance, xterm));
 			this._register(chatWidget.focusTracker.onDidFocus(() => {
 				TerminalChatController.activeChatWidget = this;
 				if (!isDetachedTerminalInstance(this._instance)) {
@@ -272,9 +262,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				return;
 			}
 
-			if (progress.kind === 'content') {
-				responseContent += progress.content;
-			} else if (progress.kind === 'markdownContent') {
+			if (progress.kind === 'markdownContent') {
 				responseContent += progress.content.value;
 			}
 			if (this._currentRequest) {
@@ -376,7 +364,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
-			request.message.text,
+			// DEBT: Add hardcoded agent name until its removed
+			`@${this._terminalAgentName} ${request.message.text}`,
 			request.variableData,
 			request.attempt,
 			{

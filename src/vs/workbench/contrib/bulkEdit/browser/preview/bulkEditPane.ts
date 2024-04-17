@@ -410,7 +410,7 @@ export class BulkEditPane extends ViewPane {
 			resources,
 			getResourceDiffEditorInputIdOfOperation
 		};
-	}, key => key);
+	});
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
 

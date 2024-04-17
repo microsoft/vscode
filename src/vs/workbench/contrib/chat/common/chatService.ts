@@ -89,11 +89,6 @@ export interface IChatAgentDetection {
 	kind: 'agentDetection';
 }
 
-export interface IChatContent {
-	content: string;
-	kind: 'content';
-}
-
 export interface IChatMarkdownContent {
 	content: IMarkdownString;
 	kind: 'markdownContent';
@@ -114,16 +109,9 @@ export interface IChatAgentVulnerabilityDetails {
 	description: string;
 }
 
-export interface IChatAgentContentWithVulnerabilities {
-	content: string;
-	vulnerabilities?: IChatAgentVulnerabilityDetails[];
-	kind: 'vulnerability';
-}
-
-// TODO@roblourens Temp until I get MarkdownString out of ChatModel
 export interface IChatAgentMarkdownContentWithVulnerability {
 	content: IMarkdownString;
-	vulnerabilities?: IChatAgentVulnerabilityDetails[];
+	vulnerabilities: IChatAgentVulnerabilityDetails[];
 	kind: 'markdownVuln';
 }
 
@@ -139,9 +127,7 @@ export interface IChatTextEdit {
 }
 
 export type IChatProgress =
-	| IChatContent
 	| IChatMarkdownContent
-	| IChatAgentContentWithVulnerabilities
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatUsedContext
