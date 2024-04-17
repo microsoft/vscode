@@ -30,7 +30,7 @@ import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
+import { setARIAContainer, setProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/aria/aria';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -46,6 +46,7 @@ import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { setBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
 
 export interface IWorkbenchOptions {
 
@@ -157,6 +158,8 @@ export class Workbench extends Layout {
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
+
+				setProgressAcccessibilitySignalScheduler((msLoopTime: number, msDelayTime: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msLoopTime, msDelayTime));
 
 				// Default Hover Delegate must be registered before creating any workbench/layout components
 				// as these possibly will use the default hover delegate

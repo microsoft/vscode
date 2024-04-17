@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { IScopedAccessibilityProgressSignalDelegate } from 'vs/base/browser/ui/aria/ariaDelegate';
 import 'vs/css!./aria';
 
 // Use a max length since we are inserting the whole msg in the DOM and that can cause browsers to freeze for long messages #94233
@@ -41,6 +42,22 @@ export function setARIAContainer(parent: HTMLElement) {
 
 	parent.appendChild(ariaContainer);
 }
+
+const nullScopedAccessibilityProgressSignalFactory = () => ({
+	msLoopTime: 0,
+	msDelayTime: 0,
+	dispose: () => { },
+});
+let progressAccessibilitySignalSchedulerFactory: (msLoopTime: number, msDelayTime: number) => IScopedAccessibilityProgressSignalDelegate = nullScopedAccessibilityProgressSignalFactory;
+
+export function setProgressAcccessibilitySignalScheduler(progressAccessibilitySignalScheduler: (msLoopTime: number, msDelayTime: number) => IScopedAccessibilityProgressSignalDelegate) {
+	progressAccessibilitySignalSchedulerFactory = progressAccessibilitySignalScheduler;
+}
+
+export function getProgressAcccessibilitySignalScheduler(msLoopTime: number, msDelayTime: number): IScopedAccessibilityProgressSignalDelegate {
+	return progressAccessibilitySignalSchedulerFactory(msLoopTime, msDelayTime);
+}
+
 /**
  * Given the provided message, will make sure that it is read as alert to screen readers.
  */

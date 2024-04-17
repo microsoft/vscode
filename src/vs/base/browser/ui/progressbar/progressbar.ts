@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hide, show } from 'vs/base/browser/dom';
+import { getProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/aria/aria';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./progressbar';
 
@@ -40,6 +41,8 @@ export class ProgressBar extends Disposable {
 	 * https://github.com/microsoft/vscode/issues/138396
 	 */
 	private static readonly LONG_RUNNING_INFINITE_THRESHOLD = 10000;
+	private static readonly PROGRESS_SIGNAL_DEFAULT_DELAY = 3000;
+	private static readonly PROGRESS_SIGNAL_LOOP_DELAY = 4000;
 
 	private workedVal: number;
 	private element!: HTMLElement;
@@ -47,6 +50,7 @@ export class ProgressBar extends Disposable {
 	private totalWork: number | undefined;
 	private showDelayedScheduler: RunOnceScheduler;
 	private longRunningScheduler: RunOnceScheduler;
+	private progressSignal: IDisposable | undefined;
 
 	constructor(container: HTMLElement, options?: IProgressBarOptions) {
 		super();
@@ -73,6 +77,7 @@ export class ProgressBar extends Disposable {
 	}
 
 	private off(): void {
+		this.progressSignal?.dispose();
 		this.bit.style.width = 'inherit';
 		this.bit.style.opacity = '1';
 		this.element.classList.remove(CSS_ACTIVE, CSS_INFINITE, CSS_INFINITE_LONG_RUNNING, CSS_DISCRETE);
@@ -201,10 +206,13 @@ export class ProgressBar extends Disposable {
 
 	show(delay?: number): void {
 		this.showDelayedScheduler.cancel();
+		this.progressSignal?.dispose();
 
 		if (typeof delay === 'number') {
+			this.progressSignal = this._register(getProgressAcccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_LOOP_DELAY, delay));
 			this.showDelayedScheduler.schedule(delay);
 		} else {
+			this.progressSignal = this._register(getProgressAcccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_LOOP_DELAY, ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY));
 			show(this.element);
 		}
 	}
