@@ -253,11 +253,13 @@ export class NotebookCellOutlineProvider {
 			}
 		}));
 
-		this._recomputeActive();
-		this._onDidChange.fire({});
+		const { changeEventTriggered } = this._recomputeActive();
+		if (!changeEventTriggered) {
+			this._onDidChange.fire({});
+		}
 	}
 
-	private _recomputeActive(): void {
+	private _recomputeActive(): { changeEventTriggered: boolean } {
 		let newActive: OutlineEntry | undefined;
 		const notebookEditorWidget = this._editor;
 
@@ -291,7 +293,10 @@ export class NotebookCellOutlineProvider {
 		) {
 			this._activeEntry = newActive;
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
+			return { changeEventTriggered: true };
 		}
+
+		return { changeEventTriggered: false };
 	}
 
 	get isEmpty(): boolean {
