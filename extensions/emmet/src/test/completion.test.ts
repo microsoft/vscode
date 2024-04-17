@@ -113,38 +113,3 @@ function testCompletionProvider(fileExtension: string, contents: string, expecte
 		return Promise.resolve();
 	});
 }
-
-function completionProviderIndexOf(fileExtension: string, contents: string, expectedItem: TestCompletionItem): Thenable<number> {
-	const cursorPos = contents.indexOf('|');
-	const slicedContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
-
-	let index = -1;
-	return withRandomFileEditor(slicedContents, fileExtension, async (editor, _doc) => {
-		const selection = new Selection(editor.document.positionAt(cursorPos), editor.document.positionAt(cursorPos));
-		editor.selection = selection;
-		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(
-			editor.document,
-			editor.selection.active,
-			cancelSrc.token,
-			{ triggerKind: CompletionTriggerKind.Invoke, triggerCharacter: undefined }
-		);
-		if (!completionPromise) {
-			return;
-		}
-		const completionList = await completionPromise;
-		if (!completionList) {
-			return;
-		}
-		const match = completionList.items.find(i => i.label === expectedItem.label);
-		if (match) {
-			assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
-			if (expectedItem.documentation && match.documentation !== expectedItem.documentation) {
-				return;
-			}
-			index = completionList.items.indexOf(match);
-		}
-	}).then(() => {
-		return Promise.resolve(index);
-	});
-}
