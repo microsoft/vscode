@@ -302,7 +302,6 @@ export class TypeOperations {
 
 	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
 		console.log('_enter');
-
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
@@ -314,7 +313,6 @@ export class TypeOperations {
 
 		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
 		console.log('r : ', r);
-
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special

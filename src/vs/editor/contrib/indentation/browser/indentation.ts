@@ -510,7 +510,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-
 			const position = new Position(startLineNumber + 1, 1);
 			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), position, indentConverter, this._languageConfigurationService);
 			if (indentOfSecondLine !== null) {

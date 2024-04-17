@@ -241,18 +241,6 @@ export function getStrippedLineForLineAndTokens(languageConfigurationService: IL
 
 		const standardTokenType = tokens.getStandardTokenType(i);
 
-		/*
-		if (standardTokenType === StandardTokenType.Comment) {
-			console.log('comment token');
-			const startOffset = tokens.getStartOffset(i);
-			const endOffset = tokens.getEndOffset(i);
-			strippedLine = strippedLine.substring(0, offset + startOffset) + strippedLine.substring(offset + endOffset);
-			offset += startOffset - endOffset;
-			console.log('strippedLine : ', strippedLine);
-			console.log('offset : ', offset);
-		}
-		*/
-
 		if (
 			standardTokenType === StandardTokenType.String
 			|| standardTokenType === StandardTokenType.RegEx
