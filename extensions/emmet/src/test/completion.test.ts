@@ -31,17 +31,17 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 	// https://github.com/microsoft/vscode/issues/86941
 	test('#86941, widows should be completed after width', async () => {
 		await testCompletionProvider('css', `.foo { wi| }`, [
-			{ label: 'width: ;', documentation: `width: ;` }
+			{ label: 'width: ;', documentation: `width: |;` }
 		]);
 		try {
 			await testCompletionProvider('css', `.foo { wi| }`, [
-				{ label: 'widows: ;', documentation: `widows: ;` }
+				{ label: 'widows: ;', documentation: `widows: |;` }
 			]);
 		} catch (e) {
 			assert.strictEqual(e.message, "Didn't find completion item with label widows: ;");
 		}
 		await testCompletionProvider('css', `.foo { wido| }`, [
-			{ label: 'widows: ;', documentation: `widows: ;` }
+			{ label: 'widows: ;', documentation: `widows: |;` }
 		]);
 	});
 
