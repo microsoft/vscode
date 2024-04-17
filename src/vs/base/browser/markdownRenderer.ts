@@ -9,6 +9,7 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
@@ -25,6 +26,8 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { dirname, resolvePath } from 'vs/base/common/resources';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+
+const ttPolicy = createTrustedTypesPolicy('markdownRenderer', { createHTML: value => value });
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -306,7 +309,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 		});
 
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, markdownHtmlDoc.body.innerHTML) as unknown as string;
+	const html = markdownHtmlDoc.body.innerHTML;
+	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
+	element.innerHTML = trustedhtml as string;
 
 	if (codeBlocks.length > 0) {
 		Promise.all(codeBlocks).then((tuples) => {
