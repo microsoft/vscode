@@ -1031,16 +1031,14 @@ export class IssueReporter extends Disposable {
 	private parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {
 		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
 		// Repository name and owner cannot contain '/'
-		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)$/.exec(url);
+		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
 		if (match && match.length) {
-			this.nonGitHubIssueUrl = false;
 			return {
 				owner: match[1],
 				repositoryName: match[2]
 			};
 		} else {
-			this.nonGitHubIssueUrl = true;
-			console.error('No GitHub match');
+			console.error('No GitHub issues match');
 		}
 
 		return undefined;
@@ -1051,10 +1049,15 @@ export class IssueReporter extends Disposable {
 		const bugsUrl = this.getExtensionBugsUrl();
 		const extensionUrl = this.getExtensionRepositoryUrl();
 		// If given, try to match the extension's bug url
-		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/([^\/]*)$/)) {
+			// matches exactly: https://github.com/owner/repo/issues
 			repositoryUrl = normalizeGitHubUrl(bugsUrl);
-		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)$/)) {
+			// matches exactly: https://github.com/owner/repo
 			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+		} else {
+			this.nonGitHubIssueUrl = true;
+			repositoryUrl = bugsUrl || extensionUrl || '';
 		}
 
 		return repositoryUrl;
@@ -1249,6 +1252,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private clearExtensionData(): void {
+		this.nonGitHubIssueUrl = false;
 		this.issueReporterModel.update({ extensionData: undefined });
 		this.configuration.data.issueBody = undefined;
 		this.configuration.data.data = undefined;
