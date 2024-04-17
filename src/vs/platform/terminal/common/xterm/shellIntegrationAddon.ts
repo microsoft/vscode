@@ -394,6 +394,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					}
 					case 'PromptHeight': {
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setPromptHeight(parseInt(value));
+						return true;
 					}
 				}
 			}
