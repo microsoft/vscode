@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, MandatoryMutableDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -1068,5 +1068,7 @@ function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number
 }
 
 function cloneMarker(xterm: Terminal, marker: IXtermMarker, offset: number = 0): IXtermMarker | undefined {
-	return xterm.registerMarker(Math.max(0, marker.line - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY) + offset));
+	const cursorY = xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
+	const cursorYOffset = marker.line - cursorY + offset;
+	return xterm.registerMarker((cursorY + cursorYOffset) < 0 ? 0 : cursorYOffset);
 }
