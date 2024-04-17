@@ -184,7 +184,43 @@ function renderError(
 		return disposableStore;
 	}
 
-	if (err.stack) {
+	if (err.name && err.message) {
+		const header = document.createElement('div');
+		const headerMessage = `${err.name}: ${err.message}`;
+		header.innerText = headerMessage;
+		outputElement.appendChild(header);
+
+		if (err.stack) {
+			const showStackLink = document.createElement('a');
+			showStackLink.innerText = 'Show stack';
+			showStackLink.href = '#';
+			header.appendChild(showStackLink);
+
+			outputElement.classList.add('traceback');
+
+			const stackTrace = formatStackTrace(err.stack);
+
+			const outputOptions = { linesLimit: 1000, scrollable: false, trustHtml, linkifyFilePaths: false };
+
+			const content = createOutputContent(outputInfo.id, stackTrace, outputOptions);
+			const contentParent = document.createElement('div');
+			contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+			disposableStore.push(ctx.onDidChangeSettings(e => {
+				contentParent.classList.toggle('word-wrap', e.outputWordWrap);
+			}));
+
+			contentParent.appendChild(content);
+			outputElement.appendChild(contentParent);
+			contentParent.style.display = 'none';
+
+			showStackLink.onclick = (e) => {
+				e.preventDefault();
+				const hidden = contentParent.style.display === 'none';
+				contentParent.style.display = hidden ? '' : 'none';
+				showStackLink.innerText = hidden ? 'Hide stack' : 'Show stack';
+			};
+		}
+	} else if (err.stack) {
 		outputElement.classList.add('traceback');
 
 		const stackTrace = formatStackTrace(err.stack);
