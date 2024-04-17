@@ -5,7 +5,7 @@
 
 // This is a facade for the observable implementation. Only import from here!
 
-export {
+export type {
 	IObservable,
 	IObserver,
 	IReader,
@@ -14,6 +14,9 @@ export {
 	ITransaction,
 	IChangeContext,
 	IChangeTracker,
+} from 'vs/base/common/observableInternal/base';
+
+export {
 	observableValue,
 	disposableObservableValue,
 	transaction,
@@ -33,8 +36,10 @@ export {
 	autorunOpts,
 	autorunWithStoreHandleChanges,
 } from 'vs/base/common/observableInternal/autorun';
-export {
+export type {
 	IObservableSignal,
+} from 'vs/base/common/observableInternal/utils';
+export {
 	constObservable,
 	debouncedObservable,
 	derivedObservableWithCache,

@@ -175,7 +175,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		events => this._onDidChangeFile.fire(events)
 	));
 
-	private verboseLogging = false;
 	private enospcErrorLogged = false;
 
 	constructor() {
@@ -407,13 +406,13 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		for (const { path, type: parcelEventType } of parcelEvents) {
 			const type = ParcelWatcher.MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE.get(parcelEventType)!;
 			if (this.verboseLogging) {
-				this.trace(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
+				this.traceWithCorrelation(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`, watcher.request);
 			}
 
 			// Apply include filter if any
 			if (!watcher.include(path)) {
 				if (this.verboseLogging) {
-					this.trace(` >> ignored (not included) ${path}`);
+					this.traceWithCorrelation(` >> ignored (not included) ${path}`, watcher.request);
 				}
 			} else {
 				events.push({ type, resource: URI.file(path), cId: watcher.request.correlationId });
@@ -540,16 +539,14 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				(rootDeleted && !this.isCorrelated(watcher.request))
 			) {
 				if (this.verboseLogging) {
-					this.trace(` >> ignored (filtered) ${event.resource.fsPath}`);
+					this.traceWithCorrelation(` >> ignored (filtered) ${event.resource.fsPath}`, watcher.request);
 				}
 
 				continue;
 			}
 
 			// Logging
-			if (this.verboseLogging) {
-				this.traceEvent(event, watcher.request);
-			}
+			this.traceEvent(event, watcher.request);
 
 			filteredEvents.push(event);
 		}
@@ -819,10 +816,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		}
 
 		return undefined;
-	}
-
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
 	}
 
 	protected trace(message: string, watcher?: ParcelWatcherInstance): void {
