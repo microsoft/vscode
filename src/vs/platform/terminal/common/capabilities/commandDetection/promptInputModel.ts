@@ -26,8 +26,6 @@ export interface IPromptInputModel {
 
 	readonly value: string;
 	readonly cursorIndex: number;
-
-	setContinuationPrompt(value: string): void;
 }
 
 export class PromptInputModel extends Disposable implements IPromptInputModel {
