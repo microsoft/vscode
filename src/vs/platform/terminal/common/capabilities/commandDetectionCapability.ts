@@ -650,9 +650,13 @@ class WindowsPtyHeuristics extends Disposable {
 	}
 
 	handleInput() {
+		const currentY = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
+
+		const hasWrappingInPrompt = Array.from({ length: (this._capability.currentCommand.promptHeight ?? 0) + 1 }, (_, i) => currentY - i).find(y => this._terminal.buffer.active.getLine(y)?.isWrapped) !== undefined;
 		const hasActiveCommand = this._capability.currentCommand.commandStartX !== undefined && this._capability.currentCommand.commandExecutedX === undefined;
 		const hasAdjusted = this._capability.currentCommand.isAdjusted === true || this._capability.currentCommand.isInputAdjusted === true;
-		if (!hasActiveCommand || hasAdjusted) {
+
+		if (!hasActiveCommand || hasAdjusted || hasWrappingInPrompt) {
 			return;
 		}
 		this._capability.currentCommand.isInputAdjusted = true;
