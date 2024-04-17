@@ -290,7 +290,10 @@ export class PackageJSONContribution implements IJSONContribution {
 
 			// corepack npm wrapper would automatically update package.json, which is surprising.
 			// disable that behavior.
-			const env = { COREPACK_ENABLE_AUTO_PIN: "0" };
+			// COREPACK_ENABLE_AUTO_PIN disables the package.json overwrite, and
+			// COREPACK_ENABLE_PROJECT_SPEC makes the npm view command succeed even if packageManager specified
+			//  a package manager other than npm.
+			const env = { COREPACK_ENABLE_AUTO_PIN: "0", COREPACK_ENABLE_PROJECT_SPEC: "0" };
 			cp.execFile(npmCommandPath, args, { cwd, env }, (error, stdout) => {
 				if (!error) {
 					try {
