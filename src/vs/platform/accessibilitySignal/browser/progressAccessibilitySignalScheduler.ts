@@ -23,7 +23,6 @@ export class AccessibilityProgressSignalScheduler extends Disposable {
 	override dispose(): void {
 		super.dispose();
 		this._signalLoop?.dispose();
-		this._scheduler.cancel();
 		this._scheduler.dispose();
 	}
 }

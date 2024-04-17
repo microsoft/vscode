@@ -7,7 +7,7 @@ import { status } from 'vs/base/browser/ui/aria/aria';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignal';
+import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
