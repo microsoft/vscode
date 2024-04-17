@@ -152,6 +152,8 @@ export class TypeOperations {
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string | null {
+		console.log('_goodIndentForLine');
+
 		let action: IndentAction | EnterAction | null = null;
 		let indentation: string = '';
 
@@ -176,6 +178,7 @@ export class TypeOperations {
 
 			const maxColumn = model.getLineMaxColumn(lastLineNumber);
 			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageConfigurationService);
+			console.log('expectedEnterAction');
 			if (expectedEnterAction) {
 				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
 			}
@@ -297,6 +300,8 @@ export class TypeOperations {
 	}
 
 	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
+		console.log('_enter');
+
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
@@ -307,6 +312,8 @@ export class TypeOperations {
 		}
 
 		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
+		console.log('r : ', r);
+
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special

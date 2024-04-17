@@ -29,6 +29,8 @@ export function getEnterAction(
 	const previousLineText = getPreviousLineText(model, range, languageConfigurationService);
 
 	const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
+	console.log('enterResult : ', enterResult);
+
 	if (!enterResult) {
 		return null;
 	}

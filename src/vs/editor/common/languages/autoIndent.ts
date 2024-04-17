@@ -37,7 +37,10 @@ export interface IIndentConverter {
  * 0: every line above are invalid
  * else: nearest preceding line of the same language
  */
-function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
+function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport, tokenType: StandardTokenType | undefined = undefined) {
+	console.log('getPrecedingValidLine');
+	// If the current line only contains string, comemnts and regexes, then consider the preceding valid line without the doesLineContainOtherStandardTokenType check
+
 	// If the line contains only regex, string or comment tokens, then ignore this line.
 	const doesLineContainOtherStandardTokenType = (tokens: LineTokens) => {
 		const numberOfTokens = tokens.getCount();
@@ -51,6 +54,13 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 		}
 		return lineContainsOtherStandardTokenType;
 	}
+
+	console.log('tokenType : ', tokenType);
+	console.log('lineNumber : ', lineNumber);
+	const currentTokens = model.tokenization.getLineTokens(lineNumber);
+	console.log('currentTokens : ', currentTokens);
+	console.log('model.getLineContent(lineNumber) : ', model.getLineContent(lineNumber));
+
 	const languageId = model.tokenization.getLanguageIdAtPosition(lineNumber, 0);
 	if (lineNumber > 1) {
 		let lastLineNumber: number;
@@ -62,12 +72,18 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 			}
 			const text = model.getLineContent(lastLineNumber);
 			const tokens = model.tokenization.getLineTokens(lastLineNumber);
-			const lineContainsOtherStandardTokenType = doesLineContainOtherStandardTokenType(tokens);
-			if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '' || !lineContainsOtherStandardTokenType) {
-				resultLineNumber = lastLineNumber;
-				continue;
+			if (tokenType === StandardTokenType.Other) {
+				const lineContainsOtherStandardTokenType = doesLineContainOtherStandardTokenType(tokens);
+				if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '' || !lineContainsOtherStandardTokenType) {
+					resultLineNumber = lastLineNumber;
+					continue;
+				}
+			} else {
+				if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '') {
+					resultLineNumber = lastLineNumber;
+					continue;
+				}
 			}
-
 			return lastLineNumber;
 		}
 	}
@@ -92,7 +108,8 @@ export function getInheritIndentForLine(
 	model: IVirtualModel,
 	lineNumber: number,
 	honorIntentialIndent: boolean = true,
-	languageConfigurationService: ILanguageConfigurationService
+	languageConfigurationService: ILanguageConfigurationService,
+	tokenType: StandardTokenType | undefined = undefined
 ): { indentation: string; action: IndentAction | null; line?: number } | null {
 
 	console.log('getInheritedIndentForLine');
@@ -125,7 +142,7 @@ export function getInheritIndentForLine(
 		}
 	}
 
-	const precedingUnIgnoredLine = getPrecedingValidLine(model, lineNumber, indentRulesSupport);
+	const precedingUnIgnoredLine = getPrecedingValidLine(model, lineNumber, indentRulesSupport, tokenType);
 	console.log('precedingUnignoredLine : ', precedingUnIgnoredLine);
 
 	if (precedingUnIgnoredLine < 0) {
@@ -336,6 +353,8 @@ export function getIndentForEnter(
 	languageConfigurationService: ILanguageConfigurationService
 ): { beforeEnter: string; afterEnter: string } | null {
 	console.log('getIndentForEnter');
+	console.log('range : ', range);
+
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -396,8 +415,22 @@ export function getIndentForEnter(
 		}
 	};
 
+	let tokenType: StandardTokenType;
 	const currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
-	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService);
+	const lineLength = model.getLineLength(range.endLineNumber);
+
+	console.log('range.endColumn : ', range.endColumn);
+	console.log('lineLength : ', lineLength);
+	if (range.endColumn - 1 === lineLength) {
+		const endLineNumberTokens = model.tokenization.getLineTokens(range.endLineNumber + 1);
+		tokenType = endLineNumberTokens.getStandardTokenType(0);
+	} else {
+		const endLineNumberTokens = model.tokenization.getLineTokens(range.endLineNumber);
+		const tokenIndexOfCursorEnd = endLineNumberTokens.findTokenIndexAtOffset(range.endColumn - 1);
+		tokenType = endLineNumberTokens.getStandardTokenType(tokenIndexOfCursorEnd);
+	}
+
+	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService, tokenType);
 	if (!afterEnterAction) {
 		const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
 		return {
