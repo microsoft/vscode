@@ -10477,10 +10477,15 @@ watchpack@^2.4.1:
     glob-to-regexp "^0.4.1"
     graceful-fs "^4.1.2"
 
-web-tree-sitter@^0.20.7, web-tree-sitter@^0.20.8:
+web-tree-sitter@^0.20.8:
   version "0.20.8"
   resolved "https://registry.yarnpkg.com/web-tree-sitter/-/web-tree-sitter-0.20.8.tgz#1e371cb577584789cadd75cb49c7ddfbc99d04c8"
   integrity sha512-weOVgZ3aAARgdnb220GqYuh7+rZU0Ka9k9yfKtGAzEYMa6GgiCzW9JjQRJyCJakvibQW+dfjJdihjInKuuCAUQ==
+
+web-tree-sitter@^0.22.5:
+  version "0.22.5"
+  resolved "https://registry.yarnpkg.com/web-tree-sitter/-/web-tree-sitter-0.22.5.tgz#12c7ce61cccbe2430f995a868c3ef696c3642437"
+  integrity sha512-rGX2jRXjcGOhf35zWyO0i/+Wjz4/KVUYN9Oh3AhDsZ0fGOgTIkw/bMhqwvc8L7HgMK8rqDq9RcROWc7lnsnhWg==
 
 webidl-conversions@^3.0.0:
   version "3.0.1"

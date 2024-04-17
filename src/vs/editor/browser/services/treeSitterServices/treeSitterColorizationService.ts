@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
 // eslint-disable-next-line local/code-import-patterns
-import { init } from 'web-tree-sitter';
+
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { AppResourcePath, FileAccess, nodeModulesPath } from 'vs/base/common/network';
@@ -16,12 +16,13 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ITreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { importAMDNodeModule } from 'vs/amdX';
 
 const ITreeSitterColorizationService = createDecorator<ITreeSitterColorizationService>('ITreeSitterColorizationService');
 
 export interface ITreeSitterColorizationService {
 	readonly _serviceBrand: undefined;
-	registerTreeSittersForColorization(asynchronous: boolean): void;
+	registerTreeSittersForColorization(asynchronous: boolean): Promise<void>;
 	dispose(): void;
 	clearCache(): void;
 }
@@ -31,6 +32,7 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 	readonly _serviceBrand: undefined;
 	private readonly _disposableStore: DisposableStore = new DisposableStore();
 	private readonly _treeSittersColorizationTrees: TreeSitterColorizationTree[] = [];
+	private _isInit: Promise<void> | undefined;
 
 	constructor(
 		@ITreeSitterService private readonly _treeSitterService: ITreeSitterService,
@@ -39,8 +41,8 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 		@IFileService private readonly _fileService: IFileService
 	) { }
 
-	registerTreeSittersForColorization(asynchronous: boolean = true) {
-		this._initializeTreeSitterService(asynchronous);
+	async registerTreeSittersForColorization(asynchronous: boolean = true) {
+		await this._initializeTreeSitterService(asynchronous);
 		const models = this._modelService.getModels();
 		for (const model of models) {
 			if (model.getLanguageId() === 'typescript') {
@@ -50,35 +52,53 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 		}
 	}
 
-	private _initializeTreeSitterService(asynchronous: boolean = true) {
-		init({
-			locateFile(_file: string, _folder: string) {
-				const wasmPath: AppResourcePath = `${nodeModulesPath}/web-tree-sitter/tree-sitter.wasm`;
-				return FileAccess.asBrowserUri(wasmPath).toString(true);
-			}
-		}).then(async () => {
-			this._disposableStore.add(this._modelService.onModelAdded((model) => {
-				if (model.getLanguageId() === 'typescript') {
-					model.tokenization.setTokens([]);
-					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, asynchronous));
-				}
-			}));
-			this._disposableStore.add(this._modelService.onModelLanguageChanged((event) => {
-				const model = event.model;
-				if (model.getLanguageId() === 'typescript') {
-					model.tokenization.setTokens([]);
-					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, asynchronous));
-				}
-			}));
-			this._disposableStore.add(this._modelService.onModelRemoved((model) => {
-				if (model.getLanguageId() === 'typescript') {
-					const treeSitterTreeToDispose = Iterable.find(this._treeSittersColorizationTrees, tree => tree.id === model.id);
-					if (treeSitterTreeToDispose) {
-						treeSitterTreeToDispose.dispose();
+	private async _initializeTreeSitterService(asynchronous: boolean = true) {
+		if (!this._isInit) {
+			const importTreeSitter = async () => {
+				const Parser = await importAMDNodeModule<typeof import('web-tree-sitter')>('web-tree-sitter', 'tree-sitter.js');
+				await Parser.init({
+					locateFile(_file: string, _folder: string) {
+						const wasmPath: AppResourcePath = `${nodeModulesPath}/web-tree-sitter/tree-sitter.wasm`;
+						return FileAccess.asBrowserUri(wasmPath).toString(true);
 					}
+				});
+			};
+			this._isInit = new Promise<void>((resolve, reject) => {
+				importTreeSitter().then(() => {
+					resolve();
+				}).catch((error) => {
+					console.error(nls.localize('treeSitterError', "Error initializing tree-sitter: {0}", error));
+					reject(error);
+				}).finally(() => {
+					console.log('finally');
+				});
+			});
+		}
+
+		await this._isInit;
+
+		this._disposableStore.add(this._modelService.onModelAdded((model) => {
+			if (model.getLanguageId() === 'typescript') {
+				model.tokenization.setTokens([]);
+				this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, asynchronous));
+			}
+		}));
+		this._disposableStore.add(this._modelService.onModelLanguageChanged((event) => {
+			const model = event.model;
+			if (model.getLanguageId() === 'typescript') {
+				model.tokenization.setTokens([]);
+				this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, asynchronous));
+			}
+		}));
+		this._disposableStore.add(this._modelService.onModelRemoved((model) => {
+			if (model.getLanguageId() === 'typescript') {
+				const treeSitterTreeToDispose = Iterable.find(this._treeSittersColorizationTrees, tree => tree.id === model.id);
+				if (treeSitterTreeToDispose) {
+					treeSitterTreeToDispose.dispose();
 				}
-			}));
-		});
+			}
+		}));
+
 	}
 
 	dispose(): void {
@@ -108,7 +128,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const treeSitterTokenizationService = accessor.get(ITreeSitterColorizationService);
 		treeSitterTokenizationService.clearCache();
-		treeSitterTokenizationService.registerTreeSittersForColorization(true);
+		return treeSitterTokenizationService.registerTreeSittersForColorization(true);
 	}
 });
 
@@ -120,6 +140,6 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const treeSitterTokenizationService = accessor.get(ITreeSitterColorizationService);
 		treeSitterTokenizationService.clearCache();
-		treeSitterTokenizationService.registerTreeSittersForColorization(false);
+		return treeSitterTokenizationService.registerTreeSittersForColorization(false);
 	}
 });
