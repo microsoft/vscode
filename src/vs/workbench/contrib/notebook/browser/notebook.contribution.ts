@@ -1095,7 +1095,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		[NotebookSetting.outputBackupSizeLimit]: {
-			markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in KiloBytes where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
+			markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in kilobytes (KB) where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
 			type: 'number',
 			default: 10000
 		}
