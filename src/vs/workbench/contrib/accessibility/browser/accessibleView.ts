@@ -296,11 +296,16 @@ export class AccessibleView extends Disposable {
 		if (!this._codeBlocks?.length || !position) {
 			return;
 		}
-		const codeBlockIndex = this._codeBlocks.findIndex(c => type === 'previous' ? c.endLine >= position.lineNumber : c.startLine > position.lineNumber);
-		if (codeBlockIndex === -1) {
+		let codeBlock;
+		const codeBlocks = this._codeBlocks.slice();
+		if (type === 'previous') {
+			codeBlock = codeBlocks.reverse().find(c => c.endLine < position.lineNumber);
+		} else {
+			codeBlock = codeBlocks.find(c => c.startLine > position.lineNumber);
+		}
+		if (!codeBlock) {
 			return;
 		}
-		const codeBlock = this._codeBlocks[codeBlockIndex];
 		this.setPosition(new Position(codeBlock.startLine, 1), true);
 	}
 
