@@ -29,6 +29,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isWeb } from 'vs/base/common/platform';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -352,7 +353,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 							workingCopiesToRestore.push({
 								source: sourceResource,
 								target: targetResource,
-								snapshot: sourceWorkingCopy.isDirty() ? await sourceWorkingCopy.model?.snapshot(CancellationToken.None) : undefined
+								snapshot: sourceWorkingCopy.isDirty() ? await sourceWorkingCopy.model?.snapshot(SnapshotContext.Save, CancellationToken.None) : undefined
 							});
 						}
 					}

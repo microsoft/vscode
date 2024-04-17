@@ -15,10 +15,11 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, NotebookData, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutputDto, NotebookData, NotebookSetting, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
 suite('NotebookFileWorkingCopyModel', function () {
 
@@ -63,7 +64,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -84,7 +85,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 	});
@@ -119,7 +120,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -140,7 +141,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 	});
@@ -174,7 +175,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 				configurationService
 			));
 
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
 
@@ -195,9 +196,51 @@ suite('NotebookFileWorkingCopyModel', function () {
 				),
 				configurationService
 			));
-			await model.snapshot(CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
+	});
+
+	test('Notebooks with outputs beyond the size threshold will throw for backup snapshots', async function () {
+		const outputLimit = 100;
+		await configurationService.setUserConfiguration(NotebookSetting.outputBackupSizeLimit, outputLimit * 1.0 / 1024);
+		const largeOutput: IOutputDto = { outputId: '123', outputs: [{ mime: Mimes.text, data: VSBuffer.fromString('a'.repeat(outputLimit + 1)) }] };
+		const notebook = instantiationService.createInstance(NotebookTextModel,
+			'notebook',
+			URI.file('test'),
+			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [largeOutput], metadata: { foo: 123, bar: 456 } }],
+			{},
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false, }
+		);
+		disposables.add(notebook);
+
+		let callCount = 0;
+		const model = disposables.add(new NotebookFileWorkingCopyModel(
+			notebook,
+			mockNotebookService(notebook,
+				new class extends mock<INotebookSerializer>() {
+					override options: TransientOptions = { transientOutputs: true, transientDocumentMetadata: {}, transientCellMetadata: { bar: true }, cellContentMetadata: {} };
+					override async notebookToData(notebook: NotebookData) {
+						callCount += 1;
+						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
+						assert.strictEqual(notebook.cells[0].metadata!.bar, undefined);
+						return VSBuffer.fromString('');
+					}
+				}
+			),
+			configurationService
+		));
+
+		try {
+			await model.snapshot(SnapshotContext.Backup, CancellationToken.None);
+			assert.fail('Expected snapshot to throw an error for large output');
+		} catch (e) {
+			assert.notEqual(e.code, 'ERR_ASSERTION', e.message);
+		}
+
+		await model.snapshot(SnapshotContext.Save, CancellationToken.None);
+		assert.strictEqual(callCount, 1);
+
 	});
 });
 
