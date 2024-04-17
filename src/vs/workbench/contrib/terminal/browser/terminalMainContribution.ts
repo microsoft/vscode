@@ -61,13 +61,8 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 		terminalGroupService: ITerminalGroupService,
 		terminalInstanceService: ITerminalInstanceService
 	) {
-		// Defer this for the local case only. This is important for the
-		// window.createTerminal web embedder API to work before the workbench
-		// is loaded on remote
-		if (workbenchEnvironmentService.remoteAuthority === undefined) {
-			await lifecycleService.when(LifecyclePhase.Restored);
-		}
-
+		// IMPORTANT: This listener needs to be set up before the workbench is ready to support
+		// embedder terminals.
 		this._register(embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
 			const terminal = await terminalService.createTerminal({
 				config: embedderTerminal,
