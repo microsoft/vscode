@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, type Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { debounce } from 'vs/base/common/decorators';
+import { throttle } from 'vs/base/common/decorators';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -67,7 +67,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		super();
 
 		this._register(this._xterm.onData(e => this._handleInput(e)));
-		this._register(this._xterm.onCursorMove(() => this._sync()));
+		this._register(Event.any(
+			// TODO: Upstream me to headless
+			(this._xterm as any).onWriteParsed,
+			this._xterm.onCursorMove,
+		)(() => this._sync()));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
@@ -115,7 +119,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._sync();
 	}
 
-	@debounce(50)
+	@throttle(0)
 	private _sync() {
 		this._syncNow();
 	}

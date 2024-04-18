@@ -12,6 +12,7 @@ import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { Terminal } from '@xterm/headless';
 import { strictEqual } from 'assert';
+import { timeout } from 'vs/base/common/async';
 
 class TestPromptInputModel extends PromptInputModel {
 	forceSync() {
@@ -284,6 +285,42 @@ suite('PromptInputModel', () => {
 				]);
 				fireCommandStart();
 				assertPromptInput('|');
+			});
+
+			test.only('input, go to start (ctrl+home), delete word in front (ctrl+delete)', async () => {
+				await replayEvents([
+					'[?25l[2J[m[H]0;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\pwsh.exe[?25h',
+					'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
+					']633;P;IsWindows=True',
+					']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
+					']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
+					'[34m\r\n[38;2;17;17;17m[44m16:07:06 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/210662 [33m[46m [38;2;17;17;17m$! [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
+				]);
+				fireCommandStart();
+				assertPromptInput('|');
+
+				await replayEvents([
+					'[?25l[93mG[97m[2m[3mit push[3;4H[?25h',
+					'[m',
+					'[?25l[93mGe[97m[2m[3mt-ChildItem -Path a[3;5H[?25h',
+					'[m',
+					'[?25l[93m[3;3HGet[97m[2m[3m-ChildItem -Path a[3;6H[?25h',
+				]);
+				assertPromptInput('Get|[-ChildItem -Path a]');
+
+				await replayEvents([
+					'[m',
+					'[?25l[3;3H[?25h',
+					'[21X',
+				]);
+
+				// Don't force a sync, the prompt input model should update by itself
+				await timeout(0);
+				const actualValueWithCursor = promptInputModel.getCombinedString();
+				strictEqual(
+					actualValueWithCursor,
+					'|'.replaceAll('\n', '\u23CE')
+				);
 			});
 		});
 	});
