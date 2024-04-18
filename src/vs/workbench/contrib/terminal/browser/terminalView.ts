@@ -343,7 +343,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this._hasWelcomeScreen() && this._terminalGroupService.instances.length === 0;
+		return this._hasWelcomeScreen() && this._terminalService.instances.length === 0;
 	}
 }
 
