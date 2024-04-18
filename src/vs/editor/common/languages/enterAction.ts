@@ -8,6 +8,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IndentAction, CompleteEnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { getIndentationAtPosition, getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ScopedLineProcessorForIndentation } from 'vs/editor/common/languages/lineProcessorForIndentation';
 
 export function getEnterAction(
 	autoIndent: EditorAutoIndentStrategy,
@@ -20,28 +21,10 @@ export function getEnterAction(
 	if (!richEditSupport) {
 		return null;
 	}
-
-	const scopedLineText = scopedLineTokens.getLineContent();
-	const beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-
-	// selection support
-	let afterEnterText: string;
-	if (range.isEmpty()) {
-		afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-	} else {
-		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-		afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
-	}
-
-	let previousLineText = '';
-	if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
-		// This is not the first line and the entire line belongs to this mode
-		const oneLineAboveScopedLineTokens = getScopedLineTokens(model, range.startLineNumber - 1);
-		if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
-			// The line above ends with text belonging to the same mode
-			previousLineText = oneLineAboveScopedLineTokens.getLineContent();
-		}
-	}
+	const processLines = new ScopedLineProcessorForIndentation(model, languageConfigurationService);
+	const beforeEnterText = processLines.getProcessedLineBeforeRange(range, scopedLineTokens).processedLine;
+	const afterEnterText = processLines.getProcessedLineAfterRange(range, scopedLineTokens).processedLine;
+	const previousLineText = processLines.getProcessedPreviousLine(range);
 
 	const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
 	if (!enterResult) {

@@ -321,7 +321,7 @@ export class StandardAutoClosingPairConditional {
 
 	public shouldAutoClose(context: ScopedLineTokens, column: number): boolean {
 		// Always complete on empty line
-		if (context.getTokenCount() === 0) {
+		if (context.getCount() === 0) {
 			return true;
 		}
 
