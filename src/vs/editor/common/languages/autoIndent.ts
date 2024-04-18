@@ -487,6 +487,24 @@ export function getIndentActionForType(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
+
+	const startLine = range.startLineNumber;
+	const endLine = range.endLineNumber;
+	model.tokenization.forceTokenization(startLine);
+	model.tokenization.forceTokenization(endLine);
+	const startLineTokens = model.tokenization.getLineTokens(startLine);
+	const endLineTokens = model.tokenization.getLineTokens(endLine);
+	const startTokenIndex = startLineTokens.findTokenIndexAtOffset(range.startColumn - 1);
+	const endTokenIndex = endLineTokens.findTokenIndexAtOffset(range.endColumn - 1);
+	const tokenStart = startLineTokens.getStandardTokenType(startTokenIndex);
+	const tokenEnd = endLineTokens.getStandardTokenType(endTokenIndex);
+
+	console.log('tokenStart : ', tokenStart);
+	console.log('tokenEnd : ', tokenEnd);
+	if (tokenStart === StandardTokenType.String && tokenEnd === StandardTokenType.String) {
+		return null;
+	}
+
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 
 	if (scopedLineTokens.firstCharOffset) {
