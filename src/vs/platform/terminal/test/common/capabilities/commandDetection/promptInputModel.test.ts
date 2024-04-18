@@ -82,6 +82,84 @@ suite('PromptInputModel', () => {
 				promptInputModel.forceSync();
 				assertPromptInput('foo|');
 			});
+			test('input with accepted and run ghost text', async () => {
+				await replayEvents([
+					'[?25l[2J[m[H]0;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\pwsh.exe[?25h',
+					'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
+					']633;P;IsWindows=True',
+					']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
+					']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
+					'[34m\r\n[38;2;17;17;17m[44m03:41:36 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
+				]);
+				promptInputModel.setContinuationPrompt('∙ ');
+				onCommandStart.fire({ marker: xterm.registerMarker() } as ITerminalCommand);
+				promptInputModel.forceSync();
+				assertPromptInput('|');
+
+				await replayEvents([
+					'[?25l[93me[97m[2m[3mcho "hello world"[3;4H[?25h',
+					'[m',
+				]);
+				promptInputModel.forceSync();
+				assertPromptInput('e|cho "hello world"');
+
+				await replayEvents([
+					'[?25l[93mec[97m[2m[3mho "hello world"[3;5H[?25h',
+					'[m',
+				]);
+				promptInputModel.forceSync();
+				assertPromptInput('ec|ho "hello world"');
+
+				await replayEvents([
+					'[?25l[93m[3;3Hech[97m[2m[3mo "hello world"[3;6H[?25h',
+					'[m',
+				]);
+				promptInputModel.forceSync();
+				assertPromptInput('ech|o "hello world"');
+
+				await replayEvents([
+					'[?25l[93m[3;3Hecho[97m[2m[3m "hello world"[3;7H[?25h',
+					'[m',
+				]);
+				promptInputModel.forceSync();
+				assertPromptInput('echo| "hello world"');
+
+				await replayEvents([
+					'[?25l[93m[3;3Hecho [97m[2m[3m"hello world"[3;8H[?25h',
+					'[m',
+				]);
+				promptInputModel.forceSync();
+				assertPromptInput('echo |"hello world"');
+
+				await replayEvents([
+					'[?25l[93m[3;3Hecho [36m"hello world"[?25h',
+					'[m',
+				]);
+				promptInputModel.forceSync();
+				assertPromptInput('echo "hello world"|');
+
+				await replayEvents([
+					']633;E;echo "hello world";ff464d39-bc80-4bae-9ead-b1cafc4adf6f]633;C',
+				]);
+				onCommandExecuted.fire(null!);
+				promptInputModel.forceSync();
+				assertPromptInput('echo "hello world"|');
+
+				await replayEvents([
+					'\r\n',
+					'hello world\r\n',
+				]);
+				promptInputModel.forceSync();
+				assertPromptInput('echo "hello world"|');
+
+				await replayEvents([
+					']633;D;0]633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
+					'[34m\r\n[38;2;17;17;17m[44m03:41:42 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
+				]);
+				onCommandStart.fire({ marker: xterm.registerMarker() } as ITerminalCommand);
+				promptInputModel.forceSync();
+				assertPromptInput('|');
+			});
 		});
 	});
 });
