@@ -844,11 +844,20 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				continue; // watcher does not consider this path
 			}
 
-			if (
-				watcher.exclude(request.path) ||
-				!watcher.include(request.path)
-			) {
-				continue; // parcel instance does not consider this path
+			if (request.recursive) {
+				if (
+					!patternsEquals(request.excludes, watcher.request.excludes) ||
+					!patternsEquals(request.includes, watcher.request.includes)
+				) {
+					continue; // watcher does not share same exclude/include rules
+				}
+			} else {
+				if (
+					watcher.exclude(request.path) ||
+					!watcher.include(request.path)
+				) {
+					continue; // parcel instance does not consider this path
+				}
 			}
 
 			const disposables = new DisposableStore();
