@@ -104,16 +104,19 @@ export class ParcelWatcherInstance extends Disposable {
 	}
 
 	notifyFileChange(path: string, change: IFileChange): void {
-		const fileSubscriptions = this.nonRecursiveSubscriptions.get(path);
-		if (fileSubscriptions) {
-			for (const subscription of fileSubscriptions) {
+
+		// By non-recursive subscriptions: on the exact path
+		const nonRecursiveSubscriptions = this.nonRecursiveSubscriptions.get(path);
+		if (nonRecursiveSubscriptions) {
+			for (const subscription of nonRecursiveSubscriptions) {
 				subscription(change);
 			}
 		}
 
-		const folderSubscriptions = this.recursiveSubscriptions.findSuperstr(path);
-		if (folderSubscriptions) {
-			for (const [, subscriptions] of folderSubscriptions) {
+		// By recursive subscriptions: on parent and same paths
+		const recursiveSubscriptions = this.recursiveSubscriptions.findSuperstr(path);
+		if (recursiveSubscriptions) {
+			for (const [, subscriptions] of recursiveSubscriptions) {
 				for (const subscription of subscriptions) {
 					subscription(change);
 				}
