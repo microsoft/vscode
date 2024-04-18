@@ -33,6 +33,11 @@ suite('PromptInputModel', () => {
 		promptInputModel = store.add(new TestPromptInputModel(xterm, onCommandStart.event, onCommandExecuted.event, new NullLogService));
 	});
 
+	// To "record a session" for these tests:
+	// - Enable debug logging
+	// - Open and clear Terminal output channel
+	// - Open terminal and perform the test
+	// - Extract all "parsing data" lines from the terminal
 	suite('recorded sessions', () => {
 		async function replayEvents(events: string[]) {
 			for (const e of events) {
