@@ -421,6 +421,24 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
+
+		const startLine = range.startLineNumber;
+		const endLine = range.endLineNumber;
+		model.tokenization.forceTokenization(startLine);
+		model.tokenization.forceTokenization(endLine);
+		const startLineTokens = model.tokenization.getLineTokens(startLine);
+		const endLineTokens = model.tokenization.getLineTokens(endLine);
+		const startTokenIndex = startLineTokens.findTokenIndexAtOffset(range.startColumn - 1);
+		const endTokenIndex = endLineTokens.findTokenIndexAtOffset(range.endColumn - 1);
+		const tokenStart = startLineTokens.getStandardTokenType(startTokenIndex);
+		const tokenEnd = endLineTokens.getStandardTokenType(endTokenIndex);
+
+		console.log('tokenStart : ', tokenStart);
+		console.log('tokenEnd : ', tokenEnd);
+		if (tokenStart === StandardTokenType.String && tokenEnd === StandardTokenType.String) {
+			return;
+		}
+
 		const autoIndent = this.editor.getOption(EditorOption.autoIndent);
 		const { tabSize, indentSize, insertSpaces } = model.getOptions();
 		const textEdits: TextEdit[] = [];

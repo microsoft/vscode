@@ -23,6 +23,7 @@ import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/c
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export class TypeOperations {
 
@@ -305,6 +306,27 @@ export class TypeOperations {
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
+		console.log('range : ', range);
+
+		// ignore indentation when inside of a multi line string
+		const startLine = range.startLineNumber;
+		const endLine = range.endLineNumber;
+		model.tokenization.forceTokenization(startLine);
+		model.tokenization.forceTokenization(endLine);
+		const startLineTokens = model.tokenization.getLineTokens(startLine);
+		const endLineTokens = model.tokenization.getLineTokens(endLine);
+		const startTokenIndex = startLineTokens.findTokenIndexAtOffset(range.startColumn - 1);
+		const endTokenIndex = endLineTokens.findTokenIndexAtOffset(range.endColumn - 1);
+		const tokenStart = startLineTokens.getStandardTokenType(startTokenIndex);
+		const tokenEnd = endLineTokens.getStandardTokenType(endTokenIndex);
+
+		console.log('tokenStart : ', tokenStart);
+		console.log('tokenEnd : ', tokenEnd);
+		if (tokenStart === StandardTokenType.String && tokenEnd === StandardTokenType.String) {
+			return TypeOperations._typeCommand(range, '\n', keepPosition);
+		}
+		//
+
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
 			const lineText = model.getLineContent(range.startLineNumber);
 			const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
