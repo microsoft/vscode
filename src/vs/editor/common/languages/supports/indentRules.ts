@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IVirtualModel } from 'vs/editor/common/languages/autoIndent';
 import { IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IndentationLineProcessor } from 'vs/editor/common/languages/supports/indentationLineProcessor';
 
 export const enum IndentConsts {
 	INCREASE_MASK = 0b00000001,
@@ -82,43 +79,5 @@ export class IndentRulesSupport {
 			ret += IndentConsts.UNINDENT_MASK;
 		}
 		return ret;
-	}
-}
-
-/**
- * This class processes the lines (it removes the brackets of the given language configuration) before calling the {@link IndentRulesSupport} methods
- */
-export class ProcessedIndentRulesSupport {
-
-	private readonly _indentationLineProcessor: IndentationLineProcessor;
-	private readonly _indentRulesSupport: IndentRulesSupport;
-
-	constructor(
-		model: IVirtualModel,
-		indentRulesSupport: IndentRulesSupport,
-		languageConfigurationService: ILanguageConfigurationService
-	) {
-		this._indentRulesSupport = indentRulesSupport;
-		this._indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
-	}
-
-	public shouldIncrease(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
-		return this._indentRulesSupport.shouldIncrease(processedLine);
-	}
-
-	public shouldDecrease(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
-		return this._indentRulesSupport.shouldDecrease(processedLine);
-	}
-
-	public shouldIgnore(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
-		return this._indentRulesSupport.shouldIgnore(processedLine);
-	}
-
-	public shouldIndentNextLine(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
-		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
 	}
 }

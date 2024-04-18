@@ -5,12 +5,51 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { IVirtualModel } from 'vs/editor/common/languages/autoIndent';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
+import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
+
+/**
+ * This class processes the lines (it removes the brackets of the given language configuration) before calling the {@link IndentRulesSupport} methods
+ */
+export class ProcessedIndentRulesSupport {
+
+	private readonly _indentationLineProcessor: IndentationLineProcessor;
+	private readonly _indentRulesSupport: IndentRulesSupport;
+
+	constructor(
+		model: IVirtualModel,
+		indentRulesSupport: IndentRulesSupport,
+		languageConfigurationService: ILanguageConfigurationService
+	) {
+		this._indentRulesSupport = indentRulesSupport;
+		this._indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
+	}
+
+	public shouldIncrease(lineNumber: number): boolean {
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
+		return this._indentRulesSupport.shouldIncrease(processedLine);
+	}
+
+	public shouldDecrease(lineNumber: number): boolean {
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
+		return this._indentRulesSupport.shouldDecrease(processedLine);
+	}
+
+	public shouldIgnore(lineNumber: number): boolean {
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
+		return this._indentRulesSupport.shouldIgnore(processedLine);
+	}
+
+	public shouldIndentNextLine(lineNumber: number): boolean {
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
+		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
+	}
+}
 
 export class IndentationLineProcessor {
 
@@ -94,7 +133,7 @@ export class IndentationLineProcessor {
 	}
 }
 
-export interface ProcessedIndentationContext {
+interface ProcessedIndentationContext {
 	beforeRangeText: string;
 	afterRangeText: string;
 	previousLineText: string;
@@ -179,7 +218,11 @@ export class IndentationContextProcessor {
 		let processedPreviousLine = '';
 		if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 			// This is not the first line and the entire line belongs to this mode
-			const previousLineScopedLineTokens = getScopedLineTokens(this.model, range.startLineNumber - 1);
+			const previousLineNumber = range.startLineNumber - 1;
+			this.model.tokenization.forceTokenization(previousLineNumber);
+			const lineTokens = this.model.tokenization.getLineTokens(previousLineNumber);
+			const column = this.model.getLineMaxColumn(previousLineNumber) - 1;
+			const previousLineScopedLineTokens = createScopedLineTokens(lineTokens, column);
 			if (previousLineScopedLineTokens.languageId === scopedLineTokens.languageId) {
 				// The line above ends with text belonging to the same mode
 				const previousLine = previousLineScopedLineTokens.getLineContent();
