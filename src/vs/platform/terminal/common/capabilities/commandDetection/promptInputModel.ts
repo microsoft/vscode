@@ -203,7 +203,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		let ghostTextIndex = -1;
 		let proceedWithGhostTextCheck = false;
 		let x = buffer.cursorX;
-		while (x > 1) {
+		while (x > 0) {
 			const cell = line.getCell(--x);
 			if (!cell) {
 				break;
