@@ -5,6 +5,6 @@
 
 import { childProcess } from './testGlobals.js';
 
-const { fork, exec, spawn } = childProcess;
+const { fork, exec, spawn, execSync } = childProcess;
 
-export { fork, exec, spawn };
+export { fork, exec, spawn, execSync };
