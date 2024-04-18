@@ -6,7 +6,7 @@
 import { hide, show } from 'vs/base/browser/dom';
 import { getProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./progressbar';
 
@@ -41,6 +41,7 @@ export class ProgressBar extends Disposable {
 	 * https://github.com/microsoft/vscode/issues/138396
 	 */
 	private static readonly LONG_RUNNING_INFINITE_THRESHOLD = 10000;
+
 	private static readonly PROGRESS_SIGNAL_DEFAULT_DELAY = 3000;
 
 	private workedVal: number;
@@ -49,7 +50,7 @@ export class ProgressBar extends Disposable {
 	private totalWork: number | undefined;
 	private showDelayedScheduler: RunOnceScheduler;
 	private longRunningScheduler: RunOnceScheduler;
-	private progressSignal: IDisposable | undefined;
+	private readonly progressSignal = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(container: HTMLElement, options?: IProgressBarOptions) {
 		super();
@@ -76,7 +77,6 @@ export class ProgressBar extends Disposable {
 	}
 
 	private off(): void {
-		this.progressSignal?.dispose();
 		this.bit.style.width = 'inherit';
 		this.bit.style.opacity = '1';
 		this.element.classList.remove(CSS_ACTIVE, CSS_INFINITE, CSS_INFINITE_LONG_RUNNING, CSS_DISCRETE);
@@ -85,6 +85,7 @@ export class ProgressBar extends Disposable {
 		this.totalWork = undefined;
 
 		this.longRunningScheduler.cancel();
+		this.progressSignal.clear();
 	}
 
 	/**
@@ -205,8 +206,7 @@ export class ProgressBar extends Disposable {
 
 	show(delay?: number): void {
 		this.showDelayedScheduler.cancel();
-		this.progressSignal?.dispose();
-		this.progressSignal = this._register(getProgressAcccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY));
+		this.progressSignal.value = getProgressAcccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY);
 
 		if (typeof delay === 'number') {
 			this.showDelayedScheduler.schedule(delay);
@@ -216,8 +216,9 @@ export class ProgressBar extends Disposable {
 	}
 
 	hide(): void {
-		this.progressSignal?.dispose();
 		hide(this.element);
+
 		this.showDelayedScheduler.cancel();
+		this.progressSignal.clear();
 	}
 }
