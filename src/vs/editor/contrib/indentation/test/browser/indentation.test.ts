@@ -986,9 +986,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	// Failing tests...
-
-	test.skip('issue #208232: incorrect indentation inside of comments', () => {
+	test('issue #208232: incorrect indentation inside of comments', () => {
 
 		// https://github.com/microsoft/vscode/issues/208232
 
@@ -1000,8 +998,13 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
+			const tokens = [
+				[{ startIndex: 0, value: 1 }],
+				[{ startIndex: 0, value: 1 }],
+				[{ startIndex: 0, value: 1 }]
+			];
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			registerTokens(instantiationService, tokens, languageId, disposables);
 			editor.setSelection(new Selection(2, 23, 2, 23));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1012,6 +1015,8 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 			].join('\n'));
 		});
 	});
+
+	// Failing tests...
 
 	test.skip('issue #43244: indent after equal sign is detected', () => {
 
@@ -1381,20 +1386,21 @@ suite('Auto Indent On Type - PHP', () => {
 		assert.ok(true);
 	});
 
-	test.skip('issue #199050: should not indent after { detected in a string', () => {
+	test('issue #199050: should not indent after { detected in a string', () => {
 
 		// https://github.com/microsoft/vscode/issues/199050
 
-		const model = createTextModel("$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);", languageId, {});
+		const model = createTextModel("preg_replace('{');", languageId, {});
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
+			const tokens = [[{ startIndex: 0, value: 0 }, { startIndex: 13, value: 2 }, { startIndex: 16, value: 0 }]];
+			registerTokens(instantiationService, tokens, languageId, disposables);
 			registerLanguage(instantiationService, languageId, Language.PHP, disposables);
-			editor.setSelection(new Selection(1, 54, 1, 54));
+			editor.setSelection(new Selection(1, 19, 1, 19));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
-				"$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);",
+				"preg_replace('{');",
 				""
 			].join('\n'));
 		});

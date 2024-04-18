@@ -400,14 +400,14 @@ export function getIndentActionForType(
 
 	const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
 	const processedContext = indentationContextProcessor.getProcessedContextAroundRange(range);
-	const beforeEnterText = processedContext.beforeRangeText;
-	const afterEnterText = processedContext.afterRangeText;
-	const fullText = beforeEnterText + afterEnterText;
-	const fullTextWithCharacter = beforeEnterText + ch + afterEnterText;
+	const beforeRangeText = processedContext.beforeRangeText;
+	const afterRangeText = processedContext.afterRangeText;
+	const textAroundRange = beforeRangeText + afterRangeText;
+	const textAroundRangeWithCharacter = beforeRangeText + ch + afterRangeText;
 
 	// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
 	// Users might change the indentation by purpose and we should honor that instead of readjusting.
-	if (!indentRulesSupport.shouldDecrease(fullText) && indentRulesSupport.shouldDecrease(fullTextWithCharacter)) {
+	if (!indentRulesSupport.shouldDecrease(textAroundRange) && indentRulesSupport.shouldDecrease(textAroundRangeWithCharacter)) {
 		// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
 		// 1. Get inherited indent action
 		const r = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
