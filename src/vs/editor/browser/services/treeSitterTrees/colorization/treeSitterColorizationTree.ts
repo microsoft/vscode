@@ -38,7 +38,6 @@ export class TreeSitterColorizationTree {
 		@IFileService _fileService: IFileService,
 		_asynchronous: boolean = true
 	) {
-		console.log('Asynchronous? ', _asynchronous);
 		this.id = _model.id;
 		this._fileService = _fileService;
 		this._colorThemeData = _themeService.getColorTheme() as ColorThemeData;
