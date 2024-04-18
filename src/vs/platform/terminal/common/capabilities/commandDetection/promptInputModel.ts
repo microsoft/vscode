@@ -149,6 +149,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Detect ghost text by looking for italic or dim text in or after the cursor and
 		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
 		if (absoluteCursorY === commandStartY && buffer.cursorX > 1) {
+			// Ghost text in pwsh only appears to happen on the cursor line
 			this._ghostTextIndex = this._scanForGhostText(buffer, line);
 		}
 
