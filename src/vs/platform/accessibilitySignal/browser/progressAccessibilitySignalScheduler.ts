@@ -18,7 +18,7 @@ export class AccessibilityProgressSignalScheduler extends Disposable {
 	constructor(msDelayTime: number, msLoopTime: number | undefined, @IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService) {
 		super();
 		this._scheduler = new RunOnceScheduler(() => {
-			this._signalLoop = this._accessibilitySignalService.playSignalLoop(AccessibilitySignal.chatResponsePending, msLoopTime ?? PROGRESS_SIGNAL_LOOP_DELAY);
+			this._signalLoop = this._accessibilitySignalService.playSignalLoop(AccessibilitySignal.progress, msLoopTime ?? PROGRESS_SIGNAL_LOOP_DELAY);
 		}, msDelayTime);
 		this._scheduler.schedule();
 	}

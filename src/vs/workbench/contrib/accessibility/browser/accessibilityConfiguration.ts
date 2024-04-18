@@ -257,8 +257,8 @@ const configuration: IConfigurationNode = {
 			'markdownDescription': localize('announcement.chatRequestSent', "Indicates when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
 			...baseAlertProperty
 		},
-		[AccessibilityAlertSettingId.ChatResponsePending]: {
-			'markdownDescription': localize('announcement.chatResponsePending', "Indicates when a chat response is pending. Also see {0}.", '`#audioCues.chatResponsePending#`'),
+		[AccessibilityAlertSettingId.Progress]: {
+			'markdownDescription': localize('announcement.progress', "Indicates when a chat response is pending. Also see {0}.", '`#audioCues.chatResponsePending#`'),
 			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.NoInlayHints]: {
@@ -540,16 +540,16 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
-		'accessibility.signals.chatResponsePending': {
+		'accessibility.signals.progress': {
 			...signalFeatureBase,
-			'description': localize('accessibility.signals.chatResponsePending', "Plays a signal on loop while the response is pending."),
+			'description': localize('accessibility.signals.progress', "Plays a signal on loop while progress is occurring."),
 			'properties': {
 				'sound': {
-					'description': localize('accessibility.signals.chatResponsePending.sound', "Plays a sound on loop while the response is pending."),
+					'description': localize('accessibility.signals.progress.sound', "Plays a sound on loop while progress is occurring."),
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.chatResponsePending.announcement', "Alerts on loop while the response is pending."),
+					'description': localize('accessibility.signals.progress.announcement', "Alerts on loop while progress is occurring."),
 					...announcementFeatureBase
 				},
 			},
@@ -786,6 +786,18 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			return [
 				['accessibility.signals.debouncePositionChanges', { value }],
 				['audioCues.debouncePositionChanges', { value: undefined }]
+			];
+		}
+	}]);
+
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'accessibility.signals.chatResponsePending',
+		migrateFn: (value, accessor) => {
+			return [
+				['accessibility.signals.progress', { value }],
+				['accessibility.signals.chatResponsePending', { value: undefined }],
 			];
 		}
 	}]);

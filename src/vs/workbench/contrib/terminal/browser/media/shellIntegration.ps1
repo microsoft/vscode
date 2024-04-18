@@ -57,7 +57,7 @@ function Global:__VSCode-Escape-Value([string]$value) {
 			-Join (
 				[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
 			)
-		})
+		}) -replace "`e", '\x1b'
 }
 
 function Global:Prompt() {
@@ -133,6 +133,12 @@ if ($PSVersionTable.PSVersion -lt "6.0") {
 }
 else {
 	[Console]::Write("$([char]0x1b)]633;P;IsWindows=$IsWindows`a")
+}
+
+# Set ContinuationPrompt property
+$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+if ($ContinuationPrompt) {
+	[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
 }
 
 # Set always on key handlers which map to default VS Code keybindings
