@@ -7,12 +7,13 @@ import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
 import { AccessibilityAlertSettingId, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
+import { isDefined } from 'vs/base/common/types';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -367,6 +368,36 @@ const configuration: IConfigurationNode = {
 					'description': localize('accessibility.signals.lineHasWarning.announcement', "Indicates when the active line has a warning."),
 					...announcementFeatureBase,
 					default: 'off'
+				},
+			},
+		},
+		'accessibility.signals.positionHasError': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.positionHasError', "Plays a signal when the active line has a warning."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.positionHasError.sound', "Plays a sound when the active line has a warning."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.positionHasError.announcement', "Indicates when the active line has a warning."),
+					...announcementFeatureBase,
+					default: 'on'
+				},
+			},
+		},
+		'accessibility.signals.positionHasWarning': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.positionHasWarning', "Plays a signal when the active line has a warning."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.positionHasWarning.sound', "Plays a sound when the active line has a warning."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.positionHasWarning.announcement', "Indicates when the active line has a warning."),
+					...announcementFeatureBase,
+					default: 'on'
 				},
 			},
 		},
@@ -803,7 +834,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	}]);
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.map(item => ({
+	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.map<ConfigurationMigration | undefined>(item => item.legacySoundSettingsKey ? ({
 		key: item.legacySoundSettingsKey,
 		migrateFn: (sound, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
@@ -819,14 +850,14 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement !== undefined ? { announcement, sound } : { sound } }]);
 			return configurationKeyValuePairs;
 		}
-	})));
+	}) : undefined).filter(isDefined));
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.legacyAnnouncementSettingsKey).map(item => ({
+	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.legacyAnnouncementSettingsKey && !!i.legacySoundSettingsKey).map(item => ({
 		key: item.legacyAnnouncementSettingsKey!,
 		migrateFn: (announcement, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			const sound = accessor(item.settingsKey)?.sound || accessor(item.legacySoundSettingsKey);
+			const sound = accessor(item.settingsKey)?.sound || accessor(item.legacySoundSettingsKey!);
 			if (announcement !== undefined && typeof announcement !== 'string') {
 				announcement = announcement ? 'auto' : 'off';
 			}

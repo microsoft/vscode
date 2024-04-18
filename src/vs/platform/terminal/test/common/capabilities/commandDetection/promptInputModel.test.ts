@@ -46,14 +46,14 @@ suite('PromptInputModel', () => {
 
 		promptInputModel.forceSync();
 
-		const actualValueWithCursor = promptInputModel.value.substring(0, promptInputModel.cursorIndex) + '|' + promptInputModel.value.substring(promptInputModel.cursorIndex);
+		const actualValueWithCursor = promptInputModel.getCombinedString();
 		strictEqual(
-			actualValueWithCursor.replaceAll('\n', '\u23CE'),
+			actualValueWithCursor,
 			valueWithCursor.replaceAll('\n', '\u23CE')
 		);
 
 		// This is required to ensure the cursor index is correctly resolved for non-ascii characters
-		const value = valueWithCursor.replace('|', '');
+		const value = valueWithCursor.replace(/[\|\[\]]/g, '');
 		const cursorIndex = valueWithCursor.indexOf('|');
 		strictEqual(promptInputModel.value, value);
 		strictEqual(promptInputModel.cursorIndex, cursorIndex, `value=${promptInputModel.value}`);
@@ -108,6 +108,18 @@ suite('PromptInputModel', () => {
 
 		await writePromise('\x1b[C');
 		assertPromptInput('foo bar|');
+	});
+
+	test('ghost text', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		assertPromptInput('|');
+
+		await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
+		assertPromptInput('foo|[ bar]');
+
+		await writePromise('\x1b[2D');
+		assertPromptInput('f|oo[ bar]');
 	});
 
 	test('wide input (Korean)', async () => {
@@ -222,31 +234,31 @@ suite('PromptInputModel', () => {
 					'[?25l[93me[97m[2m[3mcho "hello world"[3;4H[?25h',
 					'[m',
 				]);
-				assertPromptInput('e|cho "hello world"');
+				assertPromptInput('e|[cho "hello world"]');
 
 				await replayEvents([
 					'[?25l[93mec[97m[2m[3mho "hello world"[3;5H[?25h',
 					'[m',
 				]);
-				assertPromptInput('ec|ho "hello world"');
+				assertPromptInput('ec|[ho "hello world"]');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hech[97m[2m[3mo "hello world"[3;6H[?25h',
 					'[m',
 				]);
-				assertPromptInput('ech|o "hello world"');
+				assertPromptInput('ech|[o "hello world"]');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho[97m[2m[3m "hello world"[3;7H[?25h',
 					'[m',
 				]);
-				assertPromptInput('echo| "hello world"');
+				assertPromptInput('echo|[ "hello world"]');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho [97m[2m[3m"hello world"[3;8H[?25h',
 					'[m',
 				]);
-				assertPromptInput('echo |"hello world"');
+				assertPromptInput('echo |["hello world"]');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho [36m"hello world"[?25h',

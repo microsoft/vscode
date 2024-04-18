@@ -245,11 +245,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 	private _updatePromptInputStatusBar(commandDetection: ICommandDetectionCapability) {
 		const promptInputModel = commandDetection.promptInputModel;
 		if (promptInputModel) {
-			const promptInput = promptInputModel.value.replaceAll('\n', '\u23CE');
 			const name = localize('terminalDevMode', 'Terminal Dev Mode');
 			this._statusbarEntry = {
 				name,
-				text: `$(terminal) ${promptInput.substring(0, promptInputModel.cursorIndex)}|${promptInput.substring(promptInputModel.cursorIndex)}`,
+				text: `$(terminal) ${promptInputModel.getCombinedString()}`,
 				ariaLabel: name,
 				kind: 'prominent'
 			};

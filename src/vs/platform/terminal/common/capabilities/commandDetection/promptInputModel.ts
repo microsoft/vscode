@@ -11,7 +11,7 @@ import { debounce } from 'vs/base/common/decorators';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { Terminal, IMarker, IBufferLine, IBuffer } from '@xterm/headless';
+import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {
 	Unknown,
@@ -26,6 +26,13 @@ export interface IPromptInputModel {
 
 	readonly value: string;
 	readonly cursorIndex: number;
+	readonly ghostTextIndex: number;
+
+	/**
+	 * Gets the prompt input as a user-friendly string where `|` is the cursor position and `[` and
+	 * `]` wrap any ghost text.
+	 */
+	getCombinedString(): string;
 }
 
 export class PromptInputModel extends Disposable implements IPromptInputModel {
@@ -40,6 +47,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _cursorIndex: number = 0;
 	get cursorIndex() { return this._cursorIndex; }
+
+	private _ghostTextIndex: number = -1;
+	get ghostTextIndex() { return this._ghostTextIndex; }
 
 	private readonly _onDidStartInput = this._register(new Emitter<void>());
 	readonly onDidStartInput = this._onDidStartInput.event;
@@ -65,6 +75,18 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	setContinuationPrompt(value: string): void {
 		this._continuationPrompt = value;
+	}
+
+	getCombinedString(): string {
+		const value = this._value.replaceAll('\n', '\u23CE');
+		let result = `${value.substring(0, this.cursorIndex)}|`;
+		if (this.ghostTextIndex !== -1) {
+			result += `${value.substring(this.cursorIndex, this.ghostTextIndex)}[`;
+			result += `${value.substring(this.ghostTextIndex)}]`;
+		} else {
+			result += value.substring(this.cursorIndex);
+		}
+		return result;
 	}
 
 	private _handleCommandStart(command: { marker: IMarker }) {
@@ -111,7 +133,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		const buffer = this._xterm.buffer.active;
 		let line = buffer.getLine(commandStartY);
 		const commandLine = line?.translateToString(true, this._commandStartX);
-		if (!commandLine || !line) {
+		if (!line || commandLine === undefined) {
 			this._logService.trace(`PromptInputModel#_sync: no line`);
 			return;
 		}
@@ -122,9 +144,15 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Get cursor index
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		this._cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.length + 1;
+		this._ghostTextIndex = -1;
 
-		// IDEA: Detect ghost text based on SGR and cursor. This might work by checking for italic
-		//       or dim only to avoid false positives from shells that do immediate coloring.
+		// Detect ghost text by looking for italic or dim text in or after the cursor and
+		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
+		if (absoluteCursorY === commandStartY && buffer.cursorX > 1) {
+			// Ghost text in pwsh only appears to happen on the cursor line
+			this._ghostTextIndex = this._scanForGhostText(buffer, line);
+		}
+
 		// IDEA: Detect line continuation if it's not set
 
 		// From command start line to cursor line
@@ -160,10 +188,51 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
-			this._logService.trace(`PromptInputModel#_sync: Input="${this._value.substring(0, this._cursorIndex)}|${this.value.substring(this._cursorIndex)}"`);
+			this._logService.trace(`PromptInputModel#_sync: ${this.getCombinedString()}`);
 		}
 
 		this._onDidChangeInput.fire();
+	}
+
+	/**
+	 * Detect ghost text by looking for italic or dim text in or after the cursor and
+	 * non-italic/dim text in the cell closest non-whitespace cell before the cursor.
+	 */
+	private _scanForGhostText(buffer: IBuffer, line: IBufferLine): number {
+		// Check last non-whitespace character has non-ghost text styles
+		let ghostTextIndex = -1;
+		let proceedWithGhostTextCheck = false;
+		let x = buffer.cursorX;
+		while (x > 0) {
+			const cell = line.getCell(--x);
+			if (!cell) {
+				break;
+			}
+			if (cell.getChars().trim().length > 0) {
+				proceedWithGhostTextCheck = !this._isCellStyledLikeGhostText(cell);
+				break;
+			}
+		}
+
+		// Check to the end of the line for possible ghost text. For example pwsh's ghost text
+		// can look like this `Get-|Ch[ildItem]`
+		if (proceedWithGhostTextCheck) {
+			let potentialGhostIndexOffset = 0;
+			let x = buffer.cursorX;
+			while (x < line.length) {
+				const cell = line.getCell(x++);
+				if (!cell || cell.getCode() === 0) {
+					break;
+				}
+				if (this._isCellStyledLikeGhostText(cell)) {
+					ghostTextIndex = this._cursorIndex + potentialGhostIndexOffset;
+					break;
+				}
+				potentialGhostIndexOffset += cell.getChars().length;
+			}
+		}
+
+		return ghostTextIndex;
 	}
 
 	private _trimContinuationPrompt(lineText: string): string {
@@ -191,5 +260,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _getRelativeCursorIndex(startCellX: number, buffer: IBuffer, line: IBufferLine): number {
 		return line?.translateToString(true, startCellX, buffer.cursorX).length ?? 0;
+	}
+
+	private _isCellStyledLikeGhostText(cell: IBufferCell): boolean {
+		return !!(cell.isItalic() || cell.isDim());
 	}
 }
