@@ -7,14 +7,15 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { IVirtualModel } from 'vs/editor/common/languages/autoIndent';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
 import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
- * This class processes the lines (it removes the brackets of the given language configuration) before calling the {@link IndentRulesSupport} methods
+ * This class is a wrapper class around {@link IndentRulesSupport}.
+ * It processes the lines by removing the language configuration brackets from the regex, string and comment tokens.
+ * It then calls into the {@link IndentRulesSupport} to validate the indentation conditions.
  */
 export class ProcessedIndentRulesSupport {
 
@@ -51,94 +52,13 @@ export class ProcessedIndentRulesSupport {
 	}
 }
 
-export class IndentationLineProcessor {
-
-	constructor(
-		protected readonly model: IVirtualModel,
-		protected readonly languageConfigurationService: ILanguageConfigurationService
-	) { }
-
-	getProcessedLine(lineNumber: number): string {
-		const lineContent = this.model.getLineContent(lineNumber);
-		const tokens = this.model.tokenization.getLineTokens(lineNumber);
-		const processedLine = this.getProcessedLineForLineAndTokens(lineContent, tokens);
-		return processedLine;
-	}
-
-	getProcessedLineForLineAndTokens(line: string, tokens: LineTokens | ScopedLineTokens): string {
-
-		// Utility functions
-		const removeBracketsFromTokenWithIndexWithinLine = (tokenIndex: number, characterOffset: number, processedLine: string): { processedCharacterOffset: number, processedLine: string } => {
-			const result = removeBracketsFromTokenWithIndex(tokenIndex);
-			const processedCharacterOffset = characterOffset - (result.tokenText.length - result.processedText.length);
-			const lineBeforeCharacterOffset = processedLine.substring(0, characterOffset + result.tokenStartCharacterOffset);
-			const lineAfterCharacterOffset = processedLine.substring(characterOffset + result.tokenEndCharacterOffset);
-			const newProcessedLine = lineBeforeCharacterOffset + result.processedText + lineAfterCharacterOffset;
-			return { processedCharacterOffset, processedLine: newProcessedLine };
-		};
-		const removeBracketsFromTokenWithIndex = (tokenIndex: number): { tokenText: string; processedText: string; tokenStartCharacterOffset: number; tokenEndCharacterOffset: number } => {
-			const tokenStartCharacterOffset = tokens.getStartOffset(tokenIndex);
-			const tokenEndCharacterOffset = tokens.getEndOffset(tokenIndex);
-			const tokenText = line.substring(tokenStartCharacterOffset, tokenEndCharacterOffset);
-			const processedText = removeBracketsFromText(tokenText);
-			return { tokenText, processedText, tokenStartCharacterOffset, tokenEndCharacterOffset };
-		}
-		const removeBracketsFromText = (line: string): string => {
-			let processedLine = line;
-			openBrackets.forEach((bracket) => {
-				const regex = new RegExp(escapeStringForRegex(bracket), "g");
-				processedLine = processedLine.replace(regex, '');
-			});
-			closedBrackets.forEach((bracket) => {
-				const regex = new RegExp(escapeStringForRegex(bracket), "g");
-				processedLine = processedLine.replace(regex, '');
-			});
-			return processedLine;
-		}
-		const escapeStringForRegex = (text: string): string => {
-			let res = '';
-			for (const chr of text) {
-				res += escapeCharacterForRegex(chr);
-			}
-			return res;
-		};
-		const escapeCharacterForRegex = (character: string): string => {
-			return character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		}
-
-		// Main code
-		const languageId = tokens.getLanguageId(0);
-		const brackets = this.languageConfigurationService.getLanguageConfiguration(languageId).brackets;
-		if (!brackets) {
-			return line;
-		}
-		const openBrackets = brackets.brackets.map((brackets) => brackets.open).flat();
-		const closedBrackets = brackets.brackets.map((brackets) => brackets.close).flat();
-
-		let characterOffset = 0;
-		let processedLine = line;
-
-		for (let i = 0; i < tokens.getCount(); i++) {
-			const standardTokenType = tokens.getStandardTokenType(i);
-			if (standardTokenType === StandardTokenType.String
-				|| standardTokenType === StandardTokenType.RegEx
-				|| standardTokenType === StandardTokenType.Comment
-			) {
-				const result = removeBracketsFromTokenWithIndexWithinLine(i, characterOffset, processedLine);
-				characterOffset = result.processedCharacterOffset;
-				processedLine = result.processedLine;
-			}
-		}
-		return processedLine;
-	}
-}
-
-interface ProcessedIndentationContext {
-	beforeRangeText: string;
-	afterRangeText: string;
-	previousLineText: string;
-}
-
+/**
+ * This class fetches the processed text around a range which can be used for indentation evaluation.
+ * It returns:
+ * - The processed text before the given range and on the same start line
+ * - The processed text after the given range and on the same end line
+ * - The processed text on the previous line
+ */
 export class IndentationContextProcessor {
 
 	private readonly model: ITextModel;
@@ -152,7 +72,11 @@ export class IndentationContextProcessor {
 		this.indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
 	}
 
-	getProcessedContextAroundRange(range: Range): ProcessedIndentationContext {
+	getProcessedContextAroundRange(range: Range): {
+		beforeRangeText: string;
+		afterRangeText: string;
+		previousLineText: string;
+	} {
 		this.model.tokenization.forceTokenization(range.startLineNumber);
 		const lineTokens = this.model.tokenization.getLineTokens(range.startLineNumber);
 		const scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
@@ -233,8 +157,88 @@ export class IndentationContextProcessor {
 	}
 }
 
-export function isWithinEmbeddedLanguage(model: ITextModel, position: Position): boolean {
-	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
-	const scopedLineTokens = createScopedLineTokens(lineTokens, position.column - 1);
-	return scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId;
-};
+/**
+ * This class performs the actual processing of the indentation lines.
+ * The brackets of the language configuration are removed from the regex, string and comment tokens.
+ */
+class IndentationLineProcessor {
+
+	constructor(
+		protected readonly model: IVirtualModel,
+		protected readonly languageConfigurationService: ILanguageConfigurationService
+	) { }
+
+	getProcessedLine(lineNumber: number): string {
+		const lineContent = this.model.getLineContent(lineNumber);
+		const tokens = this.model.tokenization.getLineTokens(lineNumber);
+		const processedLine = this.getProcessedLineForLineAndTokens(lineContent, tokens);
+		return processedLine;
+	}
+
+	getProcessedLineForLineAndTokens(line: string, tokens: LineTokens | ScopedLineTokens): string {
+
+		// Utility functions
+		const removeBracketsFromTokenWithIndexWithinLine = (tokenIndex: number, characterOffset: number, processedLine: string): { processedCharacterOffset: number, processedLine: string } => {
+			const result = removeBracketsFromTokenWithIndex(tokenIndex);
+			const processedCharacterOffset = characterOffset - (result.tokenText.length - result.processedText.length);
+			const lineBeforeCharacterOffset = processedLine.substring(0, characterOffset + result.tokenStartCharacterOffset);
+			const lineAfterCharacterOffset = processedLine.substring(characterOffset + result.tokenEndCharacterOffset);
+			const newProcessedLine = lineBeforeCharacterOffset + result.processedText + lineAfterCharacterOffset;
+			return { processedCharacterOffset, processedLine: newProcessedLine };
+		};
+		const removeBracketsFromTokenWithIndex = (tokenIndex: number): { tokenText: string; processedText: string; tokenStartCharacterOffset: number; tokenEndCharacterOffset: number } => {
+			const tokenStartCharacterOffset = tokens.getStartOffset(tokenIndex);
+			const tokenEndCharacterOffset = tokens.getEndOffset(tokenIndex);
+			const tokenText = line.substring(tokenStartCharacterOffset, tokenEndCharacterOffset);
+			const processedText = removeBracketsFromText(tokenText);
+			return { tokenText, processedText, tokenStartCharacterOffset, tokenEndCharacterOffset };
+		}
+		const removeBracketsFromText = (line: string): string => {
+			let processedLine = line;
+			openBrackets.forEach((bracket) => {
+				const regex = new RegExp(escapeStringForRegex(bracket), "g");
+				processedLine = processedLine.replace(regex, '');
+			});
+			closedBrackets.forEach((bracket) => {
+				const regex = new RegExp(escapeStringForRegex(bracket), "g");
+				processedLine = processedLine.replace(regex, '');
+			});
+			return processedLine;
+		}
+		const escapeStringForRegex = (text: string): string => {
+			let res = '';
+			for (const chr of text) {
+				res += escapeCharacterForRegex(chr);
+			}
+			return res;
+		};
+		const escapeCharacterForRegex = (character: string): string => {
+			return character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		}
+
+		// Main code
+		const languageId = tokens.getLanguageId(0);
+		const brackets = this.languageConfigurationService.getLanguageConfiguration(languageId).brackets;
+		if (!brackets) {
+			return line;
+		}
+		const openBrackets = brackets.brackets.map((brackets) => brackets.open).flat();
+		const closedBrackets = brackets.brackets.map((brackets) => brackets.close).flat();
+
+		let characterOffset = 0;
+		let processedLine = line;
+
+		for (let i = 0; i < tokens.getCount(); i++) {
+			const standardTokenType = tokens.getStandardTokenType(i);
+			if (standardTokenType === StandardTokenType.String
+				|| standardTokenType === StandardTokenType.RegEx
+				|| standardTokenType === StandardTokenType.Comment
+			) {
+				const result = removeBracketsFromTokenWithIndexWithinLine(i, characterOffset, processedLine);
+				characterOffset = result.processedCharacterOffset;
+				processedLine = result.processedLine;
+			}
+		}
+		return processedLine;
+	}
+}

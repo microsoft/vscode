@@ -7,11 +7,13 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IndentAction } from 'vs/editor/common/languages/languageConfiguration';
-import { IndentConsts, ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
+import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { IndentationContextProcessor, isWithinEmbeddedLanguage } from 'vs/editor/common/languages/supports/indentationLineProcessor';
+import { IndentationContextProcessor, ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
+import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { Position } from 'vs/editor/common/core/position';
 
 export interface IVirtualModel {
 	tokenization: {
@@ -438,3 +440,9 @@ export function getIndentMetadata(
 	}
 	return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
 }
+
+export function isWithinEmbeddedLanguage(model: ITextModel, position: Position): boolean {
+	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
+	const scopedLineTokens = createScopedLineTokens(lineTokens, position.column - 1);
+	return scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId;
+};
