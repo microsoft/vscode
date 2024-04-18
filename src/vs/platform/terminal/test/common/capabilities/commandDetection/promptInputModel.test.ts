@@ -48,7 +48,7 @@ suite('PromptInputModel', () => {
 
 		const actualValueWithCursor = promptInputModel.getCombinedString();
 		strictEqual(
-			actualValueWithCursor.replaceAll('\n', '\u23CE'),
+			actualValueWithCursor,
 			valueWithCursor.replaceAll('\n', '\u23CE')
 		);
 
@@ -108,6 +108,18 @@ suite('PromptInputModel', () => {
 
 		await writePromise('\x1b[C');
 		assertPromptInput('foo bar|');
+	});
+
+	test('ghost text', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		assertPromptInput('|');
+
+		await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
+		assertPromptInput('foo|[ bar]');
+
+		await writePromise('\x1b[2D');
+		assertPromptInput('f|oo[ bar]');
 	});
 
 	test('wide input (Korean)', async () => {

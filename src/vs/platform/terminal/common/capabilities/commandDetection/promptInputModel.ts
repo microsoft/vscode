@@ -217,6 +217,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Check to the end of the line for possible ghost text. For example pwsh's ghost text
 		// can look like this `Get-|Ch[ildItem]`
 		if (proceedWithGhostTextCheck) {
+			let potentialGhostIndexOffset = 0;
 			let x = buffer.cursorX;
 			while (x < line.length) {
 				const cell = line.getCell(x++);
@@ -224,9 +225,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					break;
 				}
 				if (this._isCellStyledLikeGhostText(cell)) {
-					ghostTextIndex = this._cursorIndex;
+					ghostTextIndex = this._cursorIndex + potentialGhostIndexOffset;
 					break;
 				}
+				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
 
