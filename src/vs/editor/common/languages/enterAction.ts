@@ -7,8 +7,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IndentAction, CompleteEnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { getIndentationAtPosition, getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ScopedLineProcessorForIndentation } from 'vs/editor/common/languages/lineProcessorForIndentation';
+import { getIndentationAtPosition, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IndentationContextProcessor } from 'vs/editor/common/languages/supports/indentationLineProcessor';
 
 export function getEnterAction(
 	autoIndent: EditorAutoIndentStrategy,
@@ -16,17 +16,16 @@ export function getEnterAction(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ): CompleteEnterAction | null {
-	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-	const richEditSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId);
+	model.tokenization.forceTokenization(range.startLineNumber);
+	const languageId = model.getLanguageIdAtPosition(range.startLineNumber, range.startColumn);
+	const richEditSupport = languageConfigurationService.getLanguageConfiguration(languageId);
 	if (!richEditSupport) {
 		return null;
 	}
-	const processLines = new ScopedLineProcessorForIndentation(model, languageConfigurationService);
-	const beforeEnterText = processLines.getProcessedLineBeforeRange(range, scopedLineTokens).processedLine;
-	const afterEnterText = processLines.getProcessedLineAfterRange(range, scopedLineTokens).processedLine;
-	const previousLineText = processLines.getProcessedPreviousLine(range);
+	const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
+	const processedContext = indentationContextProcessor.getProcessedContextAroundRange(range);
 
-	const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
+	const enterResult = richEditSupport.onEnter(autoIndent, processedContext.previousLineText, processedContext.beforeRangeText, processedContext.afterRangeText);
 	if (!enterResult) {
 		return null;
 	}

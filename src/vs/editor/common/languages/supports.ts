@@ -86,6 +86,10 @@ export class ScopedLineTokens {
 	public getEndOffset(tokenIndex: number): number {
 		return this._actual.getEndOffset(tokenIndex + this.firstTokenIndex) - this.firstCharOffset;
 	}
+
+	public getLanguageId(tokenIndex: number): string {
+		return this._actual.getLanguageId(tokenIndex + this.firstTokenIndex);
+	}
 }
 
 const enum IgnoreBracketsInTokens {
