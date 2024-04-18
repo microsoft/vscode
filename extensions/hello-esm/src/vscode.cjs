@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from './vscode.cjs';
+const vscode = require('vscode')
 
-export const activate = () => {
-	vscode.commands.registerCommand('hello-esm.hello', () => {
-		vscode.window.showInformationMessage('hello world esm');
-	})
-};
+exports.window = vscode.window
+exports.commands = vscode.commands
