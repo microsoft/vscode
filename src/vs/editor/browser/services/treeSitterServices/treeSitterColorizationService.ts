@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
-// eslint-disable-next-line local/code-import-patterns
-
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
-import { AppResourcePath, FileAccess, nodeModulesPath } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -16,7 +14,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ITreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { importAMDNodeModule } from 'vs/amdX';
+import { Parser } from 'vs/base/common/web-tree-sitter/tree-sitter-web';
 
 const ITreeSitterColorizationService = createDecorator<ITreeSitterColorizationService>('ITreeSitterColorizationService');
 
@@ -54,24 +52,11 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 
 	private async _initializeTreeSitterService(asynchronous: boolean = true) {
 		if (!this._isInit) {
-			const importTreeSitter = async () => {
-				const Parser = await importAMDNodeModule<typeof import('web-tree-sitter')>('web-tree-sitter', 'tree-sitter.js');
-				await Parser.init({
-					locateFile(_file: string, _folder: string) {
-						const wasmPath: AppResourcePath = `${nodeModulesPath}/web-tree-sitter/tree-sitter.wasm`;
-						return FileAccess.asBrowserUri(wasmPath).toString(true);
-					}
-				});
-			};
-			this._isInit = new Promise<void>((resolve, reject) => {
-				importTreeSitter().then(() => {
-					resolve();
-				}).catch((error) => {
-					console.error(nls.localize('treeSitterError', "Error initializing tree-sitter: {0}", error));
-					reject(error);
-				}).finally(() => {
-					console.log('finally');
-				});
+			this._isInit = Parser.init({
+				locateFile(_file: string, _folder: string) {
+					const wasmPath: AppResourcePath = `vs/base/common/web-tree-sitter/tree-sitter.wasm`;
+					return FileAccess.asBrowserUri(wasmPath).toString(true);
+				}
 			});
 		}
 

@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 // TODO: fix the imports
 // eslint-disable-next-line local/code-import-patterns
-import type Parser = require('web-tree-sitter');
-// eslint-disable-next-line local/code-import-patterns
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
-import { FileAccess } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SemanticTokensProviderStylingConstants } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
@@ -19,6 +17,7 @@ import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry
 import { ITreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { Parser } from 'vs/base/common/web-tree-sitter/tree-sitter-web';
 
 export class TreeSitterColorizationTree {
 
@@ -72,7 +71,8 @@ export class TreeSitterColorizationTree {
 	}
 
 	private async _fetchQueries(): Promise<string> {
-		const query = await this._fileService.readFile(FileAccess.asFileUri(`treeSitterColorizationQueries.scm`));
+		const scmPath: AppResourcePath = `vs/editor/browser/services/treeSitterTrees/colorization/treeSitterColorizationQueries.scm`;
+		const query = await this._fileService.readFile(FileAccess.asFileUri(scmPath));
 		return Promise.resolve(query.value.toString());
 	}
 
