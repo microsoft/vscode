@@ -8,10 +8,11 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { PromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { Emitter } from 'vs/base/common/event';
 import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { strictEqual } from 'assert';
+import xtermHeadless from '@xterm/headless';
 
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/headless';
-import { strictEqual } from 'assert';
+const { Terminal } = xtermHeadless;
 
 class TestPromptInputModel extends PromptInputModel {
 	forceSync() {
@@ -23,7 +24,7 @@ suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let promptInputModel: TestPromptInputModel;
-	let xterm: Terminal;
+	let xterm: xtermHeadless.Terminal;
 	let onCommandStart: Emitter<ITerminalCommand>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
 
