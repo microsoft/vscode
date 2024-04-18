@@ -105,7 +105,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		activationTimesBuilder.codeLoadingStart();
 		this._logService.trace(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
 		this._logService.flush();
-		const extensionId = extension?.identifier.value;
+		const extensionId = extension?.identifier?.value;
 		if (extension) {
 			await this._extHostLocalizationService.initializeLocalizedMessages(extension);
 		}
