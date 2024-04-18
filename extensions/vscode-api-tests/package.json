@@ -55,6 +55,7 @@
     "workspaceTrust",
     "telemetry"
   ],
+  "type": "module",
   "private": true,
   "activationEvents": [],
   "main": "./out/extension",
@@ -80,7 +81,7 @@
         "id": "api-test.participant2",
         "name": "participant2",
         "description": "test",
-        "commands": [ ]
+        "commands": []
       }
     ],
     "configuration": {
