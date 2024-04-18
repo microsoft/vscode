@@ -57,7 +57,7 @@ function Global:__VSCode-Escape-Value([string]$value) {
 			-Join (
 				[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
 			)
-		})
+		}) -replace "`e", '\x1b'
 }
 
 function Global:Prompt() {

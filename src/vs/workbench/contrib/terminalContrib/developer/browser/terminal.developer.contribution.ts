@@ -16,15 +16,14 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInternalXtermTerminal, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import type { Terminal } from '@xterm/xterm';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { getWindow } from 'vs/base/browser/dom';
+import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry, type IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 registerTerminalAction({
@@ -123,14 +122,13 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 	private _currentColor = 0;
 
 	private _statusbarEntry: IStatusbarEntry | undefined;
-	private _statusbarEntryAccessor: IStatusbarEntryAccessor | undefined;
+	private readonly _statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor> = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 	) {
 		super();
@@ -139,19 +137,6 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 				this._updateDevMode();
 			}
 		}));
-
-		setTimeout(() => {
-			const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection)
-			if (commandDetection) {
-				// TODO: Listen to capability add
-				// TODO: Add util for when capability is available?
-				commandDetection.promptInputModel.onDidChangeInput(() => {
-					// TODO: Create a status bar item sync
-					// TODO: Only show focused instance status bar item
-					this._updateDevMode();
-				});
-			}
-		}, 2000);
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
@@ -163,38 +148,16 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		const devMode: boolean = this._isEnabled();
 		this._xterm?.raw.element?.classList.toggle('dev-mode', devMode);
 
-		const promptInputModel = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel
-		if (promptInputModel) {
-			// Text area syncing
-			const promptInput = promptInputModel.value.replaceAll('\n', '\u23CE');
-			this._statusbarEntry = {
-				name: localize('terminalDevMode', 'Terminal Dev Mode'),
-				text: `$(terminal) ${promptInput.substring(0, promptInputModel.cursorIndex)}|${promptInput.substring(promptInputModel.cursorIndex)}`,
-				// tooltip: localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, terminals may stop working. Click to manually restart the pty host."),
-				ariaLabel: localize('ptyHostStatus.ariaLabel', 'test'),
-				// command: TerminalCommandId.RestartPtyHost,
-				kind: 'warning'
-			};
-			if (!this._statusbarEntryAccessor) {
-				console.log('1');
-				this._statusbarEntryAccessor = this._statusbarService.addEntry(this._statusbarEntry, 'terminal.promptInput', StatusbarAlignment.LEFT);
-			} else {
-				console.log('2');
-				this._statusbarEntryAccessor.update(this._statusbarEntry);
-			}
-		}
-		if (this._xterm?.raw.textarea) {
-			const font = this._terminalConfigurationService.getFont(getWindow(this._xterm.raw.textarea));
-			this._xterm.raw.textarea.style.fontFamily = font.fontFamily;
-			this._xterm.raw.textarea.style.fontSize = `${font.fontSize}px`;
-		}
-
-		// Sequence markers
 		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (devMode) {
 			if (commandDetection) {
 				const commandDecorations = new Map<ITerminalCommand, IDisposable[]>();
 				this._activeDevModeDisposables.value = combinedDisposable(
+					// Prompt input
+					this._instance.onDidBlur(() => this._updateDevMode()),
+					this._instance.onDidFocus(() => this._updateDevMode()),
+					commandDetection.promptInputModel.onDidChangeInput(() => this._updateDevMode()),
+					// Sequence markers
 					commandDetection.onCommandFinished(command => {
 						const colorClass = `color-${this._currentColor}`;
 						const decorations: IDisposable[] = [];
@@ -261,6 +224,8 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 						}
 					})
 				);
+
+				this._updatePromptInputStatusBar(commandDetection);
 			} else {
 				this._activeDevModeDisposables.value = this._instance.capabilities.onDidAddCapabilityType(e => {
 					if (e === TerminalCapability.CommandDetection) {
@@ -275,6 +240,25 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 
 	private _isEnabled(): boolean {
 		return this._configurationService.getValue(TerminalSettingId.DevMode) || false;
+	}
+
+	private _updatePromptInputStatusBar(commandDetection: ICommandDetectionCapability) {
+		const promptInputModel = commandDetection.promptInputModel;
+		if (promptInputModel) {
+			const promptInput = promptInputModel.value.replaceAll('\n', '\u23CE');
+			this._statusbarEntry = {
+				name: localize('terminalDevMode', 'Terminal Dev Mode'),
+				text: `$(terminal) ${promptInput.substring(0, promptInputModel.cursorIndex)}|${promptInput.substring(promptInputModel.cursorIndex)}`,
+				ariaLabel: localize('terminalDevMode', 'Terminal Dev Mode'),
+				kind: 'warning'
+			};
+			if (!this._statusbarEntryAccessor.value) {
+				this._statusbarEntryAccessor.value = this._statusbarService.addEntry(this._statusbarEntry, `terminal.promptInput.${this._instance.instanceId}`, StatusbarAlignment.LEFT);
+			} else {
+				this._statusbarEntryAccessor.value.update(this._statusbarEntry);
+			}
+			this._statusbarService.updateEntryVisibility(`terminal.promptInput.${this._instance.instanceId}`, this._instance.hasFocus);
+		}
 	}
 }
 

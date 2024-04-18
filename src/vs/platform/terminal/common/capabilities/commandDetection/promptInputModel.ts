@@ -65,6 +65,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	setContinuationPrompt(value: string): void {
+		console.log('setContinuationPrompt', value);
 		this._continuationPrompt = value;
 	}
 
@@ -115,33 +116,37 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._value = commandLine.substring(this._commandStartX);
 		this._cursorIndex = Math.max(buffer.cursorX - this._commandStartX, 0);
 
+		// IDEA: Reinforce knowledge of prompt to avoid incorrect commandStart
+		// IDEA: Detect ghost text based on SGR and cursor
+
 		// Add multi-lines
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
 			let lineText = buffer.getLine(y)?.translateToString(true);
 			if (lineText) {
-				if (this._continuationPrompt && lineText.startsWith(this._continuationPrompt)) {
-					lineText = lineText.substring(this._continuationPrompt.length);
-				}
-				this._value += `\n${lineText}`;
-				if (y === absoluteCursorY) {
-					// TODO: Detect continuation
-					//       For pwsh: (Get-PSReadLineOption).ContinuationPrompt
-					// TODO: Wide/emoji length support
-					this._cursorIndex = Math.max(this._value.length - lineText.length - (this._continuationPrompt?.length ?? 0) + buffer.cursorX, 0);
+				// Verify continuation prompt if we have it, if this line doesn't have it then the
+				// user likely just pressed enter
+				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
+					lineText = this._trimContinuationPrompt(lineText);
+					this._value += `\n${lineText}`;
+					if (y === absoluteCursorY) {
+						// TODO: Wide/emoji length support
+						this._cursorIndex = Math.max(this._value.length - lineText.length - (this._continuationPrompt?.length ?? 0) + buffer.cursorX, 0);
+					}
+				} else {
+					this._cursorIndex = this._value.length;
+					break;
 				}
 			}
 		}
 
-		// TODO: Check below the cursor for continuations
+		// Check lines below the cursor for continuations
 		for (let y = absoluteCursorY + 1; y < buffer.baseY + this._xterm.rows; y++) {
-			let lineText = buffer.getLine(y)?.translateToString(true);
-			if (lineText) {
-				// TODO: Detect line continuation if it's not set
-				if (this._continuationPrompt && lineText.startsWith(this._continuationPrompt)) {
-					lineText = lineText.substring(this._continuationPrompt.length);
-				}
-				this._value += `\n${lineText}`;
+			const lineText = buffer.getLine(y)?.translateToString(true);
+			if (lineText && this._lineContainsContinuationPrompt(lineText)) {
+				this._value += `\n${this._trimContinuationPrompt(lineText)}`;
+			} else {
+				break;
 			}
 		}
 
@@ -150,5 +155,17 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		this._onDidChangeInput.fire();
+	}
+
+	private _trimContinuationPrompt(lineText: string): string {
+		// TODO: Detect line continuation if it's not set
+		if (this._lineContainsContinuationPrompt(lineText)) {
+			lineText = lineText.substring(this._continuationPrompt!.length);
+		}
+		return lineText;
+	}
+
+	private _lineContainsContinuationPrompt(lineText: string): boolean {
+		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt));
 	}
 }
