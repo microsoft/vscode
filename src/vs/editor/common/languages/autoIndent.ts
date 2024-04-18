@@ -308,6 +308,7 @@ export function getIndentForEnter(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
+	const languageId = model.getLanguageIdAtPosition(range.startLineNumber, range.startColumn);
 	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(languageId).indentRulesSupport;
 	if (!indentRulesSupport) {
 		return null;
@@ -318,7 +319,6 @@ export function getIndentForEnter(
 	const processedContext = indentationContextProcessor.getProcessedContextAroundRange(range);
 	const afterEnterText = processedContext.afterRangeText;
 	const beforeEnterText = processedContext.beforeRangeText;
-	const languageId = model.getLanguageIdAtPosition(range.startLineNumber, range.startColumn);
 	const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
 
 	const virtualModel: IVirtualModel = {
