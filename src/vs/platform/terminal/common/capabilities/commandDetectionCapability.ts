@@ -10,11 +10,12 @@ import { Disposable, MandatoryMutableDisposable, MutableDisposable } from 'vs/ba
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import { PromptInputModel, type IPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
-import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 interface ITerminalDimensions {
 	cols: number;
@@ -23,6 +24,9 @@ interface ITerminalDimensions {
 
 export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
+
+	private readonly _promptInputModel: PromptInputModel;
+	get promptInputModel(): IPromptInputModel { return this._promptInputModel; }
 
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
@@ -86,6 +90,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandFinished, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {
@@ -191,6 +197,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (count > 0) {
 			this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
 		}
+	}
+
+	setContinuationPrompt(value: string): void {
+		this._promptInputModel.setContinuationPrompt(value);
 	}
 
 	setCwd(value: string) {

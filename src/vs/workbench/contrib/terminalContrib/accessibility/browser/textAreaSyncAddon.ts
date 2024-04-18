@@ -99,6 +99,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 		const buffer = this._terminal.buffer.active;
 		const lineNumber = currentCommand.commandStartMarker?.line;
+		this._logService.debug('line number?', lineNumber);
 		if (!lineNumber) {
 			return;
 		}
@@ -107,6 +108,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
 			return;
 		}
+		// TODO: Support multi-line prompts
 		if (currentCommand.commandStartX !== undefined) {
 			this._currentCommand = commandLine.substring(currentCommand.commandStartX);
 			const cursorPosition = buffer.cursorX - currentCommand.commandStartX;

@@ -453,6 +453,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				priority: 50
 			};
 			this._activity.value = this.activityService.showViewActivity(this.id, activity);
+		} else {
+			this._activity.clear();
 		}
 	}
 

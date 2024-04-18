@@ -298,14 +298,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 				if (!fakeProviders.has(agent.id)) {
 					fakeProviders.set(agent.id, _inlineChatService.addProvider(_instaService.createInstance(AgentInlineChatProvider, agent)));
-					this._logService.info(`ADDED inline chat provider for agent ${agent.id}`);
+					this._logService.debug(`ADDED inline chat provider for agent ${agent.id}`);
 				}
 			}
 
 			for (const [id] of fakeProviders) {
 				if (!providersNow.has(id)) {
 					fakeProviders.deleteAndDispose(id);
-					this._logService.info(`REMOVED inline chat provider for agent ${id}`);
+					this._logService.debug(`REMOVED inline chat provider for agent ${id}`);
 				}
 			}
 		}));

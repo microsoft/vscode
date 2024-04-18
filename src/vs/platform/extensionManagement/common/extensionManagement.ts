@@ -431,12 +431,6 @@ export enum ExtensionManagementErrorCode {
 	Internal = 'Internal',
 }
 
-export enum ExtensionSignaturetErrorCode {
-	UnknownError = 'UnknownError',
-	PackageIsInvalidZip = 'PackageIsInvalidZip',
-	SignatureArchiveIsInvalidZip = 'SignatureArchiveIsInvalidZip',
-}
-
 export class ExtensionManagementError extends Error {
 	constructor(message: string, readonly code: ExtensionManagementErrorCode) {
 		super(message);

@@ -331,7 +331,7 @@ export class NativeWindow extends BaseWindow {
 		// Allow to update security settings around protocol handlers
 		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
 			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
-			this.configurationService.updateValue(setting, false, ConfigurationTarget.USER_LOCAL);
+			this.configurationService.updateValue(setting, false, ConfigurationTarget.APPLICATION);
 		});
 
 		// Window Zoom

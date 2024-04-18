@@ -162,6 +162,9 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
+# Report continuation prompt
+builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }

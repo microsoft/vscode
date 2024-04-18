@@ -377,6 +377,7 @@ async function startChat(accessor: ServicesAccessor, context: INotebookActionCon
 	} else {
 		const newCell = await insertNewCell(accessor, context, CellKind.Code, 'below', true);
 		if (newCell) {
+			newCell.enableAutoLanguageDetection();
 			await context.notebookEditor.revealFirstLineIfOutsideViewport(newCell);
 			const codeEditor = context.notebookEditor.codeEditors.find(ce => ce[0] === newCell)?.[1];
 			if (codeEditor) {

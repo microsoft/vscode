@@ -311,7 +311,6 @@ export class Sound {
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
 	public static readonly diffLineModified = Sound.register({ fileName: 'diffLineModified.mp3' });
 	public static readonly chatRequestSent = Sound.register({ fileName: 'chatRequestSent.mp3' });
-	public static readonly chatResponsePending = Sound.register({ fileName: 'chatResponsePending.mp3' });
 	public static readonly chatResponseReceived1 = Sound.register({ fileName: 'chatResponseReceived1.mp3' });
 	public static readonly chatResponseReceived2 = Sound.register({ fileName: 'chatResponseReceived2.mp3' });
 	public static readonly chatResponseReceived3 = Sound.register({ fileName: 'chatResponseReceived3.mp3' });
@@ -321,6 +320,7 @@ export class Sound {
 	public static readonly format = Sound.register({ fileName: 'format.mp3' });
 	public static readonly voiceRecordingStarted = Sound.register({ fileName: 'voiceRecordingStarted.mp3' });
 	public static readonly voiceRecordingStopped = Sound.register({ fileName: 'voiceRecordingStopped.mp3' });
+	public static readonly progress = Sound.register({ fileName: 'progress.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -359,7 +359,7 @@ export const enum AccessibilityAlertSettingId {
 	OnDebugBreak = 'accessibility.alert.onDebugBreak',
 	NoInlayHints = 'accessibility.alert.noInlayHints',
 	LineHasBreakpoint = 'accessibility.alert.lineHasBreakpoint',
-	ChatResponsePending = 'accessibility.alert.chatResponsePending'
+	Progress = 'accessibility.alert.chatResponseProgress'
 }
 
 
@@ -553,13 +553,13 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.chatResponseReceived'
 	});
 
-	public static readonly chatResponsePending = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.chatResponsePending', 'Chat Response Pending'),
-		sound: Sound.chatResponsePending,
+	public static readonly progress = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.progress', 'Progress'),
+		sound: Sound.progress,
 		legacySoundSettingsKey: 'audioCues.chatResponsePending',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.ChatResponsePending,
-		announcementMessage: localize('accessibility.signals.chatResponsePending', 'Chat Response Pending'),
-		settingsKey: 'accessibility.signals.chatResponsePending'
+		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Progress,
+		announcementMessage: localize('accessibility.signals.progress', 'Progress'),
+		settingsKey: 'accessibility.signals.progress'
 	});
 
 	public static readonly clear = AccessibilitySignal.register({
