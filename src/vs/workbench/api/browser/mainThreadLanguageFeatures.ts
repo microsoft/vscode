@@ -251,16 +251,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		/*
 		const hoverFinalizationRegistry = new FinalizationRegistry((hoverId: number) => {
 			this._proxy.$releaseHover(handle, hoverId);
 		});
+		*/
 		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider>{
 			provideHover: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context?: languages.HoverContext<{ id: number }>): Promise<HoverWithId | undefined> => {
 				const hover = await this._proxy.$provideHover(handle, model.uri, position, context, token);
-				if (!hover) {
-					return;
-				}
-				hoverFinalizationRegistry.register(hover, hover.id);
+				// hoverFinalizationRegistry.register(hover, hover.id);
 				return hover;
 			}
 		}));
