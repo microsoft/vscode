@@ -52,20 +52,18 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		private readonly _xterm: Terminal,
 		onCommandStart: Event<ITerminalCommand>,
 		onCommandExecuted: Event<ITerminalCommand>,
-		private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
 		this._register(this._xterm.onData(e => this._handleInput(e)));
 		this._register(this._xterm.onCursorMove(() => this._sync()));
-		// TODO: Listen to the xterm textarea focus event?
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
 	}
 
 	setContinuationPrompt(value: string): void {
-		console.log('setContinuationPrompt', value);
 		this._continuationPrompt = value;
 	}
 
@@ -77,7 +75,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._state = PromptInputState.Input;
 		this._commandStartMarker = command.marker;
 		this._commandStartX = this._xterm.buffer.active.cursorX;
-		console.log('commandStart', command.marker.line, this._commandStartX);
 		this._onDidStartInput.fire();
 	}
 
@@ -91,7 +88,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _handleInput(data: string) {
-		this._logService.trace(`PromptInputModel#_handleInput data=${data}`);
 		this._sync();
 	}
 
