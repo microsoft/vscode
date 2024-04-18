@@ -308,18 +308,17 @@ export function getIndentForEnter(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
+	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(languageId).indentRulesSupport;
+	if (!indentRulesSupport) {
+		return null;
+	}
+
 	model.tokenization.forceTokenization(range.startLineNumber);
 	const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
 	const processedContext = indentationContextProcessor.getProcessedContextAroundRange(range);
 	const afterEnterText = processedContext.afterRangeText;
 	const beforeEnterText = processedContext.beforeRangeText;
 	const languageId = model.getLanguageIdAtPosition(range.startLineNumber, range.startColumn);
-	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(languageId).indentRulesSupport;
-	if (!indentRulesSupport) {
-		return null;
-	}
-
-	const beforeEnterResult = beforeEnterText;
 	const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
 
 	const virtualModel: IVirtualModel = {
@@ -336,7 +335,7 @@ export function getIndentForEnter(
 		},
 		getLineContent: (lineNumber: number) => {
 			if (lineNumber === range.startLineNumber) {
-				return beforeEnterResult;
+				return beforeEnterText;
 			} else {
 				return model.getLineContent(lineNumber);
 			}

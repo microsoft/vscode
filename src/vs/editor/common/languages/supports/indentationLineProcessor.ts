@@ -63,8 +63,8 @@ export class IndentationLineProcessor {
 			}
 			return res;
 		};
-		const escapeCharacterForRegex = (chr: string): string => {
-			return chr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const escapeCharacterForRegex = (character: string): string => {
+			return character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		}
 
 		// Main code
