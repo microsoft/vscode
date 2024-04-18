@@ -7,11 +7,11 @@ import { Emitter, type Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { debounce } from 'vs/base/common/decorators';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { Terminal, IMarker } from '@xterm/headless';
-import { debounce } from 'vs/base/common/decorators';
+import type { Terminal, IMarker, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {
 	Unknown,
@@ -75,6 +75,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._state = PromptInputState.Input;
 		this._commandStartMarker = command.marker;
 		this._commandStartX = this._xterm.buffer.active.cursorX;
+		this._value = '';
+		this._cursorIndex = 0;
 		this._onDidStartInput.fire();
 	}
 
@@ -102,40 +104,43 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		const commandStartY = this._commandStartMarker?.line;
-		if (!commandStartY) {
+		if (commandStartY === undefined) {
 			return;
 		}
 
 		const buffer = this._xterm.buffer.active;
-		const commandLine = buffer.getLine(commandStartY)?.translateToString(true);
-		if (!commandLine) {
+		let line = buffer.getLine(commandStartY);
+		const commandLine = line?.translateToString(true, this._commandStartX);
+		if (!commandLine || !line) {
 			this._logService.trace(`PromptInputModel#_sync: no line`);
 			return;
 		}
 
 		// Command start line
-		this._value = commandLine.substring(this._commandStartX);
-		this._cursorIndex = Math.max(buffer.cursorX - this._commandStartX, 0);
+		this._value = commandLine;
 
-		// IDEA: Reinforce knowledge of prompt to avoid incorrect commandStart
-		// IDEA: Detect ghost text based on SGR and cursor
+		// Get cursor index
+		const absoluteCursorY = buffer.baseY + buffer.cursorY;
+		this._cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.length + 1;
+
+		// IDEA: Detect ghost text based on SGR and cursor. This might work by checking for italic
+		//       or dim only to avoid false positives from shells that do immediate coloring.
+		// IDEA: Detect line continuation if it's not set
 
 		// From command start line to cursor line
-		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
-			let lineText = buffer.getLine(y)?.translateToString(true);
-			if (lineText) {
+			line = buffer.getLine(y);
+			let lineText = line?.translateToString(true);
+			if (lineText && line) {
 				// Verify continuation prompt if we have it, if this line doesn't have it then the
 				// user likely just pressed enter
 				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					lineText = this._trimContinuationPrompt(lineText);
 					this._value += `\n${lineText}`;
-					if (y === absoluteCursorY) {
-						// TODO: Wide/emoji length support
-						this._cursorIndex = Math.max(this._value.length - lineText.length - (this._continuationPrompt?.length ?? 0) + buffer.cursorX, 0);
-					}
+					this._cursorIndex += (absoluteCursorY === y
+						? this._getRelativeCursorIndex(this._getContinuationPromptCellWidth(line, lineText), buffer, line)
+						: lineText.length + 1);
 				} else {
-					this._cursorIndex = this._value.length;
 					break;
 				}
 			}
@@ -143,8 +148,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		// Below cursor line
 		for (let y = absoluteCursorY + 1; y < buffer.baseY + this._xterm.rows; y++) {
-			const lineText = buffer.getLine(y)?.translateToString(true);
-			if (lineText) {
+			line = buffer.getLine(y);
+			const lineText = line?.translateToString(true);
+			if (lineText && line) {
 				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					this._value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
@@ -161,7 +167,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _trimContinuationPrompt(lineText: string): string {
-		// TODO: Detect line continuation if it's not set
 		if (this._lineContainsContinuationPrompt(lineText)) {
 			lineText = lineText.substring(this._continuationPrompt!.length);
 		}
@@ -170,5 +175,21 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _lineContainsContinuationPrompt(lineText: string): boolean {
 		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt));
+	}
+
+	private _getContinuationPromptCellWidth(line: IBufferLine, lineText: string): number {
+		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt)) {
+			return 0;
+		}
+		let buffer: string = '';
+		let x = 0;
+		while (buffer !== this._continuationPrompt) {
+			buffer += line.getCell(x++)!.getChars();
+		}
+		return x;
+	}
+
+	private _getRelativeCursorIndex(startCellX: number, buffer: IBuffer, line: IBufferLine): number {
+		return line?.translateToString(true, startCellX, buffer.cursorX).length ?? 0;
 	}
 }

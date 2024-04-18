@@ -250,7 +250,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 				name: localize('terminalDevMode', 'Terminal Dev Mode'),
 				text: `$(terminal) ${promptInput.substring(0, promptInputModel.cursorIndex)}|${promptInput.substring(promptInputModel.cursorIndex)}`,
 				ariaLabel: localize('terminalDevMode', 'Terminal Dev Mode'),
-				kind: 'warning'
+				kind: 'prominent'
 			};
 			if (!this._statusbarEntryAccessor.value) {
 				this._statusbarEntryAccessor.value = this._statusbarService.addEntry(this._statusbarEntry, `terminal.promptInput.${this._instance.instanceId}`, StatusbarAlignment.LEFT);

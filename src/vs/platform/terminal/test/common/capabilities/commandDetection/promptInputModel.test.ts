@@ -21,16 +21,153 @@ class TestPromptInputModel extends PromptInputModel {
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let promptInputModel: TestPromptInputModel;
 	let xterm: Terminal;
 	let onCommandStart: Emitter<ITerminalCommand>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
 
+	async function writePromise(data: string) {
+		await new Promise<void>(r => xterm.write(data, r));
+	}
+
+	function fireCommandStart() {
+		onCommandStart.fire({ marker: xterm.registerMarker() } as ITerminalCommand);
+	}
+
+	function fireCommandExecuted() {
+		onCommandExecuted.fire(null!);
+	}
+
+	function assertPromptInput(valueWithCursor: string) {
+		if (!valueWithCursor.includes('|')) {
+			throw new Error('assertPromptInput must contain | character');
+		}
+
+		promptInputModel.forceSync();
+
+		const actualValueWithCursor = promptInputModel.value.substring(0, promptInputModel.cursorIndex) + '|' + promptInputModel.value.substring(promptInputModel.cursorIndex);
+		strictEqual(
+			actualValueWithCursor.replaceAll('\n', '\u23CE'),
+			valueWithCursor.replaceAll('\n', '\u23CE')
+		);
+
+		// This is required to ensure the cursor index is correctly resolved for non-ascii characters
+		const value = valueWithCursor.replace('|', '');
+		const cursorIndex = valueWithCursor.indexOf('|');
+		strictEqual(promptInputModel.value, value);
+		strictEqual(promptInputModel.cursorIndex, cursorIndex, `value=${promptInputModel.value}`);
+	}
+
 	setup(() => {
-		xterm = new Terminal({ allowProposedApi: true });
-		onCommandStart = new Emitter();
-		onCommandExecuted = new Emitter();
+		xterm = store.add(new Terminal({ allowProposedApi: true }));
+		onCommandStart = store.add(new Emitter());
+		onCommandExecuted = store.add(new Emitter());
 		promptInputModel = store.add(new TestPromptInputModel(xterm, onCommandStart.event, onCommandExecuted.event, new NullLogService));
+	});
+
+	test('basic input and execute', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		assertPromptInput('|');
+
+		await writePromise('foo bar');
+		assertPromptInput('foo bar|');
+
+		await writePromise('\r\n');
+		fireCommandExecuted();
+		assertPromptInput('foo bar|');
+
+		await writePromise('(command output)\r\n$ ');
+		fireCommandStart();
+		assertPromptInput('|');
+	});
+
+	test('cursor navigation', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		assertPromptInput('|');
+
+		await writePromise('foo bar');
+		assertPromptInput('foo bar|');
+
+		await writePromise('\x1b[3D');
+		assertPromptInput('foo |bar');
+
+		await writePromise('\x1b[4D');
+		assertPromptInput('|foo bar');
+
+		await writePromise('\x1b[3C');
+		assertPromptInput('foo| bar');
+
+		await writePromise('\x1b[4C');
+		assertPromptInput('foo bar|');
+
+		await writePromise('\x1b[D');
+		assertPromptInput('foo ba|r');
+
+		await writePromise('\x1b[C');
+		assertPromptInput('foo bar|');
+	});
+
+	test('wide input (Korean)', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		assertPromptInput('|');
+
+		await writePromise('안');
+		assertPromptInput('안|');
+
+		await writePromise('\r\n영');
+		assertPromptInput('안\n영|');
+
+		await writePromise('\r\n이');
+		assertPromptInput('안\n영\n이|');
+
+		await writePromise('\x1b[G');
+		assertPromptInput('안\n영\n|이');
+
+		await writePromise('\x1b[A');
+		assertPromptInput('안\n|영\n이');
+
+		await writePromise('\x1b[C');
+		assertPromptInput('안\n영|\n이');
+
+		await writePromise('\x1b[1;4H');
+		assertPromptInput('안|\n영\n이');
+
+		await writePromise('\x1b[D');
+		assertPromptInput('|안\n영\n이');
+	});
+
+	test('emoji input', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		assertPromptInput('|');
+
+		await writePromise('👋');
+		assertPromptInput('👋|');
+
+		await writePromise('\r\n👍');
+		assertPromptInput('👋\n👍|');
+
+		await writePromise('\r\n✌️');
+		assertPromptInput('👋\n👍\n✌️|');
+
+		await writePromise('\x1b[G');
+		assertPromptInput('👋\n👍\n|✌️');
+
+		await writePromise('\x1b[A');
+		assertPromptInput('👋\n|👍\n✌️');
+
+		await writePromise('\x1b[C');
+		assertPromptInput('👋\n👍|\n✌️');
+
+		await writePromise('\x1b[1;4H');
+		assertPromptInput('👋|\n👍\n✌️');
+
+		await writePromise('\x1b[D');
+		assertPromptInput('|👋\n👍\n✌️');
 	});
 
 	// To "record a session" for these tests:
@@ -40,26 +177,9 @@ suite('PromptInputModel', () => {
 	// - Extract all "parsing data" lines from the terminal
 	suite('recorded sessions', () => {
 		async function replayEvents(events: string[]) {
-			for (const e of events) {
-				await new Promise<void>(r => xterm.write(e, r));
+			for (const data of events) {
+				await writePromise(data);
 			}
-		}
-
-		function assertPromptInput(valueWithCursor: string) {
-			if (!valueWithCursor.includes('|')) {
-				throw new Error('assertPromptInput must contain | character');
-			}
-			const actualValueWithCursor = promptInputModel.value.substring(0, promptInputModel.cursorIndex) + '|' + promptInputModel.value.substring(promptInputModel.cursorIndex);
-			strictEqual(
-				actualValueWithCursor.replaceAll('\n', '\u23CE'),
-				valueWithCursor.replaceAll('\n', '\u23CE')
-			);
-
-			// This shouldn't be needed but include as a sanity check
-			const value = valueWithCursor.replace('|', '');
-			const cursorIndex = valueWithCursor.indexOf('|');
-			strictEqual(promptInputModel.value, value);
-			strictEqual(promptInputModel.cursorIndex, cursorIndex,);
 		}
 
 		suite('Windows 11 (10.0.22621.3447), pwsh 7.4.2, starship prompt 1.10.2', () => {
@@ -72,8 +192,7 @@ suite('PromptInputModel', () => {
 					']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
 					'[34m\r\n[38;2;17;17;17m[44m03:13:47 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$⇡ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
 				]);
-				onCommandStart.fire({ marker: xterm.registerMarker() } as ITerminalCommand);
-				promptInputModel.forceSync();
+				fireCommandStart();
 				assertPromptInput('|');
 
 				await replayEvents([
@@ -84,7 +203,6 @@ suite('PromptInputModel', () => {
 					'[?25l[93m[3;3Hfoo[?25h',
 					'[m',
 				]);
-				promptInputModel.forceSync();
 				assertPromptInput('foo|');
 			});
 			test('input with accepted and run ghost text', async () => {
@@ -97,72 +215,62 @@ suite('PromptInputModel', () => {
 					'[34m\r\n[38;2;17;17;17m[44m03:41:36 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
 				]);
 				promptInputModel.setContinuationPrompt('∙ ');
-				onCommandStart.fire({ marker: xterm.registerMarker() } as ITerminalCommand);
-				promptInputModel.forceSync();
+				fireCommandStart();
 				assertPromptInput('|');
 
 				await replayEvents([
 					'[?25l[93me[97m[2m[3mcho "hello world"[3;4H[?25h',
 					'[m',
 				]);
-				promptInputModel.forceSync();
 				assertPromptInput('e|cho "hello world"');
 
 				await replayEvents([
 					'[?25l[93mec[97m[2m[3mho "hello world"[3;5H[?25h',
 					'[m',
 				]);
-				promptInputModel.forceSync();
 				assertPromptInput('ec|ho "hello world"');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hech[97m[2m[3mo "hello world"[3;6H[?25h',
 					'[m',
 				]);
-				promptInputModel.forceSync();
 				assertPromptInput('ech|o "hello world"');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho[97m[2m[3m "hello world"[3;7H[?25h',
 					'[m',
 				]);
-				promptInputModel.forceSync();
 				assertPromptInput('echo| "hello world"');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho [97m[2m[3m"hello world"[3;8H[?25h',
 					'[m',
 				]);
-				promptInputModel.forceSync();
 				assertPromptInput('echo |"hello world"');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho [36m"hello world"[?25h',
 					'[m',
 				]);
-				promptInputModel.forceSync();
 				assertPromptInput('echo "hello world"|');
 
 				await replayEvents([
 					']633;E;echo "hello world";ff464d39-bc80-4bae-9ead-b1cafc4adf6f]633;C',
 				]);
-				onCommandExecuted.fire(null!);
-				promptInputModel.forceSync();
+				fireCommandExecuted();
 				assertPromptInput('echo "hello world"|');
 
 				await replayEvents([
 					'\r\n',
 					'hello world\r\n',
 				]);
-				promptInputModel.forceSync();
 				assertPromptInput('echo "hello world"|');
 
 				await replayEvents([
 					']633;D;0]633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
 					'[34m\r\n[38;2;17;17;17m[44m03:41:42 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
 				]);
-				onCommandStart.fire({ marker: xterm.registerMarker() } as ITerminalCommand);
-				promptInputModel.forceSync();
+				fireCommandStart();
 				assertPromptInput('|');
 			});
 		});
