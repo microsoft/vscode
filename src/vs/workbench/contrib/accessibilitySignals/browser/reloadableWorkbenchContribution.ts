@@ -9,12 +9,17 @@ import { autorunWithStore } from 'vs/base/common/observable';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export function reloadableClass(getClass: () => any): any {
+/**
+ * Wrap a class in a reloadable wrapper.
+ * When the wrapper is created, the original class is created.
+ * When the original class changes, the instance is re-created.
+*/
+export function wrapInReloadableClass(getClass: () => (new (...args: any[]) => any)): (new (...args: any[]) => any) {
 	if (!isHotReloadEnabled()) {
 		return getClass();
 	}
 
-	return class Placeholder extends BaseClass {
+	return class ReloadableWrapper extends BaseClass {
 		private _autorun: IDisposable | undefined = undefined;
 
 		override init() {
