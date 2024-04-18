@@ -49,7 +49,7 @@ type fileLocation = { kind: 'file'; path: string };
 
 type location = cellLocation | fileLocation;
 
-function linkifyStack(stack: string): { formattedStack: string; linkElement?: HTMLElement } {
+function linkifyStack(stack: string): { formattedStack: string; errorLocation?: HTMLElement } {
 	const parser = new DOMParser();
 	const lines = stack.split('\n');
 
@@ -100,6 +100,6 @@ function linkifyStack(stack: string): { formattedStack: string; linkElement?: HT
 		}
 	}
 
-	const linkElement = parser.parseFromString(locationLink, 'text/html').body.firstChild as HTMLElement;
-	return { formattedStack: lines.join('\n'), linkElement };
+	const errorLocation = parser.parseFromString(locationLink, 'text/html').body.firstChild as HTMLElement;
+	return { formattedStack: lines.join('\n'), errorLocation };
 }

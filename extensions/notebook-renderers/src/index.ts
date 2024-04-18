@@ -519,7 +519,8 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		line-height: 22px;
 		background: none;
 		cursor: pointer;
-		border-thickness: 1px;
+		border-width: 1px;
+		border-style: solid;
 		border-color: var(--vscode-toolbar-hoverBackground);
 	}
 	#container .error-output-actions li.hover{
