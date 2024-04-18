@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// eslint-disable-next-line local/code-import-patterns
-import type Parser = require('web-tree-sitter');
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
@@ -14,7 +12,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { importAMDNodeModule } from 'vs/amdX';
+import { Parser } from 'vs/base/common/web-tree-sitter/tree-sitter-web';
 
 export const ITreeSitterService = createDecorator<ITreeSitterService>('ITreeSitterService');
 
@@ -26,6 +24,10 @@ export interface ITreeSitterService {
 	clearCache(): void;
 }
 
+function getWasmPath(filename: string): AppResourcePath {
+	return `vs/editor/browser/services/treeSitterServices/${filename}`;
+}
+
 export class TreeSitterService implements ITreeSitterService {
 
 	readonly _serviceBrand: undefined;
@@ -35,7 +37,7 @@ export class TreeSitterService implements ITreeSitterService {
 	private readonly _fileService: IFileService;
 	private readonly _modelService: IModelService;
 	private supportedLanguages = new Map<string, string>([
-		['typescript', './tree-sitter-typescript.wasm']
+		['typescript', 'tree-sitter-typescript.wasm']
 	]);
 
 	constructor(
@@ -119,8 +121,7 @@ export class TreeSitterService implements ITreeSitterService {
 		if (!this.supportedLanguages.has(language)) {
 			throw new Error('Unsupported language in tree-sitter');
 		}
-		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)! as AppResourcePath)));
-		const Parser = await importAMDNodeModule<typeof import('web-tree-sitter')>('web-tree-sitter', 'tree-sitter.js');
+		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(getWasmPath(this.supportedLanguages.get(language)!))));
 
 		return Parser.Language.load(languageFile.value.buffer).then((language: Parser.Language) => {
 			return new Promise(function (resolve, _reject) {
