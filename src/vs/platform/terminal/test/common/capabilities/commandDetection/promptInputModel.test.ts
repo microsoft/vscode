@@ -19,7 +19,7 @@ class TestPromptInputModel extends PromptInputModel {
 	}
 }
 
-suite('PromptInputModel', () => {
+suite.only('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let promptInputModel: TestPromptInputModel;
 	let xterm: Terminal;
@@ -40,6 +40,23 @@ suite('PromptInputModel', () => {
 			}
 		}
 
+		function assertPromptInput(valueWithCursor: string) {
+			if (!valueWithCursor.includes('|')) {
+				throw new Error('assertPromptInput must contain | character');
+			}
+			const actualValueWithCursor = promptInputModel.value.substring(0, promptInputModel.cursorIndex) + '|' + promptInputModel.value.substring(promptInputModel.cursorIndex);
+			strictEqual(
+				actualValueWithCursor.replaceAll('\n', '\u23CE'),
+				valueWithCursor.replaceAll('\n', '\u23CE')
+			);
+
+			// This shouldn't be needed but include as a sanity check
+			const value = valueWithCursor.replace('|', '');
+			const cursorIndex = valueWithCursor.indexOf('|');
+			strictEqual(promptInputModel.value, value);
+			strictEqual(promptInputModel.cursorIndex, cursorIndex,);
+		}
+
 		suite('Windows, pwsh 7.4.2, starship prompt', () => {
 			test('input with ignored ghost text', async () => {
 				await replayEvents([
@@ -52,7 +69,7 @@ suite('PromptInputModel', () => {
 				]);
 				onCommandStart.fire({ marker: xterm.registerMarker() } as ITerminalCommand);
 				promptInputModel.forceSync();
-				strictEqual(promptInputModel.value, '');
+				assertPromptInput('|');
 
 				await replayEvents([
 					'[?25l[93mf[97m[2m[3makecommand[3;4H[?25h',
@@ -63,8 +80,7 @@ suite('PromptInputModel', () => {
 					'[m',
 				]);
 				promptInputModel.forceSync();
-				strictEqual(promptInputModel.value, 'foo');
-				strictEqual(promptInputModel.cursorIndex, 3);
+				assertPromptInput('foo|');
 			});
 		});
 	});
