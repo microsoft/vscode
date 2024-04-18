@@ -13,7 +13,7 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 import { getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { getStrippedLineForLineAndTokens, getStrippedScopedLineTextFor } from 'vs/editor/common/languages/enterAction';
+import { ProcessLinesForIndentation, ProcessLinesForIndentationExtended, withinEmbeddedLanguage } from 'vs/editor/common/languages/enterAction';
 import { Position } from 'vs/editor/common/core/position';
 
 export interface IVirtualModel {
@@ -40,10 +40,13 @@ export interface IIndentConverter {
  */
 function getPrecedingValidLine(model: IVirtualModel, position: Position, indentRulesSupport: IndentRulesSupport) {
 	console.log('getPrecedingValidLine');
+	console.log('position : ', position);
 
 	// If the line contains only regex, string or comment tokens, then ignore this line.
 	const doesLineContainOtherStandardTokenType = (tokens: LineTokens | ScopedLineTokens) => {
+		console.log('tokens : ', tokens);
 		const numberOfTokens = tokens.getCount();
+		console.log('numberOfTokens : ', numberOfTokens);
 		let lineContainsOtherStandardTokenType = false;
 		for (let i = 0; i < numberOfTokens; i++) {
 			const tokenType = tokens.getStandardTokenType(i);
@@ -62,7 +65,6 @@ function getPrecedingValidLine(model: IVirtualModel, position: Position, indentR
 	}
 
 	const lineNumber = position.lineNumber;
-	console.log('position : ', position);
 	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 	console.log('lineTokens : ', lineTokens);
 	console.log('position.column - 1 : ', position.column - 1);
@@ -76,14 +78,17 @@ function getPrecedingValidLine(model: IVirtualModel, position: Position, indentR
 		let lastLineNumber: number;
 		let resultLineNumber = -1;
 
-		for (lastLineNumber = lineNumber; lastLineNumber >= 1; lastLineNumber--) { // removed -1
+		for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
 			if (model.tokenization.getLanguageIdAtPosition(lastLineNumber, 0) !== languageId) {
 				return resultLineNumber;
 			}
 			const text = model.getLineContent(lastLineNumber);
+			console.log()
 			const tokens = model.tokenization.getLineTokens(lastLineNumber);
+			console.log('lastLineNumber : ', lastLineNumber);
 			if (currentTokenType === StandardTokenType.Other) {
 				const lineContainsOtherStandardTokenType = doesLineContainOtherStandardTokenType(tokens);
+				console.log('lineContainsOtherStandardTokenType : ', lineContainsOtherStandardTokenType);
 				if (!lineContainsOtherStandardTokenType) {
 					resultLineNumber = lastLineNumber;
 					continue;
@@ -121,6 +126,7 @@ export function getInheritIndentForLine(
 ): { indentation: string; action: IndentAction | null; line?: number } | null {
 
 	console.log('getInheritedIndentForLine');
+	console.log('position : ', position);
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -163,7 +169,8 @@ export function getInheritIndentForLine(
 		};
 	}
 
-	const precedingUnIgnoredLineContent = getStrippedLine(languageConfigurationService, model, precedingUnIgnoredLine);
+	const processLines = new ProcessLinesForIndentation(model, languageConfigurationService);
+	const precedingUnIgnoredLineContent = processLines.getStrippedLine(precedingUnIgnoredLine);
 	console.log('precedingUnIgnoredLineContent : ', precedingUnIgnoredLineContent);
 
 	if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
@@ -199,7 +206,7 @@ export function getInheritIndentForLine(
 			(previousLineIndentMetadata & IndentConsts.INDENT_NEXTLINE_MASK)) {
 			let stopLine = 0;
 			for (let i = previousLine - 1; i > 0; i--) {
-				const lineContent = getStrippedLine(languageConfigurationService, model, i);
+				const lineContent = processLines.getStrippedLine(i);
 				if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
 					continue;
 				}
@@ -223,7 +230,7 @@ export function getInheritIndentForLine(
 		} else {
 			// search from precedingUnIgnoredLine until we find one whose indent is not temporary
 			for (let i = precedingUnIgnoredLine; i > 0; i--) {
-				const lineContent = getStrippedLine(languageConfigurationService, model, i);
+				const lineContent = processLines.getStrippedLine(i);
 				if (indentRulesSupport.shouldIncrease(lineContent)) {
 					return {
 						indentation: strings.getLeadingWhitespace(lineContent),
@@ -233,7 +240,7 @@ export function getInheritIndentForLine(
 				} else if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
 					let stopLine = 0;
 					for (let j = i - 1; j > 0; j--) {
-						const lineContent = getStrippedLine(languageConfigurationService, model, i);
+						const lineContent = processLines.getStrippedLine(i);
 						if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
 							continue;
 						}
@@ -241,7 +248,7 @@ export function getInheritIndentForLine(
 						break;
 					}
 
-					const lineContent = getStrippedLine(languageConfigurationService, model, stopLine + 1);
+					const lineContent = processLines.getStrippedLine(stopLine + 1);
 					return {
 						indentation: strings.getLeadingWhitespace(lineContent),
 						action: null,
@@ -256,7 +263,7 @@ export function getInheritIndentForLine(
 				}
 			}
 
-			const lineContent = getStrippedLine(languageConfigurationService, model, 1);
+			const lineContent = processLines.getStrippedLine(1);
 			return {
 				indentation: strings.getLeadingWhitespace(lineContent),
 				action: null,
@@ -291,7 +298,8 @@ export function getGoodIndentForLine(
 
 	const indent = getInheritIndentForLine(autoIndent, virtualModel, position, undefined, languageConfigurationService);
 	const lineNumber = position.lineNumber;
-	const lineContent = getStrippedLine(languageConfigurationService, virtualModel, lineNumber);
+	const processLines = new ProcessLinesForIndentation(virtualModel, languageConfigurationService);
+	const lineContent = processLines.getStrippedLine(lineNumber);
 
 	if (indent) {
 		const inheritLine = indent.line;
@@ -299,14 +307,14 @@ export function getGoodIndentForLine(
 			// Apply enter action as long as there are only whitespace lines between inherited line and this line.
 			let shouldApplyEnterRules = true;
 			for (let inBetweenLine = inheritLine; inBetweenLine < lineNumber - 1; inBetweenLine++) {
-				const lineContent = getStrippedLine(languageConfigurationService, virtualModel, inBetweenLine);
+				const lineContent = processLines.getStrippedLine(inBetweenLine);
 				if (!/^\s*$/.test(lineContent)) {
 					shouldApplyEnterRules = false;
 					break;
 				}
 			}
 			if (shouldApplyEnterRules) {
-				const inheritedLineContent = getStrippedLine(languageConfigurationService, virtualModel, inheritLine);
+				const inheritedLineContent = processLines.getStrippedLine(inheritLine);
 				const enterResult = richEditSupport.onEnter(autoIndent, '', inheritedLineContent, '');
 
 				if (enterResult) {
@@ -369,50 +377,20 @@ export function getIndentForEnter(
 		return null;
 	}
 	model.tokenization.forceTokenization(range.startLineNumber);
+	const processLines = new ProcessLinesForIndentationExtended(model, languageConfigurationService);
 	const lineTokens = model.tokenization.getLineTokens(range.startLineNumber);
-	const nextLineTokens = model.tokenization.getLineTokens(range.startLineNumber + 1);
 	const scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
 
-	let embeddedLanguage = false;
-	let beforeColumnIndexWithinScope: number;
-	let beforeEnterScopedLineTokens: ScopedLineTokens | LineTokens;
-
-	if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
-		// we are in the embeded language content
-		embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
-		beforeColumnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
-		beforeEnterScopedLineTokens = scopedLineTokens;
-	} else {
-		beforeColumnIndexWithinScope = range.startColumn - 1;
-		beforeEnterScopedLineTokens = lineTokens;
-	}
-	const beforeEnterResult = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, beforeEnterScopedLineTokens, nextLineTokens, { isStart: false, columnIndexWithinScope: beforeColumnIndexWithinScope });
+	const embeddedLanguage = withinEmbeddedLanguage(lineTokens, scopedLineTokens);
+	const beforeEnterResult = processLines.getBeforeProcessedLine(range, scopedLineTokens);
 	const beforeEnterText = beforeEnterResult.line;
 	const strippedBeforeEnterText = beforeEnterResult.strippedLine;
 	const beforeEnterTokens = beforeEnterResult.tokens;
 
-	let strippedAfterEnterText: string;
-	let afterEnterText: string;
-	let afterEnterTokens: LineTokens | ScopedLineTokens;
-	let afterColumnIndexWithinScope: number;
-	let afterLineTokens: LineTokens;
-	let afterNextLineToken: LineTokens;
-	let afterScopedLineTokens: ScopedLineTokens
-	if (range.isEmpty()) {
-		afterColumnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
-		afterLineTokens = lineTokens;
-		afterNextLineToken = nextLineTokens;
-		afterScopedLineTokens = scopedLineTokens;
-	} else {
-		afterColumnIndexWithinScope = range.endColumn - 1 - scopedLineTokens.firstCharOffset;
-		afterLineTokens = model.tokenization.getLineTokens(range.endLineNumber);
-		afterNextLineToken = model.tokenization.getLineTokens(range.endLineNumber + 1);
-		afterScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-	}
-	const afterEnterResult = getStrippedScopedLineTextFor(languageConfigurationService, afterLineTokens, afterScopedLineTokens, afterNextLineToken, { isStart: true, columnIndexWithinScope: afterColumnIndexWithinScope });
-	strippedAfterEnterText = afterEnterResult.strippedLine;
-	afterEnterText = afterEnterResult.line;
-	afterEnterTokens = afterEnterResult.tokens;
+	const afterEnterResult = processLines.getAfterProcessedLine(range, scopedLineTokens);
+	const strippedAfterEnterText = afterEnterResult.strippedLine;
+	const afterEnterText = afterEnterResult.line;
+	const afterEnterTokens = afterEnterResult.tokens;
 
 	console.log('strippedBeforeEnterText : ', strippedBeforeEnterText);
 	console.log('beforeEnterText : ', beforeEnterText);
@@ -467,7 +445,7 @@ export function getIndentForEnter(
 	};
 
 	const currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
-	const position = new Position(range.startLineNumber + 1, afterEnterText.length);
+	const position = new Position(range.startLineNumber + 1, afterEnterText.length + 1);
 	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, position, undefined, languageConfigurationService);
 	if (!afterEnterAction) {
 		const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
@@ -483,7 +461,7 @@ export function getIndentForEnter(
 		afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
 	}
 
-	if (indentRulesSupport.shouldDecrease(afterEnterText)) {
+	if (indentRulesSupport.shouldDecrease(strippedAfterEnterText)) {
 		afterEnterIndent = indentConverter.unshiftIndent(afterEnterIndent);
 	}
 
@@ -521,31 +499,14 @@ export function getIndentActionForType(
 		return null;
 	}
 
-	const lineTokens = model.tokenization.getLineTokens(range.startLineNumber);
-	const nextLineTokens = model.tokenization.getLineTokens(range.startLineNumber + 1);
-	const beforeColumnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
-	const strippedBeforeTypeText = getStrippedScopedLineTextFor(languageConfigurationService, lineTokens, scopedLineTokens, nextLineTokens, { isStart: false, columnIndexWithinScope: beforeColumnIndexWithinScope });
+	const processLines = new ProcessLinesForIndentationExtended(model, languageConfigurationService);
+	// not sure the before enter result can be combined in this manner
+	const beforeEnterResult = processLines.getBeforeProcessedLine(range, scopedLineTokens);
+	const afterEnterResult = processLines.getAfterProcessedLine(range, scopedLineTokens);
 
-	// selection support
-	let afterColumnIndexWithinScope: number;
-	let afterLineTokens: LineTokens;
-	let afterNextLineTokens: LineTokens;
-	let afterScopedLineTokens: ScopedLineTokens;
-	if (range.isEmpty()) {
-		afterColumnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
-		afterLineTokens = lineTokens;
-		afterNextLineTokens = nextLineTokens;
-		afterScopedLineTokens = scopedLineTokens;
-	} else {
-		afterColumnIndexWithinScope = range.endColumn - 1 - scopedLineTokens.firstCharOffset;
-		afterLineTokens = model.tokenization.getLineTokens(range.endLineNumber);
-		afterNextLineTokens = model.tokenization.getLineTokens(range.endLineNumber + 1);
-		afterScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-	}
-	const strippedAfterTypeText = getStrippedScopedLineTextFor(languageConfigurationService, afterLineTokens, afterScopedLineTokens, afterNextLineTokens, { isStart: true, columnIndexWithinScope: afterColumnIndexWithinScope }).strippedLine;
-	const fullTypeText = strippedBeforeTypeText + strippedAfterTypeText;
+	const fullTypeText = beforeEnterResult.strippedLine + afterEnterResult.strippedLine;
 	console.log('fullTypeText : ', fullTypeText);
-	const fullTypeTextWithCharacter = strippedBeforeTypeText + ch + strippedAfterTypeText;
+	const fullTypeTextWithCharacter = beforeEnterResult.strippedLine + ch + afterEnterResult.strippedLine;
 	console.log('fullTypeTextWithCharacter : ', fullTypeTextWithCharacter);
 
 	// How to use a virtual model to retokenize after the change
@@ -586,12 +547,3 @@ export function getIndentMetadata(
 	return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
 }
 
-function getStrippedLine(languageConfigurationService: ILanguageConfigurationService, model: IVirtualModel, lineNumber: number): string {
-	console.log('getStrippedLine');
-	const lineContent = model.getLineContent(lineNumber);
-	console.log('lineContent : ', lineContent);
-	const tokens = model.tokenization.getLineTokens(lineNumber);
-	const strippedLineContent = getStrippedLineForLineAndTokens(languageConfigurationService, model.tokenization.getLanguageId(), lineContent, tokens);
-	// console.log('strippedLineContent : ', strippedLineContent);
-	return strippedLineContent;
-}

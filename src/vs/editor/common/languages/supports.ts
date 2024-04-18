@@ -68,14 +68,14 @@ export class ScopedLineTokens {
 	}
 
 	public getCount(): number {
-		return this._lastTokenIndex - this.firstTokenIndex;
+		return this._lastTokenIndex - this.firstTokenIndex + 1;
 	}
 
 	public findTokenIndexAtOffset(offset: number): number {
 		console.log('findTokenIndexAtOffset');
 		console.log('offset', offset);
 		console.log('this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) : ', this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset));
-		console.log('this.firstTokenIndex : ', this.firstTokenIndex);
+		console.log('this.firstTokenIndex : ', this.firstTokenIndex)
 		return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this.firstTokenIndex;
 	}
 
