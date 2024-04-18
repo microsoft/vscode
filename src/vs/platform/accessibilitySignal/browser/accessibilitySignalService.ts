@@ -24,7 +24,7 @@ export interface IAccessibilitySignalService {
 	playSignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 
-	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessilityModality | undefined): IValueWithChangeEvent<boolean>;
+	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean>;
 
 	/**
 	 * Avoid this method and prefer `.playSignal`!
@@ -43,12 +43,12 @@ export interface IAccessibilitySignalService {
 /** Make sure you understand the doc comments of the method you want to call when using this token! */
 export const AcknowledgeDocCommentsToken = Symbol('AcknowledgeDocCommentsToken');
 
-export type AccessilityModality = 'sound' | 'announcement';
+export type AccessibilityModality = 'sound' | 'announcement';
 
 export interface IAccessbilitySignalOptions {
 	allowManyInParallel?: boolean;
 
-	modality?: AccessilityModality;
+	modality?: AccessibilityModality;
 
 	/**
 	 * The source that triggered the signal (e.g. "diffEditor.cursorPositionChanged").
@@ -80,7 +80,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		super();
 	}
 
-	public getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessilityModality | undefined): IValueWithChangeEvent<boolean> {
+	public getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
 		return new ValueWithChangeEventFromObservable(this._signalEnabledState.get({ signal, userGesture, modality }));
 	}
 
@@ -199,28 +199,31 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	private readonly _signalConfigValue = new CachedFunction((signal: AccessibilitySignal) => observableConfigValue<{
-		sound: 'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never';
-		announcement: 'auto' | 'off' | 'userGesture' | 'always' | 'never';
+		sound: EnabledState;
+		announcement: EnabledState;
 	}>(signal.settingsKey, this.configurationService));
 
-	private readonly _signalEnabledState = new CachedFunction({ getCacheKey: getStructuralKey }, (arg: { signal: AccessibilitySignal; userGesture: boolean; modality?: AccessilityModality | undefined }) => {
-		return derived(reader => {
-			/** @description sound enabled */
-			const setting = this._signalConfigValue.get(arg.signal).read(reader);
+	private readonly _signalEnabledState = new CachedFunction(
+		{ getCacheKey: getStructuralKey },
+		(arg: { signal: AccessibilitySignal; userGesture: boolean; modality?: AccessibilityModality | undefined }) => {
+			return derived(reader => {
+				/** @description sound enabled */
+				const setting = this._signalConfigValue.get(arg.signal).read(reader);
 
-			if (arg.modality === 'sound' || arg.modality === undefined) {
-				if (!checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-					return false;
+				if (arg.modality === 'sound' || arg.modality === undefined) {
+					if (!checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+						return false;
+					}
 				}
-			}
-			if (arg.modality === 'announcement' || arg.modality === undefined) {
-				if (!checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-					return false;
+				if (arg.modality === 'announcement' || arg.modality === undefined) {
+					if (!checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+						return false;
+					}
 				}
-			}
-			return true;
-		});
-	});
+				return true;
+			});
+		}
+	);
 
 	public isAnnouncementEnabled(signal: AccessibilitySignal, userGesture?: boolean): boolean {
 		if (!signal.announcementMessage) {
