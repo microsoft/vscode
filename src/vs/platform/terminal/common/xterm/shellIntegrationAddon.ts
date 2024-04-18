@@ -382,7 +382,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 				switch (key) {
 					case 'ContinuationPrompt': {
-						this._updateContinuationPrompt(value);
+						// Exclude escape sequences and values between \[ and \]
+						const sanitizedValue = (value
+							.replace(/\x1b\[[0-9;]*m/g, '')
+							.replace(/\\\[.*?\\\]/g, '')
+						);
+						this._updateContinuationPrompt(sanitizedValue);
 						return true;
 					}
 					case 'Cwd': {
@@ -411,8 +416,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private _updateContinuationPrompt(value: string) {
-		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-		commandDetection?.setContinuationPrompt(value);
+		if (!this._terminal) {
+			return;
+		}
+		this._createOrGetCommandDetection(this._terminal).setContinuationPrompt(value);
 	}
 
 	private _updateCwd(value: string) {

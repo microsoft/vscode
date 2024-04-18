@@ -112,8 +112,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		// TODO: Support multi-line prompts
-
 		this._value = commandLine.substring(this._commandStartX);
 		this._cursorIndex = Math.max(buffer.cursorX - this._commandStartX, 0);
 
