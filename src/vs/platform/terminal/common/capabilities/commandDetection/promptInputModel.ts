@@ -93,6 +93,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	@debounce(50)
 	private _sync() {
+		this._syncNow();
+	}
+
+	protected _syncNow() {
 		if (this._state !== PromptInputState.Input) {
 			return;
 		}
