@@ -44,6 +44,9 @@ export class ParcelWatcherInstance extends Disposable {
 	private readonly nonRecursiveSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
 	private readonly recursiveSubscriptions = TernarySearchTree.forPaths<Set<(change: IFileChange) => void>>(!isLinux);
 
+	private _subscriptionsCount = 0;
+	get subscriptionsCount() { return this._subscriptionsCount; }
+
 	constructor(
 		/**
 		 * Signals when the watcher is ready to watch.
@@ -76,7 +79,7 @@ export class ParcelWatcherInstance extends Disposable {
 	subscribe(request: IUniversalWatchRequest, callback: (change: IFileChange) => void): IDisposable {
 		const path = URI.file(request.path).fsPath; // make sure to store the path in `fsPath` form to match it with events later
 
-		const targetSubscriptions = request.recursive === true ? this.recursiveSubscriptions : this.nonRecursiveSubscriptions;
+		const targetSubscriptions = request.recursive ? this.recursiveSubscriptions : this.nonRecursiveSubscriptions;
 
 		let subscriptions = targetSubscriptions.get(path);
 		if (!subscriptions) {
@@ -85,30 +88,19 @@ export class ParcelWatcherInstance extends Disposable {
 		}
 
 		subscriptions.add(callback);
+		this._subscriptionsCount++;
 
 		return toDisposable(() => {
 			const subscriptions = targetSubscriptions.get(path);
 			if (subscriptions) {
 				subscriptions.delete(callback);
+				this._subscriptionsCount--;
 
 				if (subscriptions.size === 0) {
 					targetSubscriptions.delete(path);
 				}
 			}
 		});
-	}
-
-	get subscriptionsCount(): number {
-		let count = 0;
-
-		for (const [, set] of this.nonRecursiveSubscriptions) {
-			count += set.size;
-		}
-		for (const [, set] of this.recursiveSubscriptions) {
-			count += set.size;
-		}
-
-		return count;
 	}
 
 	notifyFileChange(path: string, change: IFileChange): void {
