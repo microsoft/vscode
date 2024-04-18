@@ -191,34 +191,58 @@ function renderError(
 		outputElement.appendChild(header);
 
 		if (err.stack) {
-			const showStackLink = document.createElement('a');
-			showStackLink.innerText = 'Show stack';
-			showStackLink.href = '#';
-			header.appendChild(showStackLink);
 
 			outputElement.classList.add('traceback');
 
-			const stackTrace = formatStackTrace(err.stack);
+			const { formattedStack, errorLocation } = formatStackTrace(err.stack);
 
 			const outputOptions = { linesLimit: 1000, scrollable: false, trustHtml, linkifyFilePaths: false };
 
-			const content = createOutputContent(outputInfo.id, stackTrace, outputOptions);
+			const content = createOutputContent(outputInfo.id, formattedStack, outputOptions);
 			const contentParent = document.createElement('div');
 			contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 			disposableStore.push(ctx.onDidChangeSettings(e => {
 				contentParent.classList.toggle('word-wrap', e.outputWordWrap);
 			}));
 
-			contentParent.appendChild(content);
-			outputElement.appendChild(contentParent);
-			contentParent.style.display = 'none';
+			const buttons = document.createElement('ul');
+			buttons.classList.add('error-output-actions');
+			const toggleStack = document.createElement('li');
+			toggleStack.onmouseover = function () {
+				toggleStack.classList.add('hover');
+			};
+			toggleStack.onmouseout = function () {
+				toggleStack.classList.remove('hover');
+			};
 
-			showStackLink.onclick = (e) => {
+			const toggleStackLink = document.createElement('a');
+			toggleStackLink.innerText = 'Show Details';
+			toggleStack.appendChild(toggleStackLink);
+			buttons.appendChild(toggleStack);
+			outputElement.appendChild(buttons);
+
+			if (errorLocation) {
+				const goToLocation = document.createElement('li');
+				goToLocation.appendChild(errorLocation);
+				buttons.appendChild(goToLocation);
+				goToLocation.onmouseover = function () {
+					goToLocation.classList.add('hover');
+				};
+				goToLocation.onmouseout = function () {
+					goToLocation.classList.remove('hover');
+				};
+			}
+
+			toggleStackLink.onclick = (e) => {
 				e.preventDefault();
 				const hidden = contentParent.style.display === 'none';
 				contentParent.style.display = hidden ? '' : 'none';
-				showStackLink.innerText = hidden ? 'Hide stack' : 'Show stack';
+				toggleStackLink.innerText = hidden ? 'Hide Details' : 'Show Details';
 			};
+
+			contentParent.appendChild(content);
+			outputElement.appendChild(contentParent);
+			contentParent.style.display = 'none';
 		}
 	} else if (err.stack) {
 		outputElement.classList.add('traceback');
@@ -228,7 +252,7 @@ function renderError(
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
 		const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 
-		const content = createOutputContent(outputInfo.id, stackTrace ?? '', outputOptions);
+		const content = createOutputContent(outputInfo.id, stackTrace.formattedStack ?? '', outputOptions);
 		const contentParent = document.createElement('div');
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
@@ -484,6 +508,32 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.output-stream .code-underline,
 	.traceback .code-underline {
 		text-decoration: underline;
+	}
+	#container .error-output-actions li{
+		padding: 0px 5px 0px 2px;
+		border-radius: 5px;
+		height: 22px;
+		display: inline-flex;
+		align-items: center;
+		margin-right: 8px;
+		line-height: 22px;
+		background: none;
+		cursor: pointer;
+		border-thickness: 1px;
+		border-color: var(--vscode-toolbar-hoverBackground);
+	}
+	#container .error-output-actions li.hover{
+		background-color: var(--vscode-toolbar-hoverBackground);
+		cursor: pointer;
+	}
+	#container .error-output-actions li a{
+		color: var(--vscode-foreground);
+		display:block;
+		text-decoration: none;
+		background-size: 16px;
+		padding: 0px 5px 0px 2px;
+		border-radius: 5px;
+		background-color: unset;
 	}
 	`;
 	document.body.appendChild(style);
