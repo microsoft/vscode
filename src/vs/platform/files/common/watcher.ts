@@ -473,7 +473,7 @@ export function requestFilterToString(filter: FileChangeFilter | undefined): str
 			return '<all>';
 		}
 
-		return filters.join(', ');
+		return `[${filters.join(', ')}]`;
 	}
 
 	return '<none>';
