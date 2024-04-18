@@ -406,7 +406,7 @@ function resolveExtensionHelpContent(keybindingService: IKeybindingService, cont
 		return;
 	}
 	let resolvedContent = typeof content === 'string' ? content : content.value;
-	const matches = resolvedContent.matchAll(/\(keybinding:(?<commandId>.*)\)/gm);
+	const matches = resolvedContent.matchAll(/\<keybinding:(?<commandId>.*)\>/gm);
 	for (const match of [...matches]) {
 		const commandId = match?.groups?.commandId;
 		if (match?.length && commandId) {
