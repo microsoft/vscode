@@ -2,12 +2,7 @@
 	"editor.insertSpaces": false,
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
-		".git": true,
-		".build": true,
-		".profile-oss": true,
-		"**/.DS_Store": true,
-		".vscode-test": true,
-		"cli/target": true
+		".git": true
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc",
