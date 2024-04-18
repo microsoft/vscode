@@ -287,7 +287,7 @@ suite('PromptInputModel', () => {
 				assertPromptInput('|');
 			});
 
-			test.only('input, go to start (ctrl+home), delete word in front (ctrl+delete)', async () => {
+			test('input, go to start (ctrl+home), delete word in front (ctrl+delete)', async () => {
 				await replayEvents([
 					'[?25l[2J[m[H]0;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\pwsh.exe[?25h',
 					'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',

@@ -68,8 +68,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		this._register(this._xterm.onData(e => this._handleInput(e)));
 		this._register(Event.any(
-			// TODO: Upstream me to headless https://github.com/xtermjs/xterm.js/pull/5034
-			(this._xterm as any)._core.onWriteParsed,
+			this._xterm.onWriteParsed,
 			this._xterm.onCursorMove,
 		)(() => this._sync()));
 
