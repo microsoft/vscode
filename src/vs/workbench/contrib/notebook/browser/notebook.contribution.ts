@@ -960,6 +960,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookOutputLayout']
 		},
+		[NotebookSetting.minimalErrorRendering]: {
+			description: nls.localize('notebook.minimalErrorRendering', "Control whether to render error output in a minimal style."),
+			type: 'boolean',
+			default: false,
+			tags: ['notebookOutputLayout']
+		},
 		[NotebookSetting.markupFontSize]: {
 			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
 			type: 'number',

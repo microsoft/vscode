@@ -70,6 +70,7 @@ export interface RenderOptions {
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
 	readonly linkifyFilePaths: boolean;
+	readonly minimalError: boolean;
 }
 
 interface PreloadContext {
@@ -1911,6 +1912,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get outputScrolling() { return currentRenderOptions.outputScrolling; },
 					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
 					get linkifyFilePaths() { return currentRenderOptions.linkifyFilePaths; },
+					get minimalError() { return currentRenderOptions.minimalError; },
 				},
 				get onDidChangeSettings() { return settingChange.event; }
 			};

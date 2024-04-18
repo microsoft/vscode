@@ -184,7 +184,7 @@ function renderError(
 		return disposableStore;
 	}
 
-	if (err.name && err.message) {
+	if (err.name && err.message && ctx.settings.minimalError) {
 		const header = document.createElement('div');
 		const headerMessage = `${err.name}: ${err.message}`;
 		header.innerText = headerMessage;
