@@ -146,12 +146,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	private doWatchWithExistingWatcher(realPath: string, isDirectory: boolean, disposables: DisposableStore): boolean {
-		if (isDirectory) {
-			return false; // only supported for files where we have the full path known upfront
-		}
-
 		const resource = URI.file(this.request.path);
-		const subscription = this.recursiveWatcher?.subscribe(this.request.path, async (error, change) => {
+		const subscription = this.recursiveWatcher?.subscribe(this.request.path, isDirectory, async (error, change) => {
 			if (disposables.isDisposed) {
 				return; // return early if already disposed
 			}

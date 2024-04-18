@@ -142,7 +142,7 @@ export interface IRecursiveWatcherWithSubscribe extends IRecursiveWatcher {
 	 * if no events can be watched for the path given the current set of
 	 * recursive watch requests.
 	 */
-	subscribe(path: string, callback: (error: boolean, change?: IFileChange) => void): IDisposable | undefined;
+	subscribe(path: string, isDirectory: boolean, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined;
 }
 
 export interface IRecursiveWatcherOptions {
