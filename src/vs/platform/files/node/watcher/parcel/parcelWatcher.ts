@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ParcelWatcherInstance extends Disposable {
@@ -41,8 +41,8 @@ export class ParcelWatcherInstance extends Disposable {
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
 
-	private readonly fileSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
-	private readonly folderSubscriptions = TernarySearchTree.forPaths<Set<(change: IFileChange) => void>>(!isLinux);
+	private readonly nonRecursiveSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
+	private readonly recursiveSubscriptions = TernarySearchTree.forPaths<Set<(change: IFileChange) => void>>(!isLinux);
 
 	constructor(
 		/**
@@ -68,15 +68,15 @@ export class ParcelWatcherInstance extends Disposable {
 		super();
 
 		this._register(toDisposable(() => {
-			this.fileSubscriptions.clear();
-			this.folderSubscriptions.clear();
+			this.nonRecursiveSubscriptions.clear();
+			this.recursiveSubscriptions.clear();
 		}));
 	}
 
-	subscribe(path: string, isDirectory: boolean, callback: (change: IFileChange) => void): IDisposable {
-		path = URI.file(path).fsPath; // make sure to store the path in `fsPath` form to match it with events later
+	subscribe(request: IUniversalWatchRequest, callback: (change: IFileChange) => void): IDisposable {
+		const path = URI.file(request.path).fsPath; // make sure to store the path in `fsPath` form to match it with events later
 
-		const targetSubscriptions = isDirectory ? this.folderSubscriptions : this.fileSubscriptions;
+		const targetSubscriptions = request.recursive === true ? this.recursiveSubscriptions : this.nonRecursiveSubscriptions;
 
 		let subscriptions = targetSubscriptions.get(path);
 		if (!subscriptions) {
@@ -101,10 +101,10 @@ export class ParcelWatcherInstance extends Disposable {
 	get subscriptionsCount(): number {
 		let count = 0;
 
-		for (const [, set] of this.fileSubscriptions) {
+		for (const [, set] of this.nonRecursiveSubscriptions) {
 			count += set.size;
 		}
-		for (const [, set] of this.folderSubscriptions) {
+		for (const [, set] of this.recursiveSubscriptions) {
 			count += set.size;
 		}
 
@@ -112,14 +112,14 @@ export class ParcelWatcherInstance extends Disposable {
 	}
 
 	notifyFileChange(path: string, change: IFileChange): void {
-		const fileSubscriptions = this.fileSubscriptions.get(path);
+		const fileSubscriptions = this.nonRecursiveSubscriptions.get(path);
 		if (fileSubscriptions) {
 			for (const subscription of fileSubscriptions) {
 				subscription(change);
 			}
 		}
 
-		const folderSubscriptions = this.folderSubscriptions.findSuperstr(path);
+		const folderSubscriptions = this.recursiveSubscriptions.findSuperstr(path);
 		if (folderSubscriptions) {
 			for (const [, subscriptions] of folderSubscriptions) {
 				for (const subscription of subscriptions) {
@@ -378,7 +378,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		this.doStartWatching(realPath, watcher.request.excludes, (error, parcelEvents) => {
+		this.doStartWatching(watcher.request, realPath, (error, parcelEvents) => {
 			if (watcher.token.isCancellationRequested) {
 				return; // return early when disposed
 			}
@@ -405,8 +405,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		});
 	}
 
-	private async doStartWatching(realPath: string, excludes: string[], callback: (error: Error | true | null, events: parcelWatcher.Event[]) => void): Promise<IParcelWatcherSubscription> {
-		const subscription = this.subscribe(realPath, true, (error, event) => {
+	private async doStartWatching(request: IRecursiveWatchRequest, realPath: string, callback: (error: Error | true | null, events: parcelWatcher.Event[]) => void): Promise<IParcelWatcherSubscription> {
+		const subscription = this.subscribe(request, (error, event) => {
 			if (error) {
 				callback(error, []);
 			} else if (event) {
@@ -425,7 +425,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 		return parcelWatcher.subscribe(realPath, callback, {
 			backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
-			ignore: excludes
+			ignore: request.excludes
 		}).then(parcelWatcher => {
 			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
 
@@ -834,19 +834,19 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return true;
 	}
 
-	subscribe(path: string, isDirectory: boolean, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined {
+	subscribe(request: IUniversalWatchRequest, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined {
 		for (const watcher of this.watchers) {
 			if (watcher.failed) {
 				continue; // watcher has already failed
 			}
 
-			if (!isEqualOrParent(path, watcher.request.path, !isLinux)) {
+			if (!isEqualOrParent(request.path, watcher.request.path, !isLinux)) {
 				continue; // watcher does not consider this path
 			}
 
 			if (
-				watcher.exclude(path) ||
-				!watcher.include(path)
+				watcher.exclude(request.path) ||
+				!watcher.include(request.path)
 			) {
 				continue; // parcel instance does not consider this path
 			}
@@ -862,7 +862,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				callback(true /* error */);
 			}));
 			disposables.add(Event.once(watcher.onDidFail)(() => callback(true /* error */)));
-			disposables.add(watcher.subscribe(path, isDirectory, change => callback(null, change)));
+			disposables.add(watcher.subscribe(request, change => callback(null, change)));
 
 			return disposables;
 		}

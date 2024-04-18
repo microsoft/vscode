@@ -198,8 +198,8 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
-		disposables.add(instance.subscribe(newFilePath, false, change => subscriptions1.set(change.resource.fsPath, change.type)));
-		disposables.add(instance.subscribe(newFilePath, false, change => subscriptions2.set(change.resource.fsPath, change.type))); // can subscribe multiple times
+		disposables.add(instance.subscribe({ path: newFilePath, recursive: false, excludes: [] }, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		disposables.add(instance.subscribe({ path: newFilePath, recursive: false, excludes: [] }, change => subscriptions2.set(change.resource.fsPath, change.type))); // can subscribe multiple times
 		assert.strictEqual(instance.include(newFilePath), true);
 		assert.strictEqual(instance.exclude(newFilePath), false);
 		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
@@ -210,8 +210,8 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// New folder
 		const newFolderPath = join(testDir, 'deep', 'New Folder');
-		disposables.add(instance.subscribe(newFolderPath, true, change => subscriptions1.set(change.resource.fsPath, change.type)));
-		const disposable = instance.subscribe(newFolderPath, true, change => subscriptions2.set(change.resource.fsPath, change.type));
+		disposables.add(instance.subscribe({ path: newFolderPath, recursive: false, excludes: [] }, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		const disposable = instance.subscribe({ path: newFolderPath, recursive: false, excludes: [] }, change => subscriptions2.set(change.resource.fsPath, change.type));
 		disposable.dispose();
 		assert.strictEqual(instance.include(newFolderPath), true);
 		assert.strictEqual(instance.exclude(newFolderPath), false);
@@ -223,7 +223,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// Rename file
 		let renamedFilePath = join(testDir, 'deep', 'renamedFile.txt');
-		disposables.add(instance.subscribe(renamedFilePath, false, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		disposables.add(instance.subscribe({ path: renamedFilePath, recursive: false, excludes: [] }, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		changeFuture = Promise.all([
 			awaitEvent(watcher, newFilePath, FileChangeType.DELETED),
 			awaitEvent(watcher, renamedFilePath, FileChangeType.ADDED)
@@ -235,7 +235,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// Rename folder
 		let renamedFolderPath = join(testDir, 'deep', 'Renamed Folder');
-		disposables.add(instance.subscribe(renamedFolderPath, true, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		disposables.add(instance.subscribe({ path: renamedFolderPath, recursive: false, excludes: [] }, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		changeFuture = Promise.all([
 			awaitEvent(watcher, newFolderPath, FileChangeType.DELETED),
 			awaitEvent(watcher, renamedFolderPath, FileChangeType.ADDED)
@@ -323,14 +323,14 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
-		disposables.add(instance.subscribe(copiedFilepath, false, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		disposables.add(instance.subscribe({ path: copiedFilepath, recursive: false, excludes: [] }, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		await Promises.unlink(copiedFilepath);
 		await changeFuture;
 		assert.strictEqual(subscriptions1.get(copiedFilepath), FileChangeType.DELETED);
 
 		// Delete folder
 		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.DELETED);
-		disposables.add(instance.subscribe(copiedFolderpath, true, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		disposables.add(instance.subscribe({ path: copiedFolderpath, recursive: false, excludes: [] }, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		await Promises.rmdir(copiedFolderpath);
 		await changeFuture;
 		assert.strictEqual(subscriptions1.get(copiedFolderpath), FileChangeType.DELETED);

@@ -134,15 +134,13 @@ export interface IRecursiveWatcher extends IWatcher {
 export interface IRecursiveWatcherWithSubscribe extends IRecursiveWatcher {
 
 	/**
-	 * Subscribe to file events for the given path. The callback is called
-	 * whenever a file event occurs for the path. I fthe watcher failed,
-	 * the error parameter is set to `true`.
+	 * Attempt to subcribe to an existing recursive watcher for the given
+	 * request. Will return `undefined` if no existing watcher was found
+	 * that could be reused for the request.
 	 *
 	 * @returns an `IDisposable` to stop listening to events or `undefined`
-	 * if no events can be watched for the path given the current set of
-	 * recursive watch requests.
 	 */
-	subscribe(path: string, isDirectory: boolean, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined;
+	subscribe(request: IUniversalWatchRequest, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined;
 }
 
 export interface IRecursiveWatcherOptions {
