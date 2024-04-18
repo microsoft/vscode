@@ -2,9 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-// eslint-disable-next-line local/code-import-patterns
-import type Parser = require('web-tree-sitter');
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -12,7 +9,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
 import { setTimeout0 } from 'vs/base/common/platform';
-import { importAMDNodeModule } from 'vs/amdX';
+import { Parser } from 'vs/base/common/web-tree-sitter/tree-sitter-web';
 
 export class TreeSitterTree {
 
@@ -41,7 +38,6 @@ export class TreeSitterTree {
 	}
 
 	public static async create(model: ITextModel, language: Parser.Language, modelService: IModelService, asynchronous: boolean = true): Promise<TreeSitterTree> {
-		const Parser = await importAMDNodeModule<typeof import('web-tree-sitter')>('web-tree-sitter', 'tree-sitter.js');
 		return new TreeSitterTree(model, language, modelService, asynchronous, new Parser());
 	}
 

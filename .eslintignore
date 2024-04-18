@@ -26,6 +26,7 @@
 **/src/**/dompurify.js
 **/src/**/marked.js
 **/src/**/semver.js
+**/src/**/tree-sitter-web.js
 **/src/typings/**/*.d.ts
 **/src/vs/*/**/*.d.ts
 **/src/vs/base/test/common/filters.perf.data.js

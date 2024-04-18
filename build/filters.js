@@ -74,6 +74,7 @@ module.exports.indentationFilter = [
 	'!src/vs/loader.js',
 	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',
+	'!src/vs/base/common/web-tree-sitter/tree-sitter-web.js',
 	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
