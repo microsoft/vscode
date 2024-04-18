@@ -42,7 +42,7 @@ export class ParcelWatcherInstance extends Disposable {
 	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
 
 	private readonly nonRecursiveSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
-	private readonly recursiveSubscriptions = TernarySearchTree.forPaths<Set<(change: IFileChange) => void>>(!isLinux);
+	private readonly recursiveSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
 
 	private _subscriptionsCount = 0;
 	get subscriptionsCount() { return this._subscriptionsCount; }
@@ -114,9 +114,8 @@ export class ParcelWatcherInstance extends Disposable {
 		}
 
 		// By recursive subscriptions: on parent and same paths
-		const recursiveSubscriptions = this.recursiveSubscriptions.findSuperstr(path);
-		if (recursiveSubscriptions) {
-			for (const [, subscriptions] of recursiveSubscriptions) {
+		for (const [requestPath, subscriptions] of this.recursiveSubscriptions) {
+			if (isEqualOrParent(path, requestPath, !isLinux)) {
 				for (const subscription of subscriptions) {
 					subscription(change);
 				}
