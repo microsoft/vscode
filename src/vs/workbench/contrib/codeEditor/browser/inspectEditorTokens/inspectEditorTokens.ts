@@ -657,11 +657,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private _getTreeSitterTokenAtPosition(tree: Parser.Tree, pos: Position): Parser.SyntaxNode | null {
 		const cursor = tree.walk();
 
-		const result = this._walkTreeforPosition(cursor, pos);
-		if (!result) {
-			return null;
-		}
-		return cursor.currentNode;
+		return this._walkTreeforPosition(cursor, pos);
 	}
 
 	private _renderTokenStyleDefinition(definition: TokenStyleDefinition | undefined, property: keyof TokenStyleData): Array<HTMLElement | string> {
