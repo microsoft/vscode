@@ -19,7 +19,7 @@ class TestPromptInputModel extends PromptInputModel {
 	}
 }
 
-suite.only('PromptInputModel', () => {
+suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let promptInputModel: TestPromptInputModel;
 	let xterm: Terminal;
@@ -57,15 +57,15 @@ suite.only('PromptInputModel', () => {
 			strictEqual(promptInputModel.cursorIndex, cursorIndex,);
 		}
 
-		suite('Windows, pwsh 7.4.2, starship prompt', () => {
+		suite('Windows 11 (10.0.22621.3447), pwsh 7.4.2, starship prompt 1.10.2', () => {
 			test('input with ignored ghost text', async () => {
 				await replayEvents([
 					'[?25l[2J[m[H]0;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\pwsh.exe[?25h',
-					'[?25l[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K\n\r[K[H[?25h',
+					'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
 					']633;P;IsWindows=True',
 					']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
 					']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
-					'[34m\n\r[38;2;17;17;17m[44m03:13:47 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$⇡ [36m[49m [mvia [32m[1m v18.18.2 \n\r❯[m ',
+					'[34m\r\n[38;2;17;17;17m[44m03:13:47 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$⇡ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
 				]);
 				onCommandStart.fire({ marker: xterm.registerMarker() } as ITerminalCommand);
 				promptInputModel.forceSync();
