@@ -740,7 +740,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		// Require the test runner via node require from the provided path
-		const testRunner = await this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
+		const testRunnerDescription = {
+			type: 'module'
+		} as IRelaxedExtensionDescription
+		const testRunner = await this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(testRunnerDescription, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
 
 		if (!testRunner || typeof testRunner.run !== 'function') {
 			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
