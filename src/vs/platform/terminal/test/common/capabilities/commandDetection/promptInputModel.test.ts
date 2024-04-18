@@ -115,29 +115,29 @@ suite('PromptInputModel', () => {
 		fireCommandStart();
 		assertPromptInput('|');
 
-		await writePromise('안');
-		assertPromptInput('안|');
+		await writePromise('안영');
+		assertPromptInput('안영|');
 
-		await writePromise('\r\n영');
-		assertPromptInput('안\n영|');
+		await writePromise('\r\n컴퓨터');
+		assertPromptInput('안영\n컴퓨터|');
 
-		await writePromise('\r\n이');
-		assertPromptInput('안\n영\n이|');
+		await writePromise('\r\n사람');
+		assertPromptInput('안영\n컴퓨터\n사람|');
 
 		await writePromise('\x1b[G');
-		assertPromptInput('안\n영\n|이');
+		assertPromptInput('안영\n컴퓨터\n|사람');
 
 		await writePromise('\x1b[A');
-		assertPromptInput('안\n|영\n이');
+		assertPromptInput('안영\n|컴퓨터\n사람');
 
-		await writePromise('\x1b[C');
-		assertPromptInput('안\n영|\n이');
+		await writePromise('\x1b[4C');
+		assertPromptInput('안영\n컴퓨|터\n사람');
 
 		await writePromise('\x1b[1;4H');
-		assertPromptInput('안|\n영\n이');
+		assertPromptInput('안|영\n컴퓨터\n사람');
 
 		await writePromise('\x1b[D');
-		assertPromptInput('|안\n영\n이');
+		assertPromptInput('|안영\n컴퓨터\n사람');
 	});
 
 	test('emoji input', async () => {
@@ -145,29 +145,29 @@ suite('PromptInputModel', () => {
 		fireCommandStart();
 		assertPromptInput('|');
 
-		await writePromise('👋');
-		assertPromptInput('👋|');
+		await writePromise('✌️👍');
+		assertPromptInput('✌️👍|');
 
-		await writePromise('\r\n👍');
-		assertPromptInput('👋\n👍|');
+		await writePromise('\r\n😎😕😅');
+		assertPromptInput('✌️👍\n😎😕😅|');
 
-		await writePromise('\r\n✌️');
-		assertPromptInput('👋\n👍\n✌️|');
+		await writePromise('\r\n🤔🤷😩');
+		assertPromptInput('✌️👍\n😎😕😅\n🤔🤷😩|');
 
 		await writePromise('\x1b[G');
-		assertPromptInput('👋\n👍\n|✌️');
+		assertPromptInput('✌️👍\n😎😕😅\n|🤔🤷😩');
 
 		await writePromise('\x1b[A');
-		assertPromptInput('👋\n|👍\n✌️');
+		assertPromptInput('✌️👍\n|😎😕😅\n🤔🤷😩');
 
-		await writePromise('\x1b[C');
-		assertPromptInput('👋\n👍|\n✌️');
+		await writePromise('\x1b[2C');
+		assertPromptInput('✌️👍\n😎😕|😅\n🤔🤷😩');
 
 		await writePromise('\x1b[1;4H');
-		assertPromptInput('👋|\n👍\n✌️');
+		assertPromptInput('✌️|👍\n😎😕😅\n🤔🤷😩');
 
 		await writePromise('\x1b[D');
-		assertPromptInput('|👋\n👍\n✌️');
+		assertPromptInput('|✌️👍\n😎😕😅\n🤔🤷😩');
 	});
 
 	// To "record a session" for these tests:

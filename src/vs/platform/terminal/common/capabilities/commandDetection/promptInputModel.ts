@@ -181,7 +181,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt)) {
 			return 0;
 		}
-		let buffer: string = '';
+		let buffer = '';
 		let x = 0;
 		while (buffer !== this._continuationPrompt) {
 			buffer += line.getCell(x++)!.getChars();
