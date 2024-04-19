@@ -178,7 +178,16 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
-		this._renderedHoverParts = new MarkdownRenderedHoverParts(hoverParts, context.fragment, this._editor, this._languageService, this._openerService, this._keybindingService, this._hoverService, context.onContentsChanged);
+		this._renderedHoverParts = new MarkdownRenderedHoverParts(
+			hoverParts,
+			context.fragment,
+			this._editor,
+			this._languageService,
+			this._openerService,
+			this._keybindingService,
+			this._hoverService,
+			context.onContentsChanged
+		);
 		return this._renderedHoverParts;
 	}
 
@@ -374,8 +383,8 @@ class MarkdownRenderedHoverParts extends Disposable {
 		const currentRenderedHoverPart = this._renderedHoverParts[index];
 		const currentRenderedMarkdown = currentRenderedHoverPart.renderedMarkdown;
 		currentRenderedMarkdown.replaceWith(renderedHoverPart.renderedMarkdown);
-		this._renderedHoverParts[index] = renderedHoverPart;
 		currentRenderedHoverPart.disposables.dispose();
+		this._renderedHoverParts[index] = renderedHoverPart;
 	}
 
 	private _focusOnHoverPartWithIndex(index: number): void {
