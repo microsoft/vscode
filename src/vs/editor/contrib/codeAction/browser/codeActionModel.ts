@@ -339,6 +339,9 @@ export class CodeActionModel extends Disposable {
 				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
+
+			// once we trigger, remove any disposables added.
+			this.disposables.dispose();
 			this.disposables.clear();
 		} else {
 			this._supportedCodeActions.reset();
