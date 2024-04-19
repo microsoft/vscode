@@ -647,10 +647,11 @@
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
 	display: flex;
 	gap: 5px;
 	align-items: center;
-	opacity: 0.7;
 	margin-bottom: 4px;
 }
 

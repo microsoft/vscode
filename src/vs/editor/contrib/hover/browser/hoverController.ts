@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -11,15 +12,17 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
-import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import 'vs/css!./hover';
+import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -332,7 +335,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		const mightTriggerFocus = (
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
-				&& resolvedKeyboardEvent.commandId === 'editor.action.showHover'
+				&& resolvedKeyboardEvent.commandId === SHOW_OR_FOCUS_HOVER_ACTION_ID
 				&& this._contentWidget?.isVisible
 			)
 		);
@@ -397,6 +400,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	private _isContentWidgetResizing(): boolean {
 		return this._contentWidget?.widget.isResizing || false;
+	}
+
+	public updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): void {
+		this._getOrCreateContentWidget().updateFocusedMarkdownHoverVerbosityLevel(action);
 	}
 
 	public focus(): void {

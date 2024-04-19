@@ -15,7 +15,7 @@ import 'vs/editor/browser/services/hoverService/hoverService';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, IValueWithChangeEvent, ValueWithChangeEvent } from 'vs/base/common/event';
 import { ResolvedKeybinding, KeyCodeChord, Keybinding, decodeKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -88,7 +88,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AccessibilitySignal, IAccessibilitySignalService, Sound } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService, Sound } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -1079,6 +1079,10 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	async playSignals(cues: AccessibilitySignal[]): Promise<void> {
 	}
 
+	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
+		return ValueWithChangeEvent.const(false);
+	}
+
 	isSoundEnabled(cue: AccessibilitySignal): boolean {
 		return false;
 	}
@@ -1088,10 +1092,6 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	}
 
 	onSoundEnabledChanged(cue: AccessibilitySignal): Event<void> {
-		return Event.None;
-	}
-
-	onAnnouncementEnabledChanged(cue: AccessibilitySignal): Event<void> {
 		return Event.None;
 	}
 
