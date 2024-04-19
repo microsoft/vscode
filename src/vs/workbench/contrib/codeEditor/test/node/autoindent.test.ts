@@ -55,7 +55,7 @@ function registerLanguageConfiguration(languageConfigurationService: ILanguageCo
 	return languageConfigurationService.register(languageId, languageConfig);
 }
 
-interface TokenData {
+export interface TokenData {
 	startIndex: number;
 	value: number
 }

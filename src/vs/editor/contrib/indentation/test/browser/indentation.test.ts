@@ -23,6 +23,7 @@ import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRu
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
 import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
+import { TokenData } from 'vs/workbench/contrib/codeEditor/test/node/autoindent.test';
 
 enum Language {
 	TypeScript,
@@ -116,11 +117,6 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 			}));
 			break;
 	}
-}
-
-interface TokenData {
-	startIndex: number;
-	value: number;
 }
 
 function registerTokens(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string, disposables: DisposableStore) {
