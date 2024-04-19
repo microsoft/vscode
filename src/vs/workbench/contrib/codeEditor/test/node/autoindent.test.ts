@@ -19,7 +19,9 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { execSync } from 'child_process';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { registerTokenizationSupport, TokenData } from 'vs/editor/contrib/indentation/test/browser/indentation.test';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -52,6 +54,35 @@ function registerLanguageConfiguration(languageConfigurationService: ILanguageCo
 	const parsedConfig = <ILanguageConfiguration>parse(configContent, []);
 	const languageConfig = LanguageConfigurationFileHandler.extractValidConfig(languageId, parsedConfig);
 	return languageConfigurationService.register(languageId, languageConfig);
+}
+
+interface TokenData {
+	startIndex: number;
+	value: number
+}
+
+function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string): IDisposable {
+	let lineIndex = 0;
+	const languageService = instantiationService.get(ILanguageService);
+	const tokenizationSupport: ITokenizationSupport = {
+		getInitialState: () => NullState,
+		tokenize: undefined!,
+		tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+			const tokensOnLine = tokens[lineIndex++];
+			const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+			const result = new Uint32Array(2 * tokensOnLine.length);
+			for (let i = 0; i < tokensOnLine.length; i++) {
+				result[2 * i] = tokensOnLine[i].startIndex;
+				result[2 * i + 1] =
+					(
+						(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+						| (tokensOnLine[i].value << MetadataConsts.TOKEN_TYPE_OFFSET)
+					);
+			}
+			return new EncodedTokenizationResult(result, state);
+		}
+	};
+	return TokenizationRegistry.register(languageId, tokenizationSupport);
 }
 
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {

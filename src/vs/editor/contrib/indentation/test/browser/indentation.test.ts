@@ -118,12 +118,12 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	}
 }
 
-export interface TokenData {
+interface TokenData {
 	startIndex: number;
 	value: number
 }
 
-export function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string): IDisposable {
+function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string): IDisposable {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
