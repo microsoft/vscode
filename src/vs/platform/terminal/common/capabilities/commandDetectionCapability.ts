@@ -950,7 +950,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 
 		// Bash Prompt
-		const bashPrompt = lineText.match(/^(?<prompt>.*\$)/)?.groups?.prompt;
+		const bashPrompt = lineText.match(/^(?<prompt>\$)/)?.groups?.prompt;
 		if (bashPrompt) {
 			const adjustedPrompt = this._adjustPrompt(bashPrompt, lineText, '$');
 			if (adjustedPrompt) {
