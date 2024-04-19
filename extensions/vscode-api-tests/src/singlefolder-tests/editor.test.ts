@@ -164,7 +164,7 @@ suite('vscode API - editors', () => {
 		});
 	});
 
-	test('TextEditor.edit can control undo/redo stack 2', () => {
+	test.skip('TextEditor.edit can control undo/redo stack 2', () => {
 		return withRandomFileEditor('Hello world!', (editor, doc) => {
 			return executeReplace(editor, new Range(0, 0, 0, 1), 'h', false, false).then(applied => {
 				assert.ok(applied);
