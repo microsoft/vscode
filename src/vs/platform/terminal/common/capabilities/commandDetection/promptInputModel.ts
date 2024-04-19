@@ -114,6 +114,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	setConfidentCommandLine(value: string): void {
 		if (this._value !== value) {
 			this._value = value;
+			this._cursorIndex = -1;
+			this._ghostTextIndex = -1;
 			this._onDidChangeInput.fire(this._createStateObject());
 		}
 	}
@@ -164,7 +166,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (this._lastUserInput === '\u0003') {
 			this._onDidInterrupt.fire(event);
 		}
-
 
 		this._state = PromptInputState.Execute;
 		this._onDidFinishInput.fire(event);
