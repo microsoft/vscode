@@ -1109,20 +1109,6 @@ export class InlineChatController implements IEditorContribution {
 		this._strategy?.toggleDiff?.();
 	}
 
-	reportBug() {
-		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
-			const response = this._session.lastExchange.response.chatResponse;
-			this._chatService.notifyUserAction({
-				sessionId: response.session.sessionId,
-				requestId: response.requestId,
-				agentId: response.agent?.id,
-				result: response.result,
-				action: { kind: 'bug' }
-			});
-			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
-		}
-	}
-
 	createSnapshot(): void {
 		if (this._session && !this._session.textModel0.equalsTextBuffer(this._session.textModelN.getTextBuffer())) {
 			this._session.createSnapshot();
