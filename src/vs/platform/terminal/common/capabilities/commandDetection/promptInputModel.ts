@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, type Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { debounce } from 'vs/base/common/decorators';
+import { throttle } from 'vs/base/common/decorators';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -67,7 +67,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		super();
 
 		this._register(this._xterm.onData(e => this._handleInput(e)));
-		this._register(this._xterm.onCursorMove(() => this._sync()));
+		this._register(Event.any(
+			this._xterm.onWriteParsed,
+			this._xterm.onCursorMove,
+		)(() => this._sync()));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
@@ -79,6 +82,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	getCombinedString(): string {
 		const value = this._value.replaceAll('\n', '\u23CE');
+		if (this._cursorIndex === -1) {
+			return value;
+		}
 		let result = `${value.substring(0, this.cursorIndex)}|`;
 		if (this.ghostTextIndex !== -1) {
 			result += `${value.substring(this.cursorIndex, this.ghostTextIndex)}[`;
@@ -108,6 +114,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		this._state = PromptInputState.Execute;
+		this._cursorIndex = -1;
 		this._onDidFinishInput.fire();
 	}
 
@@ -115,12 +122,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._sync();
 	}
 
-	@debounce(50)
+	@throttle(0)
 	private _sync() {
-		this._syncNow();
-	}
-
-	protected _syncNow() {
 		if (this._state !== PromptInputState.Input) {
 			return;
 		}
