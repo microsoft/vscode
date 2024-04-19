@@ -14,7 +14,7 @@ import { Terminal } from '@xterm/headless';
 import { notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 
-suite.only('PromptInputModel', () => {
+suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let promptInputModel: PromptInputModel;

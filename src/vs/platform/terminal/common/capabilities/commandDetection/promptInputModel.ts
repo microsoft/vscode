@@ -14,10 +14,9 @@ import { throttle } from 'vs/base/common/decorators';
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {
-	Unknown,
-	Input,
-	Execute,
-	Interrupt,
+	Unknown = 0,
+	Input = 1,
+	Execute = 2,
 }
 
 /**
@@ -94,6 +93,18 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
+
+		this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput'));
+		this.onDidChangeInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidChangeInput'));
+		this.onDidFinishInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidFinishInput'));
+		this.onDidInterrupt(() => this._logCombinedStringIfTrace('PromptInputModel#onDidInterrupt'));
+	}
+
+	private _logCombinedStringIfTrace(message: string) {
+		// Only generate the combined string if trace
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace(message, this.getCombinedString());
+		}
 	}
 
 	setContinuationPrompt(value: string): void {
@@ -136,7 +147,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		this._cursorIndex = -1;
 		const event = this._createStateObject();
-		if (this._state === PromptInputState.Interrupt) {
+		if (this._lastUserInput !== '\u0003') {
 			this._onDidInterrupt.fire(event);
 		}
 
@@ -214,15 +225,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace(`PromptInputModel#_sync: ${this.getCombinedString()}`);
-		}
-
-		// Check for an interrupt, this is verified using both the last user input and the current
-		// input.
-		if (this._lastUserInput === '\u0003') { // ETX end of text (ctrl+c)
-			if (this._value.endsWith('^C')) {
-				this._state = PromptInputState.Interrupt;
-				return;
-			}
 		}
 
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
