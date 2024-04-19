@@ -678,13 +678,17 @@ class RenameCandidateListView {
 		const focusedIxs = this._listWidget.getFocus();
 		if (focusedIxs.length === 0) {
 			this._listWidget.focusFirst();
+			this._listWidget.reveal(0);
 			return true;
 		} else {
 			if (focusedIxs[0] === this._listWidget.length - 1) {
 				this._listWidget.setFocus([]);
+				this._listWidget.reveal(0); // @ulugbekna: without this, it seems like focused element is obstructed
 				return false;
 			} else {
 				this._listWidget.focusNext();
+				const focused = this._listWidget.getFocus()[0];
+				this._listWidget.reveal(focused);
 				return true;
 			}
 		}
@@ -700,6 +704,8 @@ class RenameCandidateListView {
 		const focusedIxs = this._listWidget.getFocus();
 		if (focusedIxs.length === 0) {
 			this._listWidget.focusLast();
+			const focused = this._listWidget.getFocus()[0];
+			this._listWidget.reveal(focused);
 			return true;
 		} else {
 			if (focusedIxs[0] === 0) {
@@ -707,6 +713,8 @@ class RenameCandidateListView {
 				return false;
 			} else {
 				this._listWidget.focusPrevious();
+				const focused = this._listWidget.getFocus()[0];
+				this._listWidget.reveal(focused);
 				return true;
 			}
 		}
