@@ -153,7 +153,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		this._cursorIndex = -1;
-		this._ghostTextIndex = -1;
+
+		// Remove any ghost text from the input if it exists on execute
+		if (this._ghostTextIndex !== -1) {
+			this._value = this._value.substring(0, this._ghostTextIndex);
+			this._ghostTextIndex = -1;
+		}
+
 		const event = this._createStateObject();
 		if (this._lastUserInput === '\u0003') {
 			this._onDidInterrupt.fire(event);
