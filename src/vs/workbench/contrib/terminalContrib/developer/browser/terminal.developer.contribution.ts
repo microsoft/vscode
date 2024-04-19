@@ -246,10 +246,12 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		const promptInputModel = commandDetection.promptInputModel;
 		if (promptInputModel) {
 			const name = localize('terminalDevMode', 'Terminal Dev Mode');
+			const isExecuting = promptInputModel.cursorIndex === -1;
 			this._statusbarEntry = {
 				name,
-				text: `$(terminal) ${promptInputModel.getCombinedString()}`,
+				text: `$(${isExecuting ? 'loading~spin' : 'terminal'}) ${promptInputModel.getCombinedString()}`,
 				ariaLabel: name,
+				tooltip: 'The detected terminal prompt input',
 				kind: 'prominent'
 			};
 			if (!this._statusbarEntryAccessor.value) {
