@@ -82,6 +82,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	getCombinedString(): string {
 		const value = this._value.replaceAll('\n', '\u23CE');
+		if (this._cursorIndex === -1) {
+			return value;
+		}
 		let result = `${value.substring(0, this.cursorIndex)}|`;
 		if (this.ghostTextIndex !== -1) {
 			result += `${value.substring(this.cursorIndex, this.ghostTextIndex)}[`;
@@ -111,6 +114,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		this._state = PromptInputState.Execute;
+		this._cursorIndex = -1;
 		this._onDidFinishInput.fire();
 	}
 
@@ -120,10 +124,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	@throttle(0)
 	private _sync() {
-		this._syncNow();
-	}
-
-	protected _syncNow() {
 		if (this._state !== PromptInputState.Input) {
 			return;
 		}

@@ -14,16 +14,10 @@ import { Terminal } from '@xterm/headless';
 import { strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 
-class TestPromptInputModel extends PromptInputModel {
-	forceSync() {
-		this._syncNow();
-	}
-}
-
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let promptInputModel: TestPromptInputModel;
+	let promptInputModel: PromptInputModel;
 	let xterm: Terminal;
 	let onCommandStart: Emitter<ITerminalCommand>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
@@ -40,12 +34,12 @@ suite('PromptInputModel', () => {
 		onCommandExecuted.fire(null!);
 	}
 
-	function assertPromptInput(valueWithCursor: string) {
-		if (!valueWithCursor.includes('|')) {
+	async function assertPromptInput(valueWithCursor: string) {
+		await timeout(0);
+
+		if (promptInputModel.cursorIndex !== -1 && !valueWithCursor.includes('|')) {
 			throw new Error('assertPromptInput must contain | character');
 		}
-
-		promptInputModel.forceSync();
 
 		const actualValueWithCursor = promptInputModel.getCombinedString();
 		strictEqual(
@@ -64,123 +58,123 @@ suite('PromptInputModel', () => {
 		xterm = store.add(new Terminal({ allowProposedApi: true }));
 		onCommandStart = store.add(new Emitter());
 		onCommandExecuted = store.add(new Emitter());
-		promptInputModel = store.add(new TestPromptInputModel(xterm, onCommandStart.event, onCommandExecuted.event, new NullLogService));
+		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandExecuted.event, new NullLogService));
 	});
 
 	test('basic input and execute', async () => {
 		await writePromise('$ ');
 		fireCommandStart();
-		assertPromptInput('|');
+		await assertPromptInput('|');
 
 		await writePromise('foo bar');
-		assertPromptInput('foo bar|');
+		await assertPromptInput('foo bar|');
 
 		await writePromise('\r\n');
 		fireCommandExecuted();
-		assertPromptInput('foo bar|');
+		await assertPromptInput('foo bar');
 
 		await writePromise('(command output)\r\n$ ');
 		fireCommandStart();
-		assertPromptInput('|');
+		await assertPromptInput('|');
 	});
 
 	test('cursor navigation', async () => {
 		await writePromise('$ ');
 		fireCommandStart();
-		assertPromptInput('|');
+		await assertPromptInput('|');
 
 		await writePromise('foo bar');
-		assertPromptInput('foo bar|');
+		await assertPromptInput('foo bar|');
 
 		await writePromise('\x1b[3D');
-		assertPromptInput('foo |bar');
+		await assertPromptInput('foo |bar');
 
 		await writePromise('\x1b[4D');
-		assertPromptInput('|foo bar');
+		await assertPromptInput('|foo bar');
 
 		await writePromise('\x1b[3C');
-		assertPromptInput('foo| bar');
+		await assertPromptInput('foo| bar');
 
 		await writePromise('\x1b[4C');
-		assertPromptInput('foo bar|');
+		await assertPromptInput('foo bar|');
 
 		await writePromise('\x1b[D');
-		assertPromptInput('foo ba|r');
+		await assertPromptInput('foo ba|r');
 
 		await writePromise('\x1b[C');
-		assertPromptInput('foo bar|');
+		await assertPromptInput('foo bar|');
 	});
 
 	test('ghost text', async () => {
 		await writePromise('$ ');
 		fireCommandStart();
-		assertPromptInput('|');
+		await assertPromptInput('|');
 
 		await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
-		assertPromptInput('foo|[ bar]');
+		await assertPromptInput('foo|[ bar]');
 
 		await writePromise('\x1b[2D');
-		assertPromptInput('f|oo[ bar]');
+		await assertPromptInput('f|oo[ bar]');
 	});
 
 	test('wide input (Korean)', async () => {
 		await writePromise('$ ');
 		fireCommandStart();
-		assertPromptInput('|');
+		await assertPromptInput('|');
 
 		await writePromise('안영');
-		assertPromptInput('안영|');
+		await assertPromptInput('안영|');
 
 		await writePromise('\r\n컴퓨터');
-		assertPromptInput('안영\n컴퓨터|');
+		await assertPromptInput('안영\n컴퓨터|');
 
 		await writePromise('\r\n사람');
-		assertPromptInput('안영\n컴퓨터\n사람|');
+		await assertPromptInput('안영\n컴퓨터\n사람|');
 
 		await writePromise('\x1b[G');
-		assertPromptInput('안영\n컴퓨터\n|사람');
+		await assertPromptInput('안영\n컴퓨터\n|사람');
 
 		await writePromise('\x1b[A');
-		assertPromptInput('안영\n|컴퓨터\n사람');
+		await assertPromptInput('안영\n|컴퓨터\n사람');
 
 		await writePromise('\x1b[4C');
-		assertPromptInput('안영\n컴퓨|터\n사람');
+		await assertPromptInput('안영\n컴퓨|터\n사람');
 
 		await writePromise('\x1b[1;4H');
-		assertPromptInput('안|영\n컴퓨터\n사람');
+		await assertPromptInput('안|영\n컴퓨터\n사람');
 
 		await writePromise('\x1b[D');
-		assertPromptInput('|안영\n컴퓨터\n사람');
+		await assertPromptInput('|안영\n컴퓨터\n사람');
 	});
 
 	test('emoji input', async () => {
 		await writePromise('$ ');
 		fireCommandStart();
-		assertPromptInput('|');
+		await assertPromptInput('|');
 
 		await writePromise('✌️👍');
-		assertPromptInput('✌️👍|');
+		await assertPromptInput('✌️👍|');
 
 		await writePromise('\r\n😎😕😅');
-		assertPromptInput('✌️👍\n😎😕😅|');
+		await assertPromptInput('✌️👍\n😎😕😅|');
 
 		await writePromise('\r\n🤔🤷😩');
-		assertPromptInput('✌️👍\n😎😕😅\n🤔🤷😩|');
+		await assertPromptInput('✌️👍\n😎😕😅\n🤔🤷😩|');
 
 		await writePromise('\x1b[G');
-		assertPromptInput('✌️👍\n😎😕😅\n|🤔🤷😩');
+		await assertPromptInput('✌️👍\n😎😕😅\n|🤔🤷😩');
 
 		await writePromise('\x1b[A');
-		assertPromptInput('✌️👍\n|😎😕😅\n🤔🤷😩');
+		await assertPromptInput('✌️👍\n|😎😕😅\n🤔🤷😩');
 
 		await writePromise('\x1b[2C');
-		assertPromptInput('✌️👍\n😎😕|😅\n🤔🤷😩');
+		await assertPromptInput('✌️👍\n😎😕|😅\n🤔🤷😩');
 
 		await writePromise('\x1b[1;4H');
-		assertPromptInput('✌️|👍\n😎😕😅\n🤔🤷😩');
+		await assertPromptInput('✌️|👍\n😎😕😅\n🤔🤷😩');
 
 		await writePromise('\x1b[D');
-		assertPromptInput('|✌️👍\n😎😕😅\n🤔🤷😩');
+		await assertPromptInput('|✌️👍\n😎😕😅\n🤔🤷😩');
 	});
 
 	// To "record a session" for these tests:
@@ -206,7 +200,7 @@ suite('PromptInputModel', () => {
 					'[34m\r\n[38;2;17;17;17m[44m03:13:47 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$⇡ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
 				]);
 				fireCommandStart();
-				assertPromptInput('|');
+				await assertPromptInput('|');
 
 				await replayEvents([
 					'[?25l[93mf[97m[2m[3makecommand[3;4H[?25h',
@@ -216,7 +210,7 @@ suite('PromptInputModel', () => {
 					'[?25l[93m[3;3Hfoo[?25h',
 					'[m',
 				]);
-				assertPromptInput('foo|');
+				await assertPromptInput('foo|');
 			});
 			test('input with accepted and run ghost text', async () => {
 				await replayEvents([
@@ -229,62 +223,62 @@ suite('PromptInputModel', () => {
 				]);
 				promptInputModel.setContinuationPrompt('∙ ');
 				fireCommandStart();
-				assertPromptInput('|');
+				await assertPromptInput('|');
 
 				await replayEvents([
 					'[?25l[93me[97m[2m[3mcho "hello world"[3;4H[?25h',
 					'[m',
 				]);
-				assertPromptInput('e|[cho "hello world"]');
+				await assertPromptInput('e|[cho "hello world"]');
 
 				await replayEvents([
 					'[?25l[93mec[97m[2m[3mho "hello world"[3;5H[?25h',
 					'[m',
 				]);
-				assertPromptInput('ec|[ho "hello world"]');
+				await assertPromptInput('ec|[ho "hello world"]');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hech[97m[2m[3mo "hello world"[3;6H[?25h',
 					'[m',
 				]);
-				assertPromptInput('ech|[o "hello world"]');
+				await assertPromptInput('ech|[o "hello world"]');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho[97m[2m[3m "hello world"[3;7H[?25h',
 					'[m',
 				]);
-				assertPromptInput('echo|[ "hello world"]');
+				await assertPromptInput('echo|[ "hello world"]');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho [97m[2m[3m"hello world"[3;8H[?25h',
 					'[m',
 				]);
-				assertPromptInput('echo |["hello world"]');
+				await assertPromptInput('echo |["hello world"]');
 
 				await replayEvents([
 					'[?25l[93m[3;3Hecho [36m"hello world"[?25h',
 					'[m',
 				]);
-				assertPromptInput('echo "hello world"|');
+				await assertPromptInput('echo "hello world"|');
 
 				await replayEvents([
 					']633;E;echo "hello world";ff464d39-bc80-4bae-9ead-b1cafc4adf6f]633;C',
 				]);
 				fireCommandExecuted();
-				assertPromptInput('echo "hello world"|');
+				await assertPromptInput('echo "hello world"');
 
 				await replayEvents([
 					'\r\n',
 					'hello world\r\n',
 				]);
-				assertPromptInput('echo "hello world"|');
+				await assertPromptInput('echo "hello world"');
 
 				await replayEvents([
 					']633;D;0]633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
 					'[34m\r\n[38;2;17;17;17m[44m03:41:42 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
 				]);
 				fireCommandStart();
-				assertPromptInput('|');
+				await assertPromptInput('|');
 			});
 
 			test('input, go to start (ctrl+home), delete word in front (ctrl+delete)', async () => {
@@ -297,7 +291,7 @@ suite('PromptInputModel', () => {
 					'[34m\r\n[38;2;17;17;17m[44m16:07:06 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/210662 [33m[46m [38;2;17;17;17m$! [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
 				]);
 				fireCommandStart();
-				assertPromptInput('|');
+				await assertPromptInput('|');
 
 				await replayEvents([
 					'[?25l[93mG[97m[2m[3mit push[3;4H[?25h',
@@ -306,7 +300,7 @@ suite('PromptInputModel', () => {
 					'[m',
 					'[?25l[93m[3;3HGet[97m[2m[3m-ChildItem -Path a[3;6H[?25h',
 				]);
-				assertPromptInput('Get|[-ChildItem -Path a]');
+				await assertPromptInput('Get|[-ChildItem -Path a]');
 
 				await replayEvents([
 					'[m',
