@@ -1149,7 +1149,7 @@ export class AmbiguousCharacters {
 	private static readonly cache = new LRUCachedFunction<
 		string[],
 		AmbiguousCharacters
-	>((locales) => {
+	>({ getCacheKey: JSON.stringify }, (locales) => {
 		function arrayToMap(arr: number[]): Map<number, number> {
 			const result = new Map<number, number>();
 			for (let i = 0; i < arr.length; i += 2) {

@@ -7,7 +7,7 @@ declare module 'vscode' {
 
 	// See https://github.com/microsoft/vscode/issues/63943
 
-	export class Thread {
+	export class DebugThread {
 		/**
 		 * Create a ThreadFocus
 		 * @param session
@@ -26,7 +26,7 @@ declare module 'vscode' {
 		readonly threadId: number;
 	}
 
-	export class StackFrame {
+	export class DebugStackFrame {
 		/**
 		 * Create a StackFrameFocus
 		 * @param session
@@ -56,11 +56,11 @@ declare module 'vscode' {
 		 * The currently focused thread or stack frame, or `undefined` if no
 		 * thread or stack is focused.
 		 */
-		export const activeStackItem: Thread | StackFrame | undefined;
+		export const activeStackItem: DebugThread | DebugStackFrame | undefined;
 
 		/**
 		 * An event which fires when the {@link debug.activeStackItem} has changed.
 		 */
-		export const onDidChangeActiveStackItem: Event<Thread | StackFrame | undefined>;
+		export const onDidChangeActiveStackItem: Event<DebugThread | DebugStackFrame | undefined>;
 	}
 }

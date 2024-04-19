@@ -813,6 +813,7 @@ export class InlineChatController implements IEditorContribution {
 			// show error
 			if (!response.isCancellation) {
 				this._zone.value.widget.updateStatus(response.message, { classes: ['error'] });
+				this._strategy?.cancel();
 			}
 
 		} else if (response instanceof ReplyResponse) {

@@ -137,6 +137,9 @@ __vsc_escape_value() {
 # Send the IsWindows property if the environment looks like Windows
 if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
 	builtin printf '\e]633;P;IsWindows=True\a'
+	__vsc_is_windows=1
+else
+	__vsc_is_windows=0
 fi
 
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
@@ -159,6 +162,9 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
+# Report continuation prompt
+builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -168,7 +174,17 @@ __vsc_prompt_end() {
 }
 
 __vsc_update_cwd() {
-	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$PWD")"
+	if [ "$__vsc_is_windows" = "1" ]; then
+		__vsc_cwd="$(cygpath -m "$PWD")"
+	else
+		__vsc_cwd="$PWD"
+	fi
+	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
+}
+
+__vsc_update_prompt_height() {
+	__vsc_prompt_height="$(("$(builtin printf "%s" "${PS1@P}" | wc -l)" + 1))"
+	builtin printf '\e]633;P;PromptHeight=%s\a' "$(__vsc_escape_value "$__vsc_prompt_height")"
 }
 
 __vsc_command_output_start() {
@@ -218,6 +234,7 @@ __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
 	__vsc_update_prompt
+	__vsc_update_prompt_height
 	__vsc_first_prompt=1
 }
 

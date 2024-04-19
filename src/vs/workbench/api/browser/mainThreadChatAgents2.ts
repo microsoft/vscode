@@ -137,6 +137,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
+					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
 					extensionPublisher: extensionDescription?.publisherDisplayName ?? extension.value,
 					metadata: revive(metadata),
 					slashCommands: [],
@@ -210,7 +211,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						kind: CompletionItemKind.Text,
 						detail: v.detail,
 						documentation: v.documentation,
-						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.values) } satisfies IAddDynamicVariableContext] }
+						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.values), command: v.command } satisfies IAddDynamicVariableContext] }
 					} satisfies CompletionItem;
 				});
 

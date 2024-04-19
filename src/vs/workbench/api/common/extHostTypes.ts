@@ -1202,6 +1202,29 @@ export class Hover {
 	}
 }
 
+@es5ClassCompat
+export class VerboseHover extends Hover {
+
+	public canIncreaseHover: boolean | undefined;
+	public canDecreaseHover: boolean | undefined;
+
+	constructor(
+		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
+		range?: Range,
+		canIncreaseHover?: boolean,
+		canDecreaseHover?: boolean,
+	) {
+		super(contents, range);
+		this.canIncreaseHover = canIncreaseHover;
+		this.canDecreaseHover = canDecreaseHover;
+	}
+}
+
+export enum HoverVerbosityAction {
+	Increase = 0,
+	Decrease = 1
+}
+
 export enum DocumentHighlightKind {
 	Text = 0,
 	Read = 1,
@@ -3076,14 +3099,14 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 }
 
 
-export class StackFrame implements vscode.StackFrame {
+export class DebugStackFrame implements vscode.DebugStackFrame {
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId: number,
 		readonly frameId: number) { }
 }
 
-export class Thread implements vscode.Thread {
+export class DebugThread implements vscode.DebugThread {
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId: number) { }
@@ -4245,6 +4268,7 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	values: vscode.ChatVariableValue[];
 	detail?: string;
 	documentation?: string | MarkdownString;
+	command?: vscode.Command;
 
 	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
 		this.label = label;
