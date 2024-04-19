@@ -14,15 +14,23 @@ import { throttle } from 'vs/base/common/decorators';
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {
-	Unknown,
-	Input,
-	Execute,
+	Unknown = 0,
+	Input = 1,
+	Execute = 2,
 }
 
+/**
+ * A model of the prompt input state using shell integration and analyzing the terminal buffer. This
+ * may not be 100% accurate but provides a best guess.
+ */
 export interface IPromptInputModel {
 	readonly onDidStartInput: Event<IPromptInputModelState>;
 	readonly onDidChangeInput: Event<IPromptInputModelState>;
 	readonly onDidFinishInput: Event<IPromptInputModelState>;
+	/**
+	 * Fires immediately before {@link onDidFinishInput} when a SIGINT/Ctrl+C/^C is detected.
+	 */
+	readonly onDidInterrupt: Event<IPromptInputModelState>;
 
 	readonly value: string;
 	readonly cursorIndex: number;
@@ -48,6 +56,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _commandStartX: number = 0;
 	private _continuationPrompt: string | undefined;
 
+	private _lastUserInput: string = '';
+
 	private _value: string = '';
 	get value() { return this._value; }
 
@@ -63,6 +73,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	readonly onDidChangeInput = this._onDidChangeInput.event;
 	private readonly _onDidFinishInput = this._register(new Emitter<IPromptInputModelState>());
 	readonly onDidFinishInput = this._onDidFinishInput.event;
+	private readonly _onDidInterrupt = this._register(new Emitter<IPromptInputModelState>());
+	readonly onDidInterrupt = this._onDidInterrupt.event;
 
 	constructor(
 		private readonly _xterm: Terminal,
@@ -72,18 +84,40 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	) {
 		super();
 
-		this._register(this._xterm.onData(e => this._handleInput(e)));
 		this._register(Event.any(
-			this._xterm.onWriteParsed,
 			this._xterm.onCursorMove,
+			this._xterm.onData,
+			this._xterm.onWriteParsed,
 		)(() => this._sync()));
+		this._register(this._xterm.onData(e => this._handleUserInput(e)));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
+
+		this._register(this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput')));
+		this._register(this.onDidChangeInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidChangeInput')));
+		this._register(this.onDidFinishInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidFinishInput')));
+		this._register(this.onDidInterrupt(() => this._logCombinedStringIfTrace('PromptInputModel#onDidInterrupt')));
+	}
+
+	private _logCombinedStringIfTrace(message: string) {
+		// Only generate the combined string if trace
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace(message, this.getCombinedString());
+		}
 	}
 
 	setContinuationPrompt(value: string): void {
 		this._continuationPrompt = value;
+	}
+
+	setConfidentCommandLine(value: string): void {
+		if (this._value !== value) {
+			this._value = value;
+			this._cursorIndex = -1;
+			this._ghostTextIndex = -1;
+			this._onDidChangeInput.fire(this._createStateObject());
+		}
 	}
 
 	getCombinedString(): string {
@@ -112,6 +146,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._value = '';
 		this._cursorIndex = 0;
 		this._onDidStartInput.fire(this._createStateObject());
+		this._onDidChangeInput.fire(this._createStateObject());
 	}
 
 	private _handleCommandExecuted() {
@@ -119,13 +154,22 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		this._state = PromptInputState.Execute;
 		this._cursorIndex = -1;
-		this._onDidFinishInput.fire(this._createStateObject());
-	}
 
-	private _handleInput(data: string) {
-		this._sync();
+		// Remove any ghost text from the input if it exists on execute
+		if (this._ghostTextIndex !== -1) {
+			this._value = this._value.substring(0, this._ghostTextIndex);
+			this._ghostTextIndex = -1;
+		}
+
+		const event = this._createStateObject();
+		if (this._lastUserInput === '\u0003') {
+			this._onDidInterrupt.fire(event);
+		}
+
+		this._state = PromptInputState.Execute;
+		this._onDidFinishInput.fire(event);
+		this._onDidChangeInput.fire(event);
 	}
 
 	@throttle(0)
@@ -205,6 +249,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			this._ghostTextIndex = ghostTextIndex;
 			this._onDidChangeInput.fire(this._createStateObject());
 		}
+	}
+
+	private _handleUserInput(e: string) {
+		this._lastUserInput = e;
 	}
 
 	/**

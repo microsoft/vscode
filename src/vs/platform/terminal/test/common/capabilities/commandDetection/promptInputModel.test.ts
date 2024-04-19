@@ -78,7 +78,7 @@ suite('PromptInputModel', () => {
 		await assertPromptInput('|');
 	});
 
-	test('should not fire events when nothing changes', async () => {
+	test('should not fire onDidChangeInput events when nothing changes', async () => {
 		const events: IPromptInputModelState[] = [];
 		store.add(promptInputModel.onDidChangeInput(e => events.push(e)));
 
@@ -106,6 +106,26 @@ suite('PromptInputModel', () => {
 		for (let i = 0; i < events.length - 1; i++) {
 			notDeepStrictEqual(events[i], events[i + 1], 'not adjacent events should fire with the same value');
 		}
+	});
+
+	test('should fire onDidInterrupt followed by onDidFinish when ctrl+c is pressed', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		await assertPromptInput('|');
+
+		await writePromise('foo');
+		await assertPromptInput('foo|');
+
+		await new Promise<void>(r => {
+			store.add(promptInputModel.onDidInterrupt(() => {
+				// Fire onDidFinishInput immediately after onDidInterrupt
+				store.add(promptInputModel.onDidFinishInput(() => {
+					r();
+				}));
+			}));
+			xterm.input('\x03');
+			writePromise('^C').then(() => fireCommandExecuted());
+		});
 	});
 
 	test('cursor navigation', async () => {

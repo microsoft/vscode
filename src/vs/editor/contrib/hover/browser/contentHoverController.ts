@@ -16,6 +16,9 @@ import { HoverOperation, HoverStartMode, HoverStartSource } from 'vs/editor/cont
 import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
+import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
 import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
 import { ContentHoverVisibleData, HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
@@ -28,6 +31,8 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
+	// TODO@aiday-mar make array of participants, dispatch between them
+	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	constructor(
@@ -42,7 +47,11 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
-			this._participants.push(this._instantiationService.createInstance(participant, this._editor));
+			const participantInstance = this._instantiationService.createInstance(participant, this._editor);
+			if (participantInstance instanceof MarkdownHoverParticipant && !(participantInstance instanceof InlayHintsHover)) {
+				this._markdownHoverParticipant = participantInstance;
+			}
+			this._participants.push(participantInstance);
 		}
 		this._participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
 
@@ -340,6 +349,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
+	}
+
+	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
+		this._markdownHoverParticipant?.updateFocusedMarkdownHoverPartVerbosityLevel(action);
 	}
 
 	public getWidgetContent(): string | undefined {
