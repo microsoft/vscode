@@ -241,13 +241,9 @@ export class UtilityProcess extends Disposable {
 
 		this.log('creating new...', Severity.Info);
 
-		console.log('create utility worker', serviceName);
-		console.log('create utility worker with path', configuration.entryPoint);
-
 		// @ts-ignore
 		const absolutePath = FileAccess.asFileUri(configuration.entryPoint + '.js').fsPath;
 
-		console.log('absolute path', absolutePath);
 		// Fork utility process
 		this.process = utilityProcess.fork(modulePath, args, {
 			serviceName,
