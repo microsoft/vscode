@@ -80,7 +80,7 @@ function createPatchedModule<T extends object>(module: T, patch: any) {
 	// @ts-ignore
 	if (module[Symbol.toStringTag] === 'Module') {
 		// cannot be patched
-		return;
+		return module;
 	}
 	return Object.assign(module, patch);
 }
