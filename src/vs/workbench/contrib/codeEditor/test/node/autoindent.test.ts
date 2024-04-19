@@ -57,7 +57,7 @@ function registerLanguageConfiguration(languageConfigurationService: ILanguageCo
 
 interface TokenData {
 	startIndex: number;
-	metadata: number
+	value: number
 }
 
 function registerTokenizationSupport(languageService: ILanguageService, tokens: TokenData[][], languageId: LanguageId): IDisposable {
@@ -73,7 +73,7 @@ function registerTokenizationSupport(languageService: ILanguageService, tokens: 
 				tokensArray[2 * i] = tokensOnLine[i].startIndex;
 				tokensArray[2 * i + 1] =
 					((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
-						| (tokensOnLine[i].metadata << MetadataConsts.TOKEN_TYPE_OFFSET));
+						| (tokensOnLine[i].value << MetadataConsts.TOKEN_TYPE_OFFSET));
 			}
 			return new EncodedTokenizationResult(tokensArray, state);
 		}
@@ -200,12 +200,12 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		].join('\n');
 		const tokens: TokenData[][] = [
 			[
-				{ startIndex: 0, metadata: 0 }, { startIndex: 5, metadata: 0 }, { startIndex: 6, metadata: 0 },
-				{ startIndex: 9, metadata: 0 }, { startIndex: 10, metadata: 0 }, { startIndex: 11, metadata: 0 },
-				{ startIndex: 12, metadata: 2 }, { startIndex: 13, metadata: 2 }, { startIndex: 14, metadata: 2 },
-				{ startIndex: 15, metadata: 0 }, { startIndex: 16, metadata: 0 }
+				{ startIndex: 0, value: 0 }, { startIndex: 5, value: 0 }, { startIndex: 6, value: 0 },
+				{ startIndex: 9, value: 0 }, { startIndex: 10, value: 0 }, { startIndex: 11, value: 0 },
+				{ startIndex: 12, value: 2 }, { startIndex: 13, value: 2 }, { startIndex: 14, value: 2 },
+				{ startIndex: 15, value: 0 }, { startIndex: 16, value: 0 }
 			],
-			[{ startIndex: 0, metadata: 0 }, { startIndex: 4, metadata: 0 }]
+			[{ startIndex: 0, value: 0 }, { startIndex: 4, value: 0 }]
 		];
 		disposables.add(registerTokenizationSupport(languageService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
@@ -310,12 +310,12 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		].join('\n');
 		const tokens: TokenData[][] = [
 			[
-				{ startIndex: 0, metadata: 0 }, { startIndex: 5, metadata: 0 }, { startIndex: 6, metadata: 0 },
-				{ startIndex: 7, metadata: 0 }, { startIndex: 8, metadata: 0 }, { startIndex: 9, metadata: 3 },
-				{ startIndex: 10, metadata: 3 }, { startIndex: 11, metadata: 3 }, { startIndex: 12, metadata: 3 },
-				{ startIndex: 13, metadata: 0 }, { startIndex: 14, metadata: 0 }
+				{ startIndex: 0, value: 0 }, { startIndex: 5, value: 0 }, { startIndex: 6, value: 0 },
+				{ startIndex: 7, value: 0 }, { startIndex: 8, value: 0 }, { startIndex: 9, value: 3 },
+				{ startIndex: 10, value: 3 }, { startIndex: 11, value: 3 }, { startIndex: 12, value: 3 },
+				{ startIndex: 13, value: 0 }, { startIndex: 14, value: 0 }
 			],
-			[{ startIndex: 0, metadata: 0 }, { startIndex: 4, metadata: 0 }]
+			[{ startIndex: 0, value: 0 }, { startIndex: 4, value: 0 }]
 		];
 		disposables.add(registerTokenizationSupport(languageService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
