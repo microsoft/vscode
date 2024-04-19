@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
@@ -23,7 +23,6 @@ import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRu
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
 import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
-import { TokenData } from 'vs/workbench/contrib/codeEditor/test/node/autoindent.test';
 
 enum Language {
 	TypeScript,
@@ -119,7 +118,12 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	}
 }
 
-function registerTokens(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string, disposables: DisposableStore) {
+export interface TokenData {
+	startIndex: number;
+	value: number
+}
+
+export function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string): IDisposable {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
@@ -140,7 +144,7 @@ function registerTokens(instantiationService: TestInstantiationService, tokens: 
 			return new EncodedTokenizationResult(result, state);
 		}
 	};
-	disposables.add(TokenizationRegistry.register(languageId, tokenizationSupport));
+	return TokenizationRegistry.register(languageId, tokenizationSupport);
 }
 
 suite('Change Indentation to Spaces - TypeScript/Javascript', () => {
@@ -444,7 +448,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				]
 			];
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			registerTokens(instantiationService, tokens, languageId, disposables);
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(pasteText, true, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 16));
@@ -602,7 +606,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				]
 			];
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			registerTokens(instantiationService, tokens, languageId, disposables);
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 4));
@@ -735,7 +739,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				[{ startIndex: 0, value: 0 }, { startIndex: 1, value: 0 }]
 			];
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			registerTokens(instantiationService, tokens, languageId, disposables);
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 
 			editor.setSelection(new Selection(2, 1, 2, 1));
 			const text = [
@@ -1005,7 +1009,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 				[{ startIndex: 0, value: 1 }]
 			];
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			registerTokens(instantiationService, tokens, languageId, disposables);
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			editor.setSelection(new Selection(2, 23, 2, 23));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1396,7 +1400,7 @@ suite('Auto Indent On Type - PHP', () => {
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 			const tokens: TokenData[][] = [[{ startIndex: 0, value: 0 }, { startIndex: 13, value: 2 }, { startIndex: 16, value: 0 }]];
-			registerTokens(instantiationService, tokens, languageId, disposables);
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			registerLanguage(instantiationService, languageId, Language.PHP, disposables);
 			editor.setSelection(new Selection(1, 19, 1, 19));
 			viewModel.type("\n", 'keyboard');

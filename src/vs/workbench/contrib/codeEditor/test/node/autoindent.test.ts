@@ -19,9 +19,7 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { execSync } from 'child_process';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { registerTokenizationSupport, TokenData } from 'vs/editor/contrib/indentation/test/browser/indentation.test';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -55,32 +53,6 @@ function registerLanguageConfiguration(languageConfigurationService: ILanguageCo
 	return languageConfigurationService.register(languageId, languageConfig);
 }
 
-export interface TokenData {
-	startIndex: number;
-	value: number
-}
-
-function registerTokenizationSupport(languageService: ILanguageService, tokens: TokenData[][], languageId: LanguageId): IDisposable {
-	let lineIndex = 0;
-	const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
-	const tokenizationSupport: ITokenizationSupport = {
-		getInitialState: () => NullState,
-		tokenize: undefined!,
-		tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-			const tokensOnLine = tokens[lineIndex++];
-			const tokensArray = new Uint32Array(2 * tokensOnLine.length);
-			for (let i = 0; i < tokensOnLine.length; i++) {
-				tokensArray[2 * i] = tokensOnLine[i].startIndex;
-				tokensArray[2 * i + 1] =
-					((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
-						| (tokensOnLine[i].value << MetadataConsts.TOKEN_TYPE_OFFSET));
-			}
-			return new EncodedTokenizationResult(tokensArray, state);
-		}
-	};
-	return TokenizationRegistry.register(languageId, tokenizationSupport);
-}
-
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	const languageId = LanguageId.TypeScript;
@@ -88,14 +60,12 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageConfigurationService: ILanguageConfigurationService;
-	let languageService: ILanguageService;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
 		disposables.add(instantiationService);
-		languageService = instantiationService.get(ILanguageService);
-		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguage(instantiationService.get(ILanguageService), languageId));
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
 	});
@@ -207,7 +177,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			],
 			[{ startIndex: 0, value: 0 }, { startIndex: 4, value: 0 }]
 		];
-		disposables.add(registerTokenizationSupport(languageService, tokens, languageId));
+		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		model.tokenization.forceTokenization(1);
 		model.tokenization.forceTokenization(2);
@@ -317,7 +287,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			],
 			[{ startIndex: 0, value: 0 }, { startIndex: 4, value: 0 }]
 		];
-		disposables.add(registerTokenizationSupport(languageService, tokens, languageId));
+		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		model.tokenization.forceTokenization(1);
 		model.tokenization.forceTokenization(2);
