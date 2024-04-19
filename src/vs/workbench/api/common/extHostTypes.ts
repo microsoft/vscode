@@ -3099,14 +3099,14 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 }
 
 
-export class StackFrame implements vscode.StackFrame {
+export class DebugStackFrame implements vscode.DebugStackFrame {
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId: number,
 		readonly frameId: number) { }
 }
 
-export class Thread implements vscode.Thread {
+export class DebugThread implements vscode.DebugThread {
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId: number) { }
