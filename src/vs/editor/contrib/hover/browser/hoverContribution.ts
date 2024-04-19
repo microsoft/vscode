@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GoToBottomHoverAction, GoToTopHoverAction, PageDownHoverAction, PageUpHoverAction, ScrollDownHoverAction, ScrollLeftHoverAction, ScrollRightHoverAction, ScrollUpHoverAction, ShowDefinitionPreviewHoverAction, ShowOrFocusHoverAction } from 'vs/editor/contrib/hover/browser/hoverActions';
+import { DecreaseHoverVerbosityLevel, GoToBottomHoverAction, GoToTopHoverAction, IncreaseHoverVerbosityLevel, PageDownHoverAction, PageUpHoverAction, ScrollDownHoverAction, ScrollLeftHoverAction, ScrollRightHoverAction, ScrollUpHoverAction, ShowDefinitionPreviewHoverAction, ShowOrFocusHoverAction } from 'vs/editor/contrib/hover/browser/hoverActions';
 import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -24,6 +24,8 @@ registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
+registerEditorAction(IncreaseHoverVerbosityLevel);
+registerEditorAction(DecreaseHoverVerbosityLevel);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 
