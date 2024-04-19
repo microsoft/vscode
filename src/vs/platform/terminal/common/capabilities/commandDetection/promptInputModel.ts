@@ -20,9 +20,9 @@ const enum PromptInputState {
 }
 
 export interface IPromptInputModel {
-	readonly onDidStartInput: Event<void>;
-	readonly onDidChangeInput: Event<void>;
-	readonly onDidFinishInput: Event<void>;
+	readonly onDidStartInput: Event<IPromptInputModelState>;
+	readonly onDidChangeInput: Event<IPromptInputModelState>;
+	readonly onDidFinishInput: Event<IPromptInputModelState>;
 
 	readonly value: string;
 	readonly cursorIndex: number;
@@ -33,6 +33,12 @@ export interface IPromptInputModel {
 	 * `]` wrap any ghost text.
 	 */
 	getCombinedString(): string;
+}
+
+export interface IPromptInputModelState {
+	readonly value: string;
+	readonly cursorIndex: number;
+	readonly ghostTextIndex: number;
 }
 
 export class PromptInputModel extends Disposable implements IPromptInputModel {
@@ -51,11 +57,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _ghostTextIndex: number = -1;
 	get ghostTextIndex() { return this._ghostTextIndex; }
 
-	private readonly _onDidStartInput = this._register(new Emitter<void>());
+	private readonly _onDidStartInput = this._register(new Emitter<IPromptInputModelState>());
 	readonly onDidStartInput = this._onDidStartInput.event;
-	private readonly _onDidChangeInput = this._register(new Emitter<void>());
+	private readonly _onDidChangeInput = this._register(new Emitter<IPromptInputModelState>());
 	readonly onDidChangeInput = this._onDidChangeInput.event;
-	private readonly _onDidFinishInput = this._register(new Emitter<void>());
+	private readonly _onDidFinishInput = this._register(new Emitter<IPromptInputModelState>());
 	readonly onDidFinishInput = this._onDidFinishInput.event;
 
 	constructor(
@@ -105,7 +111,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._commandStartX = this._xterm.buffer.active.cursorX;
 		this._value = '';
 		this._cursorIndex = 0;
-		this._onDidStartInput.fire();
+		this._onDidStartInput.fire(this._createStateObject());
 	}
 
 	private _handleCommandExecuted() {
@@ -115,7 +121,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		this._state = PromptInputState.Execute;
 		this._cursorIndex = -1;
-		this._onDidFinishInput.fire();
+		this._onDidFinishInput.fire(this._createStateObject());
 	}
 
 	private _handleInput(data: string) {
@@ -197,7 +203,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			this._value = value;
 			this._cursorIndex = cursorIndex;
 			this._ghostTextIndex = ghostTextIndex;
-			this._onDidChangeInput.fire();
+			this._onDidChangeInput.fire(this._createStateObject());
 		}
 	}
 
@@ -271,5 +277,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _isCellStyledLikeGhostText(cell: IBufferCell): boolean {
 		return !!(cell.isItalic() || cell.isDim());
+	}
+
+	private _createStateObject(): IPromptInputModelState {
+		return Object.freeze({
+			value: this._value,
+			cursorIndex: this._cursorIndex,
+			ghostTextIndex: this._ghostTextIndex
+		});
 	}
 }

@@ -5,7 +5,7 @@
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { PromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
+import { PromptInputModel, type IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { Emitter } from 'vs/base/common/event';
 import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 
@@ -79,18 +79,8 @@ suite('PromptInputModel', () => {
 	});
 
 	test('should not fire events when nothing changes', async () => {
-		const events: {
-			value: string;
-			cursorIndex: number;
-			ghostTextIndex: number;
-		}[] = [];
-		store.add(promptInputModel.onDidChangeInput(() => {
-			events.push({
-				value: promptInputModel.value,
-				cursorIndex: promptInputModel.cursorIndex,
-				ghostTextIndex: promptInputModel.ghostTextIndex
-			});
-		}));
+		const events: IPromptInputModelState[] = [];
+		store.add(promptInputModel.onDidChangeInput(e => events.push(e)));
 
 		await writePromise('$ ');
 		fireCommandStart();
