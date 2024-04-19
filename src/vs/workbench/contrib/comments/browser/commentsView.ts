@@ -82,7 +82,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (!this.focusedCommentNode) {
 			return;
 		}
-		return this.getScreenReaderInfoForNode(this.focusedCommentNode, 'accessibleViewContent');
+		return this.getScreenReaderInfoForNode(this.focusedCommentNode);
 	}
 
 	focusNextNode(): void {
@@ -316,61 +316,70 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.messageBoxContainer.classList.toggle('hidden', this.commentService.commentsModel.hasCommentThreads());
 	}
 
-	private getScreenReaderInfoForNode(element: CommentNode, type: 'ariaLabel' | 'accessibleViewContent') {
+	private getScreenReaderInfoForNode(element: CommentNode, forAriaLabel?: boolean): string {
 		let accessibleViewHint = '';
-		if (type === 'ariaLabel' && this.configurationService.getValue(AccessibilityVerbositySettingId.Comments)) {
+		if (forAriaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.Comments)) {
 			const kbLabel = this.keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
 			accessibleViewHint = kbLabel ? nls.localize('acessibleViewHint', "Inspect this in the accessible view ({0}).\n", kbLabel) : nls.localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.\n");
 		}
-		const replies = this.getRepliesAsString(element, type) || '';
+		const replyCount = this.getReplyCountAsString(element, forAriaLabel);
+		const replies = this.getRepliesAsString(element, forAriaLabel);
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
-					"Outdated from ${0} at line {1} column {2} in {3}, comment: {4}",
+					"Outdated from {0} at line {1} column {2} in {3},{4} comment: {5}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
 					basename(element.resource),
+					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
 				) + replies;
 			} else {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
-					"${0} at line {1} column {2} in {3}, comment: {4}",
+					"{0} at line {1} column {2} in {3},{4} comment: {5}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
 					basename(element.resource),
+					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
 				) + replies;
 			}
 		} else {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFileOutdated',
-					"Outdated from {0} in {1}, comment: {2}",
+					"Outdated from {0} in {1},{2} comment: {3}",
 					element.comment.userName,
 					basename(element.resource),
+					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
 				) + replies;
 			} else {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFile',
-					"{0} in {1}, comment: {2}",
+					"{0} in {1},{2} comment: {3}",
 					element.comment.userName,
 					basename(element.resource),
+					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
 				) + replies;
 			}
 		}
 	}
 
-	private getRepliesAsString(node: CommentNode, type: 'ariaLabel' | 'accessibleViewContent'): string {
-		if (!node.replies.length || type === 'ariaLabel') {
+	private getRepliesAsString(node: CommentNode, forAriaLabel?: boolean): string {
+		if (!node.replies.length || forAriaLabel) {
 			return '';
 		}
-		return nls.localize('replies', " {0} replies:\n{1}", node.replies.length, node.replies.map(reply => nls.localize('resourceWithRepliesLabel',
-			"${0} {1}",
+		return '\n' + node.replies.map(reply => nls.localize('resourceWithRepliesLabel',
+			"{0} {1}",
 			reply.comment.userName,
 			(typeof reply.comment.body === 'string') ? reply.comment.body : reply.comment.body.value)
-		).join('\n'));
+		).join('\n');
+	}
+
+	private getReplyCountAsString(node: CommentNode, forAriaLabel?: boolean): string {
+		return node.replies.length && !forAriaLabel ? nls.localize('replyCount', " {0} replies,", node.replies.length) : '';
 	}
 
 	private createTree(): void {
@@ -393,7 +402,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 						return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
 					}
 					if (element instanceof CommentNode) {
-						return this.getScreenReaderInfoForNode(element, 'ariaLabel');
+						return this.getScreenReaderInfoForNode(element, true);
 					}
 					return '';
 				},

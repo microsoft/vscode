@@ -131,6 +131,7 @@ declare module 'vscode' {
 		insertText?: string;
 		detail?: string;
 		documentation?: string | MarkdownString;
+		command?: Command;
 
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}

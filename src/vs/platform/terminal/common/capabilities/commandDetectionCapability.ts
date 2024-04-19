@@ -485,7 +485,7 @@ class UnixPtyHeuristics extends Disposable {
 		}));
 	}
 
-	async handleCommandStart(options?: IHandleCommandOptions) {
+	handleCommandStart(options?: IHandleCommandOptions) {
 		this._hooks.commitCommandFinished();
 
 		const currentCommand = this._capability.currentCommand;
@@ -638,7 +638,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 	}
 
-	async handleCommandStart() {
+	handleCommandStart() {
 		this._capability.currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence

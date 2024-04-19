@@ -4268,6 +4268,7 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	values: vscode.ChatVariableValue[];
 	detail?: string;
 	documentation?: string | MarkdownString;
+	command?: vscode.Command;
 
 	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
 		this.label = label;

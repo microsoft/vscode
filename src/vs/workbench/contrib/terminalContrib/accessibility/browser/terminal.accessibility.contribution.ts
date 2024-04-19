@@ -32,6 +32,7 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Event } from 'vs/base/common/event';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
@@ -183,6 +184,10 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 		const command = filteredCommands[0];
 		this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
+		const commandLine = command.command.command;
+		if (commandLine) {
+			alert(commandLine);
+		}
 		if (command.exitCode) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 		}
