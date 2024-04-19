@@ -438,6 +438,12 @@ export interface ICreateTerminalOptions {
 	 * The terminal's location (editor or panel), it's terminal parent (split to the right), or editor group
 	 */
 	location?: ITerminalLocationOptions;
+
+	/**
+	 * This terminal will not wait for contributed profiles to resolve which means it will proceed
+	 * when the workbench is not yet loaded.
+	 */
+	skipContributedProfileCheck?: boolean;
 }
 
 export interface TerminalEditorLocation {
