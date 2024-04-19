@@ -10,7 +10,7 @@ import { PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
+import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ColorPickerWidget, InsertButton } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { Emitter } from 'vs/base/common/event';

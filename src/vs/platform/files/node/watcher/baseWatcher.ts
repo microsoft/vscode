@@ -5,7 +5,7 @@
 
 import { watchFile, unwatchFile, Stats } from 'fs';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, isWatchRequestWithCorrelation } from 'vs/platform/files/common/watcher';
+import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, isWatchRequestWithCorrelation, requestFilterToString } from 'vs/platform/files/common/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -231,12 +231,20 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	protected traceEvent(event: IFileChange, request: IUniversalWatchRequest): void {
-		const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
-		this.trace(typeof request.correlationId === 'number' ? `${traceMsg} (correlationId: ${request.correlationId})` : traceMsg);
+		if (this.verboseLogging) {
+			const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
+			this.traceWithCorrelation(traceMsg, request);
+		}
+	}
+
+	protected traceWithCorrelation(message: string, request: IUniversalWatchRequest): void {
+		if (this.verboseLogging) {
+			this.trace(`${message}${typeof request.correlationId === 'number' ? ` <${request.correlationId}> ` : ``}`);
+		}
 	}
 
 	protected requestToString(request: IUniversalWatchRequest): string {
-		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
+		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
 	}
 
 	protected abstract doWatch(requests: IUniversalWatchRequest[]): Promise<void>;
@@ -247,5 +255,10 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	protected abstract warn(message: string): void;
 
 	abstract onDidError: Event<string>;
-	abstract setVerboseLogging(enabled: boolean): Promise<void>;
+
+	protected verboseLogging = false;
+
+	async setVerboseLogging(enabled: boolean): Promise<void> {
+		this.verboseLogging = enabled;
+	}
 }
