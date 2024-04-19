@@ -509,9 +509,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		padding: 6px 0px 0px 6px;
 	}
 	#container .error-output-actions li {
-		padding: 0px 5px 0px 2px;
+		padding: 0px 4px 0px 4px;
 		border-radius: 5px;
-		height: 22px;
+		height: 20px;
 		display: inline-flex;
 		cursor: pointer;
 		border: solid 1px var(--vscode-notebook-cellToolbarSeparator);
@@ -527,7 +527,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	}
 	#container .error-output-actions li a {
 		color: var(--vscode-foreground);
-		padding: 0px 5px 0px 2px;
 		text-decoration: none;
 	}
 	#container .error-output-header a {
