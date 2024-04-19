@@ -507,6 +507,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	#container ul.error-output-actions {
 		margin: 0px;
 		padding: 6px 0px 0px 6px;
+		padding-inline-start: 0px;
 	}
 	#container .error-output-actions li {
 		padding: 0px 4px 0px 4px;
