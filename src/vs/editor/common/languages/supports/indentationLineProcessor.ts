@@ -125,12 +125,11 @@ export class IndentationContextProcessor {
 			lineTokens = this.model.tokenization.getLineTokens(range.endLineNumber);
 		}
 		const scopedLineContent = scopedLineTokens.getLineContent();
-		const scopedLineLength = scopedLineContent.length;
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope + 1;
-		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineLength + 1;
-		const line = scopedLineContent.substring(columnIndexWithinScope);
+		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineContent.length + 1;
+		const slicedLine = scopedLineContent.substring(columnIndexWithinScope);
 		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(line, slicedTokens);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedLine, slicedTokens);
 		return processedLine;
 	}
 
@@ -140,9 +139,9 @@ export class IndentationContextProcessor {
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope;
 		const scopedLineContent = scopedLineTokens.getLineContent();
-		const line = scopedLineContent.substring(0, columnIndexWithinScope);
+		const slicedLine = scopedLineContent.substring(0, columnIndexWithinScope);
 		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(line, slicedTokens);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedLine, slicedTokens);
 		return processedLine;
 	}
 
@@ -160,8 +159,8 @@ export class IndentationContextProcessor {
 				const previousLine = previousLineScopedLineTokens.getLineContent();
 				const firstCharacterOffset = previousLineScopedLineTokens.firstCharOffset;
 				const lastCharacterOffset = firstCharacterOffset + previousLine.length;
-				const previousSlicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-				processedPreviousLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(previousLine, previousSlicedTokens);
+				const previousLineTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
+				processedPreviousLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(previousLine, previousLineTokens);
 			}
 		}
 		return processedPreviousLine;

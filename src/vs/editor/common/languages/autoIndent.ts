@@ -37,7 +37,7 @@ export interface IIndentConverter {
  * 0: every line above are invalid
  * else: nearest preceding line of the same language
  */
-function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: ProcessedIndentRulesSupport) {
+function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, processedIndentRulesSupport: ProcessedIndentRulesSupport) {
 	const languageId = model.tokenization.getLanguageIdAtPosition(lineNumber, 0);
 	if (lineNumber > 1) {
 		let lastLineNumber: number;
@@ -48,7 +48,7 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 				return resultLineNumber;
 			}
 			const text = model.getLineContent(lastLineNumber);
-			if (indentRulesSupport.shouldIgnore(lastLineNumber) || /^\s+$/.test(text) || text === '') {
+			if (processedIndentRulesSupport.shouldIgnore(lastLineNumber) || /^\s+$/.test(text) || text === '') {
 				resultLineNumber = lastLineNumber;
 				continue;
 			}
@@ -237,6 +237,7 @@ export function getGoodIndentForLine(
 	if (!indentRulesSupport) {
 		return null;
 	}
+
 	const processedIndentRulesSupport = new ProcessedIndentRulesSupport(virtualModel, indentRulesSupport, languageConfigurationService);
 	const indent = getInheritIndentForLine(autoIndent, virtualModel, lineNumber, undefined, languageConfigurationService);
 
@@ -345,7 +346,8 @@ export function getIndentForEnter(
 	};
 
 	const embeddedLanguage = isWithinEmbeddedLanguage(model, range.getStartPosition());
-	const currentLineIndent = strings.getLeadingWhitespace(model.getLineContent(range.startLineNumber));
+	const currentLine = model.getLineContent(range.startLineNumber);
+	const currentLineIndent = strings.getLeadingWhitespace(currentLine);
 	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService);
 	if (!afterEnterAction) {
 		const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
