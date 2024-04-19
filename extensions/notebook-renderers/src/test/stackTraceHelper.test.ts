@@ -67,12 +67,11 @@ suite('StackTraceHelper', () => {
 			'\n' +
 			'\u001b[1;31mException\u001b[0m:\n';
 
-		const { formattedStack, errorLocation } = formatStackTrace(stack);
+		const { formattedStack } = formatStackTrace(stack);
 		const formatted = stripAsciiFormatting(formattedStack);
 		assert.ok(formatted.indexOf('Input <a href=\'vscode-notebook-cell:?execution_count=2\'>In [2]</a>, in <cell line: 5>') > 0, 'Missing cell link in ' + formatted);
 		assert.ok(formatted.indexOf('Input <a href=\'vscode-notebook-cell:?execution_count=1\'>In [1]</a>, in myfunc()') > 0, 'Missing cell link in ' + formatted);
 		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution_count=2&line=5\'>5</a>') > 0, 'Missing frame link in ' + formatted);
-		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=2\'>In [2]</a>');
 	});
 
 	test('IPython stack trace lines without associated location are not linkified', () => {

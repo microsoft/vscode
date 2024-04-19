@@ -80,7 +80,6 @@ function linkifyStack(stack: string): { formattedStack: string; errorLocation?: 
 			};
 			const link = original.replace(inputRegex, `<a href=\'${fileOrCell.path}\'>$<cellLabel></a>`);
 			lines[i] = original.replace(inputRegex, `Input ${link}$<postfix>`);
-			locationLink = locationLink || link;
 
 			continue;
 		} else if (!fileOrCell || original.trim() === '') {
