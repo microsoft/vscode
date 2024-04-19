@@ -56,7 +56,7 @@ function registerLanguageConfiguration(languageConfigurationService: ILanguageCo
 }
 
 interface TokenData {
-	endIndex: number;
+	startIndex: number;
 	metadata: number
 }
 
@@ -70,7 +70,7 @@ function registerTokenizationSupport(languageService: ILanguageService, tokens: 
 			const tokensOnLine = tokens[lineIndex++];
 			const tokensArray = new Uint32Array(2 * tokensOnLine.length);
 			for (let i = 0; i < tokensOnLine.length; i++) {
-				tokensArray[2 * i] = tokensOnLine[i].endIndex;
+				tokensArray[2 * i] = tokensOnLine[i].startIndex;
 				tokensArray[2 * i + 1] =
 					((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
 						| (tokensOnLine[i].metadata << MetadataConsts.TOKEN_TYPE_OFFSET));
@@ -200,18 +200,17 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		].join('\n');
 		const tokens: TokenData[][] = [
 			[
-				{ endIndex: 5, metadata: 0 }, { endIndex: 6, metadata: 0 }, { endIndex: 9, metadata: 0 },
-				{ endIndex: 10, metadata: 0 }, { endIndex: 11, metadata: 0 }, { endIndex: 12, metadata: 2 },
-				{ endIndex: 13, metadata: 2 }, { endIndex: 14, metadata: 2 }, { endIndex: 15, metadata: 0 },
-				{ endIndex: 16, metadata: 0 },
+				{ startIndex: 0, metadata: 0 }, { startIndex: 5, metadata: 0 }, { startIndex: 6, metadata: 0 },
+				{ startIndex: 9, metadata: 0 }, { startIndex: 10, metadata: 0 }, { startIndex: 11, metadata: 0 },
+				{ startIndex: 12, metadata: 2 }, { startIndex: 13, metadata: 2 }, { startIndex: 14, metadata: 2 },
+				{ startIndex: 15, metadata: 0 }, { startIndex: 16, metadata: 0 }
 			],
-			[{ endIndex: 4, metadata: 0 }]
+			[{ startIndex: 0, metadata: 0 }, { startIndex: 4, metadata: 0 }]
 		];
 		disposables.add(registerTokenizationSupport(languageService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		model.tokenization.forceTokenization(1);
 		model.tokenization.forceTokenization(2);
-
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
@@ -311,12 +310,12 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		].join('\n');
 		const tokens: TokenData[][] = [
 			[
-				{ endIndex: 5, metadata: 0 }, { endIndex: 6, metadata: 0 }, { endIndex: 7, metadata: 0 },
-				{ endIndex: 8, metadata: 0 }, { endIndex: 9, metadata: 3 }, { endIndex: 10, metadata: 3 },
-				{ endIndex: 11, metadata: 3 }, { endIndex: 12, metadata: 3 }, { endIndex: 13, metadata: 0 },
-				{ endIndex: 14, metadata: 0 }
+				{ startIndex: 0, metadata: 0 }, { startIndex: 5, metadata: 0 }, { startIndex: 6, metadata: 0 },
+				{ startIndex: 7, metadata: 0 }, { startIndex: 8, metadata: 0 }, { startIndex: 9, metadata: 3 },
+				{ startIndex: 10, metadata: 3 }, { startIndex: 11, metadata: 3 }, { startIndex: 12, metadata: 3 },
+				{ startIndex: 13, metadata: 0 }, { startIndex: 14, metadata: 0 }
 			],
-			[{ endIndex: 4, metadata: 0 }]
+			[{ startIndex: 0, metadata: 0 }, { startIndex: 4, metadata: 0 }]
 		];
 		disposables.add(registerTokenizationSupport(languageService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
