@@ -168,8 +168,6 @@ export class CodeActionModel extends Disposable {
 	private readonly _onDidChangeState = this._register(new Emitter<CodeActionsState.State>());
 	public readonly onDidChangeState = this._onDidChangeState.event;
 
-	private readonly disposables = this._register(new DisposableStore());
-
 	private _disposed = false;
 
 	constructor(
@@ -199,7 +197,6 @@ export class CodeActionModel extends Disposable {
 			return;
 		}
 		this._disposed = true;
-		this.disposables.dispose();
 
 		super.dispose();
 		this.setState(CodeActionsState.Empty, true);
@@ -237,10 +234,9 @@ export class CodeActionModel extends Disposable {
 
 				const actions = createCancelablePromise(async token => {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
-						const codeActionSet = this.disposables.add(await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
+						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
-							this.disposables.delete(codeActionSet);
 							return emptyCodeActionSet;
 						}
 
@@ -279,7 +275,7 @@ export class CodeActionModel extends Disposable {
 										};
 
 										const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
-										const actionsAtMarker = this.disposables.add(await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token));
+										const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
@@ -324,7 +320,7 @@ export class CodeActionModel extends Disposable {
 							}
 						}
 					}
-					const codeActionSet = this.disposables.add(await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
+					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 					return codeActionSet;
 				});
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
