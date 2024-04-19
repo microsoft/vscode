@@ -115,6 +115,10 @@ export class NotebookCellOutlineProvider {
 					delayedRecompute();
 				}
 			}));
+			// Perhaps this is the first time we're building the outline
+			if (!this._entries.length) {
+				this._recomputeState();
+			}
 		}
 		this._disposables.add(this._editor.onDidChangeModel(monitorModelChanges));
 		monitorModelChanges();
