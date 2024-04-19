@@ -402,6 +402,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.command = commandLine;
 		this._currentCommand.commandLineConfidence = 'high';
 		this._currentCommand.isTrusted = isTrusted;
+
+		if (isTrusted) {
+			this._promptInputModel.setConfidentCommandLine(commandLine);
+		}
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
