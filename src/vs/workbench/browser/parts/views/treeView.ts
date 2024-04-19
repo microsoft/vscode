@@ -33,7 +33,7 @@ import 'vs/css!./media/views';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenu, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -800,7 +800,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		event.stopPropagation();
 
 		this.tree!.setFocus([node]);
-		const actions = treeMenus.getResourceContextActions(node);
+		const selected = this.canSelectMany ? this.getSelection() : [];
+		selected.unshift(node);
+		const actions = treeMenus.getResourceContextActions(selected);
 		if (!actions.length) {
 			return;
 		}
@@ -1311,7 +1313,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
 
-		const menuActions = this.menus.getResourceActions(node, templateData.elementDisposable);
+		const menuActions = this.menus.getResourceActions([node], templateData.elementDisposable);
 		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
 
 		if (this._actionRunner) {
@@ -1581,41 +1583,68 @@ class TreeMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getResourceActions(element: ITreeItem, disposableStore: DisposableStore): { menu?: IMenu; actions: IAction[] } {
-		const actions = this.getActions(MenuId.ViewItemContext, element, disposableStore);
-		return { menu: actions.menu, actions: actions.primary };
+	getResourceActions(elements: ITreeItem[], disposableStore: DisposableStore): { actions: IAction[] } {
+		const actions = this.getActions(MenuId.ViewItemContext, elements, disposableStore);
+		return { actions: actions.primary };
 	}
 
-	getResourceContextActions(element: ITreeItem): IAction[] {
-		return this.getActions(MenuId.ViewItemContext, element).secondary;
+	getResourceContextActions(elements: ITreeItem[]): IAction[] {
+		return this.getActions(MenuId.ViewItemContext, elements).secondary;
 	}
 
 	public setContextKeyService(service: IContextKeyService) {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, element: ITreeItem, listen?: DisposableStore): { menu?: IMenu; primary: IAction[]; secondary: IAction[] } {
+	private getActions(menuId: MenuId, elements: ITreeItem[], listen?: DisposableStore): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
 
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['view', this.id],
-			['viewItem', element.contextValue]
-		]);
+		const allowedPrimary = new Map<string, IAction>();
+		const allowedSecondary = new Map<string, IAction>();
+		for (let i = 0; i < elements.length; i++) {
+			const element = elements[i];
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['view', this.id],
+				['viewItem', element.contextValue]
+			]);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary, menu };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
-		if (listen) {
-			listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
-			listen.add(menu);
-		} else {
-			menu.dispose();
+			const menu = this.menuService.createMenu(menuId, contextKeyService);
+			const primary: IAction[] = [];
+			const secondary: IAction[] = [];
+			const result = { primary, secondary, menu };
+			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
+			if (i === 0) {
+				for (const action of result.primary) {
+					allowedPrimary.set(action.id, action);
+				}
+				for (const action of result.secondary) {
+					allowedSecondary.set(action.id, action);
+				}
+			} else {
+				const primaryKeys = allowedPrimary.keys();
+				for (const key of primaryKeys) {
+					if (!result.primary.some(action => action.id === key)) {
+						allowedPrimary.delete(key);
+					}
+				}
+				const secondaryKeys = allowedSecondary.keys();
+				for (const key of secondaryKeys) {
+					if (!result.secondary.some(action => action.id === key)) {
+						allowedSecondary.delete(key);
+					}
+				}
+			}
+			if (listen && elements.length === 1) {
+				listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
+				listen.add(menu);
+			} else {
+				menu.dispose();
+			}
 		}
-		return result;
+
+		return { primary: Array.from(allowedPrimary.values()), secondary: Array.from(allowedSecondary.values()) };
 	}
 
 	dispose() {
