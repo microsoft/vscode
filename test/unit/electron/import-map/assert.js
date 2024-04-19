@@ -5,8 +5,8 @@
 
 import { assert } from './testGlobals.js';
 
-const { strictEqual, deepEqual, deepStrictEqual, ok, notStrictEqual, fail, notEqual, throws } = assert;
+const { strictEqual, deepEqual, deepStrictEqual, ok, notStrictEqual, fail, notEqual, throws, notDeepStrictEqual } = assert;
 
-export { strictEqual, deepEqual, deepStrictEqual, ok, notStrictEqual, fail, notEqual, throws };
+export { strictEqual, deepEqual, deepStrictEqual, ok, notStrictEqual, fail, notEqual, throws, notDeepStrictEqual };
 
 export default assert;
