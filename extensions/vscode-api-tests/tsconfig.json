@@ -3,7 +3,7 @@
 	"compilerOptions": {
 		"outDir": "./out",
 		"esModuleInterop": true,
-		"module": "ESNext",
+		"module": "CommonJS",
 		"types": ["node"]
 	},
 	"include": [
