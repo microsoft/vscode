@@ -168,6 +168,7 @@ export class UtilityProcess extends Disposable {
 	private process: ElectronUtilityProcess | undefined = undefined;
 	private processPid: number | undefined = undefined;
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
+	private killed = false;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -317,7 +318,7 @@ export class UtilityProcess extends Disposable {
 			this.log(`received exit event with code ${code}`, Severity.Info);
 
 			// Event
-			this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
+			this._onExit.fire({ pid: this.processPid!, code: this.isNormalExit(code) ? 0 : code, signal: 'unknown' });
 
 			// Cleanup
 			this.onDidExitOrCrashOrKill();
@@ -325,7 +326,7 @@ export class UtilityProcess extends Disposable {
 
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-			if (details.type === 'Utility' && details.name === serviceName) {
+			if (details.type === 'Utility' && details.name === serviceName && !this.isNormalExit(details.exitCode)) {
 				this.log(`crashed with code ${details.exitCode} and reason '${details.reason}'`, Severity.Error);
 
 				// Telemetry
@@ -415,10 +416,17 @@ export class UtilityProcess extends Disposable {
 		const killed = this.process.kill();
 		if (killed) {
 			this.log('successfully killed the process', Severity.Info);
+			this.killed = true;
 			this.onDidExitOrCrashOrKill();
 		} else {
 			this.log('unable to kill the process', Severity.Warning);
 		}
+	}
+
+	private isNormalExit(exitCode: number): boolean {
+		// Treat an exit code of 15 (SIGTERM) as a normal exit
+		// if we triggered the termination from process.kill()
+		return this.killed && exitCode === 15 /* SIGTERM */;
 	}
 
 	private onDidExitOrCrashOrKill(): void {
