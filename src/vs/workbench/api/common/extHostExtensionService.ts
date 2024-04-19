@@ -749,8 +749,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		if (!actualExtensionTestsLocationUri.fsPath.endsWith('.js')) {
 			actualExtensionTestsLocationUri = URI.file(actualExtensionTestsLocationUri.fsPath + '/index.js')
 		}
-		const testRunner = await this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(testRunnerDescription, actualExtensionTestsLocationUri, new ExtensionActivationTimesBuilder(false));
+		let testRunner = await this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(testRunnerDescription, actualExtensionTestsLocationUri, new ExtensionActivationTimesBuilder(false));
 
+		// @ts-ignore
+		if (testRunner.default) {
+			// @ts-ignore
+			testRunner = testRunner.default;
+		}
 		if (!testRunner || typeof testRunner.run !== 'function') {
 			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
 		}
