@@ -6,7 +6,7 @@
 import assert from 'assert';
 import 'mocha';
 import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands } from 'vscode';
-import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
+import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils.js';
 
 suite('chat', () => {
 
