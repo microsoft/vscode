@@ -94,10 +94,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
 
-		this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput'));
-		this.onDidChangeInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidChangeInput'));
-		this.onDidFinishInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidFinishInput'));
-		this.onDidInterrupt(() => this._logCombinedStringIfTrace('PromptInputModel#onDidInterrupt'));
+		this._register(this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput')));
+		this._register(this.onDidChangeInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidChangeInput')));
+		this._register(this.onDidFinishInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidFinishInput')));
+		this._register(this.onDidInterrupt(() => this._logCombinedStringIfTrace('PromptInputModel#onDidInterrupt')));
 	}
 
 	private _logCombinedStringIfTrace(message: string) {
