@@ -430,6 +430,7 @@ export class UtilityProcess extends Disposable {
 
 		// Treat an exit code of 15 (SIGTERM) as a normal exit
 		// if we triggered the termination from process.kill()
+
 		return this.killed && exitCode === 15 /* SIGTERM */;
 	}
 
