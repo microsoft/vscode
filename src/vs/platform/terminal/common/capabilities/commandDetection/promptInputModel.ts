@@ -111,6 +111,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._continuationPrompt = value;
 	}
 
+	setConfidentCommandLine(value: string): void {
+		if (this._value !== value) {
+			this._value = value;
+			this._onDidChangeInput.fire(this._createStateObject());
+		}
+	}
+
 	getCombinedString(): string {
 		const value = this._value.replaceAll('\n', '\u23CE');
 		if (this._cursorIndex === -1) {
@@ -151,6 +158,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (this._lastUserInput === '\u0003') {
 			this._onDidInterrupt.fire(event);
 		}
+
 
 		this._state = PromptInputState.Execute;
 		this._onDidFinishInput.fire(event);
