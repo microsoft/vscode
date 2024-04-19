@@ -1241,9 +1241,4 @@ export interface ISuggestController {
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
 	hideSuggestWidget(): void;
-	/**
-	 * Handle data written to the terminal outside of xterm.js which has no corresponding
-	 * `Terminal.onData` event.
-	 */
-	handleNonXtermData(data: string): void;
 }

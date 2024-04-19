@@ -481,10 +481,10 @@ export function registerSignatureHelpProvider(languageSelector: LanguageSelector
 export function registerHoverProvider(languageSelector: LanguageSelector, provider: languages.HoverProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.hoverProvider.register(languageSelector, {
-		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
+		provideHover: async (model: model.ITextModel, position: Position, token: CancellationToken, context?: languages.HoverContext<languages.Hover>): Promise<languages.Hover | undefined> => {
 			const word = model.getWordAtPosition(position);
 
-			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): languages.Hover | undefined => {
+			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, position, token, context)).then((value): languages.Hover | undefined => {
 				if (!value) {
 					return undefined;
 				}
@@ -810,6 +810,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 		NewSymbolNameTag: standaloneEnums.NewSymbolNameTag,
 		PartialAcceptTriggerKind: standaloneEnums.PartialAcceptTriggerKind,
+		HoverVerbosityAction: standaloneEnums.HoverVerbosityAction,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,

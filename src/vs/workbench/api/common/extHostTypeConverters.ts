@@ -945,15 +945,22 @@ export namespace DefinitionLink {
 }
 
 export namespace Hover {
-	export function from(hover: vscode.Hover): languages.Hover {
-		return <languages.Hover>{
+	export function from(hover: vscode.VerboseHover): languages.Hover {
+		const convertedHover: languages.Hover = {
 			range: Range.from(hover.range),
-			contents: MarkdownString.fromMany(hover.contents)
+			contents: MarkdownString.fromMany(hover.contents),
+			canIncreaseVerbosity: hover.canIncreaseVerbosity,
+			canDecreaseVerbosity: hover.canDecreaseVerbosity,
 		};
+		return convertedHover;
 	}
 
-	export function to(info: languages.Hover): types.Hover {
-		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
+	export function to(info: languages.Hover): types.VerboseHover {
+		const contents = info.contents.map(MarkdownString.to);
+		const range = Range.to(info.range);
+		const canIncreaseVerbosity = info.canIncreaseVerbosity;
+		const canDecreaseVerbosity = info.canDecreaseVerbosity;
+		return new types.VerboseHover(contents, range, canIncreaseVerbosity, canDecreaseVerbosity);
 	}
 }
 

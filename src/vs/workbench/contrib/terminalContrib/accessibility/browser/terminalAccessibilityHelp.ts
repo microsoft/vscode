@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -25,7 +25,7 @@ export const enum ClassName {
 	EditorTextArea = 'textarea'
 }
 
-export class TerminalAccessibilityHelpProvider extends Disposable implements IAccessibleContentProvider {
+export class TerminalAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.TerminalHelp;
 	private readonly _hasShellIntegration: boolean = false;
 	onClose() {

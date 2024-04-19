@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { ctxCommentEditorFocused } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
@@ -38,7 +38,7 @@ export namespace CommentAccessibilityHelpNLS {
 	export const submitCommentNoKb = nls.localize('submitCommentNoKb', "- Submit Comment, accessible via tabbing, as it's currently not triggerable with a keybinding.");
 }
 
-export class CommentsAccessibilityHelpProvider implements IAccessibleContentProvider {
+export class CommentsAccessibilityHelpProvider implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Comments;
 	verbositySettingKey: AccessibilityVerbositySettingId = AccessibilityVerbositySettingId.Comments;
 	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
