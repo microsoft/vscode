@@ -181,6 +181,15 @@ export class LineTokens implements IViewLineTokens {
 		return low;
 	}
 
+	public shiftTokenOffsetsBy(delta: number, newText: string): LineTokens {
+		const newTokens = new Array<number>();
+		for (let i = 0; i < this.getCount(); i++) {
+			newTokens.push(this.getEndOffset(i) + delta);
+			newTokens.push(this.getMetadata(i));
+		}
+		return new LineTokens(new Uint32Array(newTokens), newText, this._languageIdCodec);
+	}
+
 	/**
 	 * @pure
 	 * @param insertTokens Must be sorted by offset.

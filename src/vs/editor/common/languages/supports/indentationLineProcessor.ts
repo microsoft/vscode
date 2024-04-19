@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -21,34 +22,61 @@ export class ProcessedIndentRulesSupport {
 
 	private readonly _indentationLineProcessor: IndentationLineProcessor;
 	private readonly _indentRulesSupport: IndentRulesSupport;
+	private readonly _model: IVirtualModel;
 
 	constructor(
 		model: IVirtualModel,
 		indentRulesSupport: IndentRulesSupport,
 		languageConfigurationService: ILanguageConfigurationService
 	) {
+		this._model = model;
 		this._indentRulesSupport = indentRulesSupport;
 		this._indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
 	}
 
 	public shouldIncrease(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
 		return this._indentRulesSupport.shouldIncrease(processedLine);
 	}
 
 	public shouldDecrease(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
 		return this._indentRulesSupport.shouldDecrease(processedLine);
 	}
 
 	public shouldIgnore(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
 		return this._indentRulesSupport.shouldIgnore(processedLine);
 	}
 
 	public shouldIndentNextLine(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber)
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
 		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
+	}
+
+	public shouldIncreaseAfterSettingIndentation(lineNumber: number, newIndentation: string): boolean {
+		const processedLine = this._adjustIndentationForLineAndProcess(lineNumber, newIndentation);
+		return this._indentRulesSupport.shouldIncrease(processedLine);
+	}
+
+	public shouldIndentNextLineAfterSettingIndentation(lineNumber: number, newIndentation: string): boolean {
+		const processedLine = this._adjustIndentationForLineAndProcess(lineNumber, newIndentation);
+		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
+	}
+
+	public shouldDecreaseAfterSettingIndentation(lineNumber: number, newIndentation: string): boolean {
+		const processedLine = this._adjustIndentationForLineAndProcess(lineNumber, newIndentation);
+		return this._indentRulesSupport.shouldDecrease(processedLine);
+	}
+
+	private _adjustIndentationForLineAndProcess(lineNumber: number, newIndentation: string): string {
+		const currentLine = this._model.getLineContent(lineNumber);
+		const currentIndentation = strings.getLeadingWhitespace(currentLine);
+		const currentTokens = this._model.tokenization.getLineTokens(lineNumber);
+		const indentationDifference = newIndentation.length - currentIndentation.length;
+		const newLine = newIndentation + currentLine.substring(currentIndentation.length);;
+		const newTokens = currentTokens.shiftTokenOffsetsBy(indentationDifference, newLine);
+		return this._indentationLineProcessor.getProcessedLineForLineAndTokens(newLine, newTokens);
 	}
 }
 
