@@ -4018,12 +4018,13 @@ export enum TestRunProfileKind {
 }
 
 @es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest {
+export class TestRunRequest implements vscode.TestRunRequest2 {
 	constructor(
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
 		public readonly continuous = false,
+		public readonly preserveFocus = true,
 	) { }
 }
 
