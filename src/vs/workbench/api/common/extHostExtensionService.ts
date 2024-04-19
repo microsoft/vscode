@@ -755,6 +755,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		if (testRunner.default) {
 			// @ts-ignore
 			testRunner = testRunner.default;
+			// @ts-ignore
+			if (testRunner.default) {
+				// @ts-ignore
+				testRunner = testRunner.default;
+			}
 		}
 		if (!testRunner || typeof testRunner.run !== 'function') {
 			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
