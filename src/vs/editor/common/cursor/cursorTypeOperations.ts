@@ -21,7 +21,7 @@ import { getIndentationAtPosition } from 'vs/editor/common/languages/languageCon
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
+import { isOneRangeExtremityInString, getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 
 export class TypeOperations {
@@ -298,6 +298,9 @@ export class TypeOperations {
 
 	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
+			return TypeOperations._typeCommand(range, '\n', keepPosition);
+		}
+		if (isOneRangeExtremityInString(model, range)) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {

@@ -12,6 +12,8 @@ import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/languages/sup
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { Position } from 'vs/editor/common/core/position';
 
 export interface IVirtualModel {
 	tokenization: {
@@ -401,6 +403,9 @@ export function getIndentActionForType(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
+	if (isOneRangeExtremityInString(model, range)) {
+		return null;
+	}
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 
 	if (scopedLineTokens.firstCharOffset) {
@@ -459,4 +464,35 @@ export function getIndentMetadata(
 		return null;
 	}
 	return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
+}
+
+export function isOneRangeExtremityInString(model: ITextModel, range: Range): boolean {
+
+	const getStandardTokenTypeAtPosition = (position: Position): StandardTokenType => {
+
+		const lineNumber = position.lineNumber;
+		const column = position.column;
+
+		let startLineTokens: LineTokens;
+		let startColumnOfInterest: number;
+		if (model.getLineLength(lineNumber) === column - 1 && lineNumber + 1 <= model.getLineCount()) {
+			model.tokenization.forceTokenization(lineNumber + 1);
+			startLineTokens = model.tokenization.getLineTokens(lineNumber + 1);
+			startColumnOfInterest = 0;
+		} else {
+			model.tokenization.forceTokenization(lineNumber);
+			startLineTokens = model.tokenization.getLineTokens(lineNumber);
+			startColumnOfInterest = column - 1;
+		}
+		const startTokenIndex = startLineTokens.findTokenIndexAtOffset(startColumnOfInterest);
+		const startTokenType = startLineTokens.getStandardTokenType(startTokenIndex);
+		return startTokenType;
+	}
+
+	const startTokenType = getStandardTokenTypeAtPosition(range.getStartPosition());
+	const endToken = getStandardTokenTypeAtPosition(range.getEndPosition());
+	if (startTokenType === StandardTokenType.String || endToken === StandardTokenType.String) {
+		return true;
+	}
+	return false;
 }

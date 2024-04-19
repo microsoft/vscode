@@ -23,7 +23,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import * as indentUtils from 'vs/editor/contrib/indentation/common/indentUtils';
 import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
+import { isOneRangeExtremityInString, getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
 import { getReindentEditOperations } from '../common/indentation';
 
 export class IndentationToSpacesAction extends EditorAction {
@@ -418,6 +418,9 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
+			return;
+		}
+		if (isOneRangeExtremityInString(model, range)) {
 			return;
 		}
 		const autoIndent = this.editor.getOption(EditorOption.autoIndent);
