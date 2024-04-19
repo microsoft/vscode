@@ -220,7 +220,7 @@ export class InlineCompletionsController extends Disposable {
 			this._suggestWidgetAdaptor.stopForceRenderingAbove();
 		}));
 
-		const cancellationStore = new DisposableStore();
+		const cancellationStore = this._register(new DisposableStore());
 		let lastInlineCompletionId: string | undefined = undefined;
 		this._register(autorunHandleChanges({
 			handleChange: (context, changeSummary) => {
