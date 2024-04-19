@@ -360,13 +360,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 			if (otherEditorAgent) {
 				bridgeStore.clear();
-				_logService.info(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
+				_logService.debug(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
 
 			} else if (!myEditorAgent) {
 				bridgeStore.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions, data => {
 					this._lastResponsesFromBridgeAgent.set(data.id, data.response);
 				}));
-				_logService.info(`ADDED bridge agent "${agentData.id}"`);
+				_logService.debug(`ADDED bridge agent "${agentData.id}"`);
 			}
 		};
 

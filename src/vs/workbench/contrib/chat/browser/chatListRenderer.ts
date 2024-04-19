@@ -54,7 +54,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatCodeBlockContentProvider, CodeBlockPart, CodeCompareBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentMetadata, IChatAgentNameService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -71,6 +71,8 @@ import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/text
 import { TextEdit } from 'vs/editor/common/languages';
 import { IChatListItemRendererOptions } from './chat';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { autorun, constObservable, IObservable } from 'vs/base/common/observable';
+import { isUndefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -146,6 +148,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
+		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
 		super();
 
@@ -367,9 +370,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
-		let progressMsg: string = '';
+		let agentName: IObservable<string | undefined> = constObservable(undefined);
+
 		if (element.agent && !element.agent.isDefault) {
-			let usingMsg = chatAgentLeader + element.agent.name;
+			const name = element.agent.name;
+			agentName = this.chatAgentNameService.getAgentNameRestriction(element.agent)
+				.map(allowed => allowed ? name : name); // TODO
+		}
+
+		templateData.elementDisposables.add(autorun(reader => {
+			this._renderDetail(element, agentName.read(reader), templateData);
+		}));
+	}
+
+	private _renderDetail(element: IChatResponseViewModel, agentName: string | undefined, templateData: IChatListItemTemplate): void {
+		let progressMsg: string = '';
+		if (!isUndefined(agentName)) {
+			let usingMsg = chatAgentLeader + agentName;
 			if (element.slashCommand) {
 				usingMsg += ` ${chatSubcommandLeader}${element.slashCommand.name}`;
 			}
@@ -381,8 +398,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		} else if (element.agentOrSlashCommandDetected) {
 			const usingMsg: string[] = [];
-			if (element.agent && !element.agent.isDefault) {
-				usingMsg.push(chatAgentLeader + element.agent.name);
+			if (!isUndefined(agentName)) {
+				usingMsg.push(chatAgentLeader + agentName);
 			}
 			if (element.slashCommand) {
 				usingMsg.push(chatSubcommandLeader + element.slashCommand.name);
