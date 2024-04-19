@@ -752,10 +752,10 @@ export class QuickInputTree extends Disposable {
 						if (mainItem.id !== undefined) {
 							return mainItem.id;
 						}
-						let id = mainItem.label || '';
-						id += mainItem.description || '';
+						let id = `label:${mainItem.label}`;
+						id += `$$description:${mainItem.description}`;
 						if (mainItem.type !== 'separator') {
-							id += mainItem.detail || '';
+							id += `$$detail:${mainItem.detail}`;
 						}
 						return id;
 					},
