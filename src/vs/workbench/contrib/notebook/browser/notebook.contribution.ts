@@ -89,6 +89,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionSta
 import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/nullCommand';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportWarmup/viewportWarmup';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookBreakpoints';
