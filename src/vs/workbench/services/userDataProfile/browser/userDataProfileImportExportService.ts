@@ -80,6 +80,7 @@ import { WorkbenchIconSelectBox } from 'vs/workbench/services/userDataProfile/br
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import { IAccessibleViewInformationService } from 'vs/workbench/services/accessibility/common/accessibleViewInformationService';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -1126,8 +1127,9 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IHoverService hoverService: IHoverService,
+		@IAccessibleViewInformationService accessibleViewService: IAccessibleViewInformationService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService, hoverService, accessibleViewService);
 	}
 
 	protected override renderTreeView(container: HTMLElement): void {

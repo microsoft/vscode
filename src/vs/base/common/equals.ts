@@ -36,3 +36,86 @@ export function equalsIfDefined<T>(v1: T | undefined, v2: T | undefined, equals:
 	}
 	return equals(v1, v2);
 }
+
+/**
+ * Drills into arrays (items ordered) and objects (keys unordered) and uses strict equality on everything else.
+*/
+export function structuralEquals<T>(a: T, b: T): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (Array.isArray(a) && Array.isArray(b)) {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (!structuralEquals(a[i], b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	if (Object.getPrototypeOf(a) === Object.prototype && Object.getPrototypeOf(b) === Object.prototype) {
+		const aObj = a as Record<string, unknown>;
+		const bObj = b as Record<string, unknown>;
+		const keysA = Object.keys(aObj);
+		const keysB = Object.keys(bObj);
+		const keysBSet = new Set(keysB);
+
+		if (keysA.length !== keysB.length) {
+			return false;
+		}
+
+		for (const key of keysA) {
+			if (!keysBSet.has(key)) {
+				return false;
+			}
+			if (!structuralEquals(aObj[key], bObj[key])) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * `getStructuralKey(a) === getStructuralKey(b) <=> structuralEquals(a, b)`
+ * (assuming that a and b are not cyclic structures and nothing extends globalThis Array).
+*/
+export function getStructuralKey(t: unknown): string {
+	return JSON.stringify(toNormalizedJsonStructure(t));
+}
+
+let objectId = 0;
+const objIds = new WeakMap<object, number>();
+
+function toNormalizedJsonStructure(t: unknown): unknown {
+	if (Array.isArray(t)) {
+		return t.map(toNormalizedJsonStructure);
+	}
+
+	if (t && typeof t === 'object') {
+		if (Object.getPrototypeOf(t) === Object.prototype) {
+			const tObj = t as Record<string, unknown>;
+			const res: Record<string, unknown> = Object.create(null);
+			for (const key of Object.keys(tObj).sort()) {
+				res[key] = toNormalizedJsonStructure(tObj[key]);
+			}
+			return res;
+		} else {
+			let objId = objIds.get(t);
+			if (objId === undefined) {
+				objId = objectId++;
+				objIds.set(t, objId);
+			}
+			// Random string to prevent collisions
+			return objId + '----2b76a038c20c4bcc';
+		}
+	}
+	return t;
+}
