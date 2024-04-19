@@ -420,7 +420,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				' */',
 				'function a() {}'
 			].join('\n');
-			const tokens = [
+			const tokens: TokenData[][] = [
 				[
 					{ startIndex: 0, value: 1 },
 					{ startIndex: 3, value: 1 },
@@ -580,7 +580,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				' * }',
 				' */'
 			].join('\n');
-			const tokens = [
+			const tokens: TokenData[][] = [
 				[
 					{ startIndex: 0, value: 1 },
 					{ startIndex: 3, value: 1 },
@@ -732,7 +732,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-			const tokens = [
+			const tokens: TokenData[][] = [
 				[{ startIndex: 0, value: 0 }, { startIndex: 8, value: 0 }, { startIndex: 9, value: 0 }, { startIndex: 12, value: 0 }, { startIndex: 13, value: 0 }, { startIndex: 14, value: 0 }, { startIndex: 15, value: 0 }, { startIndex: 16, value: 0 }],
 				[{ startIndex: 0, value: 1 }, { startIndex: 2, value: 1 }, { startIndex: 3, value: 1 }, { startIndex: 10, value: 1 }],
 				[{ startIndex: 0, value: 0 }, { startIndex: 5, value: 0 }, { startIndex: 6, value: 0 }, { startIndex: 9, value: 0 }, { startIndex: 10, value: 0 }, { startIndex: 11, value: 0 }, { startIndex: 12, value: 0 }, { startIndex: 14, value: 0 }],
@@ -1003,7 +1003,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			const tokens = [
+			const tokens: TokenData[][] = [
 				[{ startIndex: 0, value: 1 }],
 				[{ startIndex: 0, value: 1 }],
 				[{ startIndex: 0, value: 1 }]
@@ -1399,7 +1399,7 @@ suite('Auto Indent On Type - PHP', () => {
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			const tokens = [[{ startIndex: 0, value: 0 }, { startIndex: 13, value: 2 }, { startIndex: 16, value: 0 }]];
+			const tokens: TokenData[][] = [[{ startIndex: 0, value: 0 }, { startIndex: 13, value: 2 }, { startIndex: 16, value: 0 }]];
 			registerTokens(instantiationService, tokens, languageId, disposables);
 			registerLanguage(instantiationService, languageId, Language.PHP, disposables);
 			editor.setSelection(new Selection(1, 19, 1, 19));
