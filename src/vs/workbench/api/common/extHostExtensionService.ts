@@ -746,7 +746,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		// workaround for extension tests path being a folder
 		let actualExtensionTestsLocationUri = extensionTestsLocationURI
-		if (!actualExtensionTestsLocationUri.fsPath.endsWith('.js')) {
+		if (!actualExtensionTestsLocationUri.fsPath.endsWith('.js') && !actualExtensionTestsLocationUri.fsPath.endsWith('.cjs')) {
 			actualExtensionTestsLocationUri = URI.file(actualExtensionTestsLocationUri.fsPath + '/index.js')
 		}
 		let testRunner = await this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(testRunnerDescription, actualExtensionTestsLocationUri, new ExtensionActivationTimesBuilder(false));
