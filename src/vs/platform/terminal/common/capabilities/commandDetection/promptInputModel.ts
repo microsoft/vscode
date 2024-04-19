@@ -17,6 +17,7 @@ const enum PromptInputState {
 	Unknown,
 	Input,
 	Execute,
+	Interrupt,
 }
 
 /**
@@ -125,6 +126,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._value = '';
 		this._cursorIndex = 0;
 		this._onDidStartInput.fire(this._createStateObject());
+		this._onDidChangeInput.fire(this._createStateObject());
 	}
 
 	private _handleCommandExecuted() {
@@ -132,13 +134,15 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		this._state = PromptInputState.Execute;
 		this._cursorIndex = -1;
 		const event = this._createStateObject();
-		if (this._lastUserInput === '\u0003') { // ETX end of text (ctrl+c)
+		if (this._state === PromptInputState.Interrupt) {
 			this._onDidInterrupt.fire(event);
 		}
+
+		this._state = PromptInputState.Execute;
 		this._onDidFinishInput.fire(event);
+		this._onDidChangeInput.fire(event);
 	}
 
 	@throttle(0)
@@ -210,6 +214,15 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace(`PromptInputModel#_sync: ${this.getCombinedString()}`);
+		}
+
+		// Check for an interrupt, this is verified using both the last user input and the current
+		// input.
+		if (this._lastUserInput === '\u0003') { // ETX end of text (ctrl+c)
+			if (this._value.endsWith('^C')) {
+				this._state = PromptInputState.Interrupt;
+				return;
+			}
 		}
 
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
