@@ -253,12 +253,12 @@ class TypeDefinitionAdapter {
 	}
 }
 
-const HOVER_MAP_MAX_SIZE = 10;
-
 class HoverAdapter {
 
 	private _hoverCounter: number = 0;
 	private _hoverMap: Map<number, vscode.Hover> = new Map<number, vscode.Hover>();
+
+	private static HOVER_MAP_MAX_SIZE = 10;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -294,7 +294,7 @@ class HoverAdapter {
 		const convertedHover: languages.Hover = typeConvert.Hover.from(value);
 		const id = this._hoverCounter;
 		// Check if hover map has more than 10 elements and if yes, remove oldest from the map
-		if (this._hoverMap.size === HOVER_MAP_MAX_SIZE) {
+		if (this._hoverMap.size === HoverAdapter.HOVER_MAP_MAX_SIZE) {
 			const minimumId = Math.min(...this._hoverMap.keys());
 			this._hoverMap.delete(minimumId);
 		}
