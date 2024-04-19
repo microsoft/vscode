@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -48,13 +48,8 @@ class CodeActionOracle extends Disposable {
 	}
 
 	public trigger(trigger: CodeActionTrigger): void {
-		try {
-			const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
-			this._signalChange(selection ? { trigger, selection } : undefined);
-		} finally {
-			// dispose after finishing (and after our _delay has passed)
-			setTimeout(() => this.dispose(), 300);
-		}
+		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
+		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
 
 	private _onMarkerChanges(resources: readonly URI[]): void {
@@ -168,6 +163,8 @@ export class CodeActionModel extends Disposable {
 	private readonly _onDidChangeState = this._register(new Emitter<CodeActionsState.State>());
 	public readonly onDidChangeState = this._onDidChangeState.event;
 
+	private readonly disposables = this._register(new DisposableStore());
+
 	private _disposed = false;
 
 	constructor(
@@ -234,7 +231,7 @@ export class CodeActionModel extends Disposable {
 
 				const actions = createCancelablePromise(async token => {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
-						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						const codeActionSet = this.disposables.add(await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
 							return emptyCodeActionSet;
@@ -275,7 +272,7 @@ export class CodeActionModel extends Disposable {
 										};
 
 										const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
-										const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
+										const actionsAtMarker = this.disposables.add(await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token));
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
@@ -320,7 +317,7 @@ export class CodeActionModel extends Disposable {
 							}
 						}
 					}
-					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+					const codeActionSet = this.disposables.add(await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
 					return codeActionSet;
 				});
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
@@ -342,6 +339,7 @@ export class CodeActionModel extends Disposable {
 				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
+			this.disposables.clear();
 		} else {
 			this._supportedCodeActions.reset();
 		}
