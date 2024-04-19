@@ -34,7 +34,8 @@ const enum LanguageId {
 	TypeScript = 'ts-test'
 }
 
-function registerLanguage(languageService: ILanguageService, languageId: LanguageId): IDisposable {
+function registerLanguage(instantiationService: TestInstantiationService, languageId: LanguageId): IDisposable {
+	const languageService = instantiationService.get(ILanguageService)
 	return languageService.registerLanguage({ id: languageId });
 }
 
@@ -65,7 +66,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
 		disposables.add(instantiationService);
-		disposables.add(registerLanguage(instantiationService.get(ILanguageService), languageId));
+		disposables.add(registerLanguage(instantiationService, languageId));
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
 	});
