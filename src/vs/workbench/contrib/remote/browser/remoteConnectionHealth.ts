@@ -21,6 +21,7 @@ import Severity from 'vs/base/common/severity';
 
 
 const REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY = 'remote.unsupportedConnectionChoice';
+const BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY = 'workbench.banner.remote.unsupportedConnection.dismissed';
 
 export class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
 
@@ -90,19 +91,27 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 					allowed = await this._confirmConnection();
 				}
 				if (allowed) {
-					const actions = [
-						{
-							label: localize('unsupportedGlibcBannerLearnMore', "Learn More"),
-							href: 'https://aka.ms/vscode-remote/faq/old-linux'
-						}
-					];
-					this.bannerService.show({
-						id: 'unsupportedGlibcWarning.banner',
-						message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS version that is unsupported by {0}.", this.productService.nameLong),
-						actions,
-						icon: Codicon.warning,
-						disableCloseAction: true
-					});
+					const bannerDismissedVersion = this.storageService.get(`${BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY}`, StorageScope.PROFILE) ?? '';
+					// Ignore patch versions and dismiss the banner if the major and minor versions match.
+					const shouldShowBanner = bannerDismissedVersion.slice(0, bannerDismissedVersion.lastIndexOf('.')) !== this.productService.version.slice(0, this.productService.version.lastIndexOf('.'));
+					if (shouldShowBanner) {
+						const actions = [
+							{
+								label: localize('unsupportedGlibcBannerLearnMore', "Learn More"),
+								href: 'https://aka.ms/vscode-remote/faq/old-linux'
+							}
+						];
+						this.bannerService.show({
+							id: 'unsupportedGlibcWarning.banner',
+							message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS version that is unsupported by {0}.", this.productService.nameLong),
+							actions,
+							icon: Codicon.warning,
+							closeLabel: `Do not show again in v${this.productService.version}`,
+							onClose: () => {
+								this.storageService.store(`${BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY}`, this.productService.version, StorageScope.PROFILE, StorageTarget.MACHINE);
+							}
+						});
+					}
 				} else {
 					this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
 					return;
@@ -113,7 +122,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 				owner: 'alexdima';
 				comment: 'The initial connection succeeded';
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
-				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected'; isMeasurement: true };
+				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected' };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
 			};
 			type RemoteConnectionSuccessEvent = {
@@ -136,7 +145,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 				comment: 'The initial connection failed';
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
-				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connection failure'; isMeasurement: true };
+				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connection failure' };
 				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error message' };
 			};
 			type RemoteConnectionFailureEvent = {
@@ -166,7 +175,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 			comment: 'The latency to the remote extension host';
 			web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is running on web' };
 			remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Anonymized remote name' };
-			latencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Latency to the remote, in milliseconds'; isMeasurement: true };
+			latencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Latency to the remote, in milliseconds' };
 		};
 		type RemoteConnectionLatencyEvent = {
 			web: boolean;

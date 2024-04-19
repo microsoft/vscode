@@ -11,8 +11,8 @@ import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } f
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
-import { Repository, Resource, ResourceGroupType } from './repository';
-import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
+import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
+import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
@@ -711,10 +711,13 @@ export class CommandCenter {
 		}
 
 		try {
-			const [head, rebaseOrMergeHead] = await Promise.all([
+			const [head, rebaseOrMergeHead, diffBetween] = await Promise.all([
 				repo.getCommit('HEAD'),
-				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD')
+				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD'),
+				await repo.diffBetween(isRebasing ? 'REBASE_HEAD' : 'MERGE_HEAD', 'HEAD')
 			]);
+			const diffFile = diffBetween?.find(diff => diff.uri.fsPath === uri.fsPath);
+
 			// ours (current branch and commit)
 			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
 			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
@@ -723,7 +726,11 @@ export class CommandCenter {
 			// theirs
 			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
 			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
-			incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
+			if (diffFile) {
+				incoming.uri = toGitUri(diffFile.originalUri, rebaseOrMergeHead.hash);
+			} else {
+				incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
+			}
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -1509,6 +1516,33 @@ export class CommandCenter {
 
 		const firstStagedLine = changes[index].modifiedStartLineNumber;
 		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
+	}
+
+	@command('git.diff.stageHunk')
+	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		this.diffStageHunkOrSelection(changes);
+	}
+
+	@command('git.diff.stageSelection')
+	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		this.diffStageHunkOrSelection(changes);
+	}
+
+	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		let modifiedUri = changes.modifiedUri;
+		if (!modifiedUri) {
+			const textEditor = window.activeTextEditor;
+			if (!textEditor) {
+				return;
+			}
+			const modifiedDocument = textEditor.document;
+			modifiedUri = modifiedDocument.uri;
+		}
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+		const result = changes.originalWithModifiedChanges;
+		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
 	@command('git.stageSelectedRanges', { diff: true })
@@ -4107,6 +4141,33 @@ export class CommandCenter {
 			await this.model.openRepository(unsafeRepository);
 			this.model.deleteUnsafeRepository(unsafeRepository);
 		}
+	}
+
+	@command('git.viewChanges', { repository: true })
+	async viewChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.workingTreeGroup);
+	}
+
+	@command('git.viewStagedChanges', { repository: true })
+	async viewStagedChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.indexGroup);
+	}
+
+	@command('git.viewUntrackedChanges', { repository: true })
+	async viewUnstagedChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.untrackedGroup);
+	}
+
+	private async _viewResourceGroupChanges(repository: Repository, resourceGroup: GitResourceGroup): Promise<void> {
+		if (resourceGroup.resourceStates.length === 0) {
+			return;
+		}
+
+		await commands.executeCommand('_workbench.openScmMultiDiffEditor', {
+			title: `${repository.sourceControl.label}: ${resourceGroup.label}`,
+			repositoryUri: Uri.file(repository.root),
+			resourceGroupId: resourceGroup.id
+		});
 	}
 
 	@command('git.viewCommit', { repository: true })

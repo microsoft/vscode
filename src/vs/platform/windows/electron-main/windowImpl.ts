@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebContents, Event as ElectronEvent } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -216,6 +216,49 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		super();
 	}
 
+	protected applyState(state: IWindowState, hasMultipleDisplays = screen.getAllDisplays().length > 0): void {
+
+		// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
+		// to open the window has a larger resolution than the primary display, the window will not size
+		// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
+		//
+		// Extended to cover Windows as well as Mac (https://github.com/microsoft/vscode/issues/146499)
+		//
+		// However, when running with native tabs with multiple windows we cannot use this workaround
+		// because there is a potential that the new window will be added as native tab instead of being
+		// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
+
+		const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
+		if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
+			if ([state.width, state.height, state.x, state.y].every(value => typeof value === 'number')) {
+				this._win?.setBounds({
+					width: state.width,
+					height: state.height,
+					x: state.x,
+					y: state.y
+				});
+			}
+		}
+
+		if (state.mode === WindowMode.Maximized || state.mode === WindowMode.Fullscreen) {
+
+			// this call may or may not show the window, depends
+			// on the platform: currently on Windows and Linux will
+			// show the window as active. To be on the safe side,
+			// we show the window at the end of this block.
+			this._win?.maximize();
+
+			if (state.mode === WindowMode.Fullscreen) {
+				this.setFullScreen(true, true);
+			}
+
+			// to reduce flicker from the default window size
+			// to maximize or fullscreen, we only show after
+			this._win?.show();
+		}
+	}
+
 	private representedFilename: string | undefined;
 
 	setRepresentedFilename(filename: string): void {
@@ -304,7 +347,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 	}
 
-	//#region WCO
+	//#region Window Control Overlays
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
@@ -449,6 +492,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	//#endregion
 
+	abstract matches(webContents: WebContents): boolean;
+
 	override dispose(): void {
 		super.dispose();
 
@@ -557,17 +602,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			// In case we are maximized or fullscreen, only show later
-			// after the call to maximize/fullscreen (see below)
-			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
-
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, {
-				show: !isFullscreenOrMaximized, // reduce flicker by showing later
-				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
-					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-				}
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
+				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
+				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 			});
 
 			// Create the browser window
@@ -578,46 +616,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._id = this._win.id;
 			this.setWin(this._win);
 
-			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
-			// to open the window has a larger resolution than the primary display, the window will not size
-			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
-			//
-			// Extended to cover Windows as well as Mac (https://github.com/microsoft/vscode/issues/146499)
-			//
-			// However, when running with native tabs with multiple windows we cannot use this workaround
-			// because there is a potential that the new window will be added as native tab instead of being
-			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
-			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
-			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
-			if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
-				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
-					this._win.setBounds({
-						width: this.windowState.width,
-						height: this.windowState.height,
-						x: this.windowState.x,
-						y: this.windowState.y
-					});
-				}
-			}
-
-			if (isFullscreenOrMaximized) {
-				mark('code/willMaximizeCodeWindow');
-
-				// this call may or may not show the window, depends
-				// on the platform: currently on Windows and Linux will
-				// show the window as active. To be on the safe side,
-				// we show the window at the end of this block.
-				this._win.maximize();
-
-				if (this.windowState.mode === WindowMode.Fullscreen) {
-					this.setFullScreen(true, true);
-				}
-
-				// to reduce flicker from the default window size
-				// to maximize or fullscreen, we only show after
-				this._win.show();
-				mark('code/didMaximizeCodeWindow');
-			}
+			// Apply some state after window creation
+			this.applyState(this.windowState, hasMultipleDisplays);
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
@@ -682,21 +682,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private registerListeners(): void {
 
 		// Window error conditions to handle
-		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, { ...details }));
-		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
+		this._register(Event.fromNodeEventEmitter(this._win, 'unresponsive')(() => this.onWindowError(WindowError.UNRESPONSIVE)));
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
 
 		// Prevent windows/iframes from blocking the unload
 		// through DOM events. We have our own logic for
 		// unloading a window that should not be confused
 		// with the DOM way.
 		// (https://github.com/microsoft/vscode/issues/122736)
-		this._win.webContents.on('will-prevent-unload', event => {
-			event.preventDefault();
-		});
+		this._register(Event.fromNodeEventEmitter<ElectronEvent>(this._win.webContents, 'will-prevent-unload')(event => event.preventDefault()));
 
 		// Remember that we loaded
-		this._win.webContents.on('did-finish-load', () => {
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-finish-load')(() => {
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
@@ -704,7 +702,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				this.pendingLoadConfig = undefined;
 			}
-		});
+		}));
 
 		// Window (Un)Maximize
 		this._register(this.onDidMaximize(() => {
@@ -778,9 +776,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of window error to understand the nature of the error better.' };
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
 		};
@@ -1471,6 +1469,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		});
 
 		return segments;
+	}
+
+	matches(webContents: WebContents): boolean {
+		return this._win?.webContents.id === webContents.id;
 	}
 
 	override dispose(): void {

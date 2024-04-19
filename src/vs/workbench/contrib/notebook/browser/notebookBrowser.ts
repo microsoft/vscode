@@ -128,6 +128,7 @@ export interface IGenericCellViewModel {
 	metadata: NotebookCellMetadata;
 	outputIsHovered: boolean;
 	outputIsFocused: boolean;
+	inputInOutputIsFocused: boolean;
 	outputsViewModels: ICellOutputViewModel[];
 	getOutputOffset(index: number): number;
 	updateOutputHeight(index: number, height: number, source?: string): void;
@@ -259,6 +260,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	focusedOutputId?: string | undefined;
 	outputIsHovered: boolean;
 	getText(): string;
+	getAlternativeId(): number;
 	getTextLength(): number;
 	getHeight(lineHeight: number): number;
 	metadata: NotebookCellMetadata;
@@ -274,6 +276,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	updateEditState(state: CellEditState, source: string): void;
 	deltaModelDecorations(oldDecorations: readonly string[], newDecorations: readonly IModelDeltaDecoration[]): string[];
 	getCellDecorationRange(id: string): Range | null;
+	enableAutoLanguageDetection(): void;
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {
@@ -449,6 +452,7 @@ export interface INotebookViewModel {
 	layoutInfo: NotebookLayoutInfo | null;
 	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	onDidChangeSelection: Event<string>;
+	onDidFoldingStateChanged: Event<void>;
 	getNearestVisibleCellIndexUpwards(index: number): number;
 	getTrackedRange(id: string): ICellRange | null;
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;
@@ -581,6 +585,16 @@ export interface INotebookEditor {
 	 * Copy the image in the specific cell output to the clipboard
 	 */
 	copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void>;
+	/**
+	 * Select the contents of the first focused output of the cell.
+	 * Implementation of Ctrl+A for an output item.
+	 */
+	selectOutputContent(cell: ICellViewModel): void;
+	/**
+	 * Select the active input element of the first focused output of the cell.
+	 * Implementation of Ctrl+A for an input element in an output item.
+	 */
+	selectInputContents(cell: ICellViewModel): void;
 
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 

@@ -26,7 +26,8 @@ export enum SpeechToTextStatus {
 	Started = 1,
 	Recognizing = 2,
 	Recognized = 3,
-	Stopped = 4
+	Stopped = 4,
+	Error = 5
 }
 
 export interface ISpeechToTextEvent {
@@ -68,8 +69,7 @@ export interface ISpeechService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onDidRegisterSpeechProvider: Event<ISpeechProvider>;
-	readonly onDidUnregisterSpeechProvider: Event<ISpeechProvider>;
+	readonly onDidChangeHasSpeechProvider: Event<void>;
 
 	readonly hasSpeechProvider: boolean;
 
@@ -84,7 +84,7 @@ export interface ISpeechService {
 	 * Starts to transcribe speech from the default microphone. The returned
 	 * session object provides an event to subscribe for transcribed text.
 	 */
-	createSpeechToTextSession(token: CancellationToken, context?: string): ISpeechToTextSession;
+	createSpeechToTextSession(token: CancellationToken, context?: string): Promise<ISpeechToTextSession>;
 
 	readonly onDidStartKeywordRecognition: Event<void>;
 	readonly onDidEndKeywordRecognition: Event<void>;
@@ -169,7 +169,8 @@ export const SPEECH_LANGUAGES = {
 		name: localize('speechLanguage.sv-SE', "Swedish (Sweden)")
 	},
 	['tr-TR']: {
-		name: localize('speechLanguage.tr-TR', "Turkish (Turkey)")
+		// allow-any-unicode-next-line
+		name: localize('speechLanguage.tr-TR', "Turkish (Türkiye)")
 	},
 	['zh-CN']: {
 		name: localize('speechLanguage.zh-CN', "Chinese (Simplified, China)")

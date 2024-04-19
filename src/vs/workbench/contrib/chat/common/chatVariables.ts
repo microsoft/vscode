@@ -41,6 +41,7 @@ export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
 	hasVariable(name: string): boolean;
+	getVariable(name: string): IChatVariableData | undefined;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
 
@@ -48,6 +49,7 @@ export interface IChatVariablesService {
 	 * Resolves all variables that occur in `prompt`
 	 */
 	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData>;
+	resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[]>;
 }
 
 export interface IDynamicVariable {

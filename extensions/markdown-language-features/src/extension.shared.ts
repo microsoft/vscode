@@ -20,6 +20,7 @@ import { MarkdownPreviewManager } from './preview/previewManager';
 import { ExtensionContentSecurityPolicyArbiter } from './preview/security';
 import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { MdLinkOpener } from './util/openDocumentLink';
+import { registerUpdatePastedLinks } from './languageFeatures/updateLinksOnPaste';
 
 export function activateShared(
 	context: vscode.ExtensionContext,
@@ -58,8 +59,9 @@ function registerMarkdownLanguageFeatures(
 		// Language features
 		registerDiagnosticSupport(selector, commandManager),
 		registerFindFileReferenceSupport(commandManager, client),
-		registerResourceDropOrPasteSupport(selector),
+		registerResourceDropOrPasteSupport(selector, parser),
 		registerPasteUrlSupport(selector, parser),
 		registerUpdateLinksOnRename(client),
+		registerUpdatePastedLinks(selector, client),
 	);
 }

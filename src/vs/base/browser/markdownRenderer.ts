@@ -35,6 +35,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRendererSync?: (languageId: string, value: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
+	readonly disallowRemoteImages?: boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -262,7 +263,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const htmlParser = new DOMParser();
 	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string, 'text/html');
 
-	markdownHtmlDoc.body.querySelectorAll('img')
+	markdownHtmlDoc.body.querySelectorAll('img, audio, video, source')
 		.forEach(img => {
 			const src = img.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
 			if (src) {
@@ -273,7 +274,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 					}
 				} catch (err) { }
 
-				img.src = _href(href, true);
+				img.setAttribute('src', _href(href, true));
+
+				if (options.disallowRemoteImages) {
+					const uriScheme = URI.parse(href).scheme;
+					if (uriScheme !== Schemas.file && uriScheme !== Schemas.data) {
+						img.replaceWith(DOM.$('', undefined, img.outerHTML));
+					}
+				}
 			}
 		});
 

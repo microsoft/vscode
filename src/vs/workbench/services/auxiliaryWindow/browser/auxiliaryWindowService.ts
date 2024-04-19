@@ -23,6 +23,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { coalesce } from 'vs/base/common/arrays';
+import { getZoomLevel } from 'vs/base/browser/browser';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -31,8 +33,15 @@ export interface IAuxiliaryWindowOpenEvent {
 	readonly disposables: DisposableStore;
 }
 
+export enum AuxiliaryWindowMode {
+	Maximized,
+	Normal,
+	Fullscreen
+}
+
 export interface IAuxiliaryWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
+	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
 }
 
@@ -43,6 +52,12 @@ export interface IAuxiliaryWindowService {
 	readonly onDidOpenAuxiliaryWindow: Event<IAuxiliaryWindowOpenEvent>;
 
 	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
+
+	getWindow(windowId: number): IAuxiliaryWindow | undefined;
+}
+
+export interface BeforeAuxiliaryWindowUnloadEvent {
+	veto(reason: string | undefined): void;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -50,7 +65,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly onWillLayout: Event<Dimension>;
 	readonly onDidLayout: Event<Dimension>;
 
-	readonly onBeforeUnload: Event<void>;
+	readonly onBeforeUnload: Event<BeforeAuxiliaryWindowUnloadEvent>;
 	readonly onUnload: Event<void>;
 
 	readonly whenStylesHaveLoaded: Promise<void>;
@@ -59,6 +74,8 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly container: HTMLElement;
 
 	layout(): void;
+
+	createState(): IAuxiliaryWindowOpenOptions;
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
@@ -69,7 +86,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onBeforeUnload = this._register(new Emitter<void>());
+	private readonly _onBeforeUnload = this._register(new Emitter<BeforeAuxiliaryWindowUnloadEvent>());
 	readonly onBeforeUnload = this._onBeforeUnload.event;
 
 	private readonly _onUnload = this._register(new Emitter<void>());
@@ -90,7 +107,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	) {
 		super(window, undefined, hostService, environmentService);
 
-		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => { });
+		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => undefined);
+
 		this.registerListeners();
 	}
 
@@ -119,8 +137,20 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	private handleBeforeUnload(e: BeforeUnloadEvent): void {
 
-		// Event
-		this._onBeforeUnload.fire();
+		// Check for veto from a listening component
+		let veto: string | undefined;
+		this._onBeforeUnload.fire({
+			veto(reason) {
+				if (reason) {
+					veto = reason;
+				}
+			}
+		});
+		if (veto) {
+			this.handleVetoBeforeClose(e, veto);
+
+			return;
+		}
 
 		// Check for confirm before close setting
 		const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
@@ -130,9 +160,17 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		}
 	}
 
-	protected confirmBeforeClose(e: BeforeUnloadEvent): void {
+	protected handleVetoBeforeClose(e: BeforeUnloadEvent, reason: string): void {
+		this.preventUnload(e);
+	}
+
+	protected preventUnload(e: BeforeUnloadEvent): void {
 		e.preventDefault();
 		e.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
+	}
+
+	protected confirmBeforeClose(e: BeforeUnloadEvent): void {
+		this.preventUnload(e);
 	}
 
 	private handleUnload(): void {
@@ -153,6 +191,18 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		const dimension = getClientArea(this.window.document.body, this.container);
 		this._onWillLayout.fire(dimension);
 		this._onDidLayout.fire(dimension);
+	}
+
+	createState(): IAuxiliaryWindowOpenOptions {
+		return {
+			bounds: {
+				x: this.window.screenX,
+				y: this.window.screenY,
+				width: this.window.outerWidth,
+				height: this.window.outerHeight
+			},
+			zoomLevel: getZoomLevel(this.window)
+		};
 	}
 
 	override dispose(): void {
@@ -181,7 +231,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IDialogService private readonly dialogService: IDialogService,
+		@IDialogService protected readonly dialogService: IDialogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService protected readonly hostService: IHostService,
@@ -229,7 +279,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		type AuxiliaryWindowClassification = {
 			owner: 'bpasero';
 			comment: 'An event that fires when an auxiliary window is opened';
-			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Has window bounds provided.' };
+			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Has window bounds provided.' };
 		};
 		type AuxiliaryWindowOpenEvent = {
 			bounds: boolean;
@@ -262,9 +312,9 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			height
 		};
 
-		if (newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
+		if (!options?.bounds && newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
 			// Offset the new window a bit so that it does not overlap
-			// with the active window
+			// with the active window, unless bounds are provided
 			newWindowBounds = {
 				...newWindowBounds,
 				x: newWindowBounds.x + 30,
@@ -272,7 +322,17 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			};
 		}
 
-		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${newWindowBounds.x},top=${newWindowBounds.y},width=${newWindowBounds.width},height=${newWindowBounds.height}`);
+		const features = coalesce([
+			'popup=yes',
+			`left=${newWindowBounds.x}`,
+			`top=${newWindowBounds.y}`,
+			`width=${newWindowBounds.width}`,
+			`height=${newWindowBounds.height}`,
+			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined, 	// non-standard property
+			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined 	// non-standard property
+		]);
+
+		const auxiliaryWindow = mainWindow.open('about:blank', undefined, features.join(','));
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
@@ -333,7 +393,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 	}
 
-	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
+	private applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
 		mark('code/auxiliaryWindow/willApplyCSS');
 
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
@@ -341,11 +401,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const stylesLoaded = new Barrier();
 		stylesLoaded.wait().then(() => mark('code/auxiliaryWindow/didLoadCSSStyles'));
 
-		let pendingLinkSettles = 0;
-		function onLinkSettled(_event?: globalThis.Event) {
-			// network errors from loading stylesheets will be written to the console
-			// already, we probably don't need to log them manually.
-			if (!--pendingLinkSettles) {
+		const pendingLinksDisposables = disposables.add(new DisposableStore());
+
+		let pendingLinksToSettle = 0;
+		function onLinkSettled() {
+			if (--pendingLinksToSettle === 0) {
+				pendingLinksDisposables.dispose();
 				stylesLoaded.open();
 			}
 		}
@@ -356,21 +417,28 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			}
 
 			const clonedNode = auxiliaryWindow.document.head.appendChild(originalNode.cloneNode(true));
-			if (originalNode.tagName === 'LINK') {
-				pendingLinkSettles++;
-				disposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
-				disposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
+			if (originalNode.tagName.toLowerCase() === 'link') {
+				pendingLinksToSettle++;
+
+				pendingLinksDisposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
+				pendingLinksDisposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
 			}
 
 			mapOriginalToClone.set(originalNode, clonedNode);
 		}
 
 		// Clone all style elements and stylesheet links from the window to the child window
-		pendingLinkSettles++; // outer increment handles cases where there's nothing to load, and ensures it can't settle prematurely
-		for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
-			cloneNode(originalNode);
+		// and keep track of <link> elements to settle to signal that styles have loaded
+		// Increment pending links right from the beginning to ensure we only settle when
+		// all style related nodes have been cloned.
+		pendingLinksToSettle++;
+		try {
+			for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
+				cloneNode(originalNode);
+			}
+		} finally {
+			onLinkSettled();
 		}
-		onLinkSettled();
 
 		// Global stylesheets in <head> are cloned in a special way because the mutation
 		// observer is not firing for changes done via `style.sheet` API. Only text changes
@@ -441,6 +509,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didApplyHTML');
 
 		return container;
+	}
+
+	getWindow(windowId: number): IAuxiliaryWindow | undefined {
+		return this.windows.get(windowId);
 	}
 }
 

@@ -4,7 +4,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildExtensionMedia = exports.webpackExtensions = exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromGithub = exports.fromMarketplace = void 0;
+exports.fromMarketplace = fromMarketplace;
+exports.fromGithub = fromGithub;
+exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
+exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
+exports.scanBuiltinExtensions = scanBuiltinExtensions;
+exports.translatePackageJSON = translatePackageJSON;
+exports.webpackExtensions = webpackExtensions;
+exports.buildExtensionMedia = buildExtensionMedia;
 const es = require("event-stream");
 const fs = require("fs");
 const cp = require("child_process");
@@ -213,7 +220,6 @@ function fromMarketplace(serviceUrl, { name: extensionName, version, sha256, met
         .pipe(json({ __metadata: metadata }))
         .pipe(packageJsonFilter.restore);
 }
-exports.fromMarketplace = fromMarketplace;
 function fromGithub({ name, version, repo, sha256, metadata }) {
     const json = require('gulp-json-editor');
     fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
@@ -232,7 +238,6 @@ function fromGithub({ name, version, repo, sha256, metadata }) {
         .pipe(json({ __metadata: metadata }))
         .pipe(packageJsonFilter.restore);
 }
-exports.fromGithub = fromGithub;
 const excludedExtensions = [
     'vscode-api-tests',
     'vscode-colorize-tests',
@@ -306,7 +311,6 @@ function packageLocalExtensionsStream(forWeb, disableMangle) {
     return (result
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
-exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
 function packageMarketplaceExtensionsStream(forWeb) {
     const marketplaceExtensionsDescriptions = [
         ...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
@@ -325,7 +329,6 @@ function packageMarketplaceExtensionsStream(forWeb) {
     return (marketplaceExtensionsStream
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
-exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
 function scanBuiltinExtensions(extensionsRoot, exclude = []) {
     const scannedExtensions = [];
     try {
@@ -361,7 +364,6 @@ function scanBuiltinExtensions(extensionsRoot, exclude = []) {
         return scannedExtensions;
     }
 }
-exports.scanBuiltinExtensions = scanBuiltinExtensions;
 function translatePackageJSON(packageJSON, packageNLSPath) {
     const CharCode_PC = '%'.charCodeAt(0);
     const packageNls = JSON.parse(fs.readFileSync(packageNLSPath).toString());
@@ -385,7 +387,6 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
     translate(packageJSON);
     return packageJSON;
 }
-exports.translatePackageJSON = translatePackageJSON;
 const extensionsPath = path.join(root, 'extensions');
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
@@ -459,7 +460,6 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
         }
     });
 }
-exports.webpackExtensions = webpackExtensions;
 async function esbuildExtensions(taskName, isWatch, scripts) {
     function reporter(stdError, script) {
         const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
@@ -500,5 +500,4 @@ async function buildExtensionMedia(isWatch, outputRoot) {
         outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
     })));
 }
-exports.buildExtensionMedia = buildExtensionMedia;
 //# sourceMappingURL=extensions.js.map
