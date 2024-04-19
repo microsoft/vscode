@@ -555,7 +555,7 @@ class UnixPtyHeuristics extends Disposable {
 const enum AdjustCommandStartMarkerConstants {
 	MaxCheckLineCount = 10,
 	Interval = 20,
-	MaximumPollCount = 50,
+	MaximumPollCount = 10,
 }
 
 /**
@@ -736,7 +736,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 		if (scannedLineCount < AdjustCommandStartMarkerConstants.MaxCheckLineCount) {
 			this._tryAdjustCommandStartMarkerScannedLineCount = scannedLineCount;
-			if (this._tryAdjustCommandStartMarkerPollCount < AdjustCommandStartMarkerConstants.MaximumPollCount) {
+			if (++this._tryAdjustCommandStartMarkerPollCount < AdjustCommandStartMarkerConstants.MaximumPollCount) {
 				this._tryAdjustCommandStartMarkerScheduler?.schedule();
 			} else {
 				this._flushPendingHandleCommandStartTask();
