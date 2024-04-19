@@ -148,7 +148,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._cursorIndex = -1;
 		this._ghostTextIndex = -1;
 		const event = this._createStateObject();
-		if (this._lastUserInput !== '\u0003') {
+		if (this._lastUserInput === '\u0003') {
 			this._onDidInterrupt.fire(event);
 		}
 
