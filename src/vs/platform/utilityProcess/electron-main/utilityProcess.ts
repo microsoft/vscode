@@ -315,10 +315,11 @@ export class UtilityProcess extends Disposable {
 
 		// Exit
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
-			this.log(`received exit event with code ${code}`, Severity.Info);
+			const normalizedCode = this.isNormalExit(code) ? 0 : code;
+			this.log(`received exit event with code ${normalizedCode}`, Severity.Info);
 
 			// Event
-			this._onExit.fire({ pid: this.processPid!, code: this.isNormalExit(code) ? 0 : code, signal: 'unknown' });
+			this._onExit.fire({ pid: this.processPid!, code: normalizedCode, signal: 'unknown' });
 
 			// Cleanup
 			this.onDidExitOrCrashOrKill();
