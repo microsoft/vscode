@@ -11,7 +11,7 @@ import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/
 
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { Terminal } from '@xterm/headless';
-import { strictEqual } from 'assert';
+import { notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 
 suite('PromptInputModel', () => {
@@ -76,6 +76,46 @@ suite('PromptInputModel', () => {
 		await writePromise('(command output)\r\n$ ');
 		fireCommandStart();
 		await assertPromptInput('|');
+	});
+
+	test('should not fire events when nothing changes', async () => {
+		const events: {
+			value: string;
+			cursorIndex: number;
+			ghostTextIndex: number;
+		}[] = [];
+		store.add(promptInputModel.onDidChangeInput(() => {
+			events.push({
+				value: promptInputModel.value,
+				cursorIndex: promptInputModel.cursorIndex,
+				ghostTextIndex: promptInputModel.ghostTextIndex
+			});
+		}));
+
+		await writePromise('$ ');
+		fireCommandStart();
+		await assertPromptInput('|');
+
+		await writePromise('foo');
+		await assertPromptInput('foo|');
+
+		await writePromise(' bar');
+		await assertPromptInput('foo bar|');
+
+		await writePromise('\r\n');
+		fireCommandExecuted();
+		await assertPromptInput('foo bar');
+
+		await writePromise('$ ');
+		fireCommandStart();
+		await assertPromptInput('|');
+
+		await writePromise('foo bar');
+		await assertPromptInput('foo bar|');
+
+		for (let i = 0; i < events.length - 1; i++) {
+			notDeepStrictEqual(events[i], events[i + 1], 'not adjacent events should fire with the same value');
+		}
 	});
 
 	test('cursor navigation', async () => {

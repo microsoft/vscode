@@ -141,19 +141,16 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		// Command start line
-		this._value = commandLine;
-
-		// Get cursor index
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
-		this._cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.length + 1;
-		this._ghostTextIndex = -1;
+		let value = commandLine;
+		let cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.length + 1;
+		let ghostTextIndex = -1;
 
 		// Detect ghost text by looking for italic or dim text in or after the cursor and
 		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
 		if (absoluteCursorY === commandStartY && buffer.cursorX > 1) {
 			// Ghost text in pwsh only appears to happen on the cursor line
-			this._ghostTextIndex = this._scanForGhostText(buffer, line);
+			ghostTextIndex = this._scanForGhostText(buffer, line);
 		}
 
 		// IDEA: Detect line continuation if it's not set
@@ -167,8 +164,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				// user likely just pressed enter
 				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					lineText = this._trimContinuationPrompt(lineText);
-					this._value += `\n${lineText}`;
-					this._cursorIndex += (absoluteCursorY === y
+					value += `\n${lineText}`;
+					cursorIndex += (absoluteCursorY === y
 						? this._getRelativeCursorIndex(this._getContinuationPromptCellWidth(line, lineText), buffer, line)
 						: lineText.length + 1);
 				} else {
@@ -183,7 +180,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			const lineText = line?.translateToString(true);
 			if (lineText && line) {
 				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
-					this._value += `\n${this._trimContinuationPrompt(lineText)}`;
+					value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
 					break;
 				}
@@ -194,7 +191,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			this._logService.trace(`PromptInputModel#_sync: ${this.getCombinedString()}`);
 		}
 
-		this._onDidChangeInput.fire();
+		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
+			this._value = value;
+			this._cursorIndex = cursorIndex;
+			this._ghostTextIndex = ghostTextIndex;
+			this._onDidChangeInput.fire();
+		}
 	}
 
 	/**
