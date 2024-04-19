@@ -831,7 +831,10 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
-						if (isMacintosh ? event.metaKey : event.altKey) {
+						// Don't support focusing next separator when quick navigate is enabled
+						// ref: https://github.com/microsoft/vscode/issues/210461
+						// TODO: Could we do this in a way that could play nice with quick navigate?
+						if (this.quickNavigate === undefined && (isMacintosh ? event.metaKey : event.altKey)) {
 							this.ui.list.focus(QuickInputListFocus.NextSeparator);
 						} else {
 							this.ui.list.focus(QuickInputListFocus.Next);
@@ -842,7 +845,8 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
-						if (isMacintosh ? event.metaKey : event.altKey) {
+						// Don't support focusing next separator when quick navigate is enabled
+						if (this.quickNavigate === undefined && (isMacintosh ? event.metaKey : event.altKey)) {
 							this.ui.list.focus(QuickInputListFocus.PreviousSeparator);
 						} else {
 							this.ui.list.focus(QuickInputListFocus.Previous);
