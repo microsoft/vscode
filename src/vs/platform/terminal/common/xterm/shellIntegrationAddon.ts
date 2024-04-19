@@ -403,6 +403,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 						return true;
 					}
+					case 'PromptHeight': {
+						this.capabilities.get(TerminalCapability.CommandDetection)?.setPromptHeight(parseInt(value));
+						return true;
+					}
 				}
 			}
 			case VSCodeOscPt.SetMark: {
