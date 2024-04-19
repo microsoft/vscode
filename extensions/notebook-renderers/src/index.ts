@@ -223,13 +223,13 @@ function renderError(
 	return disposableStore;
 }
 
-function createMinimalError(errorLocation: HTMLElement | undefined, headerMessage: string, stackTrace: HTMLDivElement, outputElement: HTMLElement) {
+function createMinimalError(errorLocation: string | undefined, headerMessage: string, stackTrace: HTMLDivElement, outputElement: HTMLElement) {
 	const outputDiv = document.createElement('div');
 	const headerSection = document.createElement('div');
+	headerSection.classList.add('error-output-header');
 
-	if (errorLocation) {
-		errorLocation.style.paddingRight = '12px';
-		headerSection.appendChild(errorLocation);
+	if (errorLocation && errorLocation.indexOf('<a') === 0) {
+		headerSection.innerHTML = errorLocation;
 	}
 	const header = document.createElement('span');
 	header.innerText = headerMessage;
@@ -504,10 +504,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.traceback .code-underline {
 		text-decoration: underline;
 	}
-	#container .error-output-actions ul{
+	#container ul.error-output-actions {
+		margin: 0px;
 		padding: 6px 0px 0px 6px;
 	}
-	#container .error-output-actions li{
+	#container .error-output-actions li {
 		padding: 0px 5px 0px 2px;
 		border-radius: 5px;
 		height: 22px;
@@ -515,19 +516,22 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		cursor: pointer;
 		border: solid 1px var(--vscode-notebook-cellToolbarSeparator);
 	}
-	#container .error-output-actions li.hover{
+	#container .error-output-actions li.hover {
 		background-color: var(--vscode-toolbar-hoverBackground);
 	}
-	#container .error-output-actions li:focus-within{
+	#container .error-output-actions li:focus-within {
 		border-color: var(--theme-input-focus-border-color);
 	}
 	#container .error-output-actions a:focus {
 		outline: 0;
 	}
-	#container .error-output-actions li a{
+	#container .error-output-actions li a {
 		color: var(--vscode-foreground);
 		padding: 0px 5px 0px 2px;
 		text-decoration: none;
+	}
+	#container .error-output-header a {
+		padding-right: 12px;
 	}
 	`;
 	document.body.appendChild(style);

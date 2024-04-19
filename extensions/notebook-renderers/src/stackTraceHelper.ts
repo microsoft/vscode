@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function formatStackTrace(stack: string): { formattedStack: string; errorLocation?: HTMLElement } {
+export function formatStackTrace(stack: string): { formattedStack: string; errorLocation?: string } {
 	let cleaned: string;
 	// Ansi colors are described here:
 	// https://en.wikipedia.org/wiki/ANSI_escape_code under the SGR section
@@ -49,8 +49,7 @@ type fileLocation = { kind: 'file'; path: string };
 
 type location = cellLocation | fileLocation;
 
-function linkifyStack(stack: string): { formattedStack: string; errorLocation?: HTMLElement } {
-	const parser = new DOMParser();
+function linkifyStack(stack: string): { formattedStack: string; errorLocation?: string } {
 	const lines = stack.split('\n');
 
 	let fileOrCell: location | undefined;
@@ -79,7 +78,7 @@ function linkifyStack(stack: string): { formattedStack: string; errorLocation?: 
 				kind: 'cell',
 				path: stripFormatting(original.replace(inputRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
 			};
-			const link = original.replace(inputRegex, `<a href=\'${fileOrCell.path}>\'>$<cellLabel></a>`);
+			const link = original.replace(inputRegex, `<a href=\'${fileOrCell.path}\'>$<cellLabel></a>`);
 			lines[i] = original.replace(inputRegex, `Input ${link}$<postfix>`);
 			locationLink = locationLink || link;
 
@@ -100,6 +99,6 @@ function linkifyStack(stack: string): { formattedStack: string; errorLocation?: 
 		}
 	}
 
-	const errorLocation = parser.parseFromString(locationLink, 'text/html').body.firstChild as HTMLElement;
+	const errorLocation = locationLink;
 	return { formattedStack: lines.join('\n'), errorLocation };
 }
