@@ -150,7 +150,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
 		if (absoluteCursorY === commandStartY && buffer.cursorX > 1) {
 			// Ghost text in pwsh only appears to happen on the cursor line
-			ghostTextIndex = this._scanForGhostText(buffer, line);
+			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
 		}
 
 		// IDEA: Detect line continuation if it's not set
@@ -184,6 +184,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				} else {
 					break;
 				}
+			} else {
+				break;
 			}
 		}
 
@@ -203,7 +205,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	 * Detect ghost text by looking for italic or dim text in or after the cursor and
 	 * non-italic/dim text in the cell closest non-whitespace cell before the cursor.
 	 */
-	private _scanForGhostText(buffer: IBuffer, line: IBufferLine): number {
+	private _scanForGhostText(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
 		// Check last non-whitespace character has non-ghost text styles
 		let ghostTextIndex = -1;
 		let proceedWithGhostTextCheck = false;
@@ -230,7 +232,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					break;
 				}
 				if (this._isCellStyledLikeGhostText(cell)) {
-					ghostTextIndex = this._cursorIndex + potentialGhostIndexOffset;
+					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
 				}
 				potentialGhostIndexOffset += cell.getChars().length;
