@@ -663,6 +663,9 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 	}
 
+	/**
+	 * Attempt to adjust the command start marker when input is handled for the first time.
+	 */
 	handleInput() {
 		const currentY = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 
