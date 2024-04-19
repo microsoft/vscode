@@ -10,6 +10,7 @@ export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;
 	getCount(): number;
 	getForeground(tokenIndex: number): ColorId;
+	getStartOffset(tokenIndex: number): number;
 	getEndOffset(tokenIndex: number): number;
 	getClassName(tokenIndex: number): string;
 	getInlineStyle(tokenIndex: number, colorMap: string[]): string;
@@ -18,6 +19,7 @@ export interface IViewLineTokens {
 	getLineContent(): string;
 	getMetadata(tokenIndex: number): number;
 	getLanguageId(tokenIndex: number): string;
+	getStandardTokenType(tokenIndex: number): StandardTokenType;
 }
 
 export class LineTokens implements IViewLineTokens {
@@ -297,6 +299,11 @@ class SliceLineTokens implements IViewLineTokens {
 		return this._source.getForeground(this._firstTokenIndex + tokenIndex);
 	}
 
+	public getStartOffset(tokenIndex: number): number {
+		const tokenStartOffset = this._source.getStartOffset(this._firstTokenIndex + tokenIndex);
+		return Math.max(this._startOffset, tokenStartOffset) - this._startOffset + this._deltaOffset;
+	}
+
 	public getEndOffset(tokenIndex: number): number {
 		const tokenEndOffset = this._source.getEndOffset(this._firstTokenIndex + tokenIndex);
 		return Math.min(this._endOffset, tokenEndOffset) - this._startOffset + this._deltaOffset;
@@ -316,5 +323,9 @@ class SliceLineTokens implements IViewLineTokens {
 
 	public findTokenIndexAtOffset(offset: number): number {
 		return this._source.findTokenIndexAtOffset(offset + this._startOffset - this._deltaOffset) - this._firstTokenIndex;
+	}
+
+	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+		return this._source.getStandardTokenType(this._firstTokenIndex + tokenIndex);
 	}
 }

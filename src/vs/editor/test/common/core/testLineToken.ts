@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ColorId, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
+import { ColorId, TokenMetadata, ITokenPresentation, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
  * A token on a line.
@@ -36,6 +36,10 @@ export class TestLineToken {
 
 	public getPresentation(): ITokenPresentation {
 		return TokenMetadata.getPresentationFromMetadata(this._metadata);
+	}
+
+	public getStandardTokenType(): StandardTokenType {
+		return TokenMetadata.getTokenType(this._metadata)
 	}
 
 	private static _equals(a: TestLineToken, b: TestLineToken): boolean {
@@ -83,6 +87,13 @@ export class TestLineTokens implements IViewLineTokens {
 		return this._actual[tokenIndex].getForeground();
 	}
 
+	public getStartOffset(tokenIndex: number): number {
+		if (tokenIndex > 0) {
+			return this._actual[tokenIndex - 1].endIndex + 1;
+		}
+		return 0;
+	}
+
 	public getEndOffset(tokenIndex: number): number {
 		return this._actual[tokenIndex].endIndex;
 	}
@@ -113,6 +124,10 @@ export class TestLineTokens implements IViewLineTokens {
 
 	public getLanguageId(tokenIndex: number): string {
 		throw new Error('Method not implemented.');
+	}
+
+	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+		return this._actual[tokenIndex].getStandardTokenType();
 	}
 }
 

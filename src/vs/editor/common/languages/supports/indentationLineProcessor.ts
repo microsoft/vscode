@@ -9,7 +9,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IVirtualModel } from 'vs/editor/common/languages/autoIndent';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
@@ -20,9 +20,9 @@ import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
  */
 export class ProcessedIndentRulesSupport {
 
-	private readonly _indentationLineProcessor: IndentationLineProcessor;
-	private readonly _indentRulesSupport: IndentRulesSupport;
 	private readonly _model: IVirtualModel;
+	private readonly _indentRulesSupport: IndentRulesSupport;
+	private readonly _indentationLineProcessor: IndentationLineProcessor;
 
 	constructor(
 		model: IVirtualModel,
@@ -128,19 +128,9 @@ export class IndentationContextProcessor {
 		const scopedLineLength = scopedLineContent.length;
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope + 1;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineLength + 1;
-		const firstTokenIndex = scopedLineTokens.firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(columnIndexWithinScope);
-		const lastTokenIndex = scopedLineTokens.firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(scopedLineLength - 1) + 1;
 		const line = scopedLineContent.substring(columnIndexWithinScope);
-		const languageId = scopedLineTokens.languageId;
-		const processedTokens = new ScopedLineTokens(
-			lineTokens,
-			languageId,
-			firstTokenIndex,
-			lastTokenIndex,
-			firstCharacterOffset,
-			lastCharacterOffset
-		);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(line, processedTokens);
+		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(line, slicedTokens);
 		return processedLine;
 	}
 
@@ -149,20 +139,10 @@ export class IndentationContextProcessor {
 		const columnIndexWithinScope = (range.startColumn - 1) - scopedLineTokens.firstCharOffset;
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope;
-		const firstTokenIndex = scopedLineTokens.firstTokenIndex;
-		const lastTokenIndex = scopedLineTokens.firstTokenIndex + scopedLineTokens.findTokenIndexAtOffset(columnIndexWithinScope) + 1;
-		const languageId = scopedLineTokens.languageId;
-		const processedTokens = new ScopedLineTokens(
-			lineTokens,
-			languageId,
-			firstTokenIndex,
-			lastTokenIndex,
-			firstCharacterOffset,
-			lastCharacterOffset
-		);
 		const scopedLineContent = scopedLineTokens.getLineContent();
 		const line = scopedLineContent.substring(0, columnIndexWithinScope);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(line, processedTokens);
+		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(line, slicedTokens);
 		return processedLine;
 	}
 
@@ -178,7 +158,10 @@ export class IndentationContextProcessor {
 			if (previousLineScopedLineTokens.languageId === scopedLineTokens.languageId) {
 				// The line above ends with text belonging to the same mode
 				const previousLine = previousLineScopedLineTokens.getLineContent();
-				processedPreviousLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(previousLine, previousLineScopedLineTokens);
+				const firstCharacterOffset = previousLineScopedLineTokens.firstCharOffset;
+				const lastCharacterOffset = firstCharacterOffset + previousLine.length;
+				const previousSlicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
+				processedPreviousLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(previousLine, previousSlicedTokens);
 			}
 		}
 		return processedPreviousLine;
@@ -203,7 +186,7 @@ class IndentationLineProcessor {
 		return processedLine;
 	}
 
-	getProcessedLineForLineAndTokens(line: string, tokens: LineTokens | ScopedLineTokens): string {
+	getProcessedLineForLineAndTokens(line: string, tokens: IViewLineTokens): string {
 
 		// Utility functions
 		const removeBracketsFromTokenWithIndexWithinLine = (tokenIndex: number, characterOffset: number, processedLine: string): { processedCharacterOffset: number, processedLine: string } => {
