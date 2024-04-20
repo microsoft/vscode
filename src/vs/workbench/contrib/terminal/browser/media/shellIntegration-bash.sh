@@ -182,6 +182,11 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
+__vsc_update_prompt_height() {
+	__vsc_prompt_height="$(("$(builtin printf "%s" "${PS1@P}" | wc -l)" + 1))"
+	builtin printf '\e]633;P;PromptHeight=%s\a' "$(__vsc_escape_value "$__vsc_prompt_height")"
+}
+
 __vsc_command_output_start() {
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 	builtin printf '\e]633;C\a'
@@ -229,6 +234,7 @@ __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
 	__vsc_update_prompt
+	__vsc_update_prompt_height
 	__vsc_first_prompt=1
 }
 

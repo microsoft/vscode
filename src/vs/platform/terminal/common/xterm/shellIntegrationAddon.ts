@@ -40,7 +40,7 @@ import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 /**
  * The identifier for the first numeric parameter (`Ps`) for OSC commands used by shell integration.
  */
-const enum ShellIntegrationOscPs {
+export const enum ShellIntegrationOscPs {
 	/**
 	 * Sequences pioneered by FinalTerm.
 	 */
@@ -401,6 +401,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					case 'Task': {
 						this._createOrGetBufferMarkDetection(this._terminal);
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
+						return true;
+					}
+					case 'PromptHeight': {
+						this.capabilities.get(TerminalCapability.CommandDetection)?.setPromptHeight(parseInt(value));
 						return true;
 					}
 				}

@@ -52,12 +52,12 @@ if ($env:VSCODE_ENV_APPEND) {
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
-	[regex]::Replace($value, '[\\\n;]', { param($match)
+	[regex]::Replace($value, "[$([char]0x1b)\\\n;]", { param($match)
 			# Encode the (ascii) matches as `\x<hex>`
 			-Join (
 				[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
 			)
-		}) -replace "`e", '\x1b'
+		})
 }
 
 function Global:Prompt() {
@@ -90,7 +90,13 @@ function Global:Prompt() {
 		Write-Error "failure" -ea ignore
 	}
 	# Run the original prompt
-	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
+	$OriginalPrompt += $Global:__VSCodeOriginalPrompt.Invoke()
+	$Result += $OriginalPrompt
+
+	# Prompt height
+	# OSC 633 ; <Property>=<Value> ST
+	$Result += "$([char]0x1b)]633;P;PromptHeight=$(__VSCode-Escape-Value ($OriginalPrompt -Split '\n').Count)`a"
+
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
 	$Global:__LastHistoryId = $LastHistoryEntry.Id
