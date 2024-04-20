@@ -147,8 +147,8 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 		}
 		this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>('entitlements.enabled', { enabled: true });
 		this.isInitialized = true;
-		const orgs = parsedResult['organization_login_list'] as any[];
-		return [true, orgs ? orgs[orgs.length - 1] : undefined];
+		const orgs: { login: string; name: string }[] = parsedResult['organization_list'] as { login: string; name: string }[];
+		return [true, orgs && orgs.length > 0 ? (orgs[0].name ? orgs[0].name : orgs[0].login) : undefined];
 	}
 
 	private async enableEntitlements(session: AuthenticationSession) {
