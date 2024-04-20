@@ -7,13 +7,12 @@ import { WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,11 +23,9 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { InlineChatFileCreatePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatFileCreationWidget';
 import { HunkInformation, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
 import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -38,6 +35,8 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TextEdit } from 'vs/editor/common/languages';
+import { isEqual } from 'vs/base/common/resources';
 
 export interface IEditObserver {
 	start(): void;
@@ -74,7 +73,38 @@ export abstract class EditModeStrategy {
 		this._store.dispose();
 	}
 
-	abstract apply(): Promise<void>;
+	async apply(): Promise<void> {
+
+		if (this._session.lastExchange?.response instanceof ReplyResponse) {
+			const { untitledTextModel } = this._session.lastExchange.response;
+			if (untitledTextModel && !untitledTextModel.isDisposed()) {
+
+				await untitledTextModel.resolve();
+				if (!untitledTextModel.textEditorModel) {
+					return;
+				}
+
+				// TODO@jrieken
+				// apply changes only when not dirty. This is very proper and needs to
+				// fixed in the future
+				if (!untitledTextModel.isDirty()) {
+					const allEdits: TextEdit[] = [];
+					for (const request of this._session.chatModel.getRequests()) {
+						for (const item of request.response?.response.value ?? []) {
+							if (item.kind === 'textEdit' && isEqual(item.uri, untitledTextModel.resource)) {
+								allEdits.push(...item.edits);
+							}
+						}
+					}
+					untitledTextModel.textEditorModel.pushStackElement();
+					untitledTextModel.textEditorModel.pushEditOperations(null, allEdits.map(TextEdit.asEditOperation), () => null);
+					untitledTextModel.textEditorModel.pushStackElement();
+				}
+
+				await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
+			}
+		}
+	}
 
 	cancel() {
 		return this._session.hunkData.discardAll();
@@ -140,7 +170,6 @@ export abstract class EditModeStrategy {
 export class PreviewStrategy extends EditModeStrategy {
 
 	private readonly _ctxDocumentChanged: IContextKey<boolean>;
-	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 
 	constructor(
 		session: Session,
@@ -148,7 +177,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
 
@@ -160,50 +188,40 @@ export class PreviewStrategy extends EditModeStrategy {
 				this._ctxDocumentChanged.set(session.hasChangedText);
 			}
 		}, undefined, this._store);
-
-		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 	}
 
 	override dispose(): void {
 		this._ctxDocumentChanged.reset();
-		this._previewZone.rawValue?.dispose();
 		super.dispose();
 	}
 
-	async apply() {
+	override async apply() {
 
-		// (1) ensure the editor still shows the original text
-		// (2) accept all pending hunks (moves changes from N to 0)
-		// (3) replace editor model with textModel0
+		// apply all edits from all responses
 		const textModel = this._editor.getModel();
 		if (textModel?.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
 
-			this._session.hunkData.getInfo().forEach(item => item.acceptChanges());
-
-			const newText = this._session.textModel0.getValue();
-			const range = textModel.getFullModelRange();
-
-			textModel.pushStackElement();
-			textModel.pushEditOperations(null, [EditOperation.replace(range, newText)], () => null);
-			textModel.pushStackElement();
-		}
-
-		if (this._session.lastExchange?.response instanceof ReplyResponse) {
-			const { untitledTextModel } = this._session.lastExchange.response;
-			if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
-				await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
+			const allEdits: TextEdit[] = [];
+			for (const request of this._session.chatModel.getRequests()) {
+				for (const item of request.response?.response.value ?? []) {
+					if (item.kind === 'textEdit' && isEqual(item.uri, textModel.uri)) {
+						allEdits.push(...item.edits);
+					}
+				}
 			}
+
+			textModel.pushStackElement();
+			textModel.pushEditOperations(null, allEdits.map(TextEdit.asEditOperation), () => null);
+			textModel.pushStackElement();
 		}
+
+		await super.apply();
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
-		return this._makeChanges(edits, obs, undefined, undefined);
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
-		await this._makeChanges(edits, obs, opts, new Progress<any>(() => {
-			this._zone.widget.showEditsPreview(this._session.hunkData, this._session.textModel0, this._session.textModelN);
-		}));
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
@@ -212,17 +230,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async renderChanges(response: ReplyResponse): Promise<undefined> {
-		if (response.allLocalEdits.length > 0) {
-			this._zone.widget.showEditsPreview(this._session.hunkData, this._session.textModel0, this._session.textModelN);
-		} else {
-			this._zone.widget.hideEditsPreview();
-		}
 
-		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
-		} else {
-			this._previewZone.rawValue?.hide();
-		}
 	}
 
 	hasFocus(): boolean {
@@ -279,8 +287,6 @@ export class LiveStrategy extends EditModeStrategy {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	});
 
-	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
-
 	private readonly _ctxCurrentChangeHasDiff: IContextKey<boolean>;
 	private readonly _ctxCurrentChangeShowsDiff: IContextKey<boolean>;
 
@@ -297,20 +303,17 @@ export class LiveStrategy extends EditModeStrategy {
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
 		this._ctxCurrentChangeHasDiff = CTX_INLINE_CHAT_CHANGE_HAS_DIFF.bindTo(contextKeyService);
 		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
 		this._progressiveEditingDecorations = this._editor.createDecorationsCollection();
-		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 
 	}
 
 	override dispose(): void {
 		this._resetDiff();
-		this._previewZone.rawValue?.dispose();
 		super.dispose();
 	}
 
@@ -326,18 +329,12 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	async apply() {
+	override async apply() {
 		this._resetDiff();
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
-		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
-			return;
-		}
-		const { untitledTextModel } = this._session.lastExchange.response;
-		if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
-			await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
-		}
+		await super.apply();
 	}
 
 	override cancel() {
@@ -380,12 +377,6 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
 
 	override async renderChanges(response: ReplyResponse) {
-
-		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
-		} else {
-			this._previewZone.rawValue?.hide();
-		}
 
 		this._progressiveEditingDecorations.clear();
 

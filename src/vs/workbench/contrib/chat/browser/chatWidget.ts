@@ -14,6 +14,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
+import 'vs/css!./media/chatHover';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -621,7 +622,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.requestInProgress.set(this.viewModel.requestInProgress);
 
 			this.onDidChangeItems();
-			if (events.some(e => e?.kind === 'addRequest')) {
+			if (events.some(e => e?.kind === 'addRequest') && this.visible) {
 				revealLastElement(this.tree);
 				this.focusInput();
 			}

@@ -8,8 +8,8 @@ import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simp
 import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { combinedDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { editorSuggestWidgetSelectedBackground } from 'vs/editor/contrib/suggest/browser/suggestWidget';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -20,11 +20,9 @@ import { ISuggestController } from 'vs/workbench/contrib/terminal/browser/termin
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
-
-const enum ShellIntegrationOscPs {
-	// TODO: Pull from elsewhere
-	VSCode = 633
-}
+import { TerminalCapability, type ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import type { IPromptInputModel, IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
+import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 
 const enum VSCodeOscPt {
 	Completions = 'Completions',
@@ -73,14 +71,22 @@ const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
+
+	private _promptInputModel?: IPromptInputModel;
+	private readonly _promptInputModelSubscriptions = this._register(new MutableDisposable());
+
+	private _mostRecentPromptInputState?: IPromptInputModelState;
+	private _initialPromptInputState?: IPromptInputModelState;
+	private _currentPromptInputState?: IPromptInputModelState;
+
 	private _panel?: HTMLElement;
 	private _screen?: HTMLElement;
 	private _suggestWidget?: SimpleSuggestWidget;
 	private _enableWidget: boolean = true;
+
+	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
-	private _additionalInput?: string;
 	private _cursorIndexDelta: number = 0;
-	private _inputQueue?: string[];
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -88,19 +94,35 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
 	constructor(
+		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+
+		this._register(Event.runAndSubscribe(Event.any(
+			this._capabilities.onDidAddCapabilityType,
+			this._capabilities.onDidRemoveCapabilityType
+		), () => {
+			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+			if (commandDetection) {
+				if (this._promptInputModel !== commandDetection.promptInputModel) {
+					this._promptInputModel = commandDetection.promptInputModel;
+					this._promptInputModelSubscriptions.value = combinedDisposable(
+						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
+						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget()),
+					);
+				}
+			} else {
+				this._promptInputModel = undefined;
+			}
+		}));
 	}
 
 	activate(xterm: Terminal): void {
 		this._terminal = xterm;
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
 			return this._handleVSCodeSequence(data);
-		}));
-		this._register(xterm.onData(e => {
-			this._handleTerminalInput(e);
 		}));
 	}
 
@@ -110,6 +132,45 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	setScreen(screen: HTMLElement): void {
 		this._screen = screen;
+	}
+
+	private _sync(promptInputState: IPromptInputModelState): void {
+		this._mostRecentPromptInputState = promptInputState;
+		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || !this._initialPromptInputState) {
+			return;
+		}
+
+		this._currentPromptInputState = promptInputState;
+
+		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
+			const inputBeforeCursor = this._currentPromptInputState.value.substring(0, this._currentPromptInputState.cursorIndex);
+			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
+
+			this._suggestWidget.setLineContext(new LineContext(inputBeforeCursor, this._cursorIndexDelta));
+		}
+
+		// Hide and clear model if there are no more items
+		if (!this._suggestWidget.hasCompletions()) {
+			this.hideSuggestWidget();
+			// TODO: Don't request every time; refine completions
+			// this._onAcceptedCompletion.fire('\x1b[24~e');
+			return;
+		}
+
+		// TODO: Expose on xterm.js
+		const dimensions = this._getTerminalDimensions();
+		if (!dimensions.width || !dimensions.height) {
+			return;
+		}
+		// TODO: What do frozen and auto do?
+		const xtermBox = this._screen!.getBoundingClientRect();
+		const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
+
+		this._suggestWidget.showSuggestions(0, false, false, {
+			left: (xtermBox.left - panelBox.left) + this._terminal.buffer.active.cursorX * dimensions.width,
+			top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
+			height: dimensions.height
+		});
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {
@@ -277,7 +338,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _handleCompletionModel(model: SimpleCompletionModel): void {
-		if (model.items.length === 0 || !this._terminal?.element) {
+		if (model.items.length === 0 || !this._terminal?.element || !this._promptInputModel) {
 			return;
 		}
 		if (model.items.length === 1) {
@@ -288,7 +349,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
-		this._additionalInput = undefined;
 		const dimensions = this._getTerminalDimensions();
 		if (!dimensions.width || !dimensions.height) {
 			return;
@@ -296,21 +356,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
 		const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
+		this._initialPromptInputState = {
+			value: this._promptInputModel.value,
+			cursorIndex: this._promptInputModel.cursorIndex,
+			ghostTextIndex: this._promptInputModel.ghostTextIndex
+		};
 		suggestWidget.setCompletionModel(model);
 		suggestWidget.showSuggestions(0, false, false, {
 			left: (xtermBox.left - panelBox.left) + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		});
-
-		// Flush the input queue if any characters were typed after a trigger character
-		if (this._inputQueue) {
-			const inputQueue = this._inputQueue;
-			this._inputQueue = undefined;
-			for (const data of inputQueue) {
-				this._handleTerminalInput(data);
-			}
-		}
 	}
 
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
@@ -328,7 +384,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}));
 			this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e));
 			this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.set(false));
-			this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true));
+			this._suggestWidget.onDidShow(() => {
+				this._initialPromptInputState = {
+					value: this._promptInputModel!.value,
+					cursorIndex: this._promptInputModel!.cursorIndex,
+					ghostTextIndex: this._promptInputModel!.ghostTextIndex
+				};
+				this._terminalSuggestWidgetVisibleContextKey.set(true);
+			});
 		}
 		return this._suggestWidget;
 	}
@@ -353,133 +416,39 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!suggestion) {
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
-		if (suggestion && this._leadingLineContent) {
-			this._suggestWidget?.hide();
-
-			// Send the completion
-			this._onAcceptedCompletion.fire([
-				// Disable suggestions
-				'\x1b[24~y',
-				// Right arrow to the end of the additional input
-				'\x1b[C'.repeat(Math.max((this._additionalInput?.length ?? 0) - this._cursorIndexDelta, 0)),
-				// Backspace to remove additional input
-				'\x7F'.repeat(this._additionalInput?.length ?? 0),
-				// Backspace to remove the replacement
-				'\x7F'.repeat(suggestion.model.replacementLength),
-				// Write the completion
-				suggestion.item.completion.label,
-				// Enable suggestions
-				'\x1b[24~z',
-			].join(''));
+		const initialPromptInputState = this._initialPromptInputState ?? this._mostRecentPromptInputState;
+		if (!suggestion || !initialPromptInputState) {
+			return;
 		}
+		this._suggestWidget?.hide();
+
+		const currentPromptInputState = this._currentPromptInputState ?? initialPromptInputState;
+		const additionalInput = currentPromptInputState.value.substring(initialPromptInputState.cursorIndex, currentPromptInputState.cursorIndex);
+
+		// We could start from a common prefix to reduce the number of characters we need to send
+		const initialInput = initialPromptInputState.value.substring(0, initialPromptInputState.cursorIndex);
+		const lastSpaceIndex = initialInput.lastIndexOf(' ');
+		const finalCompletion = suggestion.item.completion.label.substring(initialPromptInputState.cursorIndex - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+
+		// Send the completion
+		this._onAcceptedCompletion.fire([
+			// Disable suggestions
+			'\x1b[24~y',
+			// Backspace to remove all additional input
+			'\x7F'.repeat(additionalInput.length),
+			// Write the completion
+			finalCompletion,
+			// Enable suggestions
+			'\x1b[24~z',
+		].join(''));
+
+		this.hideSuggestWidget();
 	}
 
 	hideSuggestWidget(): void {
+		this._initialPromptInputState = undefined;
+		this._currentPromptInputState = undefined;
 		this._suggestWidget?.hide();
-	}
-
-	handleNonXtermData(data: string): void {
-		this._handleTerminalInput(data);
-	}
-
-	private _handleTerminalInput(data: string): void {
-		if (!this._terminal || !this._enableWidget || !this._terminalSuggestWidgetVisibleContextKey.get()) {
-			// HACK: Buffer any input to be evaluated when the completions come in, this is needed
-			// because conpty may "render" the completion request after input characters that
-			// actually come after it. This can happen when typing quickly after a trigger
-			// character, especially on a freshly launched session.
-			if (data === '-') {
-				this._inputQueue = [];
-			} else {
-				this._inputQueue?.push(data);
-			}
-
-			return;
-		}
-		let handled = false;
-		let handledCursorDelta = 0;
-
-		// Backspace
-		if (data === '\x7f') {
-			if (this._additionalInput && this._additionalInput.length > 0 && this._cursorIndexDelta > 0) {
-				handled = true;
-				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta - 1) + this._additionalInput.substring(this._cursorIndexDelta);
-				this._cursorIndexDelta--;
-				handledCursorDelta--;
-			}
-		}
-		// Delete
-		if (data === '\x1b[3~') {
-			if (this._additionalInput && this._additionalInput.length > 0 && this._cursorIndexDelta < this._additionalInput.length - 1) {
-				handled = true;
-				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta) + this._additionalInput.substring(this._cursorIndexDelta + 1);
-			}
-		}
-		// Left
-		if (data === '\x1b[D') {
-			// If left goes beyond where the completion was requested, hide
-			if (this._cursorIndexDelta > 0) {
-				handled = true;
-				this._cursorIndexDelta--;
-				handledCursorDelta--;
-			}
-		}
-		// Right
-		if (data === '\x1b[C') {
-			// If right requests beyond where the completion was requested (potentially accepting a shell completion), hide
-			if (this._additionalInput?.length !== this._cursorIndexDelta) {
-				handled = true;
-				this._cursorIndexDelta++;
-				handledCursorDelta++;
-			}
-		}
-		if (data.match(/^[a-z0-9]$/i)) {
-
-			// TODO: There is a race here where the completions may come through after new character presses because of conpty's rendering!
-
-			handled = true;
-			if (this._additionalInput === undefined) {
-				this._additionalInput = '';
-			}
-			this._additionalInput += data;
-			this._cursorIndexDelta++;
-			handledCursorDelta++;
-		}
-		if (handled) {
-			// typed -> moved cursor RIGHT -> update UI
-			if (this._terminalSuggestWidgetVisibleContextKey.get()) {
-				this._suggestWidget?.setLineContext(new LineContext(this._leadingLineContent! + (this._additionalInput ?? ''), this._additionalInput?.length ?? 0));
-			}
-
-			// Hide and clear model if there are no more items
-			if ((this._suggestWidget as any)._completionModel?.items.length === 0) {
-				this._additionalInput = undefined;
-				this.hideSuggestWidget();
-				// TODO: Don't request every time; refine completions
-				// this._onAcceptedCompletion.fire('\x1b[24~e');
-				return;
-			}
-
-			// TODO: Expose on xterm.js
-			const dimensions = this._getTerminalDimensions();
-			if (!dimensions.width || !dimensions.height) {
-				return;
-			}
-			// TODO: What do frozen and auto do?
-			const xtermBox = this._screen!.getBoundingClientRect();
-			const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
-
-			this._suggestWidget?.showSuggestions(0, false, false, {
-				left: (xtermBox.left - panelBox.left) + (this._terminal.buffer.active.cursorX + handledCursorDelta) * dimensions.width,
-				top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
-				height: dimensions.height
-			});
-		} else {
-			this._additionalInput = undefined;
-			this.hideSuggestWidget();
-			// TODO: Don't request every time; refine completions
-			// this._onAcceptedCompletion.fire('\x1b[24~e');
-		}
 	}
 }
 

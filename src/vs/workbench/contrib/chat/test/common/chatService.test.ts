@@ -36,6 +36,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 	name: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
 	extensionPublisher: '',
+	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
 	metadata: {},
 	slashCommands: [],
@@ -90,8 +91,8 @@ suite('ChatService', () => {
 				return {};
 			},
 		} satisfies IChatAgentImplementation;
-		testDisposables.add(chatAgentService.registerAgent('testAgent', { name: 'testAgent', id: 'testAgent', isDefault: true, extensionId: nullExtensionDescription.identifier, extensionPublisher: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
-		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, { name: chatAgentWithUsedContextId, id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier, extensionPublisher: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
+		testDisposables.add(chatAgentService.registerAgent('testAgent', { name: 'testAgent', id: 'testAgent', isDefault: true, extensionId: nullExtensionDescription.identifier, extensionPublisher: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
+		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, { name: chatAgentWithUsedContextId, id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier, extensionPublisher: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
 		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' }, fullName: 'test' });
 	});
@@ -163,7 +164,7 @@ suite('ChatService', () => {
 
 			await response.responseCompletePromise;
 
-			serializedChatData = chatModel1.toJSON();
+			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
 		}
 
 		// try deserializing the state into a new service

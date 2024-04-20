@@ -813,6 +813,7 @@ export class InlineChatController implements IEditorContribution {
 			// show error
 			if (!response.isCancellation) {
 				this._zone.value.widget.updateStatus(response.message, { classes: ['error'] });
+				this._strategy?.cancel();
 			}
 
 		} else if (response instanceof ReplyResponse) {
@@ -1106,20 +1107,6 @@ export class InlineChatController implements IEditorContribution {
 
 	toggleDiff() {
 		this._strategy?.toggleDiff?.();
-	}
-
-	reportBug() {
-		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
-			const response = this._session.lastExchange.response.chatResponse;
-			this._chatService.notifyUserAction({
-				sessionId: response.session.sessionId,
-				requestId: response.requestId,
-				agentId: response.agent?.id,
-				result: response.result,
-				action: { kind: 'bug' }
-			});
-			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
-		}
 	}
 
 	createSnapshot(): void {

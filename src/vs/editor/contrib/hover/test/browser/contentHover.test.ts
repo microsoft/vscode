@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import { IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { TestCodeEditorInstantiationOptions, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 

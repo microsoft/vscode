@@ -380,11 +380,7 @@ export class ReplyResponse {
 					languageId: langSelection.languageId
 				});
 				this.untitledTextModel = untitledTextModel;
-
-				untitledTextModel.resolve().then(async () => {
-					const model = untitledTextModel.textEditorModel!;
-					model.applyEdits(flatEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-				});
+				untitledTextModel.resolve();
 			}
 		}
 

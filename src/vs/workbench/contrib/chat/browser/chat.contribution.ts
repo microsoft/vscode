@@ -42,7 +42,7 @@ import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget'
 import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/codeBlockContextProviderService';
 import 'vs/workbench/contrib/chat/browser/contrib/chatHistoryVariables';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
-import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, ChatAgentService, IChatAgentService, IChatAgentNameService, ChatAgentNameService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -257,23 +257,26 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				if (isMarkdownString(defaultAgent.metadata.helpTextPrefix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'markdownContent' });
 				} else {
-					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'content' });
+					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextPrefix), kind: 'markdownContent' });
 				}
-				progress.report({ content: '\n\n', kind: 'content' });
+				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
 			}
 
 			// Report agent list
 			const agentText = (await Promise.all(agents
 				.filter(a => a.id !== defaultAgent?.id)
+				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const agentWithLeader = `${chatAgentLeader}${a.name}`;
 					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
-					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${a.description}`;
+					const description = a.description ? `- ${a.description}` : '';
+					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) ${description}`;
 					const commandText = a.slashCommands.map(c => {
 						const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${chatSubcommandLeader}${c.name} ${c.sampleRequest ?? ''}` };
 						const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
-						return `\t* [\`${chatSubcommandLeader}${c.name}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${c.description}`;
+						const description = c.description ? `- ${c.description}` : '';
+						return `\t* [\`${chatSubcommandLeader}${c.name}\`](command:${SubmitAction.ID}?${urlSafeArg}) ${description}`;
 					}).join('\n');
 
 					return (agentLine + '\n' + commandText).trim();
@@ -282,11 +285,11 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 			// Report variables
 			if (defaultAgent?.metadata.helpTextVariablesPrefix) {
-				progress.report({ content: '\n\n', kind: 'content' });
+				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
 				if (isMarkdownString(defaultAgent.metadata.helpTextVariablesPrefix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'markdownContent' });
 				} else {
-					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'content' });
+					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextVariablesPrefix), kind: 'markdownContent' });
 				}
 
 				const variables = [
@@ -296,16 +299,16 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				const variableText = variables
 					.map(v => `* \`${chatVariableLeader}${v.name}\` - ${v.description}`)
 					.join('\n');
-				progress.report({ content: '\n' + variableText, kind: 'content' });
+				progress.report({ content: new MarkdownString('\n' + variableText), kind: 'markdownContent' });
 			}
 
 			// Report help text ending
 			if (defaultAgent?.metadata.helpTextPostfix) {
-				progress.report({ content: '\n\n', kind: 'content' });
+				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
 				if (isMarkdownString(defaultAgent.metadata.helpTextPostfix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextPostfix, kind: 'markdownContent' });
 				} else {
-					progress.report({ content: defaultAgent.metadata.helpTextPostfix, kind: 'content' });
+					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextPostfix), kind: 'markdownContent' });
 				}
 			}
 		}));
@@ -339,6 +342,7 @@ registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, Instantia
 registerSingleton(ILanguageModelsService, LanguageModelsService, InstantiationType.Delayed);
 registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
+registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);

@@ -298,14 +298,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 				if (!fakeProviders.has(agent.id)) {
 					fakeProviders.set(agent.id, _inlineChatService.addProvider(_instaService.createInstance(AgentInlineChatProvider, agent)));
-					this._logService.info(`ADDED inline chat provider for agent ${agent.id}`);
+					this._logService.debug(`ADDED inline chat provider for agent ${agent.id}`);
 				}
 			}
 
 			for (const [id] of fakeProviders) {
 				if (!providersNow.has(id)) {
 					fakeProviders.deleteAndDispose(id);
-					this._logService.info(`REMOVED inline chat provider for agent ${id}`);
+					this._logService.debug(`REMOVED inline chat provider for agent ${id}`);
 				}
 			}
 		}));
@@ -318,6 +318,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				name: 'editor',
 				extensionId: nullExtensionDescription.identifier,
 				extensionPublisher: '',
+				extensionDisplayName: '',
 				isDefault: true,
 				locations: [ChatAgentLocation.Editor],
 				get slashCommands(): IChatAgentCommand[] {
@@ -360,13 +361,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 			if (otherEditorAgent) {
 				bridgeStore.clear();
-				_logService.info(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
+				_logService.debug(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
 
 			} else if (!myEditorAgent) {
 				bridgeStore.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions, data => {
 					this._lastResponsesFromBridgeAgent.set(data.id, data.response);
 				}));
-				_logService.info(`ADDED bridge agent "${agentData.id}"`);
+				_logService.debug(`ADDED bridge agent "${agentData.id}"`);
 			}
 		};
 
@@ -506,7 +507,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							} else if (item.kind === 'textEdit') {
 								for (const edit of item.edits) {
 									raw.edits.edits.push({
-										resource: session.textModelN.uri,
+										resource: item.uri,
 										textEdit: edit,
 										versionId: undefined
 									});
@@ -570,19 +571,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const id = generateUuid();
 		const targetUri = textModel.uri;
 
-		let textModelN: ITextModel;
-		if (options.editMode === EditMode.Preview) {
-			// AI edits happen in a copy
-			textModelN = store.add(this._modelService.createModel(
-				createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
-				{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-				targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: '', query: new URLSearchParams({ id, 'textModelN': '' }).toString() })
-			));
-		} else {
-			// AI edits happen in the actual model, keep a reference but make no copy
-			store.add((await this._textModelService.createModelReference(textModel.uri)));
-			textModelN = textModel;
-		}
+		// AI edits happen in the actual model, keep a reference but make no copy
+		store.add((await this._textModelService.createModelReference(textModel.uri)));
+		const textModelN = textModel;
 
 		// create: keep a snapshot of the "actual" model
 		const textModel0 = store.add(this._modelService.createModel(

@@ -33,6 +33,7 @@
           _lower: "nullextensiondescription"
         },
         extensionPublisher: "",
+        extensionDisplayName: "",
         locations: [ "panel" ],
         metadata: {  },
         slashCommands: [
