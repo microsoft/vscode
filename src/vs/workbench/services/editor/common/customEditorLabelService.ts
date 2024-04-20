@@ -13,6 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { MRUCache } from 'vs/base/common/map';
 
 interface ICustomEditorLabelObject {
 	readonly [key: string]: string;
@@ -39,6 +40,8 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	private patterns: ICustomEditorLabelPattern[] = [];
 	private enabled = true;
 
+	private cache = new MRUCache<string, string | null>(1000);
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -64,6 +67,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 			// Cache the patterns
 			else if (e.affectsConfiguration(CustomEditorLabelService.SETTING_ID_PATTERNS)) {
+				this.cache.clear();
 				this.storeCustomPatterns();
 				this._onDidChange.fire();
 			}
@@ -112,17 +116,23 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	}
 
 	getName(resource: URI): string | undefined {
-		if (!this.enabled) {
+		if (!this.enabled || this.patterns.length === 0) {
 			return undefined;
 		}
-		return this.applyPatterns(resource);
+
+		const key = resource.toString();
+		const cached = this.cache.get(key);
+		if (cached !== undefined) {
+			return cached ?? undefined;
+		}
+
+		const result = this.applyPatterns(resource);
+		this.cache.set(key, result ?? null);
+
+		return result;
 	}
 
 	private applyPatterns(resource: URI): string | undefined {
-		if (this.patterns.length === 0) {
-			return undefined;
-		}
-
 		const root = this.workspaceContextService.getWorkspaceFolder(resource);
 		let relativePath: string | undefined;
 

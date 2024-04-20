@@ -123,7 +123,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 
-	$countTokens(provider: string, value: string, token: CancellationToken): Promise<number> {
+	$countTokens(provider: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
 		return this._chatProviderService.computeTokenLength(provider, value, token);
 	}
 
