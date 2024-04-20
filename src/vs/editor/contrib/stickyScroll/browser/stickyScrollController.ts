@@ -94,8 +94,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				|| e.hasChanged(EditorOption.minimap)
 				|| e.hasChanged(EditorOption.lineHeight)
 				|| e.hasChanged(EditorOption.showFoldingControls)
+				|| e.hasChanged(EditorOption.lineNumbers)
 			) {
 				this._readConfiguration();
+			}
+
+			if (e.hasChanged(EditorOption.lineNumbers)) {
+				this._renderStickyScroll(0);
 			}
 		}));
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
