@@ -91,7 +91,7 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this._terminalService.onDidChangeInstances(() => {
 			// If the first terminal is opened, hide the welcome view
 			// and if the last one is closed, show it again
-			if (this._hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
+			if (this._hasWelcomeScreen() && this._terminalGroupService.instances.length <= 1) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
 			if (!this._parentDomElement) { return; }
@@ -100,7 +100,7 @@ export class TerminalViewPane extends ViewPane {
 				this._createTabsView();
 			}
 			// If we just opened our first terminal, layout
-			if (this._terminalService.instances.length === 1) {
+			if (this._terminalGroupService.instances.length === 1) {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		}));

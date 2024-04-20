@@ -11,7 +11,6 @@ import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilityS
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
-const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 5000;
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
 
@@ -27,7 +26,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	acceptRequest(): number {
 		this._requestId++;
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
-		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS, CHAT_RESPONSE_PENDING_ALLOWANCE_MS));
+		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
 		return this._requestId;
 	}
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {

@@ -162,6 +162,9 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
+# Report continuation prompt
+builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -177,6 +180,11 @@ __vsc_update_cwd() {
 		__vsc_cwd="$PWD"
 	fi
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
+}
+
+__vsc_update_prompt_height() {
+	__vsc_prompt_height="$(("$(builtin printf "%s" "${PS1@P}" | wc -l)" + 1))"
+	builtin printf '\e]633;P;PromptHeight=%s\a' "$(__vsc_escape_value "$__vsc_prompt_height")"
 }
 
 __vsc_command_output_start() {
@@ -226,6 +234,7 @@ __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
 	__vsc_update_prompt
+	__vsc_update_prompt_height
 	__vsc_first_prompt=1
 }
 
