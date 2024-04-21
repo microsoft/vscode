@@ -505,7 +505,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource ?? false;
 		const revealIfOpen = this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen');
 
-		if (singleEditorPerResource || revealIfOpen) {
+		if (singleEditorPerResource || (revealIfOpen && !group.isLocked)) {
 			const existingEditors = this.findExistingEditorsForResource(resource, selectedEditor.editorInfo.id);
 			const shouldCloseOtherEditors = singleEditorPerResource;
 			if (existingEditors.length) {
