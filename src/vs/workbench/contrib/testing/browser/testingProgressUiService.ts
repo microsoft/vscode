@@ -31,7 +31,7 @@ export class TestingProgressTrigger extends Disposable {
 	}
 
 	private attachAutoOpenForNewResults(result: LiveTestResult) {
-		if (result.request.isUiTriggered === false) {
+		if (result.request.preserveFocus === true) {
 			return;
 		}
 
