@@ -2,41 +2,44 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vs/base/common/uri';
+import { coalesceInPlace, isNonEmptyArray } from 'vs/base/common/arrays';
+import { raceCancellation } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { EditMode, IInlineChatSession, IInlineChatService, IInlineChatSessionProvider, InlineChatResponseFeedbackKind, IInlineChatProgressItem, IInlineChatResponse, IInlineChatRequest, InlineChatResponseType, IInlineChatBulkEditResponse } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { Range } from 'vs/editor/common/core/range';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { Iterable } from 'vs/base/common/iterator';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LRUCache } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
-import { raceCancellation } from 'vs/base/common/async';
-import { Recording, IInlineChatSessionService, ISessionKeyComputer, IInlineChatSessionEvent, IInlineChatSessionEndEvent } from './inlineChatSessionService';
-import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { generateUuid } from 'vs/base/common/uuid';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProgress, Progress } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { EditMode, IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, IInlineChatService, IInlineChatSession, IInlineChatSessionProvider, IInlineChatSlashCommand, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, Recording } from './inlineChatSessionService';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ISelection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { coalesceInPlace, isNonEmptyArray } from 'vs/base/common/arrays';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TextEdit } from 'vs/editor/common/languages';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { Codicon } from 'vs/base/common/codicons';
-import { CancellationError } from 'vs/base/common/errors';
-import { LRUCache } from 'vs/base/common/map';
+import { isEqual } from 'vs/base/common/resources';
 
 class BridgeAgent implements IChatAgentImplementation {
 
@@ -59,7 +62,7 @@ class BridgeAgent implements IChatAgentImplementation {
 		return data;
 	}
 
-	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
+	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, _history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 
 		if (token.isCancellationRequested) {
 			return {};
@@ -71,11 +74,14 @@ class BridgeAgent implements IChatAgentImplementation {
 			throw new Error('FAILED to find session');
 		}
 
-		const { session, editor } = data;
+		const { session } = data;
 
 		if (!session.lastInput) {
 			throw new Error('FAILED to find last input');
 		}
+
+		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.values[0];
+		const inlineChatContext = typeof inlineChatContextValue?.value === 'string' && JSON.parse(inlineChatContextValue.value);
 
 		const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
@@ -83,12 +89,12 @@ class BridgeAgent implements IChatAgentImplementation {
 		const inlineRequest: IInlineChatRequest = {
 			requestId: request.requestId,
 			prompt: request.message,
-			attempt: session.lastInput.attempt,
-			withIntentDetection: session.lastInput.withIntentDetection,
+			attempt: request.attempt ?? 0,
+			withIntentDetection: request.enableCommandDetection ?? true,
 			live: session.editMode !== EditMode.Preview,
 			previewDocument: session.textModelN.uri,
-			selection: editor.getSelection()!,
-			wholeRange: session.wholeRange.trackedInitialRange,
+			selection: inlineChatContext.selection,
+			wholeRange: inlineChatContext.wholeRange
 		};
 
 		const inlineProgress = new Progress<IInlineChatProgressItem>(data => {
@@ -126,7 +132,9 @@ class BridgeAgent implements IChatAgentImplementation {
 
 				const markdownContents = result.message ?? new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
 
-				response = this._instaService.createInstance(ReplyResponse, result, markdownContents, session.textModelN.uri, modelAltVersionIdNow, progressEdits, request.requestId);
+				const chatModelRequest = session.chatModel.getRequests().find(candidate => candidate.id === request.requestId);
+
+				response = this._instaService.createInstance(ReplyResponse, result, markdownContents, session.textModelN.uri, modelAltVersionIdNow, progressEdits, request.requestId, chatModelRequest?.response);
 
 			} else {
 				response = new EmptyResponse();
@@ -138,9 +146,6 @@ class BridgeAgent implements IChatAgentImplementation {
 
 		this._postLastResponse({ id: request.requestId, response });
 
-		// TODO@jrieken
-		// result?.placeholder
-		// result?.wholeRange
 
 		return {
 			metadata: {
@@ -183,6 +188,29 @@ class BridgeAgent implements IChatAgentImplementation {
 		coalesceInPlace(chatFollowups);
 		return chatFollowups;
 	}
+
+	provideWelcomeMessage(location: ChatAgentLocation, token: CancellationToken): string[] {
+		// without this provideSampleQuestions is not called
+		return [];
+	}
+
+	async provideSampleQuestions(location: ChatAgentLocation, token: CancellationToken): Promise<IChatFollowup[]> {
+		// TODO@jrieken DEBT
+		// (hack) this function is called while creating the session. We need the timeout to make sure this._sessions is populated.
+		// (hack) we have no context/session id and therefore use the first session with an active editor
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		for (const [, data] of this._sessions) {
+			if (data.session.session.input && data.editor.hasWidgetFocus()) {
+				return [{
+					kind: 'reply',
+					agentId: _bridgeAgentId,
+					message: data.session.session.input,
+				}];
+			}
+		}
+		return [];
+	}
 }
 
 type SessionData = {
@@ -200,6 +228,18 @@ export class InlineChatError extends Error {
 }
 
 const _bridgeAgentId = 'brigde.editor';
+const _inlineChatContext = '_inlineChatContext';
+
+class InlineChatContext {
+
+	static readonly variableName = '_inlineChatContext';
+
+	constructor(
+		readonly uri: URI,
+		readonly selection: ISelection,
+		readonly wholeRange: IRange,
+	) { }
+}
 
 export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
@@ -236,7 +276,39 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IChatVariablesService chatVariableService: IChatVariablesService,
 	) {
+
+		const fakeProviders = this._store.add(new DisposableMap<string, IDisposable>());
+
+		this._store.add(this._chatAgentService.onDidChangeAgents(() => {
+
+			const providersNow = new Set<string>();
+
+			for (const agent of this._chatAgentService.getActivatedAgents()) {
+				if (agent.id === _bridgeAgentId) {
+					// not interesting
+					continue;
+				}
+				if (!agent.locations.includes(ChatAgentLocation.Editor) || !agent.isDefault) {
+					// not interesting
+					continue;
+				}
+				providersNow.add(agent.id);
+
+				if (!fakeProviders.has(agent.id)) {
+					fakeProviders.set(agent.id, _inlineChatService.addProvider(_instaService.createInstance(AgentInlineChatProvider, agent)));
+					this._logService.debug(`ADDED inline chat provider for agent ${agent.id}`);
+				}
+			}
+
+			for (const [id] of fakeProviders) {
+				if (!providersNow.has(id)) {
+					fakeProviders.deleteAndDispose(id);
+					this._logService.debug(`REMOVED inline chat provider for agent ${id}`);
+				}
+			}
+		}));
 
 		// MARK: register fake chat agent
 		const addOrRemoveBridgeAgent = () => {
@@ -245,6 +317,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				id: _bridgeAgentId,
 				name: 'editor',
 				extensionId: nullExtensionDescription.identifier,
+				extensionPublisher: '',
+				extensionDisplayName: '',
 				isDefault: true,
 				locations: [ChatAgentLocation.Editor],
 				get slashCommands(): IChatAgentCommand[] {
@@ -267,7 +341,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 						} satisfies IChatAgentCommand;
 					});
 				},
-				defaultImplicitVariables: [],
+				defaultImplicitVariables: [_inlineChatContext],
 				metadata: {
 					isSticky: false,
 					themeIcon: Codicon.copilot,
@@ -286,10 +360,11 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			}
 
 			if (otherEditorAgent) {
-				brigdeAgent.clear();
+				bridgeStore.clear();
 				_logService.debug(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
+
 			} else if (!myEditorAgent) {
-				brigdeAgent.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions, data => {
+				bridgeStore.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions, data => {
 					this._lastResponsesFromBridgeAgent.set(data.id, data.response);
 				}));
 				_logService.debug(`ADDED bridge agent "${agentData.id}"`);
@@ -297,36 +372,27 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		};
 
 		this._store.add(this._chatAgentService.onDidChangeAgents(() => addOrRemoveBridgeAgent()));
-		const brigdeAgent = this._store.add(new MutableDisposable());
+		const bridgeStore = this._store.add(new MutableDisposable());
 		addOrRemoveBridgeAgent();
 
-		// MARK: register fake chat provider
 
-		const mapping = this._store.add(new DisposableMap<IInlineChatSessionProvider>());
-		const registerFakeChatProvider = (provider: IInlineChatSessionProvider) => {
-			const d = this._chatService.registerProvider({
-				id: this._asChatProviderBrigdeName(provider),
-				prepareSession() {
-					return {
-						id: Math.random()
-					};
+		// MARK: implicit variable for editor selection and (tracked) whole range
+
+		this._store.add(chatVariableService.registerVariable(
+			{ name: _inlineChatContext, description: '', hidden: true },
+			async (_message, _arg, model) => {
+				for (const [, data] of this._sessions) {
+					if (data.session.chatModel === model) {
+						return [{
+							level: 'full',
+							value: JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange))
+						}];
+					}
 				}
-			});
-			mapping.set(provider, d);
-		};
-
-		this._store.add(_inlineChatService.onDidChangeProviders(e => {
-			if (e.added) {
-				registerFakeChatProvider(e.added);
+				return undefined;
 			}
-			if (e.removed) {
-				mapping.deleteAndDispose(e.removed);
-			}
-		}));
+		));
 
-		for (const provider of _inlineChatService.getAllProvider()) {
-			registerFakeChatProvider(provider);
-		}
 	}
 
 	dispose() {
@@ -335,30 +401,27 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-	private _asChatProviderBrigdeName(provider: IInlineChatSessionProvider) {
-		return `inlinechat:${provider.label}:${ExtensionIdentifier.toKey(provider.extensionId)}`;
-	}
-
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
-		const provider = Iterable.first(this._inlineChatService.getAllProvider());
+		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
+		let provider: IInlineChatSessionProvider | undefined;
+		if (agent) {
+			for (const candidate of this._inlineChatService.getAllProvider()) {
+				if (candidate instanceof AgentInlineChatProvider && candidate.agent === agent) {
+					provider = candidate;
+					break;
+				}
+			}
+		}
+
+		if (!provider) {
+			provider = Iterable.first(this._inlineChatService.getAllProvider());
+		}
+
 		if (!provider) {
 			this._logService.trace('[IE] NO provider found');
 			return undefined;
 		}
-
-		const chatModel = this._chatService.startSession(this._asChatProviderBrigdeName(provider), token);
-		if (!chatModel) {
-			this._logService.trace('[IE] NO chatModel found');
-			return undefined;
-		}
-
-		const store = new DisposableStore();
-
-		store.add(toDisposable(() => {
-			this._chatService.clearSession(chatModel.sessionId);
-			chatModel.dispose();
-		}));
 
 		this._onWillStartSession.fire(editor);
 
@@ -380,8 +443,19 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return undefined;
 		}
 
+		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${provider.extensionId}`);
 
+		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
+		if (!chatModel) {
+			this._logService.trace('[IE] NO chatModel found');
+			return undefined;
+		}
+
+		store.add(toDisposable(() => {
+			this._chatService.clearSession(chatModel.sessionId);
+			chatModel.dispose();
+		}));
 
 		const lastResponseListener = store.add(new MutableDisposable());
 		store.add(chatModel.onDidChange(e => {
@@ -433,7 +507,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							} else if (item.kind === 'textEdit') {
 								for (const edit of item.edits) {
 									raw.edits.edits.push({
-										resource: session.textModelN.uri,
+										resource: item.uri,
 										textEdit: edit,
 										versionId: undefined
 									});
@@ -448,7 +522,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							session.textModelN.uri,
 							modelAltVersionIdNow,
 							[],
-							e.request.id
+							e.request.id,
+							e.request.response
 						);
 					}
 				}
@@ -458,20 +533,32 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}));
 
 		store.add(this._chatService.onDidPerformUserAction(e => {
-			if (e.sessionId !== chatModel.sessionId || e.action.kind !== 'vote') {
+			if (e.sessionId !== chatModel.sessionId) {
 				return;
 			}
 
 			// TODO@jrieken VALIDATE candidate is proper, e.g check with `session.exchanges`
 			const request = chatModel.getRequests().find(request => request.id === e.requestId);
 			const candidate = request?.response?.result?.metadata?.inlineChatResponse;
-			if (candidate) {
-				provider.handleInlineChatResponseFeedback?.(
-					rawSession,
-					candidate,
-					e.action.direction === InteractiveSessionVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful
-				);
+
+			if (!candidate) {
+				return;
 			}
+
+			let kind: InlineChatResponseFeedbackKind | undefined;
+			if (e.action.kind === 'vote') {
+				kind = e.action.direction === InteractiveSessionVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful;
+			} else if (e.action.kind === 'bug') {
+				kind = InlineChatResponseFeedbackKind.Bug;
+			} else if (e.action.kind === 'inlineChat') {
+				kind = e.action.action === 'accepted' ? InlineChatResponseFeedbackKind.Accepted : InlineChatResponseFeedbackKind.Undone;
+			}
+
+			if (!kind) {
+				return;
+			}
+
+			provider.handleInlineChatResponseFeedback?.(rawSession, candidate, kind);
 		}));
 
 		store.add(this._inlineChatService.onDidChangeProviders(e => {
@@ -484,19 +571,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const id = generateUuid();
 		const targetUri = textModel.uri;
 
-		let textModelN: ITextModel;
-		if (options.editMode === EditMode.Preview) {
-			// AI edits happen in a copy
-			textModelN = store.add(this._modelService.createModel(
-				createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
-				{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-				targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: '', query: new URLSearchParams({ id, 'textModelN': '' }).toString() })
-			));
-		} else {
-			// AI edits happen in the actual model, keep a reference but make no copy
-			store.add((await this._textModelService.createModelReference(textModel.uri)));
-			textModelN = textModel;
-		}
+		// AI edits happen in the actual model, keep a reference but make no copy
+		store.add((await this._textModelService.createModelReference(textModel.uri)));
+		const textModelN = textModel;
 
 		// create: keep a snapshot of the "actual" model
 		const textModel0 = store.add(this._modelService.createModel(
@@ -653,4 +730,93 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	recordings(): readonly Recording[] {
 		return this._recordings;
 	}
+}
+
+export class AgentInlineChatProvider implements IInlineChatSessionProvider {
+
+	readonly extensionId: ExtensionIdentifier;
+	readonly label: string;
+	readonly supportIssueReporting?: boolean | undefined;
+
+	constructor(
+		readonly agent: IChatAgent,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+	) {
+		this.label = agent.name;
+		this.extensionId = agent.extensionId;
+		this.supportIssueReporting = agent.metadata.supportIssueReporting;
+	}
+
+	async prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): Promise<IInlineChatSession> {
+
+		// TODO@jrieken have a good welcome message
+		// const welcomeMessage = await this.agent.provideWelcomeMessage?.(ChatAgentLocation.Editor, token);
+		// const message =  welcomeMessage?.filter(candidate => typeof candidate === 'string').join(''),
+
+		return {
+			id: Math.random(),
+			wholeRange: new Range(range.selectionStartLineNumber, range.selectionStartColumn, range.positionLineNumber, range.positionColumn),
+			placeholder: this.agent.description,
+			slashCommands: this.agent.slashCommands.map(agentCommand => {
+				return {
+					command: agentCommand.name,
+					detail: agentCommand.description,
+					refer: agentCommand.name === 'explain' // TODO@jrieken @joyceerhl this should be cleaned up
+				} satisfies IInlineChatSlashCommand;
+			})
+		};
+	}
+
+	async provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): Promise<IInlineChatResponse> {
+
+		const workspaceEdit: WorkspaceEdit = { edits: [] };
+
+		await this._chatAgentService.invokeAgent(this.agent.id, {
+			sessionId: String(item.id),
+			requestId: request.requestId,
+			agentId: this.agent.id,
+			message: request.prompt,
+			location: ChatAgentLocation.Editor,
+			variables: {
+				variables: [{
+					name: InlineChatContext.variableName,
+					values: [{
+						level: 'full',
+						value: JSON.stringify(new InlineChatContext(request.previewDocument, request.selection, request.wholeRange))
+					}]
+				}]
+			}
+		}, part => {
+
+			if (part.kind === 'markdownContent') {
+				progress.report({ markdownFragment: part.content.value });
+			} else if (part.kind === 'agentDetection') {
+				progress.report({ slashCommand: part.command?.name });
+			} else if (part.kind === 'textEdit') {
+
+				if (isEqual(request.previewDocument, part.uri)) {
+					progress.report({ edits: part.edits });
+				} else {
+					for (const textEdit of part.edits) {
+						workspaceEdit.edits.push({ resource: part.uri, textEdit, versionId: undefined });
+					}
+				}
+			}
+
+		}, [], token);
+
+		return {
+			type: InlineChatResponseType.BulkEdit,
+			id: Math.random(),
+			edits: workspaceEdit
+		};
+	}
+
+	// handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void {
+	// 	throw new Error('Method not implemented.');
+	// }
+
+	// provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IInlineChatFollowup[]> {
+	// 	throw new Error('Method not implemented.');
+	// }
 }

@@ -3053,18 +3053,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
 			}
 
-			switch (groupTasks.length) {
-				case 0:
-					// No tasks found, prompt to configure
-					configure.apply(this);
-					break;
-				case 1:
-					// A single default task was returned, just run it directly
-					return resolveTaskAndRun(groupTasks[0]);
-				default:
-					// Multiple default tasks returned, show the quickPicker
-					return handleMultipleTasks(false);
+			if (groupTasks.length === 1) {
+				// A single default task was returned, just run it directly
+				return resolveTaskAndRun(groupTasks[0]);
 			}
+			// Multiple default tasks returned, show the quickPicker
+			return handleMultipleTasks(false);
 		})();
 		this._progressService.withProgress(options, () => promise);
 	}
@@ -3274,10 +3268,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return result[0].resource;
 				});
 			} else if (fileExists && (tasksExistInFile || content)) {
-				if (content) {
-					this._configurationService.updateValue('tasks', json.parse(content), target);
+				const statResource = stat?.resource;
+				if (content && statResource) {
+					this._configurationService.updateValue('tasks', json.parse(content), { resource: statResource }, target);
 				}
-				return stat?.resource;
+				return statResource;
 			}
 			return undefined;
 		}).then((resource) => {

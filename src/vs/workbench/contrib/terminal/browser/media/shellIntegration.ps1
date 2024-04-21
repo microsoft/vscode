@@ -21,6 +21,9 @@ $Global:__LastHistoryId = -1
 $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
+$osVersion = [System.Environment]::OSVersion.Version
+$isWindows10 = $IsWindows10 -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+
 if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
 	foreach ($Item in $Split) {
@@ -49,12 +52,17 @@ if ($env:VSCODE_ENV_APPEND) {
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
-	[regex]::Replace($value, '[\\\n;]', { param($match)
+	$Result = [regex]::Replace($value, '[\\\n;]', { param($match)
 			# Encode the (ascii) matches as `\x<hex>`
 			-Join (
 				[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
 			)
 		})
+	# `e is only availabel in pwsh 6+
+	if ($PSVersionTable.PSVersion.Major -lt 6) {
+		$Result = $Result -replace "`e", '\x1b'
+	}
+	$Result
 }
 
 function Global:Prompt() {
@@ -105,9 +113,12 @@ if (Get-Module -Name PSReadLine) {
 		# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
 		$Result = "$([char]0x1b)]633;E;"
 		$Result += $(__VSCode-Escape-Value $CommandLine)
-		$Result += ";$Nonce"
+		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
+		# sometimes
+		if ($IsWindows10 -eq $false) {
+			$Result += ";$Nonce"
+		}
 		$Result += "`a"
-		[Console]::Write($Result)
 
 		# Command executed
 		# OSC 633 ; C ST
@@ -127,6 +138,12 @@ if ($PSVersionTable.PSVersion -lt "6.0") {
 }
 else {
 	[Console]::Write("$([char]0x1b)]633;P;IsWindows=$IsWindows`a")
+}
+
+# Set ContinuationPrompt property
+$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+if ($ContinuationPrompt) {
+	[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
 }
 
 # Set always on key handlers which map to default VS Code keybindings

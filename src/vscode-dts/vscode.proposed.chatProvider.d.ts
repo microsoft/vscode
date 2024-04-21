@@ -17,6 +17,8 @@ declare module 'vscode' {
 	 */
 	export interface ChatResponseProvider {
 		provideLanguageModelResponse2(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+
+		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
 	}
 
 	export interface ChatResponseProviderMetadata {
@@ -26,6 +28,10 @@ declare module 'vscode' {
 		 */
 		// TODO@API rename to model
 		name: string;
+
+		version: string;
+
+		tokens: number;
 
 		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where

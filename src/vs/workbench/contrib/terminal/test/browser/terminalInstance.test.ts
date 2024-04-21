@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -13,22 +15,147 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { ITerminalChildProcess, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ITerminalConfigurationService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
-import { TerminalLabelComputer, parseExitResult } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
+import { parseExitResult, TerminalInstance, TerminalLabelComputer } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
+import { ITerminalProfileResolverService, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 import { fixPath } from 'vs/workbench/services/search/test/browser/queryBuilder.test';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestTerminalProfileResolverService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
 const root2 = '/foo/root2';
 const ROOT_2 = fixPath(root2);
 
+class MockTerminalProfileResolverService extends TestTerminalProfileResolverService {
+	override async getDefaultProfile(): Promise<ITerminalProfile> {
+		return {
+			profileName: "my-sh",
+			path: "/usr/bin/zsh",
+			env: {
+				TEST: "TEST",
+			},
+			isDefault: true,
+			isUnsafePath: false,
+			isFromPath: true,
+			icon: {
+				id: "terminal-linux",
+			},
+			color: "terminal.ansiYellow",
+		};
+	}
+}
+
+const terminalShellTypeContextKey = {
+	set: () => { },
+	reset: () => { },
+	get: () => undefined
+};
+
+const terminalInRunCommandPicker = {
+	set: () => { },
+	reset: () => { },
+	get: () => undefined
+};
+
+class TestTerminalChildProcess extends Disposable implements ITerminalChildProcess {
+	id: number = 0;
+	get capabilities() { return []; }
+	constructor(
+		readonly shouldPersist: boolean
+	) {
+		super();
+	}
+	updateProperty(property: any, value: any): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	onProcessOverrideDimensions?: Event<any> | undefined;
+	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	onDidChangeHasChildProcesses?: Event<any> | undefined;
+
+	onDidChangeProperty = Event.None;
+	onProcessData = Event.None;
+	onProcessExit = Event.None;
+	onProcessReady = Event.None;
+	onProcessTitleChanged = Event.None;
+	onProcessShellTypeChanged = Event.None;
+	async start(): Promise<undefined> { return undefined; }
+	shutdown(immediate: boolean): void { }
+	input(data: string): void { }
+	resize(cols: number, rows: number): void { }
+	clearBuffer(): void { }
+	acknowledgeDataEvent(charCount: number): void { }
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
+	async getInitialCwd(): Promise<string> { return ''; }
+	async getCwd(): Promise<string> { return ''; }
+	async processBinary(data: string): Promise<void> { }
+	refreshProperty(property: any): Promise<any> { return Promise.resolve(''); }
+}
+
+class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
+	getBackend() {
+		return {
+			onPtyHostExit: Event.None,
+			onPtyHostUnresponsive: Event.None,
+			onPtyHostResponsive: Event.None,
+			onPtyHostRestart: Event.None,
+			onDidMoveWindowInstance: Event.None,
+			onDidRequestDetach: Event.None,
+			createProcess: (
+				shellLaunchConfig: any,
+				cwd: string,
+				cols: number,
+				rows: number,
+				unicodeVersion: '6' | '11',
+				env: any,
+				windowsEnableConpty: boolean,
+				shouldPersist: boolean
+			) => this._register(new TestTerminalChildProcess(shouldPersist)),
+			getLatency: () => Promise.resolve([])
+		} as any;
+	}
+}
+
 suite('Workbench - TerminalInstance', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('TerminalInstance', () => {
+		let terminalInstance: ITerminalInstance;
+		test('should create an instance of TerminalInstance with env from default profile', async () => {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							},
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, terminalInRunCommandPicker, {}));
+			// //Wait for the teminalInstance._xtermReadyPromise to resolve
+			await new Promise(resolve => setTimeout(resolve, 100));
+			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
+		});
+	});
 	suite('parseExitResult', () => {
 		test('should return no message for exit code = undefined', () => {
 			deepStrictEqual(

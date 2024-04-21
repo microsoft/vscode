@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/ffa06ae9d52ea5464d3047cdbdc6bb970a665d23",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/cf3c686a50295380ce9994218138691f8767870c",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -709,7 +709,7 @@
 				{
 					"comment": "other keywords",
 					"name": "keyword.other.rust",
-					"match": "\\b(as|async|become|box|dyn|move|final|impl|in|override|priv|pub|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
+					"match": "\\b(as|async|become|box|dyn|move|final|gen|impl|in|override|priv|pub|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
 				},
 				{
 					"comment": "fn",

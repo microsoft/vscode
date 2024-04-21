@@ -6,7 +6,7 @@
 import { distinct, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
+import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
@@ -135,16 +135,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		if (installableExtensions.length) {
 			results.push(...await this.installExtensions(installableExtensions));
-		}
-
-		for (const result of results) {
-			if (result.error) {
-				this.logService.error(`Failed to install extension.`, result.identifier.id);
-				this.logService.error(result.error);
-				if (result.source && !URI.isUri(result.source)) {
-					reportTelemetry(this.telemetryService, 'extensionGallery:install', { extensionData: getGalleryExtensionTelemetryData(result.source), error: result.error });
-				}
-			}
 		}
 
 		return results;
@@ -320,7 +310,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						}
 					}
 					installExtensionResultsMap.set(key, { local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.profileLocation, applicationScoped: local.isApplicationScoped });
-				} catch (error) {
+				} catch (e) {
+					const error = toExtensionManagementError(e);
+					if (!URI.isUri(task.source)) {
+						reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', { extensionData: getGalleryExtensionTelemetryData(task.source), error });
+					}
 					installExtensionResultsMap.set(key, { error, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.profileLocation, applicationScoped: task.options.isApplicationScoped });
 					this.logService.error('Error while installing the extension', task.identifier.id, getErrorMessage(error));
 					throw error;
@@ -446,9 +440,21 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}
 		}
 
-		// If there are errors, throw the error.
+		// Throw if there are errors
 		if (errors.length) {
-			throw joinErrors(errors);
+			if (errors.length === 1) {
+				throw errors[0];
+			}
+
+			let error = new ExtensionManagementError('', ExtensionManagementErrorCode.Unknown);
+			for (const current of errors) {
+				const code = current instanceof ExtensionManagementError ? current.code : ExtensionManagementErrorCode.Unknown;
+				error = new ExtensionManagementError(
+					current.message ? `${current.message}, ${error.message}` : error.message,
+					code !== ExtensionManagementErrorCode.Unknown && code !== ExtensionManagementErrorCode.Internal ? code : error.code
+				);
+			}
+			throw error;
 		}
 
 		return results;
@@ -660,7 +666,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					}
 					postUninstallExtension(task.extension);
 				} catch (e) {
-					const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ExtensionManagementErrorCode.Internal);
+					const error = toExtensionManagementError(e);
 					postUninstallExtension(task.extension, error);
 					throw error;
 				} finally {
@@ -669,7 +675,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}));
 
 		} catch (e) {
-			const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ExtensionManagementErrorCode.Internal);
+			const error = toExtensionManagementError(e);
 			for (const task of allTasks) {
 				// cancel the tasks
 				try { task.cancel(); } catch (error) { /* ignore */ }
@@ -781,16 +787,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	protected abstract copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
 }
 
-export function joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {
-	const errors = Array.isArray(errorOrErrors) ? errorOrErrors : [errorOrErrors];
-	if (errors.length === 1) {
-		return errors[0] instanceof Error ? <Error>errors[0] : new Error(<string>errors[0]);
-	}
-	return errors.reduce<Error>((previousValue: Error, currentValue: Error | string) => {
-		return new Error(`${previousValue.message}${previousValue.message ? ',' : ''}${currentValue instanceof Error ? currentValue.message : currentValue}`);
-	}, new Error(''));
-}
-
 export function toExtensionManagementError(error: Error): ExtensionManagementError {
 	if (error instanceof ExtensionManagementError) {
 		return error;
@@ -800,12 +796,12 @@ export function toExtensionManagementError(error: Error): ExtensionManagementErr
 		e.stack = error.stack;
 		return e;
 	}
-	const e = new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Internal);
+	const e = new ExtensionManagementError(error.message, isCancellationError(error) ? ExtensionManagementErrorCode.Cancelled : ExtensionManagementErrorCode.Internal);
 	e.stack = error.stack;
 	return e;
 }
 
-function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
+function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: ExtensionManagementError | ExtensionGalleryError }): void {
 	let errorcode: string | undefined;
 	let errorcodeDetail: string | undefined;
 
@@ -822,13 +818,9 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 	}
 
 	if (error) {
-		if (error instanceof ExtensionManagementError || error instanceof ExtensionGalleryError) {
-			errorcode = error.code;
-			if (error.code === ExtensionManagementErrorCode.Signature) {
-				errorcodeDetail = error.message;
-			}
-		} else {
-			errorcode = ExtensionManagementErrorCode.Internal;
+		errorcode = error.code;
+		if (error.code === ExtensionManagementErrorCode.Signature) {
+			errorcodeDetail = error.message;
 		}
 	}
 

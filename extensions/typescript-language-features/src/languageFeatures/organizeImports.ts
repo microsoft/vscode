@@ -18,7 +18,6 @@ import { conditionalRegistration, requireMinVersion, requireSomeCapability } fro
 
 
 interface OrganizeImportsCommandMetadata {
-	readonly ids: readonly string[];
 	readonly title: string;
 	readonly minVersion?: API;
 	readonly kind: vscode.CodeActionKind;
@@ -26,14 +25,12 @@ interface OrganizeImportsCommandMetadata {
 }
 
 const organizeImportsCommand: OrganizeImportsCommandMetadata = {
-	ids: ['typescript.organizeImports'],
 	title: vscode.l10n.t("Organize Imports"),
 	kind: vscode.CodeActionKind.SourceOrganizeImports,
 	mode: OrganizeImportsMode.All,
 };
 
 const sortImportsCommand: OrganizeImportsCommandMetadata = {
-	ids: ['typescript.sortImports', 'javascript.sortImports'],
 	minVersion: API.v430,
 	title: vscode.l10n.t("Sort Imports"),
 	kind: vscode.CodeActionKind.Source.append('sortImports'),
@@ -41,7 +38,6 @@ const sortImportsCommand: OrganizeImportsCommandMetadata = {
 };
 
 const removeUnusedImportsCommand: OrganizeImportsCommandMetadata = {
-	ids: ['typescript.removeUnusedImports', 'javascript.removeUnusedImports'],
 	minVersion: API.v490,
 	title: vscode.l10n.t("Remove Unused Imports"),
 	kind: vscode.CodeActionKind.Source.append('removeUnusedImports'),
@@ -50,14 +46,14 @@ const removeUnusedImportsCommand: OrganizeImportsCommandMetadata = {
 
 class OrganizeImportsCommand implements Command {
 
+	public static readonly ID = '_typescript.organizeImports';
+	public readonly id = OrganizeImportsCommand.ID;
+
 	constructor(
-		public readonly id: string,
-		private readonly commandMetadata: OrganizeImportsCommandMetadata,
-		private readonly client: ITypeScriptServiceClient,
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute(file?: string): Promise<any> {
+	public async execute(): Promise<any> {
 		/* __GDPR__
 			"organizeImports.execute" : {
 				"owner": "mjbvz",
@@ -67,48 +63,20 @@ class OrganizeImportsCommand implements Command {
 			}
 		*/
 		this.telemetryReporter.logTelemetry('organizeImports.execute', {});
-		if (!file) {
-			const activeEditor = vscode.window.activeTextEditor;
-			if (!activeEditor) {
-				vscode.window.showErrorMessage(vscode.l10n.t("Organize Imports failed. No resource provided."));
-				return;
-			}
-
-			const resource = activeEditor.document.uri;
-			const document = await vscode.workspace.openTextDocument(resource);
-			const openedFiledPath = this.client.toOpenTsFilePath(document);
-			if (!openedFiledPath) {
-				vscode.window.showErrorMessage(vscode.l10n.t("Organize Imports failed. Unknown file type."));
-				return;
-			}
-
-			file = openedFiledPath;
-		}
-
-		const args: Proto.OrganizeImportsRequestArgs = {
-			scope: {
-				type: 'file',
-				args: {
-					file
-				}
-			},
-			// Deprecated in 4.9; `mode` takes priority
-			skipDestructiveCodeActions: this.commandMetadata.mode === OrganizeImportsMode.SortAndCombine,
-			mode: typeConverters.OrganizeImportsMode.toProtocolOrganizeImportsMode(this.commandMetadata.mode),
-		};
-		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
-		if (response.type !== 'response' || !response.body) {
-			return;
-		}
-
-		if (response.body.length) {
-			const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
-			return vscode.workspace.applyEdit(edits);
-		}
 	}
 }
 
-class ImportsCodeActionProvider implements vscode.CodeActionProvider {
+class ImportCodeAction extends vscode.CodeAction {
+	constructor(
+		title: string,
+		kind: vscode.CodeActionKind,
+		public readonly document: vscode.TextDocument,
+	) {
+		super(title, kind);
+	}
+}
+
+class ImportsCodeActionProvider implements vscode.CodeActionProvider<ImportCodeAction> {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -117,31 +85,62 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 		private readonly fileConfigManager: FileConfigurationManager,
 		telemetryReporter: TelemetryReporter,
 	) {
-		for (const id of commandMetadata.ids) {
-			commandManager.register(new OrganizeImportsCommand(id, commandMetadata, client, telemetryReporter));
-		}
+		commandManager.register(new OrganizeImportsCommand(telemetryReporter));
 	}
 
 	public provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
 		context: vscode.CodeActionContext,
-		token: vscode.CancellationToken
-	): vscode.CodeAction[] {
+		_token: vscode.CancellationToken
+	): ImportCodeAction[] {
+		if (!context.only?.contains(this.commandMetadata.kind)) {
+			return [];
+		}
+
 		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return [];
 		}
 
-		if (!context.only?.contains(this.commandMetadata.kind)) {
-			return [];
+		return [new ImportCodeAction(this.commandMetadata.title, this.commandMetadata.kind, document)];
+	}
+
+	async resolveCodeAction(codeAction: ImportCodeAction, token: vscode.CancellationToken): Promise<ImportCodeAction | undefined> {
+		const response = await this.client.interruptGetErr(async () => {
+			await this.fileConfigManager.ensureConfigurationForDocument(codeAction.document, token);
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			const file = this.client.toOpenTsFilePath(codeAction.document);
+			if (!file) {
+				return;
+			}
+
+			const args: Proto.OrganizeImportsRequestArgs = {
+				scope: {
+					type: 'file',
+					args: { file }
+				},
+				// Deprecated in 4.9; `mode` takes priority
+				skipDestructiveCodeActions: this.commandMetadata.mode === OrganizeImportsMode.SortAndCombine,
+				mode: typeConverters.OrganizeImportsMode.toProtocolOrganizeImportsMode(this.commandMetadata.mode),
+			};
+
+			return this.client.execute('organizeImports', args, nulToken);
+		});
+		if (response?.type !== 'response' || !response.body || token.isCancellationRequested) {
+			return;
 		}
 
-		this.fileConfigManager.ensureConfigurationForDocument(document, token);
+		if (response.body.length) {
+			codeAction.edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+		}
 
-		const action = new vscode.CodeAction(this.commandMetadata.title, this.commandMetadata.kind);
-		action.command = { title: '', command: this.commandMetadata.ids[0], arguments: [file] };
-		return [action];
+		codeAction.command = { command: OrganizeImportsCommand.ID, title: '', arguments: [] };
+
+		return codeAction;
 	}
 }
 
