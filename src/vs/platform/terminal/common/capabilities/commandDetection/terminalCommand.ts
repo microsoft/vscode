@@ -213,7 +213,6 @@ export class TerminalCommand implements ITerminalCommand {
 
 export interface ICurrentPartialCommand {
 	promptStartMarker?: IMarker;
-	promptHeight?: number;
 
 	commandStartMarker?: IMarker;
 	commandStartX?: number;
@@ -245,23 +244,12 @@ export interface ICurrentPartialCommand {
 	 */
 	isInvalid?: boolean;
 
-	/**
-	 * Whether the command start marker has been adjusted on Windows.
-	 */
-	isAdjusted?: boolean;
-
-	/**
-	 * Whether the command start marker adjustment has been attempt on new terminal input.
-	 */
-	isInputAdjusted?: boolean;
-
 	getPromptRowCount(): number;
 	getCommandRowCount(): number;
 }
 
 export class PartialTerminalCommand implements ICurrentPartialCommand {
 	promptStartMarker?: IMarker;
-	promptHeight?: number;
 
 	commandStartMarker?: IMarker;
 	commandStartX?: number;
