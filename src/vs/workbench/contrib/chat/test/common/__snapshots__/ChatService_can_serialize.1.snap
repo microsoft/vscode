@@ -28,6 +28,7 @@
                 _lower: "nullextensiondescription"
               },
               extensionPublisher: "",
+              extensionDisplayName: "",
               locations: [ "panel" ],
               metadata: {
                 requester: { name: "test" },
@@ -68,6 +69,7 @@
           _lower: "nullextensiondescription"
         },
         extensionPublisher: "",
+        extensionDisplayName: "",
         locations: [ "panel" ],
         metadata: {
           requester: { name: "test" },

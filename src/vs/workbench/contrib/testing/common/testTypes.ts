@@ -88,7 +88,7 @@ export interface ResolvedTestRunRequest {
 	/** Whether this is a continuous test run */
 	continuous?: boolean;
 	/** Whether this was trigged by a user action in UI. Default=true */
-	isUiTriggered?: boolean;
+	preserveFocus?: boolean;
 }
 
 /**
@@ -101,6 +101,7 @@ export interface ExtensionRunTestsRequest {
 	controllerId: string;
 	profile?: { group: TestRunProfileBitset; id: number };
 	persist: boolean;
+	preserveFocus: boolean;
 	/** Whether this is a result of a continuous test run request */
 	continuous: boolean;
 }

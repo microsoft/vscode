@@ -3099,14 +3099,14 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 }
 
 
-export class StackFrame implements vscode.StackFrame {
+export class DebugStackFrame implements vscode.DebugStackFrame {
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId: number,
 		readonly frameId: number) { }
 }
 
-export class Thread implements vscode.Thread {
+export class DebugThread implements vscode.DebugThread {
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId: number) { }
@@ -4018,12 +4018,13 @@ export enum TestRunProfileKind {
 }
 
 @es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest {
+export class TestRunRequest implements vscode.TestRunRequest2 {
 	constructor(
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
 		public readonly continuous = false,
+		public readonly preserveFocus = true,
 	) { }
 }
 
