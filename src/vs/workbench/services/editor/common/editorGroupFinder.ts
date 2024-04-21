@@ -114,57 +114,28 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		// We also try to reveal an editor if it has the `Singleton` capability which
 		// indicates that the same editor cannot be opened across groups.
 		if (!group) {
-			const revealIfOpen = false; // configurationService.getValue<boolean>('workbench.editor.revealIfOpen');
-
-			if (options?.revealIfOpened || revealIfOpen || (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton))) {
-				let groupAndEditorWithInputActive: [IEditorGroup, EditorInput] | undefined = undefined;
-				let groupAndEditorWithInputOpened: [IEditorGroup, EditorInput] | undefined = undefined;
+			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton))) {
+				let groupWithInputActive: IEditorGroup | undefined = undefined;
+				let groupWithInputOpened: IEditorGroup | undefined = undefined;
 
 				for (const group of groupsByLastActive) {
-					let typedEditor: EditorInput | undefined = undefined;
+					if (isOpened(group, editor)) {
+						if (!groupWithInputOpened) {
+							groupWithInputOpened = group;
+						}
 
-					for (const groupTypedEditor of group.editors) {
-						if (groupTypedEditor.matches(editor)) {
-							typedEditor = groupTypedEditor;
-							break;
+						if (!groupWithInputActive && group.isActive(editor)) {
+							groupWithInputActive = group;
 						}
 					}
 
-					if (typedEditor) {
-						if (!groupAndEditorWithInputOpened) {
-							groupAndEditorWithInputOpened = [group, typedEditor];
-						}
-
-						if (!groupAndEditorWithInputActive && group.isActive(editor)) {
-							groupAndEditorWithInputActive = [group, typedEditor];
-						}
-					}
-
-					if (groupAndEditorWithInputOpened && groupAndEditorWithInputActive) {
+					if (groupWithInputOpened && groupWithInputActive) {
 						break; // we found all groups we wanted
 					}
 				}
 
 				// Prefer a target group where the input is visible
-				const groupAndEditorWithInput = groupAndEditorWithInputActive || groupAndEditorWithInputOpened;
-
-				if (groupAndEditorWithInput) {
-					const [groupWithInput, typedEditor] = groupAndEditorWithInput;
-
-					const moveToActiveGroupIfOpen = configurationService.getValue<boolean>('workbench.editor.moveToActiveGroupIfOpen');
-					const isActiveGroupLocked = isGroupLockedForEditor(editorGroupService.activeGroup, editor);
-
-					// If workbench.editor.moveToActiveGroupIfOpen is set,
-					// move editor to active group unless it is locked
-					if (revealIfOpen && moveToActiveGroupIfOpen && !isActiveGroupLocked) {
-						groupWithInput.moveEditor(typedEditor, editorGroupService.activeGroup);
-						group = editorGroupService.activeGroup;
-					}
-
-					else {
-						group = groupWithInput;
-					}
-				}
+				group = groupWithInputActive || groupWithInputOpened;
 			}
 		}
 	}
