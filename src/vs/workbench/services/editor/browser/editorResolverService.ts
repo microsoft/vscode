@@ -65,7 +65,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		// Read in the cache on statup
@@ -501,11 +501,12 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			throw new Error(`Undefined resource on non untitled editor input.`);
 		}
 
-		// If the editor states it can only be opened once per resource we must close all existing ones except one and move the new one into the group
 		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource ?? false;
-		const revealIfOpen = this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen');
+		const moveToActiveGroupIfOpen = this.configurationService.getValue<boolean>('workbench.editor.moveToActiveGroupIfOpen');
 
-		if (singleEditorPerResource || (revealIfOpen && !group.isLocked)) {
+		// If the editor states it can only be opened once per resource we must close all existing ones except one and move the new one into the group
+		// We also move the active editor if moveToActiveGroupIfOpen is enabled, although in this case we don't close other editors
+		if (singleEditorPerResource || (moveToActiveGroupIfOpen && !group.isLocked)) {
 			const existingEditors = this.findExistingEditorsForResource(resource, selectedEditor.editorInfo.id);
 			const shouldCloseOtherEditors = singleEditorPerResource;
 			if (existingEditors.length) {
