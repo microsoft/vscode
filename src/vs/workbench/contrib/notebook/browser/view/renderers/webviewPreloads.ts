@@ -1598,31 +1598,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (image) {
 				const imageToCopy = image;
-				async function copyImage(retries: number) {
-					await navigator.clipboard.write([new ClipboardItem({
-						'image/png': new Promise((resolve) => {
-							const canvas = document.createElement('canvas');
-							canvas.width = imageToCopy.naturalWidth;
-							canvas.height = imageToCopy.naturalHeight;
-							const context = canvas.getContext('2d');
-							context!.drawImage(imageToCopy, 0, 0);
+				await navigator.clipboard.write([new ClipboardItem({
+					'image/png': new Promise((resolve) => {
+						const canvas = document.createElement('canvas');
+						canvas.width = imageToCopy.naturalWidth;
+						canvas.height = imageToCopy.naturalHeight;
+						const context = canvas.getContext('2d');
+						context!.drawImage(imageToCopy, 0, 0);
 
-							canvas.toBlob((blob) => {
-								if (blob) {
-									resolve(blob);
-								} else if (retries > 0) {
-									setTimeout(() => { copyImage(retries - 1); }, 20);
-									return;
-								} else {
-									console.error('No blob data to write to clipboard');
-								}
-								canvas.remove();
-							}, 'image/png');
-						})
-					})]);
-				}
-
-				copyImage(retries);
+						canvas.toBlob((blob) => {
+							if (blob) {
+								resolve(blob);
+							} else {
+								console.error('No blob data to write to clipboard');
+							}
+							canvas.remove();
+						}, 'image/png');
+					})
+				})]);
 			} else {
 				console.error('Could not find image element to copy for output with id', outputId);
 			}
