@@ -11,7 +11,7 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
@@ -118,7 +118,12 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	}
 }
 
-function registerTokens(instantiationService: TestInstantiationService, tokens: { startIndex: number; value: number }[][], languageId: string, disposables: DisposableStore) {
+interface TokenData {
+	startIndex: number;
+	standardTokenType: StandardTokenType;
+}
+
+function registerTokens(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string, disposables: DisposableStore) {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
@@ -133,7 +138,7 @@ function registerTokens(instantiationService: TestInstantiationService, tokens: 
 				result[2 * i + 1] =
 					(
 						(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
-						| (tokensOnLine[i].value << MetadataConsts.TOKEN_TYPE_OFFSET)
+						| (tokensOnLine[i].standardTokenType << MetadataConsts.TOKEN_TYPE_OFFSET)
 					);
 			}
 			return new EncodedTokenizationResult(result, state);
@@ -415,31 +420,31 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				' */',
 				'function a() {}'
 			].join('\n');
-			const tokens = [
+			const tokens: TokenData[][] = [
 				[
-					{ startIndex: 0, value: 1 },
-					{ startIndex: 3, value: 1 },
+					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 3, standardTokenType: StandardTokenType.Comment },
 				],
 				[
-					{ startIndex: 0, value: 1 },
-					{ startIndex: 2, value: 1 },
-					{ startIndex: 8, value: 1 },
+					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 2, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 8, standardTokenType: StandardTokenType.Comment },
 				],
 				[
-					{ startIndex: 0, value: 1 },
-					{ startIndex: 1, value: 1 },
-					{ startIndex: 3, value: 0 },
+					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 1, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 3, standardTokenType: StandardTokenType.Other },
 				],
 				[
-					{ startIndex: 0, value: 0 },
-					{ startIndex: 8, value: 0 },
-					{ startIndex: 9, value: 0 },
-					{ startIndex: 10, value: 0 },
-					{ startIndex: 11, value: 0 },
-					{ startIndex: 12, value: 0 },
-					{ startIndex: 13, value: 0 },
-					{ startIndex: 14, value: 0 },
-					{ startIndex: 15, value: 0 },
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 8, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 9, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 10, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 11, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 12, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 13, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 14, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 15, standardTokenType: StandardTokenType.Other },
 				]
 			];
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
@@ -575,29 +580,29 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				' * }',
 				' */'
 			].join('\n');
-			const tokens = [
+			const tokens: TokenData[][] = [
 				[
-					{ startIndex: 0, value: 1 },
-					{ startIndex: 3, value: 1 },
+					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 3, standardTokenType: StandardTokenType.Comment },
 				],
 				[
-					{ startIndex: 0, value: 1 },
-					{ startIndex: 2, value: 1 },
-					{ startIndex: 3, value: 1 },
-					{ startIndex: 11, value: 1 },
-					{ startIndex: 12, value: 0 },
-					{ startIndex: 13, value: 0 },
+					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 2, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 3, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 11, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 12, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 13, standardTokenType: StandardTokenType.Other },
 				],
 				[
-					{ startIndex: 0, value: 1 },
-					{ startIndex: 2, value: 0 },
-					{ startIndex: 3, value: 0 },
-					{ startIndex: 4, value: 0 },
+					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 2, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 3, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 4, standardTokenType: StandardTokenType.Other },
 				],
 				[
-					{ startIndex: 0, value: 1 },
-					{ startIndex: 1, value: 1 },
-					{ startIndex: 3, value: 0 },
+					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 1, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 3, standardTokenType: StandardTokenType.Other },
 				]
 			];
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
@@ -727,7 +732,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-			const tokens = [
+			const tokens: TokenData[][] = [
 				[{ startIndex: 0, value: 0 }, { startIndex: 8, value: 0 }, { startIndex: 9, value: 0 }, { startIndex: 12, value: 0 }, { startIndex: 13, value: 0 }, { startIndex: 14, value: 0 }, { startIndex: 15, value: 0 }, { startIndex: 16, value: 0 }],
 				[{ startIndex: 0, value: 1 }, { startIndex: 2, value: 1 }, { startIndex: 3, value: 1 }, { startIndex: 10, value: 1 }],
 				[{ startIndex: 0, value: 0 }, { startIndex: 5, value: 0 }, { startIndex: 6, value: 0 }, { startIndex: 9, value: 0 }, { startIndex: 10, value: 0 }, { startIndex: 11, value: 0 }, { startIndex: 12, value: 0 }, { startIndex: 14, value: 0 }],
