@@ -805,7 +805,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.find',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchListSupportsFind),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyF,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,
 	secondary: [KeyCode.F3],
 	handler: (accessor) => {
 		const widget = accessor.get(IListService).lastFocusedList;
@@ -917,6 +917,7 @@ registerAction2(class ToggleStickyScroll extends Action2 {
 				mnemonicTitle: localize({ key: 'mitoggleTreeStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Tree Sticky Scroll"),
 			},
 			category: 'View',
+			metadata: { description: localize('toggleTreeStickyScrollDescription', "Toggles Sticky Scroll widget at the top of tree structures such as the File Explorer and Debug variables View.") },
 			f1: true
 		});
 	}

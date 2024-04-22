@@ -69,9 +69,9 @@ export class TerminalProfileQuickpick {
 					if (result.profile.args) {
 						newProfile.args = result.profile.args;
 					}
-					(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = newProfile;
+					(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = this._createNewProfileConfig(result.profile);
+					await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
 				}
-				await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
 			}
 			// Set the default profile
 			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
@@ -131,20 +131,10 @@ export class TerminalProfileQuickpick {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalExecutable } = { ...configProfiles };
-				newConfigValue[name] = { path: context.item.profile.path };
-				if (context.item.profile.args) {
-					newConfigValue[name].args = context.item.profile.args;
-				}
-				if (context.item.profile.env) {
-					newConfigValue[name].env = context.item.profile.env;
-				}
-				if (context.item.profile.color) {
-					newConfigValue[name].color = context.item.profile.color;
-				}
-				if (context.item.profile.icon) {
-					newConfigValue[name].icon = context.item.profile.icon;
-				}
+				const newConfigValue: { [key: string]: ITerminalExecutable } = {
+					...configProfiles,
+					[name]: this._createNewProfileConfig(context.item.profile)
+				};
 				await this._configurationService.updateValue(profilesKey, newConfigValue, ConfigurationTarget.USER);
 			},
 			onKeyMods: mods => keyMods = mods
@@ -217,6 +207,17 @@ export class TerminalProfileQuickpick {
 		}
 		if (keyMods) {
 			result.keyMods = keyMods;
+		}
+		return result;
+	}
+
+	private _createNewProfileConfig(profile: ITerminalProfile): ITerminalExecutable {
+		const result: ITerminalExecutable = { path: profile.path };
+		if (profile.args) {
+			result.args = profile.args;
+		}
+		if (profile.env) {
+			result.env = profile.env;
 		}
 		return result;
 	}

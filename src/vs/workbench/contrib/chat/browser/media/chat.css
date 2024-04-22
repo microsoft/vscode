@@ -101,7 +101,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
-	outline: 1px solid var(--vscode-chat-requestBorder)
+	outline: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .header .avatar.codicon-avatar {
@@ -164,6 +164,11 @@
 	position: absolute;
 	right: 0px;
 	background-color: var(--vscode-chat-list-background);
+}
+
+.interactive-item-container.interactive-request .header .monaco-toolbar {
+	/* Take the partially-transparent background color override for request rows */
+	background-color: inherit;
 }
 
 .interactive-item-container .header .monaco-toolbar .checked.action-label,
@@ -346,6 +351,10 @@
 	margin-bottom: 4px;
 	align-items: flex-end;
 	justify-content: space-between;
+}
+
+.interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
+	margin-bottom: 0;
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -638,10 +647,11 @@
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
 	display: flex;
 	gap: 5px;
 	align-items: center;
-	opacity: 0.7;
 	margin-bottom: 4px;
 }
 

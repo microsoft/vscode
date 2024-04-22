@@ -210,7 +210,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		}
 
 		await this.proxy.$runTests({
-			isUiTriggered: false,
+			preserveFocus: (req as vscode.TestRunRequest2).preserveFocus ?? true,
 			targets: [{
 				testIds: req.include?.map(t => TestId.fromExtHostTestItem(t, controller.collection.root.id).toString()) ?? [controller.collection.root.id],
 				profileGroup: profileGroupToBitset[profile.kind],
@@ -434,10 +434,7 @@ class TestRunTracker extends Disposable {
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
 	private readonly onDidDispose: Event<void>;
-	private readonly publishedCoverage = new Map<string, {
-		coverage: vscode.FileCoverage;
-		backCompatResolve?: (token: vscode.CancellationToken) => Thenable<vscode.FileCoverageDetail[]>;
-	}>();
+	private readonly publishedCoverage = new Map<string, vscode.FileCoverage>();
 
 	/**
 	 * Fires when a test ends, and no more tests are left running.
@@ -492,13 +489,9 @@ class TestRunTracker extends Disposable {
 	/** Gets details for a previously-emitted coverage object. */
 	public getCoverageDetails(id: string, token: CancellationToken) {
 		const [, taskId, covId] = TestId.fromString(id).path; /** runId, taskId, URI */
-		const obj = this.publishedCoverage.get(covId);
-		if (!obj) {
+		const coverage = this.publishedCoverage.get(covId);
+		if (!coverage) {
 			return [];
-		}
-
-		if (obj.backCompatResolve) {
-			return obj.backCompatResolve(token);
 		}
 
 		const task = this.tasks.get(taskId);
@@ -506,7 +499,7 @@ class TestRunTracker extends Disposable {
 			throw new Error('unreachable: run task was not found');
 		}
 
-		return this.profile?.loadDetailedCoverage?.(task.run, obj.coverage, token) ?? [];
+		return this.profile?.loadDetailedCoverage?.(task.run, coverage, token) ?? [];
 	}
 
 	/** Creates the public test run interface to give to extensions. */
@@ -545,42 +538,18 @@ class TestRunTracker extends Disposable {
 			this.proxy.$appendTestMessagesInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), converted);
 		};
 
-		const addCoverage = (coverage: vscode.FileCoverage, backCompatResolve?: (token: vscode.CancellationToken) => Thenable<vscode.FileCoverageDetail[]>) => {
-			const uriStr = coverage.uri.toString();
-			const id = new TestId([runId, taskId, uriStr]).toString();
-			this.publishedCoverage.set(uriStr, { coverage, backCompatResolve });
-			this.proxy.$appendCoverage(runId, taskId, Convert.TestCoverage.fromFile(id, coverage));
-		};
-
-		interface ICoverageProvider {
-			provideFileCoverage(token: CancellationToken): vscode.ProviderResult<vscode.FileCoverage[]>;
-			resolveFileCoverage?(coverage: vscode.FileCoverage, token: CancellationToken): vscode.ProviderResult<vscode.FileCoverage>;
-		}
-
 		let ended = false;
-		let coverageProvider: ICoverageProvider | undefined;
-		const run: vscode.TestRun & { coverageProvider?: ICoverageProvider } = {
+		const run: vscode.TestRun = {
 			isPersisted: this.dto.isPersisted,
 			token: this.cts.token,
 			name,
 			onDidDispose: this.onDidDispose,
-			// todo@connor4312: back compat
-			get coverageProvider() {
-				return coverageProvider;
+			addCoverage: coverage => {
+				const uriStr = coverage.uri.toString();
+				const id = new TestId([runId, taskId, uriStr]).toString();
+				this.publishedCoverage.set(uriStr, coverage);
+				this.proxy.$appendCoverage(runId, taskId, Convert.TestCoverage.fromFile(id, coverage));
 			},
-			// todo@connor4312: back compat
-			set coverageProvider(provider: ICoverageProvider | undefined) {
-				coverageProvider = provider;
-				if (provider) {
-					Promise.resolve(provider.provideFileCoverage(CancellationToken.None)).then(coverage => {
-						coverage?.forEach(c => addCoverage(c, provider.resolveFileCoverage && (async token => {
-							const r = await provider.resolveFileCoverage!(c, token);
-							return (r || c as any).detailedCoverage;
-						})));
-					});
-				}
-			},
-			addCoverage,
 			//#region state mutation
 			enqueued: guardTestMutation(test => {
 				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Queued);
@@ -777,6 +746,7 @@ export class TestRunCoordinator {
 			exclude: request.exclude?.map(t => TestId.fromExtHostTestItem(t, collection.root.id).toString()) ?? [],
 			id: dto.id,
 			include: request.include?.map(t => TestId.fromExtHostTestItem(t, collection.root.id).toString()) ?? [collection.root.id],
+			preserveFocus: (request as vscode.TestRunRequest2).preserveFocus ?? true,
 			persist
 		});
 

@@ -2,21 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Dimension, addDisposableListener } from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { isEqual } from 'vs/base/common/resources';
+import { StableEditorBottomScrollState } from 'vs/editor/browser/stableEditorScroll';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -30,7 +34,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 });
 
@@ -44,12 +49,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			inputMenuId: MenuId.ChatExecute,
 			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
-			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK,
 			statusMenuId: {
 				menu: MENU_INLINE_CHAT_WIDGET_STATUS,
 				options: {
 					buttonConfigProvider: action => {
-						if (action.id === ACTION_REGENERATE_RESPONSE) {
+						if (action.id === ACTION_REGENERATE_RESPONSE || action.id === ACTION_TOGGLE_DIFF) {
 							return { showIcon: true, showLabel: false, isSecondary: true };
 						} else if (action.id === ACTION_VIEW_IN_CHAT || action.id === ACTION_ACCEPT_CHANGES) {
 							return { isSecondary: false };
@@ -58,6 +62,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 						}
 					}
 				}
+			},
+			rendererOptions: {
+				renderTextEditsAsSummary: (uri) => {
+					// render edits as summary only when using Live mode and when
+					// dealing with the current file in the editor
+					return isEqual(uri, editor.getModel()?.uri)
+						&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
+				},
 			}
 		});
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
@@ -68,13 +80,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}));
 		this._disposables.add(this.widget);
 		this.create();
-
-
-		this._disposables.add(addDisposableListener(this.domNode, 'click', e => {
-			if (!this.widget.hasFocus()) {
-				this.widget.focus();
-			}
-		}, true));
 
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {
@@ -114,9 +119,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const chatContentHeight = this.widget.contentHeight;
 		const editorHeight = this.editor.getLayoutInfo().height;
 
-		const contentHeight = Math.min(chatContentHeight, editorHeight * 0.42);
+		const contentHeight = Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
-		// console.log('ZONE#_computeHeightInLines', { chatContentHeight, editorHeight, contentHeight, heightInLines });
 		return heightInLines;
 	}
 
@@ -129,18 +133,22 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	override show(position: Position): void {
 		assertType(this.container);
 
+		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		const info = this.editor.getLayoutInfo();
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
 
-		this._setWidgetMargins(position);
 		super.show(position, this._computeHeightInLines());
+		this._setWidgetMargins(position);
 		this.widget.focus();
+
+		scrollState.restore(this.editor);
+		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position.delta(-1)), ScrollType.Immediate);
 	}
 
 	override updatePositionAndHeight(position: Position): void {
-		this._setWidgetMargins(position);
 		super.updatePositionAndHeight(position, this._computeHeightInLines());
+		this._setWidgetMargins(position);
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {
@@ -158,12 +166,17 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		if (!viewModel) {
 			return 0;
 		}
+
 		const visibleRange = viewModel.getCompletelyVisibleViewRange();
-		const startLineVisibleRange = visibleRange.startLineNumber;
-		const positionLine = position.lineNumber;
-		let indentationLineNumber: number | undefined;
-		let indentationLevel: number | undefined;
-		for (let lineNumber = positionLine; lineNumber >= startLineVisibleRange; lineNumber--) {
+		if (!visibleRange.containsPosition(position)) {
+			// this is needed because `getOffsetForColumn` won't work when the position
+			// isn't visible/rendered
+			return 0;
+		}
+
+		let indentationLevel = viewModel.getLineFirstNonWhitespaceColumn(position.lineNumber);
+		let indentationLineNumber = position.lineNumber;
+		for (let lineNumber = position.lineNumber; lineNumber >= visibleRange.startLineNumber; lineNumber--) {
 			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
 			if (currentIndentationLevel !== 0) {
 				indentationLineNumber = lineNumber;
@@ -171,7 +184,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				break;
 			}
 		}
-		return this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
+
+		return Math.max(0, this.editor.getOffsetForColumn(indentationLineNumber, indentationLevel)); // double-guard against invalie getOffsetForColumn-calls
 	}
 
 	private _setWidgetMargins(position: Position): void {

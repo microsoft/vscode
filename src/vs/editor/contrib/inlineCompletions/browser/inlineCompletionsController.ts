@@ -30,7 +30,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
-import { ISettableObservable } from 'vs/base/common/observableInternal/base';
+import { ISettableObservable, observableValueOpts } from 'vs/base/common/observableInternal/base';
+import { itemsEquals, itemEquals } from 'vs/base/common/equals';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -41,7 +43,7 @@ export class InlineCompletionsController extends Disposable {
 
 	public readonly model = this._register(disposableObservableValue<InlineCompletionsModel | undefined>('inlineCompletionModel', undefined));
 	private readonly _textModelVersionId = observableValue<number, VersionIdChangeReason>(this, -1);
-	private readonly _positions = observableValue<readonly Position[]>(this, [new Position(1, 1)]);
+	private readonly _positions = observableValueOpts<readonly Position[]>({ owner: this, equalsFn: itemsEquals(itemEquals()) }, [new Position(1, 1)]);
 	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
 		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
@@ -54,7 +56,11 @@ export class InlineCompletionsController extends Disposable {
 			});
 		}
 	));
-	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+	private readonly _enabledInConfig = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+	private readonly _isScreenReaderEnabled = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+	private readonly _editorDictationInProgress = observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true);
+	private readonly _enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
+
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
 	private readonly _ghostTexts = derived(this, (reader) => {
@@ -94,6 +100,7 @@ export class InlineCompletionsController extends Disposable {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 

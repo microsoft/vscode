@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { BidirectionalMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, ResourceMap, SetMap, Touch } from 'vs/base/common/map';
+import { BidirectionalMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, MRUCache, ResourceMap, SetMap, Touch } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -256,6 +256,53 @@ suite('Map', () => {
 		const values: number[] = [];
 		[...cache.keys()].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [7, 8, 9, 10, 11]);
+		assert.deepStrictEqual([...cache.values()], values);
+	});
+
+	test('LinkedMap - MRU Cache simple', () => {
+		const cache = new MRUCache<number, number>(5);
+
+		[1, 2, 3, 4, 5].forEach(value => cache.set(value, value));
+		assert.strictEqual(cache.size, 5);
+		cache.set(6, 6);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 6]);
+		cache.set(7, 7);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 7]);
+		const values: number[] = [];
+		[1, 2, 3, 4, 7].forEach(key => values.push(cache.get(key)!));
+		assert.deepStrictEqual(values, [1, 2, 3, 4, 7]);
+	});
+
+	test('LinkedMap - MRU Cache get', () => {
+		const cache = new MRUCache<number, number>(5);
+
+		[1, 2, 3, 4, 5].forEach(value => cache.set(value, value));
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 5]);
+		cache.get(3);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
+		cache.peek(4);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
+		const values: number[] = [];
+		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)!));
+		assert.deepStrictEqual(values, [1, 2, 3, 4, 5]);
+	});
+
+	test('LinkedMap - MRU Cache limit with ratio', () => {
+		const cache = new MRUCache<number, number>(10, 0.5);
+
+		for (let i = 1; i <= 10; i++) {
+			cache.set(i, i);
+		}
+		assert.strictEqual(cache.size, 10);
+		cache.set(11, 11);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 11]);
+		const values: number[] = [];
+		[...cache.keys()].forEach(key => values.push(cache.get(key)!));
+		assert.deepStrictEqual(values, [1, 2, 3, 4, 11]);
 		assert.deepStrictEqual([...cache.values()], values);
 	});
 

@@ -5,7 +5,7 @@
 
 .monaco-workbench .inline-chat-content-widget {
 	z-index: 50;
-	padding: 6px 6px 2px 6px;
+	padding: 6px 6px 6px 6px;
 	border-radius: 4px;
 	background-color: var(--vscode-inlineChat-background);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
@@ -13,6 +13,10 @@
 
 .monaco-workbench .inline-chat-content-widget .hidden {
 	display: none;
+}
+
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-session {
+	max-width: unset;
 }
 
 .monaco-workbench .inline-chat-content-widget.interactive-session .interactive-input-part .interactive-execute-toolbar {

@@ -8,7 +8,6 @@ import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -43,12 +42,10 @@ import { IInlineChatSavingService } from '../../browser/inlineChatSavingService'
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
 import { TestWorkerService } from './testWorkerService';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -58,6 +55,9 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
+import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 
 suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
@@ -118,13 +118,13 @@ suite('InteractiveChatController', function () {
 
 		const serviceCollection = new ServiceCollection(
 			[IConfigurationService, new TestConfigurationService()],
-			[IChatVariablesService, new MockChatVariablesService()],
+			[IChatVariablesService, new SyncDescriptor(ChatVariablesService)],
 			[ILogService, new NullLogService()],
 			[ITelemetryService, NullTelemetryService],
+			[IHoverService, NullHoverService],
 			[IExtensionService, new TestExtensionService()],
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new TestExtensionService()],
-			[IChatContributionService, new TestExtensionService()],
 			[IWorkspaceContextService, new TestContextService()],
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
@@ -180,6 +180,8 @@ suite('InteractiveChatController', function () {
 
 		store.add(chatAgentService.registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
+			extensionPublisher: '',
+			extensionDisplayName: '',
 			id: 'testAgent',
 			name: 'testAgent',
 			isDefault: true,
@@ -559,7 +561,6 @@ suite('InteractiveChatController', function () {
 		assert.strictEqual(requests.length, 2);
 
 		assert.strictEqual(requests[0].previewDocument.toString(), model.uri.toString()); // live
-		assert.strictEqual(requests[1].previewDocument.scheme, Schemas.vscode); // preview
-		assert.strictEqual(requests[1].previewDocument.authority, 'inline-chat');
+		assert.strictEqual(requests[1].previewDocument.toString(), model.uri.toString()); // preview (both use the same but edits aren't applied like that)
 	});
 });

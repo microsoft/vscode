@@ -11,7 +11,7 @@ import { dirname, join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { FileChangeFilter, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
@@ -21,6 +21,40 @@ import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+
+export class TestParcelWatcher extends ParcelWatcher {
+
+	protected override readonly suspendedWatchRequestPollingInterval = 100;
+
+	private readonly _onDidWatch = this._register(new Emitter<void>());
+	readonly onDidWatch = this._onDidWatch.event;
+
+	readonly onWatchFail = this._onDidWatchFail.event;
+
+	testRemoveDuplicateRequests(paths: string[], excludes: string[] = []): string[] {
+
+		// Work with strings as paths to simplify testing
+		const requests: IRecursiveWatchRequest[] = paths.map(path => {
+			return { path, excludes, recursive: true };
+		});
+
+		return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
+	}
+
+	protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
+		await super.doWatch(requests);
+		await this.whenReady();
+
+		this._onDidWatch.fire();
+	}
+
+	async whenReady(): Promise<void> {
+		for (const watcher of this.watchers) {
+			await watcher.ready;
+		}
+	}
+}
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -28,39 +62,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 // whenever we update the watcher library.
 
 ((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
-
-	class TestParcelWatcher extends ParcelWatcher {
-
-		protected override readonly suspendedWatchRequestPollingInterval = 100;
-
-		private readonly _onDidWatch = this._register(new Emitter<void>());
-		readonly onDidWatch = this._onDidWatch.event;
-
-		readonly onWatchFail = this._onDidWatchFail.event;
-
-		testRemoveDuplicateRequests(paths: string[], excludes: string[] = []): string[] {
-
-			// Work with strings as paths to simplify testing
-			const requests: IRecursiveWatchRequest[] = paths.map(path => {
-				return { path, excludes, recursive: true };
-			});
-
-			return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
-		}
-
-		protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
-			await super.doWatch(requests);
-			await this.whenReady();
-
-			this._onDidWatch.fire();
-		}
-
-		async whenReady(): Promise<void> {
-			for (const watcher of this.watchers) {
-				await watcher.ready;
-			}
-		}
-	}
 
 	let testDir: string;
 	let watcher: TestParcelWatcher;
@@ -90,7 +91,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 			}
 		});
 
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
+		testDir = URI.file(getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher')).fsPath;
 
 		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
@@ -98,7 +99,18 @@ import { Emitter, Event } from 'vs/base/common/event';
 	});
 
 	teardown(async () => {
+		const watchers = watcher.watchers.size;
+		let stoppedInstances = 0;
+		for (const instance of watcher.watchers) {
+			Event.once(instance.onDidStop)(() => {
+				if (instance.stopped) {
+					stoppedInstances++;
+				}
+			});
+		}
+
 		await watcher.stop();
+		assert.strictEqual(stoppedInstances, watchers, 'All watchers must be stopped before the test ends');
 		watcher.dispose();
 
 		// Possible that the file watcher is still holding
@@ -170,37 +182,68 @@ import { Emitter, Event } from 'vs/base/common/event';
 	}
 
 	test('basics', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
+		const request = { path: testDir, excludes: [], recursive: true };
+		await watcher.watch([request]);
+		assert.strictEqual(watcher.watchers.size, watcher.watchers.size);
+
+		const instance = Array.from(watcher.watchers)[0];
+		assert.strictEqual(request, instance.request);
+		assert.strictEqual(instance.failed, false);
+		assert.strictEqual(instance.stopped, false);
+
+		const disposables = new DisposableStore();
+
+		const subscriptions1 = new Map<string, FileChangeType>();
+		const subscriptions2 = new Map<string, FileChangeType>();
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
+		disposables.add(instance.subscribe(newFilePath, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		disposables.add(instance.subscribe(newFilePath, change => subscriptions2.set(change.resource.fsPath, change.type))); // can subscribe multiple times
+		assert.strictEqual(instance.include(newFilePath), true);
+		assert.strictEqual(instance.exclude(newFilePath), false);
 		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
+		assert.strictEqual(subscriptions1.get(newFilePath), FileChangeType.ADDED);
+		assert.strictEqual(subscriptions2.get(newFilePath), FileChangeType.ADDED);
 
 		// New folder
 		const newFolderPath = join(testDir, 'deep', 'New Folder');
+		disposables.add(instance.subscribe(newFolderPath, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		const disposable = instance.subscribe(newFolderPath, change => subscriptions2.set(change.resource.fsPath, change.type));
+		disposable.dispose();
+		assert.strictEqual(instance.include(newFolderPath), true);
+		assert.strictEqual(instance.exclude(newFolderPath), false);
 		changeFuture = awaitEvent(watcher, newFolderPath, FileChangeType.ADDED);
 		await Promises.mkdir(newFolderPath);
 		await changeFuture;
+		assert.strictEqual(subscriptions1.get(newFolderPath), FileChangeType.ADDED);
+		assert.strictEqual(subscriptions2.has(newFolderPath), false /* subscription was disposed before the event */);
 
 		// Rename file
 		let renamedFilePath = join(testDir, 'deep', 'renamedFile.txt');
+		disposables.add(instance.subscribe(renamedFilePath, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		changeFuture = Promise.all([
 			awaitEvent(watcher, newFilePath, FileChangeType.DELETED),
 			awaitEvent(watcher, renamedFilePath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(newFilePath, renamedFilePath);
 		await changeFuture;
+		assert.strictEqual(subscriptions1.get(newFilePath), FileChangeType.DELETED);
+		assert.strictEqual(subscriptions1.get(renamedFilePath), FileChangeType.ADDED);
 
 		// Rename folder
 		let renamedFolderPath = join(testDir, 'deep', 'Renamed Folder');
+		disposables.add(instance.subscribe(renamedFolderPath, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		changeFuture = Promise.all([
 			awaitEvent(watcher, newFolderPath, FileChangeType.DELETED),
 			awaitEvent(watcher, renamedFolderPath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(newFolderPath, renamedFolderPath);
 		await changeFuture;
+		assert.strictEqual(subscriptions1.get(newFolderPath), FileChangeType.DELETED);
+		assert.strictEqual(subscriptions1.get(renamedFolderPath), FileChangeType.ADDED);
 
 		// Rename file (same name, different case)
 		const caseRenamedFilePath = join(testDir, 'deep', 'RenamedFile.txt');
@@ -280,13 +323,19 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
+		disposables.add(instance.subscribe(copiedFilepath, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		await Promises.unlink(copiedFilepath);
 		await changeFuture;
+		assert.strictEqual(subscriptions1.get(copiedFilepath), FileChangeType.DELETED);
 
 		// Delete folder
 		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.DELETED);
+		disposables.add(instance.subscribe(copiedFolderpath, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		await Promises.rmdir(copiedFolderpath);
 		await changeFuture;
+		assert.strictEqual(subscriptions1.get(copiedFolderpath), FileChangeType.DELETED);
+
+		disposables.dispose();
 	});
 
 	(isMacintosh /* this test seems not possible with fsevents backend */ ? test.skip : test)('basics (atomic writes)', async function () {
@@ -676,25 +725,58 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
 
+		let failed = false;
+		const instance = Array.from(watcher.watchers)[0];
+		assert.strictEqual(instance.include(folderPath), true);
+		instance.onDidFail(() => failed = true);
+
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
 		Promises.rm(folderPath, RimRafMode.UNLINK);
 		await onDidWatchFail;
 		await changeFuture;
+		assert.strictEqual(failed, true);
+		assert.strictEqual(instance.failed, true);
 	});
 
-	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async () => {
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {
+		await testCorrelatedWatchFolderDoesNotExist(false);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning, reusing watcher)', async () => {
+		await testCorrelatedWatchFolderDoesNotExist(true);
+	});
+
+	async function testCorrelatedWatchFolderDoesNotExist(reuseExistingWatcher: boolean) {
 		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 
 		const folderPath = join(testDir, 'not-found');
-		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const requests: IRecursiveWatchRequest[] = [];
+		if (reuseExistingWatcher) {
+			requests.push({ path: testDir, excludes: [], recursive: true });
+			await watcher.watch(requests);
+		}
+
+		const request: IRecursiveWatchRequest = { path: folderPath, excludes: [], recursive: true, correlationId: 1 };
+		requests.push(request);
+
+		await watcher.watch(requests);
 		await onDidWatchFail;
+
+		if (reuseExistingWatcher) {
+			assert.strictEqual(watcher.isSuspended(request), true);
+		} else {
+			assert.strictEqual(watcher.isSuspended(request), 'polling');
+		}
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
 		let onDidWatch = Event.toPromise(watcher.onDidWatch);
 		await Promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
+
+		assert.strictEqual(watcher.isSuspended(request), false);
 
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, 1);
@@ -710,11 +792,25 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await onDidWatch;
 
 		await basicCrudTest(filePath, 1);
+	}
+
+	test('correlated watch requests support suspend/resume (folder, exist in beginning, not reusing watcher)', async () => {
+		await testCorrelatedWatchFolderExists(false);
 	});
 
-	test('correlated watch requests support suspend/resume (folder, exist in beginning)', async () => {
+	test('correlated watch requests support suspend/resume (folder, exist in beginning, reusing watcher)', async () => {
+		await testCorrelatedWatchFolderExists(true);
+	});
+
+	async function testCorrelatedWatchFolderExists(reuseExistingWatcher: boolean) {
 		const folderPath = join(testDir, 'deep');
-		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const requests: IRecursiveWatchRequest[] = [{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }];
+		if (reuseExistingWatcher) {
+			requests.push({ path: testDir, excludes: [], recursive: true });
+		}
+
+		await watcher.watch(requests);
 
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, 1);
@@ -730,5 +826,41 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await onDidWatch;
 
 		await basicCrudTest(filePath, 1);
+	}
+
+	test('watch request reuses another recursive watcher even when requests are coming in at the same time', async function () {
+		const folderPath1 = join(testDir, 'deep', 'not-existing1');
+		const folderPath2 = join(testDir, 'deep', 'not-existing2');
+		const folderPath3 = join(testDir, 'not-existing3');
+
+		const requests: IRecursiveWatchRequest[] = [
+			{ path: folderPath1, excludes: [], recursive: true, correlationId: 1 },
+			{ path: folderPath2, excludes: [], recursive: true, correlationId: 2 },
+			{ path: folderPath3, excludes: [], recursive: true, correlationId: 3 },
+			{ path: join(testDir, 'deep'), excludes: [], recursive: true }
+		];
+
+		await watcher.watch(requests);
+
+		assert.strictEqual(watcher.isSuspended(requests[0]), true);
+		assert.strictEqual(watcher.isSuspended(requests[1]), true);
+		assert.strictEqual(watcher.isSuspended(requests[2]), 'polling');
+		assert.strictEqual(watcher.isSuspended(requests[3]), false);
+	});
+
+	test('event type filter', async function () {
+		const request = { path: testDir, excludes: [], recursive: true, filter: FileChangeFilter.ADDED | FileChangeFilter.DELETED, correlationId: 1 };
+		await watcher.watch([request]);
+
+		// Change file
+		const filePath = join(testDir, 'lorem-newfile.txt');
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, undefined, 1);
+		await Promises.writeFile(filePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, 1);
+		await Promises.unlink(filePath);
+		await changeFuture;
 	});
 });

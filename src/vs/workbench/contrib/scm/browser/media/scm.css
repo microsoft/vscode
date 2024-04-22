@@ -245,7 +245,7 @@
 	height: 100%;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
-	margin-right: 8px;
+	margin-left: 5px;
 }
 
 .scm-view .monaco-list-row .resource > .decoration-icon.codicon {

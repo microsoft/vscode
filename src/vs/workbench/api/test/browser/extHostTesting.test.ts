@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -85,11 +86,14 @@ suite('ExtHost Testing', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let single: TestExtHostTestItemCollection;
+	let resolveCalls: (string | undefined)[] = [];
 	setup(() => {
+		resolveCalls = [];
 		single = ds.add(new TestExtHostTestItemCollection('ctrlId', 'root', {
 			getDocument: () => undefined,
 		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors));
 		single.resolveHandler = item => {
+			resolveCalls.push(item?.id);
 			if (item === undefined) {
 				const a = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
 				a.canResolveChildren = true;
@@ -305,7 +309,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded, item: { label: 'Hello world' } },
+					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { label: 'Hello world' } },
 				},
 				{
 					op: TestDiffOpType.DocumentSynced,
@@ -326,6 +330,40 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
+		suite('expandibility restoration', () => {
+			const doReplace = async (canResolveChildren = true) => {
+				const uri = single.root.children.get('id-a')!.uri;
+				const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', uri);
+				newA.canResolveChildren = canResolveChildren;
+				single.root.children.replace([
+					newA,
+					new TestItemImpl('ctrlId', 'id-b', single.root.children.get('id-b')!.label, uri),
+				]);
+				await timeout(0); // drain microtasks
+			};
+
+			test('does not restore an unexpanded state', async () => {
+				await single.expand(single.root.id, 0);
+				assert.deepStrictEqual(resolveCalls, [undefined]);
+				await doReplace();
+				assert.deepStrictEqual(resolveCalls, [undefined]);
+			});
+
+			test('restores resolve state on replacement', async () => {
+				await single.expand(single.root.id, Infinity);
+				assert.deepStrictEqual(resolveCalls, [undefined, 'id-a']);
+				await doReplace();
+				assert.deepStrictEqual(resolveCalls, [undefined, 'id-a', 'id-a']);
+			});
+
+			test('does not expand if new child is not expandable', async () => {
+				await single.expand(single.root.id, Infinity);
+				assert.deepStrictEqual(resolveCalls, [undefined, 'id-a']);
+				await doReplace(false);
+				assert.deepStrictEqual(resolveCalls, [undefined, 'id-a']);
+			});
+		});
+
 		test('treats in-place replacement as mutation deeply', () => {
 			single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -340,10 +378,6 @@ suite('ExtHost Testing', () => {
 			single.root.children.replace([newA, single.root.children.get('id-b')!]);
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				{
-					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded },
-				},
 				{
 					op: TestDiffOpType.Update,
 					item: { extId: TestId.fromExtHostTestItem(oldAB, 'ctrlId').toString(), item: { label: 'Hello world' } },
@@ -718,6 +752,7 @@ suite('ExtHost Testing', () => {
 					exclude: [new TestId(['ctrlId', 'id-b']).toString()],
 					persist: false,
 					continuous: false,
+					preserveFocus: true,
 				}]
 			]);
 

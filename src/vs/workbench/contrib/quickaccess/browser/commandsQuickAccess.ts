@@ -37,6 +37,7 @@ import { CommandInformationResult, IAiRelatedInformationService, RelatedInformat
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { createKeybindingCommandQuery } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
@@ -132,7 +133,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				tooltip: localize('configure keybinding', "Configure Keybinding"),
 			}],
 			trigger: (): TriggerAction => {
-				this.preferencesService.openGlobalKeybindingSettings(false, { query: `@command:${picks.commandId}` });
+				this.preferencesService.openGlobalKeybindingSettings(false, { query: createKeybindingCommandQuery(picks.commandId, picks.commandWhen) });
 				return TriggerAction.CLOSE_PICKER;
 			},
 		}));
@@ -243,6 +244,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				: { value: metadataDescription, original: metadataDescription };
 			globalCommandPicks.push({
 				commandId: action.item.id,
+				commandWhen: action.item.precondition?.serialize(),
 				commandAlias,
 				label: stripIcons(label),
 				commandDescription,

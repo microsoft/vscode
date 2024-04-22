@@ -118,6 +118,12 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 	public override flip(): DetailedLineRangeMapping {
 		return new DetailedLineRangeMapping(this.modified, this.original, this.innerChanges?.map(c => c.flip()));
 	}
+
+	public withInnerChangesFromLineRanges(): DetailedLineRangeMapping {
+		return new DetailedLineRangeMapping(this.original, this.modified, [
+			new RangeMapping(this.original.toExclusiveRange(), this.modified.toExclusiveRange()),
+		]);
+	}
 }
 
 /**

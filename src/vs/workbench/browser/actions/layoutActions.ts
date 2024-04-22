@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
+import { ILocalizedString, localize, localize2 } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -447,12 +447,13 @@ registerAction2(ToggleStatusbarVisibilityAction);
 
 abstract class AbstractSetShowTabsAction extends Action2 {
 
-	constructor(private readonly settingName: string, private readonly value: string, title: ICommandActionTitle, id: string, precondition: ContextKeyExpression) {
+	constructor(private readonly settingName: string, private readonly value: string, title: ICommandActionTitle, id: string, precondition: ContextKeyExpression, description: string | ILocalizedString | undefined) {
 		super({
 			id,
 			title,
 			category: Categories.View,
 			precondition,
+			metadata: description ? { description } : undefined,
 			f1: true
 		});
 	}
@@ -472,7 +473,7 @@ export class HideEditorTabsAction extends AbstractSetShowTabsAction {
 	constructor() {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate(), InEditorZenModeContext.negate())!;
 		const title = localize2('hideEditorTabs', 'Hide Editor Tabs');
-		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.NONE, title, HideEditorTabsAction.ID, precondition);
+		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.NONE, title, HideEditorTabsAction.ID, precondition, localize2('hideEditorTabsDescription', "Hide Tab Bar"));
 	}
 }
 
@@ -483,7 +484,7 @@ export class ZenHideEditorTabsAction extends AbstractSetShowTabsAction {
 	constructor() {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.NONE).negate(), InEditorZenModeContext)!;
 		const title = localize2('hideEditorTabsZenMode', 'Hide Editor Tabs in Zen Mode');
-		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.NONE, title, ZenHideEditorTabsAction.ID, precondition);
+		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.NONE, title, ZenHideEditorTabsAction.ID, precondition, localize2('hideEditorTabsZenModeDescription', "Hide Tab Bar in Zen Mode"));
 	}
 }
 
@@ -497,7 +498,7 @@ export class ShowMultipleEditorTabsAction extends AbstractSetShowTabsAction {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.MULTIPLE).negate(), InEditorZenModeContext.negate())!;
 		const title = localize2('showMultipleEditorTabs', 'Show Multiple Editor Tabs');
 
-		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.MULTIPLE, title, ShowMultipleEditorTabsAction.ID, precondition);
+		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.MULTIPLE, title, ShowMultipleEditorTabsAction.ID, precondition, localize2('showMultipleEditorTabsDescription', "Show Tab Bar with multiple tabs"));
 	}
 }
 
@@ -509,7 +510,7 @@ export class ZenShowMultipleEditorTabsAction extends AbstractSetShowTabsAction {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.MULTIPLE).negate(), InEditorZenModeContext)!;
 		const title = localize2('showMultipleEditorTabsZenMode', 'Show Multiple Editor Tabs in Zen Mode');
 
-		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.MULTIPLE, title, ZenShowMultipleEditorTabsAction.ID, precondition);
+		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.MULTIPLE, title, ZenShowMultipleEditorTabsAction.ID, precondition, localize2('showMultipleEditorTabsZenModeDescription', "Show Tab Bar in Zen Mode"));
 	}
 }
 
@@ -523,7 +524,7 @@ export class ShowSingleEditorTabAction extends AbstractSetShowTabsAction {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.SINGLE).negate(), InEditorZenModeContext.negate())!;
 		const title = localize2('showSingleEditorTab', 'Show Single Editor Tab');
 
-		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.SINGLE, title, ShowSingleEditorTabAction.ID, precondition);
+		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.SINGLE, title, ShowSingleEditorTabAction.ID, precondition, localize2('showSingleEditorTabDescription', "Show Tab Bar with one Tab"));
 	}
 }
 
@@ -535,7 +536,7 @@ export class ZenShowSingleEditorTabAction extends AbstractSetShowTabsAction {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.SINGLE).negate(), InEditorZenModeContext)!;
 		const title = localize2('showSingleEditorTabZenMode', 'Show Single Editor Tab in Zen Mode');
 
-		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.SINGLE, title, ZenShowSingleEditorTabAction.ID, precondition);
+		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.SINGLE, title, ZenShowSingleEditorTabAction.ID, precondition, localize2('showSingleEditorTabZenModeDescription', "Show Tab Bar in Zen Mode with one Tab"));
 	}
 }
 
@@ -576,6 +577,7 @@ export class EditorActionsTitleBarAction extends Action2 {
 			title: localize2('moveEditorActionsToTitleBar', "Move Editor Actions to Title Bar"),
 			category: Categories.View,
 			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR).negate(),
+			metadata: { description: localize2('moveEditorActionsToTitleBarDescription', "Move Editor Actions from the tab bar to the title bar") },
 			f1: true
 		});
 	}
@@ -602,6 +604,7 @@ export class EditorActionsDefaultAction extends Action2 {
 				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.DEFAULT).negate(),
 				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate(),
 			),
+			metadata: { description: localize2('moveEditorActionsToTabBarDescription', "Move Editor Actions from the title bar to the tab bar") },
 			f1: true
 		});
 	}
@@ -625,6 +628,7 @@ export class HideEditorActionsAction extends Action2 {
 			title: localize2('hideEditorActons', "Hide Editor Actions"),
 			category: Categories.View,
 			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN).negate(),
+			metadata: { description: localize2('hideEditorActonsDescription', "Hide Editor Actions in the tab and title bar") },
 			f1: true
 		});
 	}
@@ -648,6 +652,7 @@ export class ShowEditorActionsAction extends Action2 {
 			title: localize2('showEditorActons', "Show Editor Actions"),
 			category: Categories.View,
 			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN),
+			metadata: { description: localize2('showEditorActonsDescription', "Make Editor Actions visible.") },
 			f1: true
 		});
 	}
@@ -678,6 +683,7 @@ registerAction2(class extends Action2 {
 			title: localize2('toggleSeparatePinnedEditorTabs', "Separate Pinned Editor Tabs"),
 			category: Categories.View,
 			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.MULTIPLE),
+			metadata: { description: localize2('toggleSeparatePinnedEditorTabsDescription', "Toggle whether pinned editor tabs are shown on a separate row above unpinned tabs.") },
 			f1: true
 		});
 	}

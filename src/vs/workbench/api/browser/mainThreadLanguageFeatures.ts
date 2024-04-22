@@ -32,7 +32,7 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
 import { ResourceMap } from 'vs/base/common/map';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
@@ -251,9 +251,16 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		/*
+		const hoverFinalizationRegistry = new FinalizationRegistry((hoverId: number) => {
+			this._proxy.$releaseHover(handle, hoverId);
+		});
+		*/
 		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider>{
-			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.Hover | undefined> => {
-				return this._proxy.$provideHover(handle, model.uri, position, token);
+			provideHover: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context?: languages.HoverContext<{ id: number }>): Promise<HoverWithId | undefined> => {
+				const hover = await this._proxy.$provideHover(handle, model.uri, position, context, token);
+				// hoverFinalizationRegistry.register(hover, hover.id);
+				return hover;
 			}
 		}));
 	}
@@ -968,7 +975,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		const provider = new MainThreadDocumentOnDropEditProvider(handle, this._proxy, metadata, this._uriIdentService);
 		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
-			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
+			this._languageFeaturesService.documentDropEditProvider.register(selector, provider),
 			toDisposable(() => this._documentOnDropEditProviders.delete(handle)),
 		));
 	}
@@ -1082,11 +1089,13 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 	}
 }
 
-class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEditProvider {
+class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEditProvider {
 
 	private readonly dataTransfers = new DataTransferFileCache();
 
 	readonly dropMimeTypes?: readonly string[];
+
+	readonly resolveDocumentDropEdit?: languages.DocumentDropEditProvider['resolveDocumentDropEdit'];
 
 	constructor(
 		private readonly _handle: number,
@@ -1095,9 +1104,19 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
 		this.dropMimeTypes = metadata?.dropMimeTypes ?? ['*/*'];
+
+		if (metadata?.supportsResolve) {
+			this.resolveDocumentDropEdit = async (edit, token) => {
+				const resolved = await this._proxy.$resolvePasteEdit(this._handle, (<IDocumentDropEditDto>edit)._cacheId!, token);
+				if (resolved.additionalEdit) {
+					edit.additionalEdit = reviveWorkspaceEditDto(resolved.additionalEdit, this._uriIdentService);
+				}
+				return edit;
+			};
+		}
 	}
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit[] | undefined> {
+	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEdit[] | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
 			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);

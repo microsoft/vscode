@@ -93,8 +93,8 @@ class RecommendationsNotification extends Disposable {
 		return this.cancelled;
 	}
 
-	private onDidCloseDisposable = this._register(new MutableDisposable());
-	private onDidChangeVisibilityDisposable = this._register(new MutableDisposable());
+	private readonly onDidCloseDisposable = this._register(new MutableDisposable());
+	private readonly onDidChangeVisibilityDisposable = this._register(new MutableDisposable());
 	private updateNotificationHandle(notificationHandle: INotificationHandle) {
 		this.onDidCloseDisposable.clear();
 		this.onDidChangeVisibilityDisposable.clear();

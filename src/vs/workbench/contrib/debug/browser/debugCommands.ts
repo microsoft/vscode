@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -73,6 +73,9 @@ export const CALLSTACK_TOP_ID = 'workbench.action.debug.callStackTop';
 export const CALLSTACK_BOTTOM_ID = 'workbench.action.debug.callStackBottom';
 export const CALLSTACK_UP_ID = 'workbench.action.debug.callStackUp';
 export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
+export const ADD_TO_WATCH_ID = 'debug.addToWatchExpressions';
+export const COPY_EVALUATE_PATH_ID = 'debug.copyEvaluatePath';
+export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 
 export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
 export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
@@ -97,6 +100,9 @@ export const CALLSTACK_TOP_LABEL = nls.localize2('callStackTop', "Navigate to To
 export const CALLSTACK_BOTTOM_LABEL = nls.localize2('callStackBottom', "Navigate to Bottom of Call Stack");
 export const CALLSTACK_UP_LABEL = nls.localize2('callStackUp', "Navigate Up Call Stack");
 export const CALLSTACK_DOWN_LABEL = nls.localize2('callStackDown', "Navigate Down Call Stack");
+export const COPY_EVALUATE_PATH_LABEL = nls.localize2('copyAsExpression', "Copy as Expression");
+export const COPY_VALUE_LABEL = nls.localize2('copyValue', "Copy Value");
+export const ADD_TO_WATCH_LABEL = nls.localize2('addToWatchExpressions', "Add to Watch");
 
 export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize2('selectDebugConsole', "Select Debug Console");
 export const SELECT_DEBUG_SESSION_LABEL = nls.localize2('selectDebugSession', "Select Debug Session");
@@ -285,7 +291,7 @@ function findNextVisibleFrame(down: boolean, callStack: readonly IStackFrame[], 
 		}
 
 		currFrame = callStack[index];
-		if (!(currFrame.source.presentationHint === 'deemphasize' || currFrame.presentationHint === 'deemphasize')) {
+		if (!isFrameDeemphasized(currFrame)) {
 			return currFrame;
 		}
 	} while (index !== startIndex); // end loop when we've just checked the start index, since that should be the last one checked
@@ -705,7 +711,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
-	handler: async (accessor: ServicesAccessor, debugType: string | unknown) => {
+	handler: async (accessor: ServicesAccessor, debugType: string | unknown, debugStartOptions?: { noDebug?: boolean }) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		const debugService = accessor.get(IDebugService);
 
@@ -717,7 +723,7 @@ CommandsRegistry.registerCommand({
 					const pick = await provider.pick();
 					if (pick) {
 						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
-						debugService.startDebugging(pick.launch, pick.config, { startedByUser: true });
+						debugService.startDebugging(pick.launch, pick.config, { noDebug: debugStartOptions?.noDebug, startedByUser: true });
 
 						return;
 					}

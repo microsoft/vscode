@@ -10299,6 +10299,12 @@ declare module 'vscode' {
 		 * Whether the current window is focused.
 		 */
 		readonly focused: boolean;
+
+		/**
+		 * Whether the window has been interacted with recently. This will change
+		 * immediately on activity, or after a short time of user inactivity.
+		 */
+		readonly active: boolean;
 	}
 
 	/**
@@ -17195,7 +17201,10 @@ declare module 'vscode' {
 		runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
 
 		/**
-		 * A function that provides detailed statement and function-level coverage for a file.
+		 * An extension-provided function that provides detailed statement and
+		 * function-level coverage for a file. The editor will call this when more
+		 * detail is needed for a file, such as when it's opened in an editor or
+		 * expanded in the **Test Coverage** view.
 		 *
 		 * The {@link FileCoverage} object passed to this function is the same instance
 		 * emitted on {@link TestRun.addCoverage} calls associated with this profile.

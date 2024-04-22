@@ -168,19 +168,51 @@ export interface Hover {
 	 * current position itself.
 	 */
 	range?: IRange;
+
+	/**
+	 * Can increase the verbosity of the hover
+	 */
+	canIncreaseVerbosity?: boolean;
+
+	/**
+	 * Can decrease the verbosity of the hover
+	 */
+	canDecreaseVerbosity?: boolean;
 }
 
 /**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
-export interface HoverProvider {
+export interface HoverProvider<THover = Hover> {
 	/**
-	 * Provide a hover for the given position and document. Multiple hovers at the same
+	 * Provide a hover for the given position, context and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<Hover>;
+}
+
+export interface HoverContext<THover = Hover> {
+	/**
+	 * Whether to increase or decrease the hover's verbosity
+	 */
+	action?: HoverVerbosityAction;
+	/**
+	 * The previous hover for the same position
+	 */
+	previousHover?: THover;
+}
+
+export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
+	Increase,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
+	Decrease
 }
 
 /**
@@ -2146,7 +2178,7 @@ export type DropYieldTo = { readonly kind: HierarchicalKind } | { readonly mimeT
 /**
  * @internal
  */
-export interface DocumentOnDropEdit {
+export interface DocumentDropEdit {
 	readonly title: string;
 	readonly kind: HierarchicalKind | undefined;
 	readonly handledMimeType?: string;
@@ -2158,11 +2190,12 @@ export interface DocumentOnDropEdit {
 /**
  * @internal
  */
-export interface DocumentOnDropEditProvider {
+export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit[]>;
+	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEdit[]>;
+	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
 }
 
 export interface DocumentContextItem {

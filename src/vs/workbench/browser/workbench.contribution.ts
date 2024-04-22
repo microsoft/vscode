@@ -109,6 +109,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				{
 					type: 'string',
 					markdownDescription: localize('workbench.editor.label.template', "The template which should be rendered when the pattern mtches. May include the variables ${dirname}, ${filename} and ${extname}."),
+					minLength: 1,
+					pattern: '.*[a-zA-Z0-9].*'
 				},
 				'default': {}
 			},
@@ -286,12 +288,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromQuickOpen' }, "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). When enabled, hold Ctrl before selection to open an editor as a non-preview. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.enablePreview#`', '`multiple`'),
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromQuickOpen' }, "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). When enabled, hold Ctrl before selection to open an editor as a non-preview. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
 				'default': false
 			},
 			'workbench.editor.enablePreviewFromCodeNavigation': {
 				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromCodeNavigation' }, "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.enablePreview#`', '`multiple`'),
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromCodeNavigation' }, "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
 				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -526,22 +528,22 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['default', 'top', 'bottom', 'hidden'],
 				'default': 'default',
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar. It can either show to the `default` or `top` / `bottom` of the Primary and Secondary Side Bar or `hidden`."),
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar relative to the Primary and Secondary Side Bars."),
 				'enumDescriptions': [
-					localize('workbench.activityBar.location.default', "Show the Activity Bar of the Primary Side Bar on the side."),
-					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary and Secondary Side Bar."),
-					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary and Secondary Side Bar."),
-					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bar.")
+					localize('workbench.activityBar.location.default', "Show the Activity Bar on the side of the Primary Side Bar and on top of the Secondary Side Bar."),
+					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary and Secondary Side Bars."),
+					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary and Secondary Side Bars."),
+					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bars.")
 				],
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
 				'enum': ['toggle', 'focus'],
 				'default': 'toggle',
-				'description': localize('activityBarIconClickBehavior', "Controls the behavior of clicking an activity bar icon in the workbench."),
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'activityBarIconClickBehavior' }, "Controls the behavior of clicking an Activity Bar icon in the workbench. This value is ignored when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`default`'),
 				'enumDescriptions': [
-					localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the side bar if the clicked item is already visible."),
-					localize('workbench.activityBar.iconClickBehavior.focus', "Focus side bar if the clicked item is already visible.")
+					localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the Primary Side Bar if the clicked item is already visible."),
+					localize('workbench.activityBar.iconClickBehavior.focus', "Focus the Primary Side Bar if the clicked item is already visible.")
 				]
 			},
 			'workbench.view.alwaysShowHeaderActions': {

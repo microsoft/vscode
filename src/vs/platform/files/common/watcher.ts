@@ -5,11 +5,11 @@
 
 import { Event } from 'vs/base/common/event';
 import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isAbsolute } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+import { FileChangeFilter, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
 interface IWatchRequest {
 
@@ -41,6 +41,15 @@ interface IWatchRequest {
 	 * id.
 	 */
 	readonly correlationId?: number;
+
+	/**
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to:
+	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
+	 */
+	readonly filter?: FileChangeFilter;
 }
 
 export interface IWatchRequestWithCorrelation extends IWatchRequest {
@@ -120,6 +129,20 @@ export interface IWatcher {
 
 export interface IRecursiveWatcher extends IWatcher {
 	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IRecursiveWatcherWithSubscribe extends IRecursiveWatcher {
+
+	/**
+	 * Subscribe to file events for the given path. The callback is called
+	 * whenever a file event occurs for the path. If the watcher failed,
+	 * the error parameter is set to `true`.
+	 *
+	 * @returns an `IDisposable` to stop listening to events or `undefined`
+	 * if no events can be watched for the path given the current set of
+	 * recursive watch requests.
+	 */
+	subscribe(path: string, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined;
 }
 
 export interface IRecursiveWatcherOptions {
@@ -413,4 +436,42 @@ class EventCoalescer {
 			return true;
 		}).concat(addOrChangeEvents);
 	}
+}
+
+export function isFiltered(event: IFileChange, filter: FileChangeFilter | undefined): boolean {
+	if (typeof filter === 'number') {
+		switch (event.type) {
+			case FileChangeType.ADDED:
+				return (filter & FileChangeFilter.ADDED) === 0;
+			case FileChangeType.DELETED:
+				return (filter & FileChangeFilter.DELETED) === 0;
+			case FileChangeType.UPDATED:
+				return (filter & FileChangeFilter.UPDATED) === 0;
+		}
+	}
+
+	return false;
+}
+
+export function requestFilterToString(filter: FileChangeFilter | undefined): string {
+	if (typeof filter === 'number') {
+		const filters = [];
+		if (filter & FileChangeFilter.ADDED) {
+			filters.push('Added');
+		}
+		if (filter & FileChangeFilter.DELETED) {
+			filters.push('Deleted');
+		}
+		if (filter & FileChangeFilter.UPDATED) {
+			filters.push('Updated');
+		}
+
+		if (filters.length === 0) {
+			return '<all>';
+		}
+
+		return `[${filters.join(', ')}]`;
+	}
+
+	return '<none>';
 }
