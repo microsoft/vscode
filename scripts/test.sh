@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
+
+echo "Running tests"
+echo "====================="
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname $(dirname $(realpath "$0")))
