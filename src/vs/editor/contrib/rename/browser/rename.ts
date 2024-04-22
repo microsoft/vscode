@@ -239,7 +239,7 @@ class RenameController implements IEditorContribution {
 			loc.range,
 			loc.text,
 			supportPreview,
-			requestRenameSuggestions,
+			newSymbolNamesProviders.length > 0 ? requestRenameSuggestions : undefined,
 			cts2
 		);
 		trace('received response from rename input field');
@@ -492,8 +492,7 @@ registerAction2(class FocusNextRenameSuggestion extends Action2 {
 			precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 			keybinding: [
 				{
-					primary: KeyCode.Tab,
-					secondary: [KeyCode.DownArrow],
+					primary: KeyCode.DownArrow,
 					weight: KeybindingWeight.EditorContrib + 99,
 				}
 			]
@@ -521,8 +520,7 @@ registerAction2(class FocusPreviousRenameSuggestion extends Action2 {
 			precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 			keybinding: [
 				{
-					primary: KeyMod.Shift | KeyCode.Tab,
-					secondary: [KeyCode.UpArrow],
+					primary: KeyCode.UpArrow,
 					weight: KeybindingWeight.EditorContrib + 99,
 				}
 			]
