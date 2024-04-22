@@ -97,6 +97,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	//#region viewLayout
 	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
 	//#endregion
+
+	batchEvents(callback: () => void): void;
 }
 
 export interface IViewLayout {
