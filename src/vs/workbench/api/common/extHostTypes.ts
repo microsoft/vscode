@@ -3180,6 +3180,11 @@ export enum NewSymbolNameTag {
 	AIGenerated = 1
 }
 
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
 export class NewSymbolName implements vscode.NewSymbolName {
 	readonly newSymbolName: string;
 	readonly tags?: readonly vscode.NewSymbolNameTag[] | undefined;

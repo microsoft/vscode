@@ -27,7 +27,7 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { NewSymbolName, NewSymbolNameTag, ProviderResult } from 'vs/editor/common/languages';
+import { NewSymbolName, NewSymbolNameTag, NewSymbolNameTriggerKind, ProviderResult } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -91,7 +91,7 @@ interface IRenameWidget {
 		where: IRange,
 		currentName: string,
 		supportPreview: boolean,
-		requestRenameSuggestions: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
+		requestRenameSuggestions: (triggerKind: NewSymbolNameTriggerKind, cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
 		cts: CancellationTokenSource
 	): Promise<RenameWidgetResult | boolean>;
 
@@ -341,7 +341,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 
 	private _currentAcceptInput?: (wantsPreview: boolean) => void;
 	private _currentCancelInput?: (focusEditor: boolean) => void;
-	private _requestRenameCandidatesOnce?: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[];
+	private _requestRenameCandidatesOnce?: (triggerKind: NewSymbolNameTriggerKind, cts: CancellationToken) => ProviderResult<NewSymbolName[]>[];
 
 	acceptInput(wantsPreview: boolean): void {
 		this._trace(`invoking acceptInput`);
@@ -369,7 +369,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		where: IRange,
 		currentName: string,
 		supportPreview: boolean,
-		requestRenameCandidates: undefined | ((cts: CancellationToken) => ProviderResult<NewSymbolName[]>[]),
+		requestRenameCandidates: undefined | ((triggerKind: NewSymbolNameTriggerKind, cts: CancellationToken) => ProviderResult<NewSymbolName[]>[]),
 		cts: CancellationTokenSource
 	): Promise<RenameWidgetResult | boolean> {
 
@@ -510,10 +510,15 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		if (this._renameCandidateProvidersCts !== undefined) {
 			this._renameCandidateProvidersCts.dispose(true);
 		}
+
 		assertType(this._renameCts);
+
 		if (this._inputWithButton.buttonState !== 'stop') {
+
 			this._renameCandidateProvidersCts = new CancellationTokenSource();
-			const candidates = this._requestRenameCandidatesOnce(this._renameCandidateProvidersCts.token);
+
+			const triggerKind = isManuallyTriggered ? NewSymbolNameTriggerKind.Invoke : NewSymbolNameTriggerKind.Automatic;
+			const candidates = this._requestRenameCandidatesOnce(triggerKind, this._renameCandidateProvidersCts.token);
 
 			const window = dom.getActiveWindow();
 
