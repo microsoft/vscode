@@ -37,6 +37,10 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TextEdit } from 'vs/editor/common/languages';
 import { isEqual } from 'vs/base/common/resources';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IEditObserver {
 	start(): void;
@@ -67,44 +71,70 @@ export abstract class EditModeStrategy {
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
 		protected readonly _zone: InlineChatZoneWidget,
+		@ITextModelService private readonly _modelService: ITextModelService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 	) { }
 
 	dispose(): void {
 		this._store.dispose();
 	}
 
-	async apply(): Promise<void> {
+	protected async _doApplyChanges(ignoreLocal: boolean): Promise<void> {
 
-		if (this._session.lastExchange?.response instanceof ReplyResponse) {
-			const { untitledTextModel } = this._session.lastExchange.response;
-			if (untitledTextModel && !untitledTextModel.isDisposed()) {
+		const untitledModels: IUntitledTextEditorModel[] = [];
 
-				await untitledTextModel.resolve();
-				if (!untitledTextModel.textEditorModel) {
-					return;
+
+		for (const request of this._session.chatModel.getRequests()) {
+
+			if (!request.response?.response) {
+				continue;
+			}
+
+			for (const item of request.response.response.value) {
+				if (item.kind !== 'textEditGroup') {
+					continue;
+				}
+				if (item.state?.applied) {
+					continue;
+				}
+				if (ignoreLocal && isEqual(item.uri, this._session.textModelN.uri)) {
+					continue;
 				}
 
-				// TODO@jrieken
-				// apply changes only when not dirty. This is not very proper and needs to
-				// fixed in the future
-				if (!untitledTextModel.isDirty()) {
-					untitledTextModel.textEditorModel.pushStackElement();
-					for (const request of this._session.chatModel.getRequests()) {
-						for (const item of request.response?.response.value ?? []) {
-							if (item.kind === 'textEditGroup' && isEqual(item.uri, untitledTextModel.resource)) {
-								for (const group of item.edits) {
-									untitledTextModel.textEditorModel.pushEditOperations(null, group.map(TextEdit.asEditOperation), () => null);
-								}
-							}
-						}
+				const ref = await this._modelService.createModelReference(item.uri);
+				try {
+					ref.object.textEditorModel.pushStackElement();
+					let total = 0;
+					for (const group of item.edits) {
+						const edits = group.map(TextEdit.asEditOperation);
+						ref.object.textEditorModel.pushEditOperations(null, edits, () => null);
+						total += edits.length;
 					}
-					untitledTextModel.textEditorModel.pushStackElement();
+					ref.object.textEditorModel.pushStackElement();
+					request.response.setEditApplied(item, total);
+
+				} finally {
+					ref.dispose();
 				}
 
-				await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
+				if (item.uri.scheme === Schemas.untitled) {
+					const untitled = this._textFileService.untitled.get(item.uri);
+					if (untitled) {
+						untitledModels.push(untitled);
+					}
+				}
+			}
+		}
+
+		for (const untitledModel of untitledModels) {
+			if (!untitledModel.isDisposed()) {
+				await untitledModel.resolve();
+				await untitledModel.save({ reason: SaveReason.EXPLICIT });
 			}
 		}
 	}
+
+	abstract apply(): Promise<void>;
 
 	cancel() {
 		return this._session.hunkData.discardAll();
@@ -177,8 +207,10 @@ export class PreviewStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITextModelService textModelService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
 	) {
-		super(session, editor, zone);
+		super(session, editor, zone, textModelService, textFileService);
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 
@@ -196,26 +228,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async apply() {
-
-		// apply all edits from all responses
-		const textModel = this._editor.getModel();
-		if (textModel?.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
-
-
-			textModel.pushStackElement();
-			for (const request of this._session.chatModel.getRequests()) {
-				for (const item of request.response?.response.value ?? []) {
-					if (item.kind === 'textEditGroup' && isEqual(item.uri, textModel.uri) && !item.state?.applied) {
-						for (const group of item.edits) {
-							textModel.pushEditOperations(null, group.map(TextEdit.asEditOperation), () => null);
-						}
-					}
-				}
-			}
-			textModel.pushStackElement();
-		}
-
-		await super.apply();
+		await super._doApplyChanges(false);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
@@ -303,8 +316,10 @@ export class LiveStrategy extends EditModeStrategy {
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@ITextModelService textModelService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
 	) {
-		super(session, editor, zone);
+		super(session, editor, zone, textModelService, textFileService);
 		this._ctxCurrentChangeHasDiff = CTX_INLINE_CHAT_CHANGE_HAS_DIFF.bindTo(contextKeyService);
 		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
@@ -334,7 +349,7 @@ export class LiveStrategy extends EditModeStrategy {
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
-		await super.apply();
+		await super._doApplyChanges(true);
 	}
 
 	override cancel() {
