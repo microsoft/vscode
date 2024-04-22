@@ -525,10 +525,17 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							e.request.id,
 							e.request.response
 						);
+
 					}
 				}
 
 				session.addExchange(new SessionExchange(session.lastInput!, inlineResponse));
+
+				if (inlineResponse instanceof ReplyResponse && inlineResponse.untitledTextModel) {
+					this._textModelService.createModelReference(inlineResponse.untitledTextModel.resource).then(ref => {
+						store.add(ref);
+					});
+				}
 			});
 		}));
 
