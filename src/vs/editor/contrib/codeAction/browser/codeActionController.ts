@@ -301,7 +301,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					const refactorKinds = [
 						CodeActionKind.RefactorExtract,
 						CodeActionKind.RefactorInline,
-						CodeActionKind.RefactorRewrite
+						CodeActionKind.RefactorRewrite,
+						CodeActionKind.RefactorMove,
+						CodeActionKind.Source
 					];
 
 					canPreview = refactorKinds.some(refactorKind => refactorKind.contains(hierarchicalKind));
