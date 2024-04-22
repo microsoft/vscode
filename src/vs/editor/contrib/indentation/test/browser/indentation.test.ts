@@ -110,7 +110,7 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	}
 }
 
-function registerTokens(instantiationService: TestInstantiationService, tokens: { startIndex: number; value: number }[][], languageId: string): IDisposable {
+function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: { startIndex: number; value: number }[][], languageId: string): IDisposable {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
@@ -435,7 +435,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				]
 			];
 			disposables.add(registerLanguage(instantiationService, languageId));
-			disposables.add(registerTokens(instantiationService, tokens, languageId));
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(pasteText, true, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 16));
@@ -593,7 +593,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				]
 			];
 			disposables.add(registerLanguage(instantiationService, languageId));
-			disposables.add(registerTokens(instantiationService, tokens, languageId));
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 4));
@@ -726,7 +726,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				[{ startIndex: 0, value: 0 }, { startIndex: 1, value: 0 }]
 			];
 			disposables.add(registerLanguage(instantiationService, languageId));
-			disposables.add(registerTokens(instantiationService, tokens, languageId));
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 
 			editor.setSelection(new Selection(2, 1, 2, 1));
 			const text = [
