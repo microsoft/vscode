@@ -118,12 +118,12 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	}
 }
 
-interface TokenData {
+interface StandardTokenTypeData {
 	startIndex: number;
 	standardTokenType: StandardTokenType;
 }
 
-function registerTokens(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string, disposables: DisposableStore) {
+function registerTokens(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: string, disposables: DisposableStore) {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
@@ -420,7 +420,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				' */',
 				'function a() {}'
 			].join('\n');
-			const tokens: TokenData[][] = [
+			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
 					{ startIndex: 3, standardTokenType: StandardTokenType.Comment },
@@ -580,7 +580,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				' * }',
 				' */'
 			].join('\n');
-			const tokens: TokenData[][] = [
+			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
 					{ startIndex: 3, standardTokenType: StandardTokenType.Comment },
@@ -732,11 +732,35 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-			const tokens: TokenData[][] = [
-				[{ startIndex: 0, value: 0 }, { startIndex: 8, value: 0 }, { startIndex: 9, value: 0 }, { startIndex: 12, value: 0 }, { startIndex: 13, value: 0 }, { startIndex: 14, value: 0 }, { startIndex: 15, value: 0 }, { startIndex: 16, value: 0 }],
-				[{ startIndex: 0, value: 1 }, { startIndex: 2, value: 1 }, { startIndex: 3, value: 1 }, { startIndex: 10, value: 1 }],
-				[{ startIndex: 0, value: 0 }, { startIndex: 5, value: 0 }, { startIndex: 6, value: 0 }, { startIndex: 9, value: 0 }, { startIndex: 10, value: 0 }, { startIndex: 11, value: 0 }, { startIndex: 12, value: 0 }, { startIndex: 14, value: 0 }],
-				[{ startIndex: 0, value: 0 }, { startIndex: 1, value: 0 }]
+			const tokens: StandardTokenTypeData[][] = [
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 8, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 9, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 12, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 13, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 14, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 15, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 16, standardTokenType: StandardTokenType.Other }
+				],
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 2, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 3, standardTokenType: StandardTokenType.Comment },
+					{ startIndex: 10, standardTokenType: StandardTokenType.Comment }
+				],
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 5, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 6, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 9, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 10, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 11, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 12, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 14, standardTokenType: StandardTokenType.Other }],
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 1, standardTokenType: StandardTokenType.Other }]
 			];
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
 			registerTokens(instantiationService, tokens, languageId, disposables);
