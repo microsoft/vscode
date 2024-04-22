@@ -205,13 +205,13 @@ class IndentationLineProcessor {
 	getProcessedLineForLineAndTokens(line: string, tokens: IViewLineTokens): string {
 
 		// Utility functions
-		const removeBracketsFromTokenWithIndexWithinLine = (tokenIndex: number, offset: number, processedLine: string): { processedOffset: number, processedLine: string } => {
+		const removeBracketsFromTokenWithIndexWithinLine = (tokenIndex: number, offset: number, line: string): { processedOffset: number, processedLine: string } => {
 			const result = removeBracketsFromTokenWithIndex(tokenIndex);
 			const processedOffset = offset - (result.tokenText.length - result.processedTokenText.length);
-			const lineBeforeToken = processedLine.substring(0, offset + result.tokenInitialStartOffset);
-			const lineAfterToken = processedLine.substring(offset + result.tokenInitialEndOffset);
-			const newProcessedLine = lineBeforeToken + result.processedTokenText + lineAfterToken;
-			return { processedOffset, processedLine: newProcessedLine };
+			const lineBeforeToken = line.substring(0, offset + result.tokenInitialStartOffset);
+			const lineAfterToken = line.substring(offset + result.tokenInitialEndOffset);
+			const processedLine = lineBeforeToken + result.processedTokenText + lineAfterToken;
+			return { processedOffset, processedLine };
 		};
 		const removeBracketsFromTokenWithIndex = (tokenIndex: number): { tokenText: string; processedTokenText: string; tokenInitialStartOffset: number; tokenInitialEndOffset: number } => {
 			const tokenInitialStartOffset = tokens.getStartOffset(tokenIndex);
