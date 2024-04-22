@@ -271,13 +271,13 @@ class HoverAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		let value: vscode.Hover | null | undefined;
-		if (context && context.previousHover !== undefined && context.action !== undefined) {
-			const previousHoverId = context.previousHover.id;
+		if (context && context.hoverVerbosityContext) {
+			const previousHoverId = context.hoverVerbosityContext.previousHover.id;
 			const previousHover = this._hoverMap.get(previousHoverId);
 			if (!previousHover) {
 				throw new Error(`Hover with id ${previousHoverId} not found`);
 			}
-			const hoverContext: vscode.HoverContext = { action: context.action, previousHover };
+			const hoverContext: vscode.HoverContext = { action: context.hoverVerbosityContext.action, previousHover };
 			value = await this._provider.provideHover(doc, pos, token, hoverContext);
 		} else {
 			value = await this._provider.provideHover(doc, pos, token);

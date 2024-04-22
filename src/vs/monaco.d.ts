@@ -6857,13 +6857,20 @@ declare namespace monaco.languages {
 
 	export interface HoverContext<THover = Hover> {
 		/**
+		 * Hover verbosity context
+		 */
+		hoverVerbosityContext?: HoverVerbosityContext<THover>;
+	}
+
+	export interface HoverVerbosityContext<THover = Hover> {
+		/**
 		 * Whether to increase or decrease the hover's verbosity
 		 */
-		action?: HoverVerbosityAction;
+		action: HoverVerbosityAction;
 		/**
 		 * The previous hover for the same position
 		 */
-		previousHover?: THover;
+		previousHover: THover;
 	}
 
 	export enum HoverVerbosityAction {
