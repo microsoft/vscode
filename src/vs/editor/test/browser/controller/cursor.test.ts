@@ -5570,6 +5570,30 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('feature request - #134898: Trimming whitespace when deleting newline character', () => {
+		const model = createTextModel(
+			[
+				'Hello world!',
+				'    ',
+				'    another line'
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false
+			},
+		);
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(2, 5, 3, 1)]);
+			//when deleting middle empty line -- no text present so left spaces/tabs preserved
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getLineContent(2), '    another line');
+			//removes the extra white space in front of line 2 when deleting new line character
+			viewModel.setSelections('test', [new Selection(1, 13, 2, 1)]);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getLineContent(1), 'Hello world!another line');
+		});
+	});
+
 	test('issue #78527 - does not close quote on odd count', () => {
 		usingCursor({
 			text: [

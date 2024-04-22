@@ -177,15 +177,16 @@ export class DeleteOperations {
 		const endLineNumber = Math.max(startPosition.lineNumber, position.lineNumber);
 		let startColumn = position.column;
 		let endColumn = startPosition.column;
-		if (startLineNumber == startPosition.lineNumber) {
+		if (startLineNumber === startPosition.lineNumber) {
 			//top down deletion
 			startColumn = startPosition.column;
 			endColumn = position.column;
 		}
 		let firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(endLineNumber);
 		let lastNonWhiteSpaceColumn = model.getLineLastNonWhitespaceColumn(startLineNumber);
-		if (startLineNumber != endLineNumber && model.getLineContent(startLineNumber).length > 0) {
-			//deleting new line character + trimming white space
+		//deleting new line character + trimming white space
+		if (startLineNumber !== endLineNumber && model.getLineContent(startLineNumber).length > 0) {
+			//expand delete range to include extra white space (last non whitespace char to first non white char on following line)
 			if (startColumn < lastNonWhiteSpaceColumn) {
 				lastNonWhiteSpaceColumn = startColumn;
 			}
