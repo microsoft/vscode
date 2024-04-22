@@ -13,7 +13,15 @@
       },
       agent: {
         id: "agent",
-        metadata: { description: "" },
+        name: "agent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        extensionPublisher: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
+        metadata: {  },
         slashCommands: [
           {
             name: "subCommand",

@@ -9,7 +9,7 @@ import { findLastIdx } from 'vs/base/common/arraysFind';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
+import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
 import { getDefaultNotebookCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput';
@@ -85,7 +85,7 @@ class NotebookDiffEditorSelection implements IEditorPaneSelection {
 	}
 }
 
-export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor, INotebookDelegateForWebview, IEditorPaneWithSelection {
+export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor, INotebookDelegateForWebview, IEditorPaneWithSelection, IEditorPaneWithScrolling {
 	public static readonly ENTIRE_DIFF_OVERVIEW_WIDTH = 30;
 	creationOptions: INotebookEditorCreationOptions = getDefaultNotebookCreationOptions();
 	static readonly ID: string = NOTEBOOK_DIFF_EDITOR_ID;
@@ -107,6 +107,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	public readonly onMouseUp = this._onMouseUp.event;
 	private readonly _onDidScroll = this._register(new Emitter<void>());
 	readonly onDidScroll: Event<void> = this._onDidScroll.event;
+	readonly onDidChangeScroll: Event<void> = this._onDidScroll.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
@@ -154,7 +155,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(this.window, this.configurationService, notebookExecutionStateService, codeEditorService, false);//TODO@bpasero will crash
+		this._notebookOptions = new NotebookOptions(this.window, this.configurationService, notebookExecutionStateService, codeEditorService, false);
 		this._register(this._notebookOptions);
 		this._revealFirst = true;
 	}
@@ -207,6 +208,24 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	getScrollHeight() {
 		return this._list?.scrollHeight ?? 0;
+	}
+
+	getScrollPosition(): IEditorPaneScrollPosition {
+		return {
+			scrollTop: this.getScrollTop(),
+			scrollLeft: this._list?.scrollLeft ?? 0
+		};
+	}
+
+	setScrollPosition(scrollPosition: IEditorPaneScrollPosition): void {
+		if (!this._list) {
+			return;
+		}
+
+		this._list.scrollTop = scrollPosition.scrollTop;
+		if (scrollPosition.scrollLeft !== undefined) {
+			this._list.scrollLeft = scrollPosition.scrollLeft;
+		}
 	}
 
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {

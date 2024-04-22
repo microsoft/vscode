@@ -87,6 +87,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;
+	revealAllCursors(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealTopMostCursor(source: string | null | undefined): void;
 	revealBottomMostCursor(source: string | null | undefined): void;
@@ -181,6 +182,11 @@ export interface IPartialViewLinesViewportData {
 	 * The last completely visible line number.
 	 */
 	readonly completelyVisibleEndLineNumber: number;
+
+	/**
+	 * The height of a line.
+	 */
+	readonly lineHeight: number;
 }
 
 export interface IViewWhitespaceViewportData {

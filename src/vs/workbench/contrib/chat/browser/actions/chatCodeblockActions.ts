@@ -10,6 +10,7 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/edito
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
@@ -24,13 +25,13 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ICodeBlockActionContext, ICodeCompareBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -44,6 +45,10 @@ export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 
 export function isCodeBlockActionContext(thing: unknown): thing is ICodeBlockActionContext {
 	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
+}
+
+export function isCodeCompareBlockActionContext(thing: unknown): thing is ICodeCompareBlockActionContext {
+	return typeof thing === 'object' && thing !== null && 'element' in thing;
 }
 
 function isResponseFiltered(context: ICodeBlockActionContext) {
@@ -87,7 +92,7 @@ export function registerChatCodeBlockActions() {
 				icon: Codicon.copy,
 				menu: {
 					id: MenuId.ChatCodeBlock,
-					group: 'navigation',
+					group: 'navigation'
 				}
 			});
 		}
@@ -104,7 +109,6 @@ export function registerChatCodeBlockActions() {
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -147,21 +151,23 @@ export function registerChatCodeBlockActions() {
 
 		// Report copy to extensions
 		const chatService = accessor.get(IChatService);
-		chatService.notifyUserAction({
-			providerId: context.element.providerId,
-			agentId: context.element.agent?.id,
-			sessionId: context.element.sessionId,
-			requestId: context.element.requestId,
-			result: context.element.result,
-			action: {
-				kind: 'copy',
-				codeBlockIndex: context.codeBlockIndex,
-				copyKind: ChatCopyKind.Action,
-				copiedText,
-				copiedCharacters: copiedText.length,
-				totalCharacters,
-			}
-		});
+		const element = context.element as IChatResponseViewModel | undefined;
+		if (element) {
+			chatService.notifyUserAction({
+				agentId: element.agent?.id,
+				sessionId: element.sessionId,
+				requestId: element.requestId,
+				result: element.result,
+				action: {
+					kind: 'copy',
+					codeBlockIndex: context.codeBlockIndex,
+					copyKind: ChatCopyKind.Action,
+					copiedText,
+					copiedCharacters: copiedText.length,
+					totalCharacters,
+				}
+			});
+		}
 
 		// Copy full cell if no selection, otherwise fall back on normal editor implementation
 		if (noSelection) {
@@ -177,20 +183,20 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
 				title: localize2('interactive.insertCodeBlock.label', "Insert at Cursor"),
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: CONTEXT_IN_CHAT_SESSION
 				},
 				keybinding: {
-					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()),
+					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.ExternalExtension + 1
 				},
 			});
 		}
@@ -323,7 +329,6 @@ export function registerChatCodeBlockActions() {
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -344,14 +349,14 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
 				title: localize2('interactive.insertIntoNewFile.label', "Insert into New File"),
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.newFile,
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					isHiddenByDefault: true,
+					isHiddenByDefault: true
 				}
 			});
 		}
@@ -369,7 +374,6 @@ export function registerChatCodeBlockActions() {
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -399,7 +403,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
 				title: localize2('interactive.runInTerminal.label', "Insert into Terminal"),
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
@@ -419,11 +423,6 @@ export function registerChatCodeBlockActions() {
 						CONTEXT_IN_CHAT_SESSION,
 						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
 					)
-				},
-				{
-					id: MenuId.ChatCodeBlock,
-					group: 'navigation',
-					when: CTX_INLINE_CHAT_VISIBLE,
 				}],
 				keybinding: [{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
@@ -431,7 +430,7 @@ export function registerChatCodeBlockActions() {
 						primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
 					},
 					weight: KeybindingWeight.EditorContrib,
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ContextKeyExpr.or(CONTEXT_IN_CHAT_SESSION, accessibleViewInCodeBlock),
 				}]
 			});
 		}
@@ -467,7 +466,6 @@ export function registerChatCodeBlockActions() {
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -523,7 +521,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -545,7 +543,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -557,20 +555,23 @@ export function registerChatCodeBlockActions() {
 	});
 }
 
-function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): IChatCodeBlockActionContext | undefined {
+function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): ICodeBlockActionContext | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const chatCodeBlockContextProviderService = accessor.get(IChatCodeBlockContextProviderService);
 	const model = editor.getModel();
 	if (!model) {
 		return;
 	}
 
 	const widget = chatWidgetService.lastFocusedWidget;
-	if (!widget) {
-		return;
-	}
-
-	const codeBlockInfo = widget.getCodeBlockInfoForEditor(model.uri);
+	const codeBlockInfo = widget?.getCodeBlockInfoForEditor(model.uri);
 	if (!codeBlockInfo) {
+		for (const provider of chatCodeBlockContextProviderService.providers) {
+			const context = provider.getCodeBlockContext(editor);
+			if (context) {
+				return context;
+			}
+		}
 		return;
 	}
 
@@ -580,4 +581,70 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		code: editor.getValue(),
 		languageId: editor.getModel()!.getLanguageId(),
 	};
+}
+
+export function registerChatCodeCompareBlockActions() {
+
+	abstract class ChatCompareCodeBlockAction extends Action2 {
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const context = args[0];
+			if (!isCodeCompareBlockActionContext(context)) {
+				return;
+				// TODO@jrieken derive context
+			}
+
+			return this.runWithContext(accessor, context);
+		}
+
+		abstract runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): any;
+	}
+
+	registerAction2(class ApplyEditsCompareBlockAction extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.applyCompareEdits',
+				title: localize2('interactive.compare.apply', "Apply Edits"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.check,
+				precondition: EditorContextKeys.hasChanges,
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation'
+				}
+			});
+		}
+
+		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
+
+			const editorService = accessor.get(IEditorService);
+
+			const model = context.diffEditor.getModel();
+			if (!model) {
+				return;
+			}
+			const diff = context.diffEditor.getDiffComputationResult();
+			if (!diff || diff.identical) {
+				return;
+			}
+
+			const edits: ISingleEditOperation[] = [];
+			for (const item of diff.changes2) {
+				const range = item.original.toExclusiveRange();
+				const newText = model.modified.getValueInRange(item.modified.toExclusiveRange());
+				edits.push(EditOperation.replace(range, newText));
+			}
+
+			model.original.pushStackElement();
+			model.original.pushEditOperations(null, edits, () => null);
+			model.original.pushStackElement();
+
+
+			await editorService.openEditor({
+				resource: model.original.uri,
+				options: { revealIfVisible: true },
+			});
+		}
+	});
+
 }

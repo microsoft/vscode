@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, createTooLargeFileError, isEditorOpenError } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling, createEditorOpenError, createTooLargeFileError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -32,7 +32,7 @@ import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/noteb
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelView';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NOTEBOOK_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NOTEBOOK_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -48,10 +48,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
-export class NotebookEditor extends EditorPane implements INotebookEditorPane {
+export class NotebookEditor extends EditorPane implements INotebookEditorPane, IEditorPaneWithScrolling {
 	static readonly ID: string = NOTEBOOK_EDITOR_ID;
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -74,6 +75,9 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 	private readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+
+	protected readonly _onDidChangeScroll = this._register(new Emitter<void>());
+	readonly onDidChangeScroll = this._onDidChangeScroll.event;
 
 	constructor(
 		group: IEditorGroup,
@@ -320,6 +324,8 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 				containsGroup: (group) => this.group.id === group.id
 			}));
 
+			this._widgetDisposableStore.add(this._widget.value.onDidScroll(() => { this._onDidChangeScroll.fire(); }));
+
 			perf.mark('editorLoaded');
 
 			fileOpenMonitor.cancel();
@@ -327,7 +333,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 				return;
 			}
 
-			this._handlePerfMark(perf, input);
+			this._handlePerfMark(perf, input, model.notebook);
 			this._handlePromptRecommendations(model.notebook);
 		} catch (e) {
 			this.logService.warn('NotebookEditorWidget#setInput failed', e);
@@ -380,7 +386,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		}
 	}
 
-	private _handlePerfMark(perf: NotebookPerfMarks, input: NotebookEditorInput) {
+	private _handlePerfMark(perf: NotebookPerfMarks, input: NotebookEditorInput, notebook?: NotebookTextModel) {
 		const perfMarks = perf.value;
 
 		type WorkbenchNotebookOpenClassification = {
@@ -394,6 +400,13 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Webview initialization time for the resource opening' };
 			customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Custom markdown loading time for the resource opening' };
 			editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Overall editor loading time for the resource opening' };
+			codeCellCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of code cell' };
+			mdCellCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of markdown cell' };
+			outputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of cell outputs' };
+			outputBytes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of bytes for all outputs' };
+			codeLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of text in all code cells' };
+			markdownLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of text in all markdown cells' };
+			notebookStatsLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time for generating the notebook level information for telemetry' };
 		};
 
 		type WorkbenchNotebookOpenEvent = {
@@ -405,6 +418,13 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			webviewCommLoaded: number;
 			customMarkdownLoaded: number | undefined;
 			editorLoaded: number;
+			codeCellCount: number | undefined;
+			mdCellCount: number | undefined;
+			outputCount: number | undefined;
+			outputBytes: number | undefined;
+			codeLength: number | undefined;
+			markdownLength: number | undefined;
+			notebookStatsLoaded: number | undefined;
 		};
 
 		const startTime = perfMarks['startTime'];
@@ -436,6 +456,30 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			}
 		}
 
+		// Notebook information
+		let codeCellCount: number | undefined = undefined;
+		let mdCellCount: number | undefined = undefined;
+		let outputCount: number | undefined = undefined;
+		let outputBytes: number | undefined = undefined;
+		let codeLength: number | undefined = undefined;
+		let markdownLength: number | undefined = undefined;
+		let notebookStatsLoaded: number | undefined = undefined;
+		if (notebook) {
+			const stopWatch = new StopWatch();
+			for (const cell of notebook.cells) {
+				if (cell.cellKind === CellKind.Code) {
+					codeCellCount = (codeCellCount || 0) + 1;
+					codeLength = (codeLength || 0) + cell.getTextLength();
+					outputCount = (outputCount || 0) + cell.outputs.length;
+					outputBytes = (outputBytes || 0) + cell.outputs.reduce((prev, cur) => prev + cur.outputs.reduce((size, item) => size + item.data.byteLength, 0), 0);
+				} else {
+					mdCellCount = (mdCellCount || 0) + 1;
+					markdownLength = (codeLength || 0) + cell.getTextLength();
+				}
+			}
+			notebookStatsLoaded = stopWatch.elapsed();
+		}
+
 		this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
 			scheme: input.resource.scheme,
 			ext: extname(input.resource),
@@ -444,7 +488,14 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			inputLoaded: inputLoadingTimespan,
 			webviewCommLoaded: webviewCommLoadingTimespan,
 			customMarkdownLoaded: customMarkdownLoadingTimespan,
-			editorLoaded: editorLoadingTimespan
+			editorLoaded: editorLoadingTimespan,
+			codeCellCount,
+			mdCellCount,
+			outputCount,
+			outputBytes,
+			codeLength,
+			markdownLength,
+			notebookStatsLoaded
 		});
 	}
 
@@ -508,6 +559,26 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		return undefined;
 	}
 
+	getScrollPosition(): IEditorPaneScrollPosition {
+		const widget = this.getControl();
+		if (!widget) {
+			throw new Error('Notebook widget has not yet been initialized');
+		}
+
+		return {
+			scrollTop: widget.scrollTop,
+			scrollLeft: 0,
+		};
+	}
+
+	setScrollPosition(scrollPosition: IEditorPaneScrollPosition): void {
+		const editor = this.getControl();
+		if (!editor) {
+			throw new Error('Control has not yet been initialized');
+		}
+
+		editor.setScrollTop(scrollPosition.scrollTop);
+	}
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
 		if (this._widget.value && input instanceof NotebookEditorInput) {

@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { isCancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions, getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -42,7 +42,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -57,6 +57,10 @@ import { isOfflineError } from 'vs/base/parts/request/common/request';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { URI } from 'vs/base/common/uri';
+import { isString } from 'vs/base/common/types';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export const NONE_CATEGORY = 'none';
 
@@ -132,6 +136,7 @@ export class ExtensionsListView extends ViewPane {
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionRecommendationsService protected extensionRecommendationsService: IExtensionRecommendationsService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -148,13 +153,14 @@ export class ExtensionsListView extends ViewPane {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super({
 			...(viewletViewOptions as IViewPaneOptions),
 			showActions: ViewPaneShowActions.Always,
 			maximumBodySize: options.flexibleHeight ? (storageService.getNumber(`${viewletViewOptions.id}.size`, StorageScope.PROFILE, 0) ? undefined : 0) : undefined
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		if (this.options.onDidChangeTitle) {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
 		}
@@ -183,7 +189,20 @@ export class ExtensionsListView extends ViewPane {
 		const messageBox = append(messageContainer, $('.message'));
 		const delegate = new Delegate();
 		const extensionsViewState = new ExtensionsViewState();
-		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState, { hoverOptions: { position: () => { return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT; } } });
+		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState, {
+			hoverOptions: {
+				position: () => {
+					const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
+					if (viewLocation === ViewContainerLocation.Sidebar) {
+						return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+					}
+					if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
+						return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+					}
+					return HoverPosition.RIGHT;
+				}
+			}
+		});
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
@@ -509,7 +528,7 @@ export class ExtensionsListView extends ViewPane {
 			result = local.filter(e => !e.isBuiltin && matchingText(e));
 			result = this.sortExtensions(result, options);
 		} else {
-			result = local.filter(e => (!e.isBuiltin || e.outdated || e.reloadRequiredStatus !== undefined) && matchingText(e));
+			result = local.filter(e => (!e.isBuiltin || e.outdated || e.runtimeState !== undefined) && matchingText(e));
 			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(e.identifier.value, e); return result; }, new ExtensionIdentifierMap<IExtensionDescription>());
 
 			const defaultSort = (e1: IExtension, e2: IExtension) => {
@@ -538,21 +557,21 @@ export class ExtensionsListView extends ViewPane {
 			};
 
 			const outdated: IExtension[] = [];
-			const reloadRequired: IExtension[] = [];
+			const actionRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
 			result.forEach(e => {
 				if (e.outdated) {
 					outdated.push(e);
 				}
-				else if (e.reloadRequiredStatus) {
-					reloadRequired.push(e);
+				else if (e.runtimeState) {
+					actionRequired.push(e);
 				}
 				else {
 					noActionRequired.push(e);
 				}
 			});
 
-			result = [...outdated.sort(defaultSort), ...reloadRequired.sort(defaultSort), ...noActionRequired.sort(defaultSort)];
+			result = [...outdated.sort(defaultSort), ...actionRequired.sort(defaultSort), ...noActionRequired.sort(defaultSort)];
 		}
 		return result;
 	}
@@ -685,20 +704,24 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterExtensionsByFeature(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		const value = query.value.replace(/@feature:/g, '').trim().toLowerCase();
+		const value = query.value.replace(/@feature:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
 			return [];
 		}
 		const renderer = feature.renderer ? this.instantiationService.createInstance<IExtensionFeatureRenderer>(feature.renderer) : undefined;
-		const result = local.filter(e => {
-			if (!e.local) {
-				return false;
-			}
-			return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
-		});
-		return this.sortExtensions(result, options);
+		try {
+			const result = local.filter(e => {
+				if (!e.local) {
+					return false;
+				}
+				return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
+			});
+			return this.sortExtensions(result, options);
+		} finally {
+			renderer?.dispose();
+		}
 	}
 
 	private mergeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
@@ -865,20 +888,35 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel([]);
 	}
 
-	protected async getInstallableRecommendations(recommendations: string[], options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
+	protected async getInstallableRecommendations(recommendations: Array<string | URI>, options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
 		const result: IExtension[] = [];
 		if (recommendations.length) {
-			const extensions = await this.extensionsWorkbenchService.getExtensions(recommendations.map(id => ({ id })), { source: options.source }, token);
-			for (const extension of extensions) {
-				if (extension.gallery && !extension.deprecationInfo && (await this.extensionManagementService.canInstall(extension.gallery))) {
-					result.push(extension);
+			const galleryExtensions: string[] = [];
+			const resourceExtensions: URI[] = [];
+			for (const recommendation of recommendations) {
+				if (typeof recommendation === 'string') {
+					galleryExtensions.push(recommendation);
+				} else {
+					resourceExtensions.push(recommendation);
 				}
+			}
+			if (galleryExtensions.length) {
+				const extensions = await this.extensionsWorkbenchService.getExtensions(galleryExtensions.map(id => ({ id })), { source: options.source }, token);
+				for (const extension of extensions) {
+					if (extension.gallery && !extension.deprecationInfo && (await this.extensionManagementService.canInstall(extension.gallery))) {
+						result.push(extension);
+					}
+				}
+			}
+			if (resourceExtensions.length) {
+				const extensions = await this.extensionsWorkbenchService.getResourceExtensions(resourceExtensions, true);
+				result.push(...extensions);
 			}
 		}
 		return result;
 	}
 
-	protected async getWorkspaceRecommendations(): Promise<string[]> {
+	protected async getWorkspaceRecommendations(): Promise<Array<string | URI>> {
 		const recommendations = await this.extensionRecommendationsService.getWorkspaceRecommendations();
 		const { important } = await this.extensionRecommendationsService.getConfigBasedRecommendations();
 		for (const configBasedRecommendation of important) {
@@ -892,8 +930,7 @@ export class ExtensionsListView extends ViewPane {
 	private async getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const recommendations = await this.getWorkspaceRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token));
-		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
-		return new PagedModel(result);
+		return new PagedModel(installableRecommendations);
 	}
 
 	private async getKeymapRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
@@ -938,7 +975,7 @@ export class ExtensionsListView extends ViewPane {
 		const local = (await this.extensionsWorkbenchService.queryLocal(this.options.server))
 			.map(e => e.identifier.id.toLowerCase());
 		const workspaceRecommendations = (await this.getWorkspaceRecommendations())
-			.map(extensionId => extensionId.toLowerCase());
+			.map(extensionId => isString(extensionId) ? extensionId.toLowerCase() : extensionId);
 
 		return distinct(
 			flatten(await Promise.all([
@@ -961,12 +998,10 @@ export class ExtensionsListView extends ViewPane {
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !local.includes(extensionId.toLowerCase())
-			), extensionId => extensionId.toLowerCase());
+			])).filter(extensionId => !isString(extensionId) || !local.includes(extensionId.toLowerCase())));
 
 		const installableRecommendations = await this.getInstallableRecommendations(allRecommendations, { ...options, source: 'recommendations-all', sortBy: undefined }, token);
-		const result: IExtension[] = coalesce(allRecommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
-		return new PagedModel(result.slice(0, 8));
+		return new PagedModel(installableRecommendations.slice(0, 8));
 	}
 
 	private async searchRecommendations(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
@@ -974,8 +1009,7 @@ export class ExtensionsListView extends ViewPane {
 		const recommendations = distinct([...await this.getWorkspaceRecommendations(), ...await this.getOtherRecommendations()]);
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations', sortBy: undefined }, token))
 			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
-		const result = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
-		return new PagedModel(this.sortExtensions(result, options));
+		return new PagedModel(this.sortExtensions(installableRecommendations, options));
 	}
 
 	private setModel(model: IPagedModel<IExtension>, error?: any, donotResetScrollTop?: boolean) {
@@ -1297,6 +1331,7 @@ export class StaticQueryExtensionsView extends ExtensionsListView {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionRecommendationsService extensionRecommendationsService: IExtensionRecommendationsService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
@@ -1313,12 +1348,14 @@ export class StaticQueryExtensionsView extends ExtensionsListView {
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IExtensionFeaturesManagementService extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService
 	) {
 		super(options, viewletViewOptions, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService,
-			extensionsWorkbenchService, extensionRecommendationsService, telemetryService, configurationService, contextService, extensionManagementServerService,
+			extensionsWorkbenchService, extensionRecommendationsService, telemetryService, hoverService, configurationService, contextService, extensionManagementServerService,
 			extensionManifestPropertiesService, extensionManagementService, workspaceService, productService, contextKeyService, viewDescriptorService, openerService,
-			preferencesService, storageService, workspaceTrustManagementService, extensionEnablementService, layoutService, extensionFeaturesManagementService, logService);
+			preferencesService, storageService, workspaceTrustManagementService, extensionEnablementService, layoutService, extensionFeaturesManagementService,
+			uriIdentityService, logService);
 	}
 
 	override show(): Promise<IPagedModel<IExtension>> {
@@ -1451,18 +1488,30 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 		return model;
 	}
 
-	private async getInstallableWorkspaceRecommendations() {
+	private async getInstallableWorkspaceRecommendations(): Promise<IExtension[]> {
 		const installed = (await this.extensionsWorkbenchService.queryLocal())
 			.filter(l => l.enablementState !== EnablementState.DisabledByExtensionKind); // Filter extensions disabled by kind
 		const recommendations = (await this.getWorkspaceRecommendations())
-			.filter(extensionId => installed.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
+			.filter(recommendation => installed.every(local => isString(recommendation) ? !areSameExtensions({ id: recommendation }, local.identifier) : !this.uriIdentityService.extUri.isEqual(recommendation, local.local?.location)));
 		return this.getInstallableRecommendations(recommendations, { source: 'install-all-workspace-recommendations' }, CancellationToken.None);
 	}
 
 	async installWorkspaceRecommendations(): Promise<void> {
 		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
 		if (installableRecommendations.length) {
-			await this.extensionManagementService.installGalleryExtensions(installableRecommendations.map(i => ({ extension: i.gallery!, options: {} })));
+			const galleryExtensions: InstallExtensionInfo[] = [];
+			const resourceExtensions: IExtension[] = [];
+			for (const recommendation of installableRecommendations) {
+				if (recommendation.gallery) {
+					galleryExtensions.push({ extension: recommendation.gallery, options: {} });
+				} else {
+					resourceExtensions.push(recommendation);
+				}
+			}
+			await Promise.all([
+				this.extensionManagementService.installGalleryExtensions(galleryExtensions),
+				...resourceExtensions.map(extension => this.extensionsWorkbenchService.install(extension))
+			]);
 		} else {
 			this.notificationService.notify({
 				severity: Severity.Info,

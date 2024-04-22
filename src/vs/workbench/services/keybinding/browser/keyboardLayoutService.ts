@@ -42,6 +42,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	protected _keymapInfos: KeymapInfo[];
 	protected _mru: KeymapInfo[];
 	private _activeKeymapInfo: KeymapInfo | null;
+	private keyboardLayoutMapAllowed: boolean = (navigator as any).keyboard !== undefined;
 
 	get activeKeymap(): KeymapInfo | null {
 		return this._activeKeymapInfo;
@@ -394,7 +395,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	}
 
 	private async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
-		if ((navigator as any).keyboard) {
+		if (this.keyboardLayoutMapAllowed) {
 			try {
 				return await (navigator as any).keyboard.getLayoutMap().then((e: any) => {
 					const ret: IKeyboardMapping = {};
@@ -419,8 +420,10 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 				});
 			} catch {
 				// getLayoutMap can throw if invoked from a nested browsing context
+				this.keyboardLayoutMapAllowed = false;
 			}
-		} else if (keyboardEvent && !keyboardEvent.shiftKey && !keyboardEvent.altKey && !keyboardEvent.metaKey && !keyboardEvent.metaKey) {
+		}
+		if (keyboardEvent && !keyboardEvent.shiftKey && !keyboardEvent.altKey && !keyboardEvent.metaKey && !keyboardEvent.metaKey) {
 			const ret: IKeyboardMapping = {};
 			const standardKeyboardEvent = keyboardEvent as StandardKeyboardEvent;
 			ret[standardKeyboardEvent.browserEvent.code] = {

@@ -21,10 +21,13 @@ $Global:__LastHistoryId = -1
 $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
+$osVersion = [System.Environment]::OSVersion.Version
+$isWindows10 = $IsWindows10 -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+
 if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
 	foreach ($Item in $Split) {
-		$Inner = $Item.Split('=')
+		$Inner = $Item.Split('=', 2)
 		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1].Replace('\x3a', ':'))
 	}
 	$env:VSCODE_ENV_REPLACE = $null
@@ -32,7 +35,7 @@ if ($env:VSCODE_ENV_REPLACE) {
 if ($env:VSCODE_ENV_PREPEND) {
 	$Split = $env:VSCODE_ENV_PREPEND.Split(":")
 	foreach ($Item in $Split) {
-		$Inner = $Item.Split('=')
+		$Inner = $Item.Split('=', 2)
 		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1].Replace('\x3a', ':') + [Environment]::GetEnvironmentVariable($Inner[0]))
 	}
 	$env:VSCODE_ENV_PREPEND = $null
@@ -40,7 +43,7 @@ if ($env:VSCODE_ENV_PREPEND) {
 if ($env:VSCODE_ENV_APPEND) {
 	$Split = $env:VSCODE_ENV_APPEND.Split(":")
 	foreach ($Item in $Split) {
-		$Inner = $Item.Split('=')
+		$Inner = $Item.Split('=', 2)
 		[Environment]::SetEnvironmentVariable($Inner[0], [Environment]::GetEnvironmentVariable($Inner[0]) + $Inner[1].Replace('\x3a', ':'))
 	}
 	$env:VSCODE_ENV_APPEND = $null
@@ -49,7 +52,7 @@ if ($env:VSCODE_ENV_APPEND) {
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
-	[regex]::Replace($value, '[\\\n;]', { param($match)
+	[regex]::Replace($value, "[$([char]0x1b)\\\n;]", { param($match)
 			# Encode the (ascii) matches as `\x<hex>`
 			-Join (
 				[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
@@ -63,29 +66,14 @@ function Global:Prompt() {
 	# error when $LastHistoryEntry is null, and is not otherwise useful.
 	Set-StrictMode -Off
 	$LastHistoryEntry = Get-History -Count 1
+	$Result = ""
 	# Skip finishing the command if the first command has not yet started
 	if ($Global:__LastHistoryId -ne -1) {
 		if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
-			$Result = "$([char]0x1b)]633;E`a"
 			$Result += "$([char]0x1b)]633;D`a"
 		}
 		else {
-			# Command finished command line
-			# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
-			$Result = "$([char]0x1b)]633;E;"
-			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
-			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
-			# to only be composed of _printable_ characters as per the spec.
-			if ($LastHistoryEntry.CommandLine) {
-				$CommandLine = $LastHistoryEntry.CommandLine
-			}
-			else {
-				$CommandLine = ""
-			}
-			$Result += $(__VSCode-Escape-Value $CommandLine)
-			$Result += ";$Nonce"
-			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
 			$Result += "$([char]0x1b)]633;D;$FakeCode`a"
@@ -114,10 +102,27 @@ function Global:Prompt() {
 if (Get-Module -Name PSReadLine) {
 	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 	function Global:PSConsoleHostReadLine {
-		$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
+		$CommandLine = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
+
+		# Command line
+		# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
+		$Result = "$([char]0x1b)]633;E;"
+		$Result += $(__VSCode-Escape-Value $CommandLine)
+		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
+		# sometimes
+		if ($IsWindows10 -eq $false) {
+			$Result += ";$Nonce"
+		}
+		$Result += "`a"
+
+		# Command executed
+		# OSC 633 ; C ST
+		$Result += "$([char]0x1b)]633;C`a"
+
 		# Write command executed sequence directly to Console to avoid the new line from Write-Host
-		[Console]::Write("$([char]0x1b)]633;C`a")
-		$tmp
+		[Console]::Write($Result)
+
+		$CommandLine
 	}
 }
 
@@ -128,6 +133,12 @@ if ($PSVersionTable.PSVersion -lt "6.0") {
 }
 else {
 	[Console]::Write("$([char]0x1b)]633;P;IsWindows=$IsWindows`a")
+}
+
+# Set ContinuationPrompt property
+$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+if ($ContinuationPrompt) {
+	[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
 }
 
 # Set always on key handlers which map to default VS Code keybindings

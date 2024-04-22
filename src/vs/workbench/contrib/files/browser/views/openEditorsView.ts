@@ -26,7 +26,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAn
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableMap, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
@@ -54,6 +54,7 @@ import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -90,11 +91,12 @@ export class OpenEditorsView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.structuralRefreshDelay = 0;
 		this.sortOrder = configurationService.getValue('explorer.openEditors.sortOrder');
@@ -118,7 +120,7 @@ export class OpenEditorsView extends ViewPane {
 			this.listRefreshScheduler?.schedule(this.structuralRefreshDelay);
 		};
 
-		const groupDisposables = new Map<number, IDisposable>();
+		const groupDisposables = this._register(new DisposableMap<number>());
 		const addGroupListener = (group: IEditorGroup) => {
 			const groupModelChangeListener = group.onDidModelChange(e => {
 				if (this.listRefreshScheduler?.isScheduled()) {
@@ -156,7 +158,6 @@ export class OpenEditorsView extends ViewPane {
 				}
 			});
 			groupDisposables.set(group.id, groupModelChangeListener);
-			this._register(groupDisposables.get(group.id)!);
 		};
 
 		this.editorGroupService.groups.forEach(g => addGroupListener(g));
@@ -167,7 +168,7 @@ export class OpenEditorsView extends ViewPane {
 		this._register(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
 		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.focusActiveEditor()));
 		this._register(this.editorGroupService.onDidRemoveGroup(group => {
-			dispose(groupDisposables.get(group.id));
+			groupDisposables.deleteAndDispose(group.id);
 			updateWholeList();
 		}));
 	}
@@ -209,9 +210,7 @@ export class OpenEditorsView extends ViewPane {
 		], {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 			dnd: this.dnd,
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			},
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			accessibilityProvider: new OpenEditorsAccessibilityProvider()
 		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);

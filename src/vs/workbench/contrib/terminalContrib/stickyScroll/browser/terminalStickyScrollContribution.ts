@@ -28,10 +28,10 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	private _xterm?: IXtermTerminal & { raw: RawXtermTerminal };
 
-	private _overlay = this._register(new MutableDisposable<TerminalStickyScrollOverlay>());
+	private readonly _overlay = this._register(new MutableDisposable<TerminalStickyScrollOverlay>());
 
-	private _enableListeners = this._register(new MutableDisposable());
-	private _disableListeners = this._register(new MutableDisposable());
+	private readonly _enableListeners = this._register(new MutableDisposable());
+	private readonly _disableListeners = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -58,6 +58,14 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._refreshState();
+	}
+
+	hideLock() {
+		this._overlay.value?.lockHide();
+	}
+
+	hideUnlock() {
+		this._overlay.value?.unlockHide();
 	}
 
 	private _refreshState(): void {

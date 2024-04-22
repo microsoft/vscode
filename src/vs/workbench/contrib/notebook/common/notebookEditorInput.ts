@@ -30,6 +30,7 @@ import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -42,23 +43,11 @@ export interface NotebookEditorInputOptions {
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
 
-	private static EditorCache: Record<string, NotebookEditorInput> = {};
-
 	static getOrCreate(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
-		const cacheId = `${resource.toString()}|${viewType}|${options._workingCopy?.typeId}`;
-		let editor = NotebookEditorInput.EditorCache[cacheId];
-
-		if (!editor) {
-			editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
-			NotebookEditorInput.EditorCache[cacheId] = editor;
-
-			editor.onWillDispose(() => {
-				delete NotebookEditorInput.EditorCache[cacheId];
-			});
-		} else if (preferredResource) {
+		const editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+		if (preferredResource) {
 			editor.setPreferredResource(preferredResource);
 		}
-
 		return editor;
 	}
 
@@ -81,9 +70,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
-		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
+		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 		this._defaultDirtyState = !!options.startDirty;
 
 		// Automatically resolve this input when the "wanted" model comes to life via

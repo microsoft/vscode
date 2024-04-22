@@ -5,7 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookCellExecutionState, NotebookExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -20,9 +21,16 @@ export interface ICellExecutionStateUpdate {
 	isPaused?: boolean;
 }
 
+export interface ICellExecutionError {
+	message: string;
+	stack: string | undefined;
+	uri: UriComponents;
+	location: IRange | undefined;
+}
 export interface ICellExecutionComplete {
 	runEndTime?: number;
 	lastRunSuccess?: boolean;
+	error?: ICellExecutionError;
 }
 export enum NotebookExecutionType {
 	cell,

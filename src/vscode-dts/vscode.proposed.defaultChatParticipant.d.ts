@@ -8,8 +8,17 @@ declare module 'vscode' {
 	export type ChatWelcomeMessageContent = string | MarkdownString;
 
 	export interface ChatWelcomeMessageProvider {
-		provideWelcomeMessage(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatFollowup[]>;
+		provideWelcomeMessage(location: ChatLocation, token: CancellationToken): ProviderResult<ChatWelcomeMessageContent[]>;
+		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
+	}
+
+	export interface ChatRequesterInformation {
+		name: string;
+
+		/**
+		 * A full URI for the icon of the request.
+		 */
+		icon?: Uri;
 	}
 
 	export interface ChatParticipant {
@@ -45,5 +54,6 @@ declare module 'vscode' {
 		helpTextPostfix?: string | MarkdownString;
 
 		welcomeMessageProvider?: ChatWelcomeMessageProvider;
+		requester?: ChatRequesterInformation;
 	}
 }

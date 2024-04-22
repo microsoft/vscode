@@ -182,7 +182,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	private readonly widget = this._register(new DictationWidget(this.editor, this.keybindingService));
 	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
 
-	private sessionDisposables = this._register(new MutableDisposable());
+	private readonly sessionDisposables = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -193,7 +193,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		super();
 	}
 
-	start() {
+	async start(): Promise<void> {
 		const disposables = new DisposableStore();
 		this.sessionDisposables.value = disposables;
 
@@ -249,7 +249,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		const cts = new CancellationTokenSource();
 		disposables.add(toDisposable(() => cts.dispose(true)));
 
-		const session = this.speechService.createSpeechToTextSession(cts.token);
+		const session = await this.speechService.createSpeechToTextSession(cts.token, 'editor');
 		disposables.add(session.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;

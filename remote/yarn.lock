@@ -114,45 +114,45 @@
   resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.1.0.tgz#03dace7c29c46f658588b9885b9580e453ad21f9"
   integrity sha512-5AZzuWJpGscyiMOed0IuyEwt6iKmV5Us7zuwCDCFYMIq7tsvooO9BUiciywsvuthGz6UG4LSpeDeCxvgMVhnIw==
 
-"@xterm/addon-canvas@0.6.0-beta.33":
-  version "0.6.0-beta.33"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-canvas/-/addon-canvas-0.6.0-beta.33.tgz#5fe1547f74fbb9538ccc98c299fb1342bf739fb5"
-  integrity sha512-SJBoCJf62D315IduJwgHwCS2B0RzTc34GTJC5kNBzn/Y7Jr1IdvTbWwf4epleOZo+NkT0/mhj3OUO6zKeljDKA==
+"@xterm/addon-canvas@0.8.0-beta.3":
+  version "0.8.0-beta.3"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-canvas/-/addon-canvas-0.8.0-beta.3.tgz#f7a8eb4804a51064e865fd180c41c52c19e328b1"
+  integrity sha512-r69V8Criiz26SSzrQJrKhNQalpux6ae0rsm7WYK9uiN//mwaOZg7wcYlfCtTV3qmuLFJdfRZ2LKIiL4mZGThwQ==
 
-"@xterm/addon-image@0.7.0-beta.31":
-  version "0.7.0-beta.31"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-image/-/addon-image-0.7.0-beta.31.tgz#1fc22cfddfc8e0a178324b5945c1882af50afe12"
-  integrity sha512-Ofm3igHyOATnEbc6QBxWfq2M5dZDLlByMOqzGA/2nOWv0LWtjb1u2DzAcXC3d0GIsGvlqI4342la8BZjWj2ALg==
+"@xterm/addon-image@0.9.0-beta.3":
+  version "0.9.0-beta.3"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-image/-/addon-image-0.9.0-beta.3.tgz#1781ae5e2c2ae741e97dbba774712051737aaf89"
+  integrity sha512-dxRwHGOnduZGEu90evCY6YeeQ5PKC/3G/hslh9ST2ThSHYwoApglaYYvsrhfdfh3fVI+CAMt2LYwQMixIe/FMg==
 
-"@xterm/addon-search@0.14.0-beta.33":
-  version "0.14.0-beta.33"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-search/-/addon-search-0.14.0-beta.33.tgz#84af247dde45c35e90bd334ecb1caf1d73683a14"
-  integrity sha512-I88tfCnac5CLmIn6alMCI+bXh3rTq40KOnfPiyM3IyGMSEj56jiL1xU2pctPGX4tD8fr2X22ICHnFzLCREOoEg==
+"@xterm/addon-search@0.16.0-beta.3":
+  version "0.16.0-beta.3"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-search/-/addon-search-0.16.0-beta.3.tgz#5ddd65522ca6055806a31ed6bcb8ab7454d070ed"
+  integrity sha512-b4FrI++0eZkjr8BMvKhHZCg7G8FCLo5CNHUHFZsGyMTxICvFs+peugFH591ChCky9RkuHjpzay7Wfmf9ZAiScw==
 
-"@xterm/addon-serialize@0.12.0-beta.33":
-  version "0.12.0-beta.33"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-serialize/-/addon-serialize-0.12.0-beta.33.tgz#4f6491dab94490bb2dafb310439f6351fdb5d620"
-  integrity sha512-V4UgqKhvYC+6qMjJsBRAzgnvroPE4Boqs75AVOPlhmAxSTlttuVJQUEwGEd2/kcu8ptEo6CcPsfCFTFQJgFZlw==
+"@xterm/addon-serialize@0.14.0-beta.3":
+  version "0.14.0-beta.3"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-serialize/-/addon-serialize-0.14.0-beta.3.tgz#2b9fc8787c7396fa43de8480dc9e8f99d78ea474"
+  integrity sha512-ANx29m+EsNTmsISuHeboXICmf+hYoG07CRwfj+J08us+xUd3JH/I3DDO/toaD0XVGmF8YjhjAxYwo1pD6X+keg==
 
-"@xterm/addon-unicode11@0.7.0-beta.33":
-  version "0.7.0-beta.33"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-unicode11/-/addon-unicode11-0.7.0-beta.33.tgz#01bb9ec1ba00d2cfd32c16600bac33c8e239adca"
-  integrity sha512-vJPiyadR83n0H2OMkZlLS5af5+9o6oavUadDLLV4SlDbf1t3U+mqePYZFvr9wCbZrtEQ/P9SuJ7HehTHLZidwQ==
+"@xterm/addon-unicode11@0.9.0-beta.3":
+  version "0.9.0-beta.3"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-unicode11/-/addon-unicode11-0.9.0-beta.3.tgz#33024c1ced4abde9c3536155e4d28e39e395ed9b"
+  integrity sha512-KDykY87GuxRaVUBpWphpK2tFIjsGw8TW16XI5XlZeuiNisSdXY3qX9NtSuW7kfAn0GYwsBjQQ6DjEzz5/q4Wtg==
 
-"@xterm/addon-webgl@0.17.0-beta.33":
-  version "0.17.0-beta.33"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-webgl/-/addon-webgl-0.17.0-beta.33.tgz#6b859fc2393e483f13cf391b0bd00af1e9086ed0"
-  integrity sha512-brR0BAvS5I92z5UiFOFPn8w8RboBM5Gzjl/zpVDSY+iVYeqcQy7d5uSt/G6yXWVv8E3NaNWHmwWmB71gj9YvVg==
+"@xterm/addon-webgl@0.19.0-beta.3":
+  version "0.19.0-beta.3"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-webgl/-/addon-webgl-0.19.0-beta.3.tgz#c2b207486fe177e69b8e42c4d52d914c54f8db9a"
+  integrity sha512-U/JCrmQHKxg8eQnbpWE7CNh+trsfxXJlEUSzG1xTYL4eifQNzrKVd3cczH8eKVO8SteSmJyQdNkHSjvVd4XWuA==
 
-"@xterm/headless@5.4.0-beta.33":
-  version "5.4.0-beta.33"
-  resolved "https://registry.yarnpkg.com/@xterm/headless/-/headless-5.4.0-beta.33.tgz#8accf68a0e58ba03c8a4627aa108df2d690d8713"
-  integrity sha512-DlGM2qPdaDmeznUSk9doOQfoi4x8uTTfBysSb+Llxm/SyfxBqnNZEV6N1j494RoBJlawZh2UugmV1itQD+Wlzg==
+"@xterm/headless@5.6.0-beta.3":
+  version "5.6.0-beta.3"
+  resolved "https://registry.yarnpkg.com/@xterm/headless/-/headless-5.6.0-beta.3.tgz#652d0ed494ea0c86e83d1167e2e5688c8b849401"
+  integrity sha512-ei/DRvHPA5TsR/RpRWM9Eo8BeSzPzgszydBgZqfcagVpw69PMcziFBaNU77NSQCdYPKKaLaOuGcnVCZpvKEYPw==
 
-"@xterm/xterm@5.4.0-beta.33":
-  version "5.4.0-beta.33"
-  resolved "https://registry.yarnpkg.com/@xterm/xterm/-/xterm-5.4.0-beta.33.tgz#9c656a2b1799c9b98349a232b206f6bfff9401ee"
-  integrity sha512-eeKjd5TpyUqRGmiqFl6PZjIlDhP7eNWU1uD6zHC12CfrarJH7Lc993PQpfnfuL8pe4QJGBMIEBU6VgEQ7LKtBw==
+"@xterm/xterm@5.6.0-beta.3":
+  version "5.6.0-beta.3"
+  resolved "https://registry.yarnpkg.com/@xterm/xterm/-/xterm-5.6.0-beta.3.tgz#e526fd0cc10154656cb87b9e1b96e3f21f057f03"
+  integrity sha512-3527Zuwf36llsIeVgMtKLA4dklRq7poEO2yINkQQSJ8PjtnRcH8kOdORQb6aAg0cKtKWg1LBIqmqoHWb+wvq6Q==
 
 agent-base@^7.0.1, agent-base@^7.0.2, agent-base@^7.1.0:
   version "7.1.0"
@@ -431,10 +431,10 @@ node-gyp-build@^4.3.0:
   resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.3.0.tgz#9f256b03e5826150be39c764bf51e993946d71a3"
   integrity sha512-iWjXZvmboq0ja1pUGULQBexmxq8CV4xBhX7VDOTbL7ZR4FOowwY/VOtRxBN/yKxmdGoIp4j5ysNT4u3S2pDQ3Q==
 
-node-pty@1.1.0-beta6:
-  version "1.1.0-beta6"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta6.tgz#8b27ce40268e313868925e1b46f2af98cc677881"
-  integrity sha512-ZcuPz5wIbfF4rebVv8sl+nf2Cn5dVMqlEl9PtabCt4uIffGDnovOpmwh16Oh/MThrwSmeJL6gBwu6lIbBtW7DQ==
+node-pty@1.1.0-beta11:
+  version "1.1.0-beta11"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta11.tgz#909d5dd8f9aa2a7857e7b632fd4d2d4768bdf69f"
+  integrity sha512-vTjF+VrvSCfPDILUkIT+YrG1Fdn06/eBRS2fc9a3JzYAvknMB1Ip8aoJhxl8hNpjWAbprmCEiV91mlfNpCD+GQ==
   dependencies:
     node-addon-api "^7.1.0"
 
