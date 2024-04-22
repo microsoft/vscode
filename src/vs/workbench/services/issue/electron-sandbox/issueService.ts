@@ -24,6 +24,10 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 import { mainWindow } from 'vs/base/browser/window';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { raceTimeout } from 'vs/base/common/async';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { CancellationTokenSource } from 'vscode';
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -68,6 +72,8 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			}
 			menu.dispose();
 		});
+
+
 	}
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
@@ -92,7 +98,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					uri: dataOverrides.uri,
 					isTheme,
 					isBuiltin,
-					extensionData: 'Extensions data loading',
+					extensionData: 'Extensions data loading'
 				};
 			}));
 		} catch (e) {
@@ -129,6 +135,13 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}
 
 		const theme = this.themeService.getColorTheme();
+
+		// change all of the following.
+		// if select the same one, double check to see if things have changed?
+		dataOverrides.issueBody = dataOverrides.issueBody?.replace(/<br>/g, '\n');
+		dataOverrides.issueTitle = dataOverrides.issueTitle?.replace(/<br>/g, '\n');
+		dataOverrides.issueType = dataOverrides.issueType || undefined;
+
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
 			zoomLevel: getZoomLevel(mainWindow),
@@ -179,7 +192,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		};
 		return this.issueMainService.openProcessExplorer(data);
 	}
-
 
 }
 

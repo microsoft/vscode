@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -59,6 +60,10 @@ export class IssueReporter extends Disposable {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueMainService private readonly issueMainService: IIssueMainService
 	) {
+		ipcRenderer.on('vscode:getCurrentValues', async (event, arg) => {
+
+		});
+
 		super();
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
