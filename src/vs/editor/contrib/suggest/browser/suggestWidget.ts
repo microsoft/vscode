@@ -280,6 +280,7 @@ export class SuggestWidget implements IDisposable {
 		this._disposables.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.suggest)) {
 				applyStatusBarStyle();
+				this._layout(this.element.size); // in case status bar was hidden from its control
 				applyIconStyle();
 			}
 			if (this._completionModel && (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight))) {
