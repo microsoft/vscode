@@ -352,7 +352,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 		const hoverPosition = hoverRenderedPart.hoverSource.hoverPosition;
 		const hoverProvider = hoverRenderedPart.hoverSource.hoverProvider;
 		const hover = hoverRenderedPart.hoverSource.hover;
-		const hoverContext: HoverContext = { action, previousHover: hover };
+		const hoverContext: HoverContext = { verbosityRequest: { action, previousHover: hover } };
 
 		let newHover: Hover | null | undefined;
 		try {
