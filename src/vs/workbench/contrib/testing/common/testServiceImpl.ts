@@ -366,7 +366,7 @@ export class TestService extends Disposable implements ITestService {
 	}
 
 	private async saveAllBeforeTest(req: ResolvedTestRunRequest, configurationService: IConfigurationService = this.configurationService, editorService: IEditorService = this.editorService): Promise<void> {
-		if (req.isUiTriggered === false) {
+		if (req.preserveFocus === true) {
 			return;
 		}
 		const saveBeforeTest = getTestingConfiguration(this.configurationService, TestingConfigKeys.SaveBeforeTest);

@@ -205,6 +205,7 @@ export interface IExtensionContributions {
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
+	readonly chatParticipants?: ReadonlyArray<{ id: string }>;
 }
 
 export interface IExtensionCapabilities {

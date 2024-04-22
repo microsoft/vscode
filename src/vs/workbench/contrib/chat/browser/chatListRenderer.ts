@@ -1394,6 +1394,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	renderElement(data: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		const reference = data.reference;
+		const icon = data.iconPath;
 		templateData.label.element.style.display = 'flex';
 		if ('variableName' in reference) {
 			if (reference.value) {
@@ -1403,8 +1404,8 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 						resource: uri,
 						name: basenameOrAuthority(uri),
 						description: `#${reference.variableName}`,
-						range: 'range' in reference.value ? reference.value.range : undefined
-					});
+						range: 'range' in reference.value ? reference.value.range : undefined,
+					}, { icon });
 			} else {
 				const variable = this.chatVariablesService.getVariable(reference.variableName);
 				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: variable?.description });
@@ -1412,7 +1413,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
 			if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: Codicon.globe });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe });
 			} else {
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
