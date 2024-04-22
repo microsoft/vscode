@@ -1567,10 +1567,6 @@ class MultipleSelectionActionRunner extends ActionRunner {
 			});
 		}
 
-		if (!actionInSelected && selectionHandleArgs && selectionHandleArgs.length > 0) {
-			context = selectionHandleArgs[0];
-		}
-
 		await action.run(context, selectionHandleArgs);
 	}
 }
