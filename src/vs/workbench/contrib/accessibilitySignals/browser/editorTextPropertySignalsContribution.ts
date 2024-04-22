@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { AccessibilitySignal, AccessilityModality, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -102,7 +102,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 					return;
 				}
 
-				for (const modality of ['sound', 'announcement'] as AccessilityModality[]) {
+				for (const modality of ['sound', 'announcement'] as AccessibilityModality[]) {
 					if (this._accessibilitySignalService.getEnabledState(signal, false, modality)) {
 						const delay = this._getDelay(signal, modality) + (didType.get() ? 1000 : 0);
 
@@ -163,7 +163,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 		}));
 	}
 
-	private _getDelay(signal: AccessibilitySignal, modality: AccessilityModality): number {
+	private _getDelay(signal: AccessibilitySignal, modality: AccessibilityModality): number {
 		// TODO make these delays configurable!
 		if (signal === AccessibilitySignal.errorAtPosition || signal === AccessibilitySignal.warningAtPosition) {
 			if (modality === 'sound') {

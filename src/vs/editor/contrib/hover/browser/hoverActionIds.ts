@@ -13,3 +13,5 @@ export const PAGE_UP_HOVER_ACTION_ID = 'editor.action.pageUpHover';
 export const PAGE_DOWN_HOVER_ACTION_ID = 'editor.action.pageDownHover';
 export const GO_TO_TOP_HOVER_ACTION_ID = 'editor.action.goToTopHover';
 export const GO_TO_BOTTOM_HOVER_ACTION_ID = 'editor.action.goToBottomHover';
+export const INCREASE_HOVER_VERBOSITY_ACTION_ID = 'editor.action.increaseHoverVerbosityLevel';
+export const DECREASE_HOVER_VERBOSITY_ACTION_ID = 'editor.action.decreaseHoverVerbosityLevel';

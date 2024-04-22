@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
@@ -16,6 +17,7 @@ import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/t
 import { IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -24,13 +26,18 @@ import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } fr
 import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
+import { IObservable, autorun, constObservable } from 'vs/base/common/observable';
 import { basename } from 'vs/base/common/path';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { Range } from 'vs/editor/common/core/range';
+import { TextEdit } from 'vs/editor/common/languages';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -40,6 +47,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FileKind, FileType } from 'vs/platform/files/common/files';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -50,11 +58,12 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatCodeBlockContentProvider, CodeBlockPart, CodeCompareBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentMetadata, IChatAgentNameService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -66,15 +75,12 @@ import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/f
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
-import { IModelService } from 'vs/editor/common/services/model';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { TextEdit } from 'vs/editor/common/languages';
 import { IChatListItemRendererOptions } from './chat';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
 
 interface IChatListItemTemplate {
+	currentElement?: ChatTreeItem;
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly avatarContainer: HTMLElement;
@@ -146,6 +152,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
 		super();
 
@@ -283,6 +291,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}));
 		}
+
+		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), header, () => {
+			if (isResponseVM(template.currentElement) && template.currentElement.agent) {
+				const hover = this.instantiationService.createInstance(ChatAgentHover, template.currentElement.agent.id);
+				return hover.domNode;
+			}
+
+			return undefined;
+		}));
+
 		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
@@ -292,6 +310,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
+		templateData.currentElement = element;
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
 				'welcome';
@@ -367,9 +386,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
-		let progressMsg: string = '';
+		let agentName: IObservable<string | undefined> = constObservable(undefined);
+
 		if (element.agent && !element.agent.isDefault) {
-			let usingMsg = chatAgentLeader + element.agent.name;
+			const name = element.agent.name;
+			agentName = this.chatAgentNameService.getAgentNameRestriction(element.agent)
+				.map(allowed => allowed ? name : name); // TODO
+		}
+
+		templateData.elementDisposables.add(autorun(reader => {
+			this._renderDetail(element, agentName.read(reader), templateData);
+		}));
+	}
+
+	private _renderDetail(element: IChatResponseViewModel, agentName: string | undefined, templateData: IChatListItemTemplate): void {
+		let progressMsg: string = '';
+		if (!isUndefined(agentName)) {
+			let usingMsg = chatAgentLeader + agentName;
 			if (element.slashCommand) {
 				usingMsg += ` ${chatSubcommandLeader}${element.slashCommand.name}`;
 			}
@@ -381,8 +414,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		} else if (element.agentOrSlashCommandDetected) {
 			const usingMsg: string[] = [];
-			if (element.agent && !element.agent.isDefault) {
-				usingMsg.push(chatAgentLeader + element.agent.name);
+			if (!isUndefined(agentName)) {
+				usingMsg.push(chatAgentLeader + agentName);
 			}
 			if (element.slashCommand) {
 				usingMsg.push(chatSubcommandLeader + element.slashCommand.name);
@@ -399,11 +432,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.detail.textContent = progressMsg;
-		if (element.agent) {
-			templateData.detail.title = progressMsg + (element.slashCommand?.description ? `\n${element.slashCommand.description}` : '');
-		} else {
-			templateData.detail.title = '';
-		}
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
@@ -1021,7 +1049,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
 
-		this.markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element);
+		disposables.add(this.markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {

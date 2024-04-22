@@ -54,12 +54,7 @@ export class NotebookCellOutlineProvider {
 	) {
 		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService);
 		const delayerRecomputeActive = this._disposables.add(new Delayer(10));
-		this.delayRecomputeActive = () => delayerRecomputeActive.trigger(() => {
-			const { changeEventTriggered } = this._recomputeActive();
-			if (!changeEventTriggered) {
-				this._onDidChange.fire({});
-			}
-		});
+		this.delayRecomputeActive = () => delayerRecomputeActive.trigger(() => this._recomputeActive());
 
 		this._disposables.add(Event.debounce<void, void>(
 			_editor.onDidChangeSelection,
@@ -115,6 +110,10 @@ export class NotebookCellOutlineProvider {
 					delayedRecompute();
 				}
 			}));
+			// Perhaps this is the first time we're building the outline
+			if (!this._entries.length) {
+				this._recomputeState();
+			}
 		}
 		this._disposables.add(this._editor.onDidChangeModel(monitorModelChanges));
 		monitorModelChanges();
@@ -133,7 +132,6 @@ export class NotebookCellOutlineProvider {
 
 		const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
 
-		this._entries.length = 0;
 		if (notebookCells) {
 			const promises: Promise<void>[] = [];
 			// limit the number of cells so that we don't resolve an excessive amount of text models

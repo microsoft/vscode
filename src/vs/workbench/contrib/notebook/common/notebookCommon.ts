@@ -937,6 +937,7 @@ export const NotebookSetting = {
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	LinkifyOutputFilePaths: 'notebook.output.linkifyFilePaths',
+	minimalErrorRendering: 'notebook.output.minimalErrorRendering',
 	formatOnSave: 'notebook.formatOnSave.enabled',
 	insertFinalNewline: 'notebook.insertFinalNewline',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
