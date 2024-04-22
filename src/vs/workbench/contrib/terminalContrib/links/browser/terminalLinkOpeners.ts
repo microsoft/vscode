@@ -104,13 +104,28 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		text = osPath.normalize(text).replace(/^(\.+[\\/])+/, '');
 
 		// Try extract any trailing line and column numbers by matching the text against parsed
-		// links. This will give a search link `foo` on a line like `"foo", line 10` to open the
-		// quick pick with `foo:10` as the contents.
+		// links. For example if there is a line containing `"foo", line 10` and the user
+		// clicks 'foo', then `link.text` will be "foo" and not have any line number.
+		// We can detect links in the line, which will give a `parsedLink` whose `path.text`
+		// is also "foo" but it will also include the line number. We can take
+		// that line number and send the link to quick pick with `foo:10` as the contents.
 		if (link.contextLine) {
 			const parsedLinks = detectLinks(link.contextLine, this._getOS());
-			const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text === parsedLink.path.text);
+			// At this point `link.text` may be something like `src/foo.ext:5.0-4`, whereas
+			// the `parsedLink.path.text` would be `src/foo.ext`. We need to strip the
+			// link/column numbers so that we can find the matching detected link in the line.
+			const linkTextWithoutLineNumbers = link.text.replace(/:[\d\.,-]*$/, '');
+			const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && linkTextWithoutLineNumbers === parsedLink.path.text);
 			if (matchingParsedLink) {
 				if (matchingParsedLink.suffix?.row !== undefined) {
+					// The detected link has line & maybe column numbers extracted. Replace
+					// any that may have been present in `link` with the detected
+					// ones. So for example `src/foo.ext:5.0-4` would be stripped
+					// to `src/foo.ext` and then extended to `src/foo.ext:5:0` which
+					// the quick picker understands.
+					const numStrip = link.text.length - linkTextWithoutLineNumbers.length;
+					text = text.slice(0, text.length - numStrip);
+
 					text += `:${matchingParsedLink.suffix.row}`;
 					if (matchingParsedLink.suffix?.col !== undefined) {
 						text += `:${matchingParsedLink.suffix.col}`;
