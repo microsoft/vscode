@@ -332,6 +332,8 @@ export class InlineChatController implements IEditorContribution {
 			return State.CANCEL;
 		}
 
+		await session.chatModel.waitForInitialization();
+
 		// create a new strategy
 		switch (session.editMode) {
 			case EditMode.Preview:
