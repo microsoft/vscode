@@ -18,6 +18,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DiffEditorOptions } from '../diffEditorOptions';
+import { codeEditorObs } from 'vs/editor/browser/observableUtilities';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly original = this._register(this._createLeftHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.originalEditor || {}));
@@ -29,15 +30,15 @@ export class DiffEditorEditors extends Disposable {
 	public readonly modifiedScrollTop = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
 	public readonly modifiedScrollHeight = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
 
-	public readonly modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => /** @description modified.model */ this.modified.getModel());
+	public readonly modifiedModel = codeEditorObs(this.modified).model;
 
 	public readonly modifiedSelections = observableFromEvent(this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
 	public readonly modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
 
 	public readonly originalCursor = observableFromEvent(this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
 
-	public readonly isOriginalFocused = observableFromEvent(Event.any(this.original.onDidFocusEditorWidget, this.original.onDidBlurEditorWidget), () => this.original.hasWidgetFocus());
-	public readonly isModifiedFocused = observableFromEvent(Event.any(this.modified.onDidFocusEditorWidget, this.modified.onDidBlurEditorWidget), () => this.modified.hasWidgetFocus());
+	public readonly isOriginalFocused = codeEditorObs(this.original).isFocused;
+	public readonly isModifiedFocused = codeEditorObs(this.modified).isFocused;
 
 	public readonly isFocused = derived(this, reader => this.isOriginalFocused.read(reader) || this.isModifiedFocused.read(reader));
 
