@@ -204,7 +204,7 @@ export class PreviewStrategy extends EditModeStrategy {
 			const allEdits: TextEdit[] = [];
 			for (const request of this._session.chatModel.getRequests()) {
 				for (const item of request.response?.response.value ?? []) {
-					if (item.kind === 'textEdit' && isEqual(item.uri, textModel.uri) && !item.state?.applied) {
+					if (item.kind === 'textEdit' && isEqual(item.uri, textModel.uri)) {
 						allEdits.push(...item.edits);
 					}
 				}
