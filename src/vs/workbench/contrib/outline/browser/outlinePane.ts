@@ -6,7 +6,7 @@
 import 'vs/css!./outlinePane';
 import * as dom from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { TimeoutTimer, timeout } from 'vs/base/common/async';
+import { Delayer, TimeoutTimer, timeout } from 'vs/base/common/async';
 import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
@@ -271,10 +271,14 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		);
 
 		// update tree, listen to changes
+		const delayedNoSymbolMessage = this._editorControlDisposables.add(new Delayer<void>(200));
 		const updateTree = () => {
+			delayedNoSymbolMessage.cancel();
 			if (newOutline.isEmpty) {
 				// no more elements
-				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
+				delayedNoSymbolMessage.trigger(() =>
+					this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)))
+				);
 				this._captureViewState(resource);
 				tree.setInput(undefined);
 
