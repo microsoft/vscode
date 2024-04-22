@@ -74,10 +74,8 @@ function registerTokenizationSupport(instantiationService: TestInstantiationServ
 			for (let i = 0; i < tokensOnLine.length; i++) {
 				result[2 * i] = tokensOnLine[i].startIndex;
 				result[2 * i + 1] =
-					(
-						(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
-						| (tokensOnLine[i].value << MetadataConsts.TOKEN_TYPE_OFFSET)
-					);
+					((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+						| (tokensOnLine[i].value << MetadataConsts.TOKEN_TYPE_OFFSET));
 			}
 			return new EncodedTokenizationResult(result, state);
 		}

@@ -183,13 +183,13 @@ export class LineTokens implements IViewLineTokens {
 		return low;
 	}
 
-	public shiftTokenOffsetsBy(delta: number, newText: string): LineTokens {
+	public shiftTokenOffsetsBy(delta: number, newTokenText: string): LineTokens {
 		const newTokens = new Array<number>();
 		for (let i = 0; i < this.getCount(); i++) {
 			newTokens.push(this.getEndOffset(i) + delta);
 			newTokens.push(this.getMetadata(i));
 		}
-		return new LineTokens(new Uint32Array(newTokens), newText, this._languageIdCodec);
+		return new LineTokens(new Uint32Array(newTokens), newTokenText, this._languageIdCodec);
 	}
 
 	/**

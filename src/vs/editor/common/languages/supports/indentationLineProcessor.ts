@@ -157,10 +157,13 @@ export class IndentationContextProcessor {
 class IndentationLineProcessor {
 
 	constructor(
-		protected readonly model: IVirtualModel,
-		protected readonly languageConfigurationService: ILanguageConfigurationService
+		private readonly model: IVirtualModel,
+		private readonly languageConfigurationService: ILanguageConfigurationService
 	) { }
 
+	/**
+	 * Get the processed line for the given line number. Remove the language configuration brackets from the regex, string and comment tokens.
+	 */
 	getProcessedLine(lineNumber: number): string {
 		const lineContent = this.model.getLineContent(lineNumber);
 		const tokens = this.model.tokenization.getLineTokens(lineNumber);
@@ -168,6 +171,9 @@ class IndentationLineProcessor {
 		return processedLine;
 	}
 
+	/**
+	 * Replace the indentation of the line at the given line number with the new indentation and process the line - remove the language configuration brackets from the regex, string and comment tokens.
+	 */
 	getProcessedLineWithIndentation(lineNumber: number, newIndentation: string): string {
 		const currentLine = this.model.getLineContent(lineNumber);
 		const currentIndentation = strings.getLeadingWhitespace(currentLine);
@@ -178,6 +184,9 @@ class IndentationLineProcessor {
 		return this.getProcessedLineForLineAndTokens(newLine, newTokens);
 	}
 
+	/**
+	 * Process the line with the given tokens, remove the language configuration brackets from the regex, string and comment tokens.
+	 */
 	getProcessedLineForLineAndTokens(line: string, tokens: IViewLineTokens): string {
 
 		// Utility functions
