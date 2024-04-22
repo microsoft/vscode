@@ -143,7 +143,7 @@ export class IndentationContextProcessor {
 		return processedLine;
 	}
 
-	private _getProcessedPreviousLine(range: Range, scopedLineTokens: ScopedLineTokens) {
+	private _getProcessedPreviousLine(range: Range, scopedLineTokens: ScopedLineTokens): string {
 		let processedPreviousLine = '';
 		if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 			// This is not the first line and the entire line belongs to this mode
@@ -194,7 +194,7 @@ class IndentationLineProcessor {
 		const currentIndentation = strings.getLeadingWhitespace(currentLine);
 		const currentTokens = this.model.tokenization.getLineTokens(lineNumber);
 		const indentationDifference = newIndentation.length - currentIndentation.length;
-		const newLine = newIndentation + currentLine.substring(currentIndentation.length);;
+		const newLine = newIndentation + currentLine.substring(currentIndentation.length);
 		const newTokens = currentTokens.shiftTokenOffsetsBy(indentationDifference, newLine);
 		return this.getProcessedLineForLineAndTokens(newLine, newTokens);
 	}
