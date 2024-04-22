@@ -86,6 +86,7 @@ export interface IChatResponseModel {
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
 	setVote(vote: InteractiveSessionVoteDirection): void;
+	setEditApplied(edit: IChatTextEdit, editCount: number): boolean;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -378,6 +379,18 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setVote(vote: InteractiveSessionVoteDirection): void {
 		this._vote = vote;
 		this._onDidChange.fire();
+	}
+
+	setEditApplied(edit: IChatTextEdit, editCount: number): boolean {
+		if (!this.response.value.includes(edit)) {
+			return false;
+		}
+		if (!edit.state) {
+			return false;
+		}
+		edit.state.applied = editCount; // must not be edit.edits.length
+		this._onDidChange.fire();
+		return true;
 	}
 }
 

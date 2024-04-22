@@ -46,10 +46,14 @@ import { IMarkdownVulnerability } from '../common/annotations';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { TextEdit } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { IChatTextEdit } from 'vs/workbench/contrib/chat/common/chatService';
+import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -425,18 +429,23 @@ export class ChatCodeBlockContentProvider extends Disposable implements ITextMod
 //
 
 export interface ICodeCompareBlockActionContext {
-	readonly element: ChatTreeItem;
+	readonly element: IChatResponseViewModel;
 	readonly diffEditor: IDiffEditor;
-	readonly uri: URI;
-	readonly edits: readonly TextEdit[];
+	readonly edit: IChatTextEdit;
+}
+
+export interface ICodeCompareBlockDiffData {
+	modified: ITextModel;
+	original: ITextModel;
+	originalSha1: string;
 }
 
 export interface ICodeCompareBlockData {
 	readonly element: ChatTreeItem;
 
-	readonly originalTextModel: Promise<ITextModel | undefined>;
-	readonly modifiedTextModel: Promise<ITextModel | undefined>;
-	readonly edits: readonly TextEdit[];
+	readonly edit: IChatTextEdit;
+
+	readonly diffData: Promise<ICodeCompareBlockDiffData | undefined>;
 
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly hideToolbar?: boolean;
@@ -448,9 +457,10 @@ export class CodeCompareBlockPart extends Disposable {
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
 	private readonly contextKeyService: IContextKeyService;
-	public readonly diffEditor: DiffEditorWidget;
-	protected readonly toolbar: MenuWorkbenchToolBar;
-	public readonly element: HTMLElement;
+	private readonly diffEditor: DiffEditorWidget;
+	private readonly toolbar: MenuWorkbenchToolBar;
+	readonly element: HTMLElement;
+	private readonly messageElement: HTMLElement;
 
 	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable<IDiffEditorViewModel>());
 	private currentScrollWidth = 0;
@@ -465,10 +475,16 @@ export class CodeCompareBlockPart extends Disposable {
 		@IModelService protected readonly modelService: IModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
 		this.element.classList.add('compare');
+
+		this.messageElement = dom.append(this.element, $('.message'));
+		this.messageElement.setAttribute('role', 'status');
+		this.messageElement.tabIndex = 0;
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
@@ -582,7 +598,7 @@ export class CodeCompareBlockPart extends Disposable {
 			originalAriaLabel: localize('original', 'Original'),
 			modifiedAriaLabel: localize('modified', 'Modified'),
 			diffAlgorithm: 'advanced',
-			readOnly: true,
+			readOnly: false,
 			isInEmbeddedEditor: true,
 			useInlineViewWhenSpaceIsLimited: false,
 			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },
@@ -677,30 +693,65 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {
 
-		const originalTextModel = await data.originalTextModel;
-		const modifiedTextModel = await data.modifiedTextModel;
-
-		if (!originalTextModel || !modifiedTextModel) {
+		if (!isResponseVM(data.element)) {
 			return;
 		}
 
-		const viewModel = this.diffEditor.createViewModel({
-			original: originalTextModel,
-			modified: modifiedTextModel
-		});
+		const isEditApplied = Boolean(data.edit.state?.applied ?? 0);
 
-		await viewModel.waitForDiff();
+		CONTEXT_CHAT_EDIT_APPLIED.bindTo(this.contextKeyService).set(isEditApplied);
 
-		if (token.isCancellationRequested) {
+		this.element.classList.toggle('no-diff', isEditApplied);
+
+		if (data.edit.state?.applied) {
+
+			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
+
+			const template = data.edit.state.applied > 1
+				? localize('chat.edits.N', "Made {0} changes in [[{1}]]", data.edit.state.applied, uriLabel)
+				: localize('chat.edits.1', "Made 1 change in [[{0}]]", uriLabel);
+
+
+			const message = renderFormattedText(template, {
+				actionHandler: {
+					callback: () => {
+						this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
+					},
+					disposables: this._store,
+				}
+			});
+
+			dom.reset(this.messageElement, message);
+
+		}
+
+		const diffData = await data.diffData;
+		if (!diffData) {
 			return;
 		}
 
-		this.diffEditor.setModel(viewModel);
-		this._lastDiffEditorViewModel.value = viewModel;
+		if (!isEditApplied) {
+			const viewModel = this.diffEditor.createViewModel({
+				original: diffData.original,
+				modified: diffData.modified
+			});
+
+			await viewModel.waitForDiff();
+
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			this.diffEditor.setModel(viewModel);
+			this._lastDiffEditorViewModel.value = viewModel;
+
+		} else {
+			this.diffEditor.setModel(null);
+			this._lastDiffEditorViewModel.value = undefined;
+		}
 
 		this.toolbar.context = {
-			uri: originalTextModel.uri,
-			edits: data.edits,
+			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;

@@ -135,6 +135,7 @@ export interface IChatResponseViewModel {
 	setVote(vote: InteractiveSessionVoteDirection): void;
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
+	setEditApplied(edit: IChatTextEdit, editCount: number): void;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -512,6 +513,11 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	setVote(vote: InteractiveSessionVoteDirection): void {
 		this._modelChangeCount++;
 		this._model.setVote(vote);
+	}
+
+	setEditApplied(edit: IChatTextEdit, editCount: number) {
+		this._modelChangeCount++;
+		this._model.setEditApplied(edit, editCount);
 	}
 }
 
