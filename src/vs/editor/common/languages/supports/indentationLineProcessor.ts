@@ -20,7 +20,6 @@ import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
  */
 export class ProcessedIndentRulesSupport {
 
-	private readonly _model: IVirtualModel;
 	private readonly _indentRulesSupport: IndentRulesSupport;
 	private readonly _indentationLineProcessor: IndentationLineProcessor;
 
@@ -29,54 +28,38 @@ export class ProcessedIndentRulesSupport {
 		indentRulesSupport: IndentRulesSupport,
 		languageConfigurationService: ILanguageConfigurationService
 	) {
-		this._model = model;
 		this._indentRulesSupport = indentRulesSupport;
 		this._indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
 	}
 
-	public shouldIncrease(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
+	public shouldIncrease(lineNumber: number, newIndentation?: string): boolean {
+		const processedLine = this._processLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIncrease(processedLine);
 	}
 
-	public shouldDecrease(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
+	public shouldDecrease(lineNumber: number, newIndentation?: string): boolean {
+		const processedLine = this._processLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldDecrease(processedLine);
 	}
 
-	public shouldIgnore(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
+	public shouldIgnore(lineNumber: number, newIndentation?: string): boolean {
+		const processedLine = this._processLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIgnore(processedLine);
 	}
 
-	public shouldIndentNextLine(lineNumber: number): boolean {
-		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
+	public shouldIndentNextLine(lineNumber: number, newIndentation?: string): boolean {
+		const processedLine = this._processLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
 	}
 
-	public shouldIncreaseAfterSettingIndentation(lineNumber: number, newIndentation: string): boolean {
-		const processedLine = this._adjustIndentationForLineAndProcess(lineNumber, newIndentation);
-		return this._indentRulesSupport.shouldIncrease(processedLine);
-	}
-
-	public shouldIndentNextLineAfterSettingIndentation(lineNumber: number, newIndentation: string): boolean {
-		const processedLine = this._adjustIndentationForLineAndProcess(lineNumber, newIndentation);
-		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
-	}
-
-	public shouldDecreaseAfterSettingIndentation(lineNumber: number, newIndentation: string): boolean {
-		const processedLine = this._adjustIndentationForLineAndProcess(lineNumber, newIndentation);
-		return this._indentRulesSupport.shouldDecrease(processedLine);
-	}
-
-	private _adjustIndentationForLineAndProcess(lineNumber: number, newIndentation: string): string {
-		const currentLine = this._model.getLineContent(lineNumber);
-		const currentIndentation = strings.getLeadingWhitespace(currentLine);
-		const currentTokens = this._model.tokenization.getLineTokens(lineNumber);
-		const indentationDifference = newIndentation.length - currentIndentation.length;
-		const newLine = newIndentation + currentLine.substring(currentIndentation.length);;
-		const newTokens = currentTokens.shiftTokenOffsetsBy(indentationDifference, newLine);
-		return this._indentationLineProcessor.getProcessedLineForLineAndTokens(newLine, newTokens);
+	private _processLine(lineNumber: number, newIndentation?: string) {
+		let processedLine: string;
+		if (newIndentation === undefined) {
+			processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
+		} else {
+			processedLine = this._indentationLineProcessor.getProcessedLineWithIndentation(lineNumber, newIndentation);
+		}
+		return processedLine;
 	}
 }
 
@@ -114,25 +97,6 @@ export class IndentationContextProcessor {
 		return { beforeRangeText, afterRangeText, previousLineText };
 	}
 
-	private _getProcessedTextAfterRange(range: Range, scopedLineTokens: ScopedLineTokens): string {
-		let columnIndexWithinScope: number;
-		let lineTokens: LineTokens;
-		if (range.isEmpty()) {
-			columnIndexWithinScope = range.startColumn - 1 - scopedLineTokens.firstCharOffset;
-			lineTokens = this.model.tokenization.getLineTokens(range.startLineNumber);
-		} else {
-			columnIndexWithinScope = range.endColumn - 1 - scopedLineTokens.firstCharOffset;
-			lineTokens = this.model.tokenization.getLineTokens(range.endLineNumber);
-		}
-		const scopedLineContent = scopedLineTokens.getLineContent();
-		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope + 1;
-		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineContent.length + 1;
-		const slicedLine = scopedLineContent.substring(columnIndexWithinScope);
-		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedLine, slicedTokens);
-		return processedLine;
-	}
-
 	private _getProcessedTextBeforeRange(range: Range, scopedLineTokens: ScopedLineTokens): string {
 		const lineTokens = this.model.tokenization.getLineTokens(range.startLineNumber);
 		const columnIndexWithinScope = (range.startColumn - 1) - scopedLineTokens.firstCharOffset;
@@ -140,6 +104,25 @@ export class IndentationContextProcessor {
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope;
 		const scopedLineContent = scopedLineTokens.getLineContent();
 		const slicedLine = scopedLineContent.substring(0, columnIndexWithinScope);
+		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedLine, slicedTokens);
+		return processedLine;
+	}
+
+	private _getProcessedTextAfterRange(range: Range, scopedLineTokens: ScopedLineTokens): string {
+		let columnIndexWithinScope: number;
+		let lineTokens: LineTokens;
+		if (range.isEmpty()) {
+			columnIndexWithinScope = (range.startColumn - 1) - scopedLineTokens.firstCharOffset;
+			lineTokens = this.model.tokenization.getLineTokens(range.startLineNumber);
+		} else {
+			columnIndexWithinScope = (range.endColumn - 1) - scopedLineTokens.firstCharOffset;
+			lineTokens = this.model.tokenization.getLineTokens(range.endLineNumber);
+		}
+		const scopedLineContent = scopedLineTokens.getLineContent();
+		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope + 1;
+		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineContent.length + 1;
+		const slicedLine = scopedLineContent.substring(columnIndexWithinScope);
 		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
 		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedLine, slicedTokens);
 		return processedLine;
@@ -183,6 +166,16 @@ class IndentationLineProcessor {
 		const tokens = this.model.tokenization.getLineTokens(lineNumber);
 		const processedLine = this.getProcessedLineForLineAndTokens(lineContent, tokens);
 		return processedLine;
+	}
+
+	getProcessedLineWithIndentation(lineNumber: number, newIndentation: string): string {
+		const currentLine = this.model.getLineContent(lineNumber);
+		const currentIndentation = strings.getLeadingWhitespace(currentLine);
+		const currentTokens = this.model.tokenization.getLineTokens(lineNumber);
+		const indentationDifference = newIndentation.length - currentIndentation.length;
+		const newLine = newIndentation + currentLine.substring(currentIndentation.length);;
+		const newTokens = currentTokens.shiftTokenOffsetsBy(indentationDifference, newLine);
+		return this.getProcessedLineForLineAndTokens(newLine, newTokens);
 	}
 
 	getProcessedLineForLineAndTokens(line: string, tokens: IViewLineTokens): string {

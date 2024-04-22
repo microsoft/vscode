@@ -75,7 +75,7 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 		const oldIndentation = strings.getLeadingWhitespace(text);
 		const currentIdealIndent = idealIndentForNextLine;
 
-		if (processedIndentRulesSupport.shouldDecreaseAfterSettingIndentation(lineNumber, currentIdealIndent)) {
+		if (processedIndentRulesSupport.shouldDecrease(lineNumber, currentIdealIndent)) {
 			idealIndentForNextLine = unshiftIndent(idealIndentForNextLine);
 			globalIndent = unshiftIndent(globalIndent);
 		}
@@ -89,10 +89,10 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 			// In reindent phase, if the line matches `unIndentedLinePattern` we inherit indentation from above lines
 			// but don't change globalIndent and idealIndentForNextLine.
 			continue;
-		} else if (processedIndentRulesSupport.shouldIncreaseAfterSettingIndentation(lineNumber, currentIdealIndent)) {
+		} else if (processedIndentRulesSupport.shouldIncrease(lineNumber, currentIdealIndent)) {
 			globalIndent = shiftIndent(globalIndent);
 			idealIndentForNextLine = globalIndent;
-		} else if (processedIndentRulesSupport.shouldIndentNextLineAfterSettingIndentation(lineNumber, currentIdealIndent)) {
+		} else if (processedIndentRulesSupport.shouldIndentNextLine(lineNumber, currentIdealIndent)) {
 			idealIndentForNextLine = shiftIndent(idealIndentForNextLine);
 		} else {
 			idealIndentForNextLine = globalIndent;
