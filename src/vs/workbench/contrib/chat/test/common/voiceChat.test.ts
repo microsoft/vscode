@@ -28,6 +28,7 @@ suite('VoiceChat', () => {
 
 		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
 		extensionPublisher = '';
+		extensionDisplayName = '';
 		locations: ChatAgentLocation[] = [ChatAgentLocation.Panel];
 		public readonly name: string;
 		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) {

@@ -106,7 +106,7 @@ interface IUserFriendlyViewDescriptor {
 	remoteName?: string | string[];
 	virtualWorkspace?: string;
 
-	accessibilityHelpContent: string;
+	accessibilityHelpContent?: string;
 }
 
 enum InitialVisibility {
@@ -173,7 +173,7 @@ const viewDescriptor: IJSONSchema = {
 		},
 		accessibilityHelpContent: {
 			type: 'string',
-			description: localize('vscode.extension.contributes.view.accessibilityHelpContent', "When the accessibility help dialog is invoked in this view, this content will be presented to the user as a markdown string.")
+			markdownDescription: localize('vscode.extension.contributes.view.accessibilityHelpContent', "When the accessibility help dialog is invoked in this view, this content will be presented to the user as a markdown string. Keybindings will be resolved when provided in the format of <keybinding:commandId>. If there is no keybinding, that will be indicated with a link to configure one.")
 		}
 	}
 };

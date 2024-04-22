@@ -438,6 +438,12 @@ export interface ICreateTerminalOptions {
 	 * The terminal's location (editor or panel), it's terminal parent (split to the right), or editor group
 	 */
 	location?: ITerminalLocationOptions;
+
+	/**
+	 * This terminal will not wait for contributed profiles to resolve which means it will proceed
+	 * when the workbench is not yet loaded.
+	 */
+	skipContributedProfileCheck?: boolean;
 }
 
 export interface TerminalEditorLocation {
@@ -1241,9 +1247,4 @@ export interface ISuggestController {
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
 	hideSuggestWidget(): void;
-	/**
-	 * Handle data written to the terminal outside of xterm.js which has no corresponding
-	 * `Terminal.onData` event.
-	 */
-	handleNonXtermData(data: string): void;
 }
