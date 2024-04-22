@@ -32,21 +32,33 @@ export class ProcessedIndentRulesSupport {
 		this._indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
 	}
 
+	/**
+	 * Apply the new indentation and return whether the indentation level should be increased after the given line number
+	 */
 	public shouldIncrease(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._processLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIncrease(processedLine);
 	}
 
+	/**
+	 * Apply the new indentation and return whether the indentation level should be decreased after the given line number
+	 */
 	public shouldDecrease(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._processLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldDecrease(processedLine);
 	}
 
+	/**
+	 * Apply the new indentation and return whether the indentation level should remain unchanged at the given line number
+	 */
 	public shouldIgnore(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._processLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIgnore(processedLine);
 	}
 
+	/**
+	 * Apply the new indentation and return whether the indentation level should increase on the line after the given line number
+	 */
 	public shouldIndentNextLine(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._processLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
@@ -83,6 +95,9 @@ export class IndentationContextProcessor {
 		this.indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
 	}
 
+	/**
+	 * Returns the processed text, stripped from the language configuration brackets within the string, comment and regex tokens, around the given range
+	 */
 	getProcessedContextAroundRange(range: Range): {
 		beforeRangeText: string;
 		afterRangeText: string;
@@ -190,29 +205,29 @@ class IndentationLineProcessor {
 	getProcessedLineForLineAndTokens(line: string, tokens: IViewLineTokens): string {
 
 		// Utility functions
-		const removeBracketsFromTokenWithIndexWithinLine = (tokenIndex: number, characterOffset: number, processedLine: string): { processedCharacterOffset: number, processedLine: string } => {
+		const removeBracketsFromTokenWithIndexWithinLine = (tokenIndex: number, offset: number, processedLine: string): { processedOffset: number, processedLine: string } => {
 			const result = removeBracketsFromTokenWithIndex(tokenIndex);
-			const processedCharacterOffset = characterOffset - (result.tokenText.length - result.processedText.length);
-			const lineBeforeCharacterOffset = processedLine.substring(0, characterOffset + result.tokenStartCharacterOffset);
-			const lineAfterCharacterOffset = processedLine.substring(characterOffset + result.tokenEndCharacterOffset);
-			const newProcessedLine = lineBeforeCharacterOffset + result.processedText + lineAfterCharacterOffset;
-			return { processedCharacterOffset, processedLine: newProcessedLine };
+			const processedOffset = offset - (result.tokenText.length - result.processedTokenText.length);
+			const lineBeforeToken = processedLine.substring(0, offset + result.tokenInitialStartOffset);
+			const lineAfterToken = processedLine.substring(offset + result.tokenInitialEndOffset);
+			const newProcessedLine = lineBeforeToken + result.processedTokenText + lineAfterToken;
+			return { processedOffset, processedLine: newProcessedLine };
 		};
-		const removeBracketsFromTokenWithIndex = (tokenIndex: number): { tokenText: string; processedText: string; tokenStartCharacterOffset: number; tokenEndCharacterOffset: number } => {
-			const tokenStartCharacterOffset = tokens.getStartOffset(tokenIndex);
-			const tokenEndCharacterOffset = tokens.getEndOffset(tokenIndex);
-			const tokenText = line.substring(tokenStartCharacterOffset, tokenEndCharacterOffset);
-			const processedText = removeBracketsFromText(tokenText);
-			return { tokenText, processedText, tokenStartCharacterOffset, tokenEndCharacterOffset };
+		const removeBracketsFromTokenWithIndex = (tokenIndex: number): { tokenText: string; processedTokenText: string; tokenInitialStartOffset: number; tokenInitialEndOffset: number } => {
+			const tokenInitialStartOffset = tokens.getStartOffset(tokenIndex);
+			const tokenInitialEndOffset = tokens.getEndOffset(tokenIndex);
+			const tokenText = line.substring(tokenInitialStartOffset, tokenInitialEndOffset);
+			const processedTokenText = removeBracketsFromText(tokenText);
+			return { tokenText, processedTokenText, tokenInitialStartOffset, tokenInitialEndOffset };
 		}
 		const removeBracketsFromText = (line: string): string => {
 			let processedLine = line;
 			openBrackets.forEach((bracket) => {
-				const regex = new RegExp(escapeStringForRegex(bracket), "g");
+				const regex = new RegExp(escapeStringForRegex(bracket), 'g');
 				processedLine = processedLine.replace(regex, '');
 			});
 			closedBrackets.forEach((bracket) => {
-				const regex = new RegExp(escapeStringForRegex(bracket), "g");
+				const regex = new RegExp(escapeStringForRegex(bracket), 'g');
 				processedLine = processedLine.replace(regex, '');
 			});
 			return processedLine;
@@ -237,7 +252,7 @@ class IndentationLineProcessor {
 		const openBrackets = brackets.brackets.map((brackets) => brackets.open).flat();
 		const closedBrackets = brackets.brackets.map((brackets) => brackets.close).flat();
 
-		let characterOffset = 0;
+		let processedOffset = 0;
 		let processedLine = line;
 
 		for (let i = 0; i < tokens.getCount(); i++) {
@@ -246,8 +261,8 @@ class IndentationLineProcessor {
 				|| standardTokenType === StandardTokenType.RegEx
 				|| standardTokenType === StandardTokenType.Comment
 			) {
-				const result = removeBracketsFromTokenWithIndexWithinLine(i, characterOffset, processedLine);
-				characterOffset = result.processedCharacterOffset;
+				const result = removeBracketsFromTokenWithIndexWithinLine(i, processedOffset, processedLine);
+				processedOffset = result.processedOffset;
 				processedLine = result.processedLine;
 			}
 		}
