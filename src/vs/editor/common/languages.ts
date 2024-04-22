@@ -190,18 +190,25 @@ export interface HoverProvider<THover = Hover> {
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<THover>;
 }
 
 export interface HoverContext<THover = Hover> {
 	/**
+	 * Hover verbosity request
+	 */
+	verbosityRequest?: HoverVerbosityRequest<THover>;
+}
+
+export interface HoverVerbosityRequest<THover = Hover> {
+	/**
 	 * Whether to increase or decrease the hover's verbosity
 	 */
-	action?: HoverVerbosityAction;
+	action: HoverVerbosityAction;
 	/**
 	 * The previous hover for the same position
 	 */
-	previousHover?: THover;
+	previousHover: THover;
 }
 
 export enum HoverVerbosityAction {
