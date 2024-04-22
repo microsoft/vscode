@@ -1,6 +1,9 @@
 @echo off
 setlocal
 
+echo Running Electron tests
+echo =====================
+
 set ELECTRON_RUN_AS_NODE=
 
 pushd %~dp0\..
