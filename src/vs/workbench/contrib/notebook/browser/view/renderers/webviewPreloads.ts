@@ -1576,7 +1576,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
 			return;
 		}
 
@@ -1598,24 +1598,31 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (image) {
 				const imageToCopy = image;
-				await navigator.clipboard.write([new ClipboardItem({
-					'image/png': new Promise((resolve) => {
-						const canvas = document.createElement('canvas');
-						canvas.width = imageToCopy.naturalWidth;
-						canvas.height = imageToCopy.naturalHeight;
-						const context = canvas.getContext('2d');
-						context!.drawImage(imageToCopy, 0, 0);
+				async function copyImage(retries: number) {
+					await navigator.clipboard.write([new ClipboardItem({
+						'image/png': new Promise((resolve) => {
+							const canvas = document.createElement('canvas');
+							canvas.width = imageToCopy.naturalWidth;
+							canvas.height = imageToCopy.naturalHeight;
+							const context = canvas.getContext('2d');
+							context!.drawImage(imageToCopy, 0, 0);
 
-						canvas.toBlob((blob) => {
-							if (blob) {
-								resolve(blob);
-							} else {
-								console.error('No blob data to write to clipboard');
-							}
-							canvas.remove();
-						}, 'image/png');
-					})
-				})]);
+							canvas.toBlob((blob) => {
+								if (blob) {
+									resolve(blob);
+								} else if (retries > 0) {
+									setTimeout(() => { copyImage(retries - 1); }, 20);
+									return;
+								} else {
+									console.error('No blob data to write to clipboard');
+								}
+								canvas.remove();
+							}, 'image/png');
+						})
+					})]);
+				}
+
+				copyImage(retries);
 			} else {
 				console.error('Could not find image element to copy for output with id', outputId);
 			}
