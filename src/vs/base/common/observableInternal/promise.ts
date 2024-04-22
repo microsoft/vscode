@@ -156,12 +156,14 @@ export function waitForState<T>(observable: IObservable<T>, predicate?: (state: 
 			}
 		});
 		if (cancellationToken) {
-			cancellationToken.onCancellationRequested(() => {
+			const dc = cancellationToken.onCancellationRequested(() => {
 				d.dispose();
+				dc.dispose();
 				reject(new CancellationError());
 			});
 			if (cancellationToken.isCancellationRequested) {
 				d.dispose();
+				dc.dispose();
 				reject(new CancellationError());
 				return;
 			}
