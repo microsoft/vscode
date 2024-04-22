@@ -15,7 +15,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 export interface ILanguageModelStats {
 	readonly identifier: string;
@@ -359,7 +359,11 @@ class LanguageModelFeatureRenderer extends Disposable implements IExtensionFeatu
 				result.sessionRequestCount += participant.sessionRequestCount;
 				result.sessionTokenCount += participant.sessionTokenCount;
 				result.participants.splice(agent?.isDefault ? 0 : result.participants.length, 0, {
-					name: agent ? agent?.isDefault ? agent.name : `@${agent.name}` : participant.id,
+					name: agent ?
+						agent?.isDefault ?
+							agent.locations.includes(ChatAgentLocation.Editor) ? localize('chat editor', "Inline Chat (Editor)") : localize('chat', "Chat")
+							: `@${agent.name}`
+						: participant.id,
 					requestCount: participant.requestCount,
 					tokenCount: participant.tokenCount,
 					sessionRequestCount: participant.sessionRequestCount,
