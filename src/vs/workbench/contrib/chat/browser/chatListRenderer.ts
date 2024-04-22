@@ -65,9 +65,9 @@ import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions
 import { ChatCodeBlockContentProvider, CodeBlockPart, CodeCompareBlockPart, ICodeBlockData, ICodeCompareBlockData, ICodeCompareBlockDiffData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentMetadata, IChatAgentNameService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -506,7 +506,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'command' ? this.renderCommandButton(element, data)
-							: data.kind === 'textEdit' ? this.renderTextEdit(element, data, templateData)
+							: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
 								: undefined;
 			if (result) {
 				templateData.value.appendChild(result.element);
@@ -605,7 +605,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						} satisfies IChatProgressMessageRenderData;
 					} else if (part.kind === 'command') {
 						partsToRender[index] = part;
-					} else if (part.kind === 'textEdit') {
+					} else if (part.kind === 'textEditGroup') {
 						partsToRender[index] = part;
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });
@@ -910,11 +910,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderTextEdit(element: ChatTreeItem, chatTextEdit: IChatTextEdit, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
+	private renderTextEdit(element: ChatTreeItem, chatTextEdit: IChatTextEditGroup, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
 
 		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
 		if (this.rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri)) {
-			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEdit')) {
+			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup')) {
 				return {
 					element: $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes.")),
 					dispose() { }
@@ -975,10 +975,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				);
 				store.add(modified);
 				if (!chatTextEdit.state?.applied) {
-					const edits = chatTextEdit.edits.map(TextEdit.asEditOperation);
-					modified.pushEditOperations(null, edits, () => null);
+					for (const group of chatTextEdit.edits) {
+						const edits = group.map(TextEdit.asEditOperation);
+						modified.pushEditOperations(null, edits, () => null);
+					}
 				}
-
 				return {
 					modified,
 					original,
@@ -1563,8 +1564,8 @@ function isCommandButtonRenderData(item: IChatRenderData): item is IChatCommandB
 	return item && 'kind' in item && item.kind === 'command';
 }
 
-function isTextEditRenderData(item: IChatRenderData): item is IChatTextEdit {
-	return item && 'kind' in item && item.kind === 'textEdit';
+function isTextEditRenderData(item: IChatRenderData): item is IChatTextEditGroup {
+	return item && 'kind' in item && item.kind === 'textEditGroup';
 }
 
 function isMarkdownRenderData(item: IChatRenderData): item is IChatResponseMarkdownRenderData {

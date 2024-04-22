@@ -85,19 +85,19 @@ export abstract class EditModeStrategy {
 				}
 
 				// TODO@jrieken
-				// apply changes only when not dirty. This is very proper and needs to
+				// apply changes only when not dirty. This is not very proper and needs to
 				// fixed in the future
 				if (!untitledTextModel.isDirty()) {
-					const allEdits: TextEdit[] = [];
+					untitledTextModel.textEditorModel.pushStackElement();
 					for (const request of this._session.chatModel.getRequests()) {
 						for (const item of request.response?.response.value ?? []) {
-							if (item.kind === 'textEdit' && isEqual(item.uri, untitledTextModel.resource)) {
-								allEdits.push(...item.edits);
+							if (item.kind === 'textEditGroup' && isEqual(item.uri, untitledTextModel.resource)) {
+								for (const group of item.edits) {
+									untitledTextModel.textEditorModel.pushEditOperations(null, group.map(TextEdit.asEditOperation), () => null);
+								}
 							}
 						}
 					}
-					untitledTextModel.textEditorModel.pushStackElement();
-					untitledTextModel.textEditorModel.pushEditOperations(null, allEdits.map(TextEdit.asEditOperation), () => null);
 					untitledTextModel.textEditorModel.pushStackElement();
 				}
 
@@ -201,17 +201,17 @@ export class PreviewStrategy extends EditModeStrategy {
 		const textModel = this._editor.getModel();
 		if (textModel?.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
 
-			const allEdits: TextEdit[] = [];
+
+			textModel.pushStackElement();
 			for (const request of this._session.chatModel.getRequests()) {
 				for (const item of request.response?.response.value ?? []) {
-					if (item.kind === 'textEdit' && isEqual(item.uri, textModel.uri)) {
-						allEdits.push(...item.edits);
+					if (item.kind === 'textEditGroup' && isEqual(item.uri, textModel.uri) && !item.state?.applied) {
+						for (const group of item.edits) {
+							textModel.pushEditOperations(null, group.map(TextEdit.asEditOperation), () => null);
+						}
 					}
 				}
 			}
-
-			textModel.pushStackElement();
-			textModel.pushEditOperations(null, allEdits.map(TextEdit.asEditOperation), () => null);
 			textModel.pushStackElement();
 		}
 

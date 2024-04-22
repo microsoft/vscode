@@ -123,10 +123,6 @@ export interface IChatCommandButton {
 }
 
 export interface IChatTextEdit {
-	state?: {
-		sha1: string;
-		applied: number;
-	};
 	uri: URI;
 	edits: TextEdit[];
 	kind: 'textEdit';

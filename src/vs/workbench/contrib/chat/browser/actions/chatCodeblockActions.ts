@@ -664,5 +664,4 @@ export function registerChatCodeCompareBlockActions() {
 			});
 		}
 	});
-
 }

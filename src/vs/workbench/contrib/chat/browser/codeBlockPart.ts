@@ -49,11 +49,11 @@ import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import { IChatTextEdit } from 'vs/workbench/contrib/chat/common/chatService';
 import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 
 const $ = dom.$;
 
@@ -431,7 +431,7 @@ export class ChatCodeBlockContentProvider extends Disposable implements ITextMod
 export interface ICodeCompareBlockActionContext {
 	readonly element: IChatResponseViewModel;
 	readonly diffEditor: IDiffEditor;
-	readonly edit: IChatTextEdit;
+	readonly edit: IChatTextEditGroup;
 }
 
 export interface ICodeCompareBlockDiffData {
@@ -443,7 +443,7 @@ export interface ICodeCompareBlockDiffData {
 export interface ICodeCompareBlockData {
 	readonly element: ChatTreeItem;
 
-	readonly edit: IChatTextEdit;
+	readonly edit: IChatTextEditGroup;
 
 	readonly diffData: Promise<ICodeCompareBlockDiffData | undefined>;
 
