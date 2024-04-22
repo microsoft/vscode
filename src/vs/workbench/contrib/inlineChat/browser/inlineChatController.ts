@@ -705,7 +705,7 @@ export class InlineChatController implements IEditorContribution {
 			const editsShouldBeInstant = false;
 
 			const edits = response.response.value.map(part => {
-				if (part.kind === 'textEdit' && isEqual(part.uri, this._session?.textModelN.uri)) {
+				if (part.kind === 'textEditGroup' && isEqual(part.uri, this._session?.textModelN.uri)) {
 					return part.edits;
 				} else {
 					return [];
@@ -729,10 +729,12 @@ export class InlineChatController implements IEditorContribution {
 				// making changes goes into a queue because otherwise the async-progress time will
 				// influence the time it takes to receive the changes and progressive typing will
 				// become infinitely fast
-				await this._makeChanges(newEdits, editsShouldBeInstant
-					? undefined
-					: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
-				);
+				for (const edits of newEdits) {
+					await this._makeChanges(edits, editsShouldBeInstant
+						? undefined
+						: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
+					);
+				}
 
 				// reshow the widget if the start position changed or shows at the wrong position
 				const startNow = this._session!.wholeRange.value.getStartPosition();
@@ -1228,7 +1230,7 @@ function asInlineChatResponseType(response: IResponse): InlineChatResponseTypes 
 	for (const item of response.value) {
 		let thisType: InlineChatResponseTypes;
 		switch (item.kind) {
-			case 'textEdit':
+			case 'textEditGroup':
 				thisType = InlineChatResponseTypes.OnlyEdits;
 				break;
 			case 'markdownContent':

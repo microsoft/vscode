@@ -363,13 +363,28 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!widget || !request?.response) {
 			return;
 		}
+		const message: IChatProgress[] = [];
+		for (const item of request.response.response.value) {
+			if (item.kind === 'textEditGroup') {
+				for (const group of item.edits) {
+					message.push({
+						kind: 'textEdit',
+						edits: group,
+						uri: item.uri
+					});
+				}
+			} else {
+				message.push(item);
+			}
+		}
+
 		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
 			// DEBT: Add hardcoded agent name until its removed
 			`@${this._terminalAgentName} ${request.message.text}`,
 			request.variableData,
 			request.attempt,
 			{
-				message: request.response!.response.value,
+				message,
 				result: request.response!.result,
 				followups: request.response!.followups
 			});

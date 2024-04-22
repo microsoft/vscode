@@ -17,11 +17,13 @@ import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
-import { localize2 } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
@@ -29,7 +31,7 @@ import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/br
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext, ICodeCompareBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -607,7 +609,7 @@ export function registerChatCodeCompareBlockActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.check,
-				precondition: EditorContextKeys.hasChanges,
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation'
@@ -617,8 +619,12 @@ export function registerChatCodeCompareBlockActions() {
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
+			const diaglogService = accessor.get(IDialogService);
 			const editorService = accessor.get(IEditorService);
 
+			if (!context.edit.state || context.edit.state.applied) {
+				return;
+			}
 			const model = context.diffEditor.getModel();
 			if (!model) {
 				return;
@@ -626,6 +632,17 @@ export function registerChatCodeCompareBlockActions() {
 			const diff = context.diffEditor.getDiffComputationResult();
 			if (!diff || diff.identical) {
 				return;
+			}
+
+			const sha1 = new DefaultModelSHA1Computer();
+			if (sha1.computeSHA1(model.original) && sha1.computeSHA1(model.original) !== context.edit.state.sha1) {
+				const result = await diaglogService.confirm({
+					message: localize('interactive.compare.apply.confirm', "The original file has been modified."),
+					detail: localize('interactive.compare.apply.confirm.detail', "Do you want to apply the changes anyway?"),
+				});
+				if (!result.confirmed) {
+					return;
+				}
 			}
 
 			const edits: ISingleEditOperation[] = [];
@@ -639,6 +656,7 @@ export function registerChatCodeCompareBlockActions() {
 			model.original.pushEditOperations(null, edits, () => null);
 			model.original.pushStackElement();
 
+			context.element.setEditApplied(context.edit, edits.length);
 
 			await editorService.openEditor({
 				resource: model.original.uri,
@@ -646,5 +664,4 @@ export function registerChatCodeCompareBlockActions() {
 			});
 		}
 	});
-
 }
