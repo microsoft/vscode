@@ -399,7 +399,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 				(e) => {
 					const keyEvent = new StandardKeyboardEvent(e);
 
-					if (keyEvent.equals(KeyCode.Enter)) {
+					if (keyEvent.equals(KeyCode.Enter) || keyEvent.equals(KeyCode.Space)) {
 						keyEvent.stopPropagation();
 						keyEvent.preventDefault();
 						this._requestRenameCandidates(currentName, true);
