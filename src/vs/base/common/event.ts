@@ -1633,7 +1633,7 @@ export class Relay<T> implements IDisposable {
 
 export interface IValueWithChangeEvent<T> {
 	readonly onDidChange: Event<void>;
-	readonly value: T;
+	get value(): T;
 }
 
 export class ValueWithChangeEvent<T> implements IValueWithChangeEvent<T> {
