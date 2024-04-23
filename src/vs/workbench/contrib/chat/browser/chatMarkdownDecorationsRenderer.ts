@@ -91,7 +91,8 @@ export class ChatMarkdownDecorationsRenderer {
 		const container = dom.$('span.chat-resource-widget', undefined, dom.$('span', undefined, name));
 
 		store.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, () => {
-			const hover = this.instantiationService.createInstance(ChatAgentHover, id);
+			const hover = store.add(this.instantiationService.createInstance(ChatAgentHover));
+			hover.setAgent(id);
 			return hover.domNode;
 		}));
 		return container;

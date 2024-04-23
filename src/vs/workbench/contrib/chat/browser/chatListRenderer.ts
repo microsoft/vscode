@@ -93,6 +93,7 @@ interface IChatListItemTemplate {
 	readonly contextKeyService: IContextKeyService;
 	readonly templateDisposables: IDisposable;
 	readonly elementDisposables: DisposableStore;
+	readonly agentHover: ChatAgentHover;
 }
 
 interface IItemHeightChangeParams {
@@ -293,16 +294,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 		}
 
+		const agentHover = templateDisposables.add(this.instantiationService.createInstance(ChatAgentHover));
+
 		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), header, () => {
 			if (isResponseVM(template.currentElement) && template.currentElement.agent) {
-				const hover = this.instantiationService.createInstance(ChatAgentHover, template.currentElement.agent.id);
-				return hover.domNode;
+				agentHover.setAgent(template.currentElement.agent.id);
+				return agentHover.domNode;
 			}
 
 			return undefined;
 		}));
 
-		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
+		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService, agentHover };
 		return template;
 	}
 
