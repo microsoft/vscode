@@ -971,7 +971,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const modified = this.modelService.createModel(
 					createTextBufferFactoryFromSnapshot(original.createSnapshot()),
 					{ languageId: original.getLanguageId(), onDidChange: Event.None },
-					undefined, false
+					URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path }),
+					false
 				);
 				store.add(modified);
 				if (!chatTextEdit.state?.applied) {
