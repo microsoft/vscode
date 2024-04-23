@@ -2518,7 +2518,7 @@ declare module 'vscode' {
 		/**
 		 * Checks if this code action kind intersects `other`.
 		 *
-		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and ``"refactor.extract.function"`,
+		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and `"refactor.extract.function"`,
 		 * but not `"unicorn.refactor.extract"`, or `"refactor.extractAll"`.
 		 *
 		 * @param other Kind to check.
