@@ -89,14 +89,20 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
+			console.log('THIS SHOULD NOT BE MERGED, IT IS ONLY FOR TESTING');
 			if (
+				this._widgetState &&
 				e.hasChanged(EditorOption.stickyScroll)
 				|| e.hasChanged(EditorOption.minimap)
+				|| e.hasChanged(EditorOption.lineNumbers)
 				|| e.hasChanged(EditorOption.lineHeight)
-				|| e.hasChanged(EditorOption.showFoldingControls)
+				|| e.hasChanged(EditorOption.showFoldingControls) &&
+				stickyScrollDomNode
 			) {
+				console.log('THIS SHOULD NOT BE MERGED, IT IS ONLY FOR TESTING');
 				this._readConfiguration();
 			}
+			console.log('THIS SHOULD NOT BE MERGED, IT IS ONLY FOR TESTING');
 		}));
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
 			this._onContextMenu(dom.getWindow(stickyScrollDomNode), event);
