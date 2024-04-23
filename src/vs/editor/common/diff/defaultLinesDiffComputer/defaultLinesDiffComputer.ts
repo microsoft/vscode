@@ -35,8 +35,8 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 					new LineRange(1, modifiedLines.length + 1),
 					[
 						new RangeMapping(
-							new Range(1, 1, originalLines.length, originalLines[0].length + 1),
-							new Range(1, 1, modifiedLines.length, modifiedLines[0].length + 1)
+							new Range(1, 1, originalLines.length, originalLines[originalLines.length - 1].length + 1),
+							new Range(1, 1, modifiedLines.length, modifiedLines[modifiedLines.length - 1].length + 1),
 						)
 					]
 				)
