@@ -460,6 +460,10 @@ export class InlineChatWidget {
 		return tail(requests)?.response?.response.asString();
 	}
 
+	get usesDefaultChatModel(): boolean {
+		return this.getChatModel() === this._defaultChatModel;
+	}
+
 	getChatModel(): IChatModel {
 		return this._chatWidget.viewModel?.model ?? this._defaultChatModel;
 	}
