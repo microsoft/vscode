@@ -77,6 +77,7 @@ import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../commo
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
 import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
+import { generateUuid } from 'vs/base/common/uuid';
 
 const $ = dom.$;
 
@@ -974,7 +975,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const modified = this.modelService.createModel(
 					createTextBufferFactoryFromSnapshot(original.createSnapshot()),
 					{ languageId: original.getLanguageId(), onDidChange: Event.None },
-					URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path }),
+					URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path, query: generateUuid() }),
 					false
 				);
 				store.add(modified);
