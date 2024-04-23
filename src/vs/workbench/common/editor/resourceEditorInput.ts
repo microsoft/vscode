@@ -94,10 +94,13 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 
 	private _name: string | undefined = undefined;
 	override getName(): string {
+		// This should never be merged
 		if (typeof this._name !== 'string') {
-			this._name = this.labelService.getUriBasenameLabel(this._preferredResource);
+			this._name = this.labelService.getUriBasenameLabel(
+				this._preferredResource // This should never be merged
+			);
 		}
-
+		// This should never be merged
 		return this._name;
 	}
 

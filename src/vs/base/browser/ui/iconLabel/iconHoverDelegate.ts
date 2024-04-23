@@ -42,6 +42,7 @@ export interface IHoverDelegateOptions extends IUpdatableHoverOptions {
 		 * if there is not enough room to layout the hover in the specified position, unless the
 		 * forcePosition option is set.
 		 */
+		/* This is a random comment added for testing*/
 		hoverPosition?: HoverPosition;
 	};
 	appearance?: {
