@@ -913,7 +913,19 @@ class InputWithButton implements IDisposable {
 
 			this._domNode.appendChild(this._buttonNode);
 
+			// notify if selection changes to cancel request to rename-suggestion providers
+
 			this._disposables.add(dom.addDisposableListener(this.input, dom.EventType.INPUT, () => this._onDidInputChange.fire()));
+			this._disposables.add(dom.addDisposableListener(this.input, dom.EventType.KEY_DOWN, (e) => {
+				const keyEvent = new StandardKeyboardEvent(e);
+				if (keyEvent.keyCode === KeyCode.LeftArrow || keyEvent.keyCode === KeyCode.RightArrow) {
+					this._onDidInputChange.fire();
+				}
+			}));
+			this._disposables.add(dom.addDisposableListener(this.input, dom.EventType.CLICK, () => this._onDidInputChange.fire()));
+
+			// focus "container" border instead of input box
+
 			this._disposables.add(dom.addDisposableListener(this.input, dom.EventType.FOCUS, () => {
 				this.domNode.style.outlineWidth = '1px';
 				this.domNode.style.outlineStyle = 'solid';
