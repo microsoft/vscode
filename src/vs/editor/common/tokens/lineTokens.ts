@@ -328,10 +328,22 @@ class SliceLineTokens implements IViewLineTokens {
 
 	public forEach(f: (text: string, metadata: number) => void): void {
 		const tokenCount = this.getCount();
+		const firstTokenIndex = this._firstTokenIndex;
 		const lastTokenIndex = this._firstTokenIndex + tokenCount;
-		for (let tokenIndex = this._startOffset; tokenIndex < lastTokenIndex; tokenIndex++) {
+		for (let tokenIndex = firstTokenIndex; tokenIndex < lastTokenIndex; tokenIndex++) {
 			const metadata = this._source.getMetadata(tokenIndex);
-			const text = this._source.getTextForTokenIndex(tokenIndex)
+			let text = this._source.getTextForTokenIndex(tokenIndex)
+			// May have to trim the text if overflows
+			const tokenStartOffset = this._source.getStartOffset(this._firstTokenIndex + tokenIndex);
+			const tokenEndOffset = this._source.getEndOffset(this._firstTokenIndex + tokenIndex);
+			if (tokenStartOffset < this._startOffset) {
+				const offsetDifference = this._startOffset - tokenStartOffset;
+				text = text.substring(offsetDifference);
+			}
+			if (tokenEndOffset > this._endOffset) {
+				const offsetDifference = tokenEndOffset - this._endOffset;
+				text = text.substring(0, text.length - offsetDifference);
+			}
 			f(text, metadata);
 		}
 	}
