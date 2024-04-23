@@ -54,12 +54,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { isEqual } from 'vs/base/common/resources';
 import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { TextModelText } from 'vs/editor/common/model/textModelText';
 
 const $ = dom.$;
 
@@ -820,12 +820,8 @@ export class DefaultChatTextEditor {
 			return 0;
 		}
 
-		const edits: ISingleEditOperation[] = [];
-		for (const item of diff.changes2) {
-			const range = item.original.toExclusiveRange();
-			const newText = model.modified.getValueInRange(item.modified.toExclusiveRange());
-			edits.push(EditOperation.replace(range, newText));
-		}
+		const modified = new TextModelText(model.modified);
+		const edits = diff.changes2.map(i => i.toRangeMapping().toTextEdit(modified).toSingleEditOperation());
 
 		model.original.pushStackElement();
 		model.original.pushEditOperations(null, edits, () => null);
