@@ -89,6 +89,7 @@ class RenameSkeleton {
 				rejectReason: rejects.length > 0 ? rejects.join('\n') : undefined
 			};
 		}
+
 		return {
 			range: new Range(this.position.lineNumber, word.startColumn, this.position.lineNumber, word.endColumn),
 			text: word.word,
