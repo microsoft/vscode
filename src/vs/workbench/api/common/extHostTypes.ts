@@ -3180,6 +3180,11 @@ export enum NewSymbolNameTag {
 	AIGenerated = 1
 }
 
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
 export class NewSymbolName implements vscode.NewSymbolName {
 	readonly newSymbolName: string;
 	readonly tags?: readonly vscode.NewSymbolNameTag[] | undefined;
@@ -4366,8 +4371,10 @@ export class ChatResponseCommandButtonPart {
 
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }) {
+	iconPath?: vscode.ThemeIcon;
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.ThemeIcon) {
 		this.value = value;
+		this.iconPath = iconPath;
 	}
 }
 

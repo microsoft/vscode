@@ -7892,13 +7892,18 @@ declare namespace monaco.languages {
 		AIGenerated = 1
 	}
 
+	export enum NewSymbolNameTriggerKind {
+		Invoke = 0,
+		Automatic = 1
+	}
+
 	export interface NewSymbolName {
 		readonly newSymbolName: string;
 		readonly tags?: readonly NewSymbolNameTag[];
 	}
 
 	export interface NewSymbolNamesProvider {
-		provideNewSymbolNames(model: editor.ITextModel, range: IRange, token: CancellationToken): ProviderResult<NewSymbolName[]>;
+		provideNewSymbolNames(model: editor.ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): ProviderResult<NewSymbolName[]>;
 	}
 
 	export interface Command {

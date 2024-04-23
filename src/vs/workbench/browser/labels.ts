@@ -422,7 +422,13 @@ class ResourceLabelWidget extends IconLabel {
 
 		let description: string | undefined;
 		if (!options?.hidePath) {
-			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
+			const descriptionCandidate = this.labelService.getUriLabel(dirname(resource), { relative: true });
+			if (descriptionCandidate && descriptionCandidate !== '.') {
+				// omit description if its not significant: a relative path
+				// of '.' just indicates that there is no parent to the path
+				// https://github.com/microsoft/vscode/issues/208692
+				description = descriptionCandidate;
+			}
 		}
 
 		this.setResource({ resource, name, description, range: options?.range }, options);

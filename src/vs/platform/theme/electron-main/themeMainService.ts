@@ -22,6 +22,8 @@ const THEME_STORAGE_KEY = 'theme';
 const THEME_BG_STORAGE_KEY = 'themeBackground';
 const THEME_WINDOW_SPLASH = 'windowSplash';
 
+const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
+
 export const IThemeMainService = createDecorator<IThemeMainService>('themeMainService');
 
 export interface IThemeMainService {
@@ -50,7 +52,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		// System Theme
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.systemColorTheme')) {
+			if (e.affectsConfiguration(SYSTEM_COLOR_THEME)) {
 				this.updateSystemColorTheme();
 			}
 		}));
@@ -61,7 +63,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateSystemColorTheme(): void {
-		switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>('window.systemColorTheme')) {
+		switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(SYSTEM_COLOR_THEME)) {
 			case 'dark':
 				nativeTheme.themeSource = 'dark';
 				break;

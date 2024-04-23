@@ -46,10 +46,20 @@ import { IMarkdownVulnerability } from '../common/annotations';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { TextEdit } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { TextEdit } from 'vs/editor/common/languages';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { isEqual } from 'vs/base/common/resources';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 const $ = dom.$;
 
@@ -425,18 +435,23 @@ export class ChatCodeBlockContentProvider extends Disposable implements ITextMod
 //
 
 export interface ICodeCompareBlockActionContext {
-	readonly element: ChatTreeItem;
+	readonly element: IChatResponseViewModel;
 	readonly diffEditor: IDiffEditor;
-	readonly uri: URI;
-	readonly edits: readonly TextEdit[];
+	readonly edit: IChatTextEditGroup;
+}
+
+export interface ICodeCompareBlockDiffData {
+	modified: ITextModel;
+	original: ITextModel;
+	originalSha1: string;
 }
 
 export interface ICodeCompareBlockData {
 	readonly element: ChatTreeItem;
 
-	readonly originalTextModel: Promise<ITextModel | undefined>;
-	readonly modifiedTextModel: Promise<ITextModel | undefined>;
-	readonly edits: readonly TextEdit[];
+	readonly edit: IChatTextEditGroup;
+
+	readonly diffData: Promise<ICodeCompareBlockDiffData | undefined>;
 
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly hideToolbar?: boolean;
@@ -448,9 +463,10 @@ export class CodeCompareBlockPart extends Disposable {
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
 	private readonly contextKeyService: IContextKeyService;
-	public readonly diffEditor: DiffEditorWidget;
-	protected readonly toolbar: MenuWorkbenchToolBar;
-	public readonly element: HTMLElement;
+	private readonly diffEditor: DiffEditorWidget;
+	private readonly toolbar: MenuWorkbenchToolBar;
+	readonly element: HTMLElement;
+	private readonly messageElement: HTMLElement;
 
 	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable<IDiffEditorViewModel>());
 	private currentScrollWidth = 0;
@@ -465,17 +481,22 @@ export class CodeCompareBlockPart extends Disposable {
 		@IModelService protected readonly modelService: IModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
 		this.element.classList.add('compare');
+
+		this.messageElement = dom.append(this.element, $('.message'));
+		this.messageElement.setAttribute('role', 'status');
+		this.messageElement.tabIndex = 0;
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
-			readOnly: true,
 			lineNumbers: 'on',
 			selectOnLineNumbers: true,
 			scrollBeyondLastLine: false,
@@ -582,7 +603,7 @@ export class CodeCompareBlockPart extends Disposable {
 			originalAriaLabel: localize('original', 'Original'),
 			modifiedAriaLabel: localize('modified', 'Modified'),
 			diffAlgorithm: 'advanced',
-			readOnly: true,
+			readOnly: false,
 			isInEmbeddedEditor: true,
 			useInlineViewWhenSpaceIsLimited: false,
 			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },
@@ -677,32 +698,176 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {
 
-		const originalTextModel = await data.originalTextModel;
-		const modifiedTextModel = await data.modifiedTextModel;
-
-		if (!originalTextModel || !modifiedTextModel) {
+		if (!isResponseVM(data.element)) {
 			return;
 		}
 
-		const viewModel = this.diffEditor.createViewModel({
-			original: originalTextModel,
-			modified: modifiedTextModel
-		});
+		const isEditApplied = Boolean(data.edit.state?.applied ?? 0);
 
-		await viewModel.waitForDiff();
+		CONTEXT_CHAT_EDIT_APPLIED.bindTo(this.contextKeyService).set(isEditApplied);
 
-		if (token.isCancellationRequested) {
+		this.element.classList.toggle('no-diff', isEditApplied);
+
+		if (data.edit.state?.applied) {
+
+			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
+
+			const template = data.edit.state.applied > 1
+				? localize('chat.edits.N', "Made {0} changes in [[{1}]]", data.edit.state.applied, uriLabel)
+				: localize('chat.edits.1', "Made 1 change in [[{0}]]", uriLabel);
+
+
+			const message = renderFormattedText(template, {
+				actionHandler: {
+					callback: () => {
+						this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
+					},
+					disposables: this._store,
+				}
+			});
+
+			dom.reset(this.messageElement, message);
+
+		}
+
+		const diffData = await data.diffData;
+		if (!diffData) {
 			return;
 		}
 
-		this.diffEditor.setModel(viewModel);
-		this._lastDiffEditorViewModel.value = viewModel;
+		if (!isEditApplied) {
+			const viewModel = this.diffEditor.createViewModel({
+				original: diffData.original,
+				modified: diffData.modified
+			});
+
+			await viewModel.waitForDiff();
+
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			this.diffEditor.setModel(viewModel);
+			this._lastDiffEditorViewModel.value = viewModel;
+
+		} else {
+			this.diffEditor.setModel(null);
+			this._lastDiffEditorViewModel.value = undefined;
+		}
 
 		this.toolbar.context = {
-			uri: originalTextModel.uri,
-			edits: data.edits,
+			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
+	}
+}
+
+export class DefaultChatTextEditor {
+
+	private readonly _sha1 = new DefaultModelSHA1Computer();
+
+	constructor(
+		@ITextModelService private readonly modelService: ITextModelService,
+		@ICodeEditorService private readonly editorService: ICodeEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
+	) { }
+
+	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup): Promise<void> {
+
+		if (!response.response.value.includes(item)) {
+			// bogous item
+			return;
+		}
+
+		if (item.state?.applied) {
+			// already applied
+			return;
+		}
+
+		let diffEditor: IDiffEditor | undefined;
+		for (const candidate of this.editorService.listDiffEditors()) {
+			if (!candidate.getContainerDomNode().isConnected) {
+				continue;
+			}
+			const model = candidate.getModel();
+			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompreBlock) {
+				diffEditor = candidate;
+				break;
+			}
+		}
+
+		const edits = diffEditor
+			? await this._applyWithDiffEditor(diffEditor, item)
+			: await this._apply(item);
+
+		response.setEditApplied(item, edits);
+	}
+
+	private async _applyWithDiffEditor(diffEditor: IDiffEditor, item: IChatTextEditGroup) {
+		const model = diffEditor.getModel();
+		if (!model) {
+			return 0;
+		}
+
+		const diff = diffEditor.getDiffComputationResult();
+		if (!diff || diff.identical) {
+			return 0;
+		}
+
+
+		if (!await this._checkSha1(model.original, item)) {
+			return 0;
+		}
+
+		const edits: ISingleEditOperation[] = [];
+		for (const item of diff.changes2) {
+			const range = item.original.toExclusiveRange();
+			const newText = model.modified.getValueInRange(item.modified.toExclusiveRange());
+			edits.push(EditOperation.replace(range, newText));
+		}
+
+		model.original.pushStackElement();
+		model.original.pushEditOperations(null, edits, () => null);
+		model.original.pushStackElement();
+
+		return edits.length;
+	}
+
+	private async _apply(item: IChatTextEditGroup) {
+		const ref = await this.modelService.createModelReference(item.uri);
+		try {
+
+			if (!await this._checkSha1(ref.object.textEditorModel, item)) {
+				return 0;
+			}
+
+			ref.object.textEditorModel.pushStackElement();
+			let total = 0;
+			for (const group of item.edits) {
+				const edits = group.map(TextEdit.asEditOperation);
+				ref.object.textEditorModel.pushEditOperations(null, edits, () => null);
+				total += edits.length;
+			}
+			ref.object.textEditorModel.pushStackElement();
+			return total;
+
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _checkSha1(model: ITextModel, item: IChatTextEditGroup) {
+		if (item.state?.sha1 && this._sha1.computeSHA1(model) && this._sha1.computeSHA1(model) !== item.state.sha1) {
+			const result = await this.dialogService.confirm({
+				message: localize('interactive.compare.apply.confirm', "The original file has been modified."),
+				detail: localize('interactive.compare.apply.confirm.detail', "Do you want to apply the changes anyway?"),
+			});
+
+			if (!result.confirmed) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
