@@ -26,10 +26,10 @@ suite('Editor Commands - Trim Text Trailing Whitespace Command', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('whitespace-only lines should not get deleted', function () {
-		assertTrimTrailingWhitespaceCommand(['\t  \n', '  \n', '  \t\n', '   \t  \n'], []);
+		assertTrimTextTrailingWhitespaceCommand(['\t  \n', '  \n', '  \t\n', '   \t  \n'], []);
 	});
 
-	function assertTrimTrailingWhitespaceCommand(text: string[], expected: ISingleEditOperation[]): void {
+	function assertTrimTextTrailingWhitespaceCommand(text: string[], expected: ISingleEditOperation[]): void {
 		return withEditorModel(text, (model) => {
 			const op = new TrimTextTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), [], true);
 			const actual = getEditOperation(model, op);
