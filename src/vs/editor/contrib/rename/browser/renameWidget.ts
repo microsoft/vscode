@@ -241,6 +241,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		const border = theme.getColor(inputBorder);
 
 		this._inputWithButton.domNode.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
+		this._inputWithButton.input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
 		this._inputWithButton.domNode.style.borderWidth = border ? '1px' : '0px';
 		this._inputWithButton.domNode.style.borderStyle = border ? 'solid' : 'none';
 		this._inputWithButton.domNode.style.borderColor = border?.toString() ?? 'none';
@@ -399,7 +400,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 				(e) => {
 					const keyEvent = new StandardKeyboardEvent(e);
 
-					if (keyEvent.equals(KeyCode.Enter)) {
+					if (keyEvent.equals(KeyCode.Enter) || keyEvent.equals(KeyCode.Space)) {
 						keyEvent.stopPropagation();
 						keyEvent.preventDefault();
 						this._requestRenameCandidates(currentName, true);
@@ -520,17 +521,13 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			const triggerKind = isManuallyTriggered ? NewSymbolNameTriggerKind.Invoke : NewSymbolNameTriggerKind.Automatic;
 			const candidates = this._requestRenameCandidatesOnce(triggerKind, this._renameCandidateProvidersCts.token);
 
-			const window = dom.getActiveWindow();
-
-			let delayHandle: (() => void) | undefined;
-			if (isManuallyTriggered) {
-				this._inputWithButton.setStopButton();
-			} else {
-				const handle = window.setTimeout(() => this._inputWithButton.setStopButton(), 600);
-				delayHandle = () => window.clearTimeout(handle);
+			if (candidates.length === 0) {
+				return;
 			}
 
-			this._updateRenameCandidates(candidates, currentName, delayHandle, this._renameCts.token);
+			this._inputWithButton.setStopButton();
+
+			this._updateRenameCandidates(candidates, currentName, this._renameCts.token);
 		}
 	}
 
@@ -569,7 +566,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		}, 100);
 	}
 
-	private async _updateRenameCandidates(candidates: ProviderResult<NewSymbolName[]>[], currentName: string, cancelSetStopButton: (() => void) | undefined, token: CancellationToken) {
+	private async _updateRenameCandidates(candidates: ProviderResult<NewSymbolName[]>[], currentName: string, token: CancellationToken) {
 		const trace = (...args: any[]) => this._trace('_updateRenameCandidates', ...args);
 
 		trace('start');
@@ -588,11 +585,6 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 				: []
 		);
 		trace(`received updateRenameCandidates results - total (unfiltered) ${newNames.length} candidates.`);
-
-		if (newNames.length < 1) {
-			cancelSetStopButton?.();
-			return;
-		}
 
 		// deduplicate and filter out the current value
 

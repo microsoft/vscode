@@ -505,6 +505,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	$registerNewSymbolNamesProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, this._languageFeaturesService.newSymbolNamesProvider.register(selector, {
+			supportsAutomaticNewSymbolNamesTriggerKind: this._proxy.$supportsAutomaticNewSymbolNamesTriggerKind(handle),
 			provideNewSymbolNames: (model: ITextModel, range: IRange, triggerKind: languages.NewSymbolNameTriggerKind, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> => {
 				return this._proxy.$provideNewSymbolNames(handle, model.uri, range, triggerKind, token);
 			}
