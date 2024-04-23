@@ -231,7 +231,17 @@ class RenameController implements IEditorContribution {
 
 		const newSymbolNamesProviders = this._languageFeaturesService.newSymbolNamesProvider.all(model);
 
-		const requestRenameSuggestions = (triggerKind: NewSymbolNameTriggerKind, cts: CancellationToken) => newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, triggerKind, cts));
+		const resolvedNewSymbolnamesProviders = await Promise.all(newSymbolNamesProviders.map(async p => [p, await p.supportsAutomaticNewSymbolNamesTriggerKind ?? false] as const));
+
+		const requestRenameSuggestions = (triggerKind: NewSymbolNameTriggerKind, cts: CancellationToken) => {
+			let providers = resolvedNewSymbolnamesProviders.slice();
+
+			if (triggerKind === NewSymbolNameTriggerKind.Automatic) {
+				providers = providers.filter(([_, supportsAutomatic]) => supportsAutomatic);
+			}
+
+			return providers.map(([p,]) => p.provideNewSymbolNames(model, loc.range, triggerKind, cts));
+		};
 
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
