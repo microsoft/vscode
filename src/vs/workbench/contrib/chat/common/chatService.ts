@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Command, Location, TextEdit } from 'vs/editor/common/languages';
@@ -74,6 +75,7 @@ export interface IChatContentVariableReference {
 
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference;
+	iconPath?: ThemeIcon;
 	kind: 'reference';
 }
 
@@ -87,11 +89,6 @@ export interface IChatAgentDetection {
 	agentId: string;
 	command?: IChatAgentCommand;
 	kind: 'agentDetection';
-}
-
-export interface IChatContent {
-	content: string;
-	kind: 'content';
 }
 
 export interface IChatMarkdownContent {
@@ -114,16 +111,9 @@ export interface IChatAgentVulnerabilityDetails {
 	description: string;
 }
 
-export interface IChatAgentContentWithVulnerabilities {
-	content: string;
-	vulnerabilities?: IChatAgentVulnerabilityDetails[];
-	kind: 'vulnerability';
-}
-
-// TODO@roblourens Temp until I get MarkdownString out of ChatModel
 export interface IChatAgentMarkdownContentWithVulnerability {
 	content: IMarkdownString;
-	vulnerabilities?: IChatAgentVulnerabilityDetails[];
+	vulnerabilities: IChatAgentVulnerabilityDetails[];
 	kind: 'markdownVuln';
 }
 
@@ -139,9 +129,7 @@ export interface IChatTextEdit {
 }
 
 export type IChatProgress =
-	| IChatContent
 	| IChatMarkdownContent
-	| IChatAgentContentWithVulnerabilities
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatUsedContext
@@ -215,7 +203,12 @@ export interface IChatBugReportAction {
 	kind: 'bug';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction;
+export interface IChatInlineChatCodeAction {
+	kind: 'inlineChat';
+	action: 'accepted' | 'discarded';
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;

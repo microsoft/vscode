@@ -56,7 +56,7 @@ export async function hasChildProcesses(processId: number | undefined): Promise<
 const enum ShellType { cmd, powershell, bash }
 
 
-export function prepareCommand(shell: string, args: string[], argsCanBeInterpretedByShell: boolean, cwd?: string): string {
+export function prepareCommand(shell: string, args: string[], argsCanBeInterpretedByShell: boolean, cwd?: string, env?: { [key: string]: string | null }): string {
 
 	shell = shell.trim().toLowerCase();
 
@@ -97,6 +97,16 @@ export function prepareCommand(shell: string, args: string[], argsCanBeInterpret
 				}
 				command += `cd ${quote(cwd)}; `;
 			}
+			if (env) {
+				for (const key in env) {
+					const value = env[key];
+					if (value === null) {
+						command += `Remove-Item env:${key}; `;
+					} else {
+						command += `\${env:${key}}='${value}'; `;
+					}
+				}
+			}
 			if (args.length > 0) {
 				const arg = args.shift()!;
 				const cmd = argsCanBeInterpretedByShell ? arg : quote(arg);
@@ -127,9 +137,24 @@ export function prepareCommand(shell: string, args: string[], argsCanBeInterpret
 				}
 				command += `cd ${quote(cwd)} && `;
 			}
+			if (env) {
+				command += 'cmd /C "';
+				for (const key in env) {
+					let value = env[key];
+					if (value === null) {
+						command += `set "${key}=" && `;
+					} else {
+						value = value.replace(/[&^|<>]/g, s => `^${s}`);
+						command += `set "${key}=${value}" && `;
+					}
+				}
+			}
 			for (const a of args) {
 				command += (a === '<' || a === '>' || argsCanBeInterpretedByShell) ? a : quote(a);
 				command += ' ';
+			}
+			if (env) {
+				command += '"';
 			}
 			break;
 
@@ -140,8 +165,24 @@ export function prepareCommand(shell: string, args: string[], argsCanBeInterpret
 				return s.length === 0 ? `""` : s;
 			};
 
+			const hardQuote = (s: string) => {
+				return /[^\w@%\/+=,.:^-]/.test(s) ? `'${s.replace(/'/g, '\'\\\'\'')}'` : s;
+			};
+
 			if (cwd) {
 				command += `cd ${quote(cwd)} ; `;
+			}
+			if (env) {
+				command += '/usr/bin/env';
+				for (const key in env) {
+					const value = env[key];
+					if (value === null) {
+						command += ` -u ${hardQuote(key)}`;
+					} else {
+						command += ` ${hardQuote(`${key}=${value}`)}`;
+					}
+				}
+				command += ' ';
 			}
 			for (const a of args) {
 				command += (a === '<' || a === '>' || argsCanBeInterpretedByShell) ? a : quote(a);

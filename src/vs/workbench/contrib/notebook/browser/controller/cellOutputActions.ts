@@ -33,9 +33,15 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		});
 	}
 
+	private getNoteboookEditor(editorService: IEditorService, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): INotebookEditor | undefined {
+		if (outputContext && 'notebookEditor' in outputContext) {
+			return outputContext.notebookEditor;
+		}
+		return getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	}
+
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const notebookEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
 
 		if (!notebookEditor) {
 			return;

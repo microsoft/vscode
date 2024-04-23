@@ -366,6 +366,17 @@ export enum GlyphMarginLane {
 	Right = 3
 }
 
+export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
+	Increase = 0,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
+	Decrease = 1
+}
+
 /**
  * Describes what to do with the indentation when pressing Enter.
  */
@@ -719,6 +730,11 @@ export enum MouseTargetType {
 
 export enum NewSymbolNameTag {
 	AIGenerated = 1
+}
+
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1
 }
 
 /**

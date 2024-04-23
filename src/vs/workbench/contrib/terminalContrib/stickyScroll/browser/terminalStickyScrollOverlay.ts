@@ -129,6 +129,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		});
 	}
 
+	lockHide() {
+		this._element?.classList.add('lock-hide');
+	}
+
+	unlockHide() {
+		this._element?.classList.remove('lock-hide');
+	}
+
 	private _setState(state: OverlayState) {
 		if (this._state === state) {
 			return;

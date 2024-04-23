@@ -1506,7 +1506,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			const webContents = assertIsDefined(createdWindow.win?.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
+			disposables.add(Event.fromNodeEventEmitter(webContents, 'devtools-reload-page')(() => this.lifecycleMainService.reload(createdWindow)));
 
 			// Lifecycle
 			this.lifecycleMainService.registerWindow(createdWindow);

@@ -9,7 +9,6 @@ declare module 'vscode' {
 	 * Represents a user request in chat history.
 	 */
 	export class ChatRequestTurn {
-
 		/**
 		 * The prompt as entered by the user.
 		 *
@@ -21,7 +20,7 @@ declare module 'vscode' {
 		readonly prompt: string;
 
 		/**
-		 * The id of the chat participant and contributing extension to which this request was directed.
+		 * The id of the chat participant to which this request was directed.
 		 */
 		readonly participant: string;
 
@@ -46,9 +45,8 @@ declare module 'vscode' {
 	 * Represents a chat participant's response in chat history.
 	 */
 	export class ChatResponseTurn {
-
 		/**
-		* The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
 		 */
 		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>;
 
@@ -58,7 +56,7 @@ declare module 'vscode' {
 		readonly result: ChatResult;
 
 		/**
-		 * The id of the chat participant and contributing extension that this response came from.
+		 * The id of the chat participant that this response came from.
 		 */
 		readonly participant: string;
 
@@ -136,8 +134,8 @@ declare module 'vscode' {
 	 */
 	export interface ChatResultFeedback {
 		/**
-		 * The ChatResult that the user is providing feedback for.
-		 * This instance has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 * The ChatResult for which the user is providing feedback.
+		 * This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
 		 */
 		readonly result: ChatResult;
 
@@ -179,7 +177,7 @@ declare module 'vscode' {
 	export interface ChatFollowupProvider {
 		/**
 		 * Provide followups for the given result.
-		 * @param result This instance has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 * @param result This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
 		 * @param token A cancellation token.
 		 */
 		provideFollowups(result: ChatResult, context: ChatContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
@@ -201,7 +199,7 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * Icon for the participant shown in UI.
+		 * An icon for the participant shown in UI.
 		 */
 		iconPath?: Uri | {
 			/**
@@ -223,11 +221,6 @@ declare module 'vscode' {
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
 		followupProvider?: ChatFollowupProvider;
-
-		/**
-		 * When the user clicks this participant in `/help`, this text will be submitted to this participant.
-		 */
-		sampleRequest?: string;
 
 		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
@@ -305,7 +298,7 @@ declare module 'vscode' {
 		 * `push(new ChatResponseMarkdownPart(value))`.
 		 *
 		 * @see {@link ChatResponseStream.push}
-		 * @param value A markdown string or a string that should be interpreted as markdown.
+		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
 		 * @returns This stream.
 		 */
 		markdown(value: string | MarkdownString): ChatResponseStream;
@@ -356,9 +349,10 @@ declare module 'vscode' {
 		 * *Note* that the reference is not rendered inline with the response.
 		 *
 		 * @param value A uri or location
+		 * @param iconPath Icon for the reference shown in UI
 		 * @returns This stream.
 		 */
-		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }): ChatResponseStream;
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon): ChatResponseStream;
 
 		/**
 		 * Pushes a part to this stream.
@@ -370,6 +364,10 @@ declare module 'vscode' {
 
 	export class ChatResponseMarkdownPart {
 		value: MarkdownString;
+
+		/**
+		 * @param value Note: The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
+		 */
 		constructor(value: string | MarkdownString);
 	}
 
@@ -397,7 +395,8 @@ declare module 'vscode' {
 
 	export class ChatResponseReferencePart {
 		value: Uri | Location | { variableName: string; value?: Uri | Location };
-		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location });
+		iconPath?: ThemeIcon;
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon);
 	}
 
 	export class ChatResponseCommandButtonPart {

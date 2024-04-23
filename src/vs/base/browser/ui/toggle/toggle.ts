@@ -223,6 +223,14 @@ export class Toggle extends Widget {
 		this._hover.update(newTitle);
 		this.domNode.setAttribute('aria-label', newTitle);
 	}
+
+	set visible(visible: boolean) {
+		this.domNode.style.display = visible ? '' : 'none';
+	}
+
+	get visible() {
+		return this.domNode.style.display !== 'none';
+	}
 }
 
 export class Checkbox extends Widget {

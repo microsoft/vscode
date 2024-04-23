@@ -10,6 +10,8 @@ import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from 'v
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isBoolean, isString } from 'vs/base/common/types';
 import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -37,8 +39,12 @@ export enum ThemeSettings {
 	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
 	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
-	DETECT_HC = 'window.autoDetectHighContrast'
+	DETECT_HC = 'window.autoDetectHighContrast',
+
+	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
+
+export const ENABLE_SYSTEM_COLOR_SCHEME_SETTING = !isLinux;
 
 export enum ThemeSettingDefaults {
 	COLOR_THEME_DARK = 'Default Dark Modern',
@@ -103,6 +109,7 @@ export interface IWorkbenchThemeService extends IThemeService {
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 
 	hasUpdatedDefaultThemes(): boolean;
+	getPreferredColorScheme(): ColorScheme | undefined;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;

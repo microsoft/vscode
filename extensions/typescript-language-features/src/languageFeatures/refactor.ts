@@ -495,7 +495,9 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		commandManager: CommandManager,
 		telemetryReporter: TelemetryReporter
 	) {
-		const didApplyRefactoringCommand = commandManager.register(new DidApplyRefactoringCommand(telemetryReporter));
+		const didApplyRefactoringCommand = new DidApplyRefactoringCommand(telemetryReporter);
+		commandManager.register(didApplyRefactoringCommand);
+
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new SelectRefactorCommand(this.client));
 		commandManager.register(new MoveToFileRefactorCommand(this.client, didApplyRefactoringCommand));

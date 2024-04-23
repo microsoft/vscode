@@ -35,6 +35,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRendererSync?: (languageId: string, value: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
+	readonly disallowRemoteImages?: boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -274,6 +275,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				} catch (err) { }
 
 				img.setAttribute('src', _href(href, true));
+
+				if (options.disallowRemoteImages) {
+					const uriScheme = URI.parse(href).scheme;
+					if (uriScheme !== Schemas.file && uriScheme !== Schemas.data) {
+						img.replaceWith(DOM.$('', undefined, img.outerHTML));
+					}
+				}
 			}
 		});
 

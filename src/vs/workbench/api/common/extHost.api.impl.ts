@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { Schemas, matchesScheme } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -751,7 +751,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidEndTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			get state() {
-				return extHostWindow.getState(extension);
+				return extHostWindow.getState();
 			},
 			onDidChangeWindowState(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostWindow.onDidChangeWindowState)(listener, thisArg, disposables);
@@ -1391,11 +1391,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostInteractiveEditor.registerProvider(extension, provider, metadata);
 			},
-			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
-				// temp stub
-				checkProposedApiEnabled(extension, 'interactive');
-				return Disposable.None;
-			},
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChatAgents2.transferActiveChat(toWorkspace);
@@ -1467,6 +1462,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			sendChatRequest(languageModel: string, messages: vscode.LanguageModelChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostLanguageModels.sendChatRequest(extension, languageModel, messages, options, token);
+			},
+			computeTokenLength(languageModel: string, text: string | vscode.LanguageModelChatMessage, token?: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'languageModels');
+				token ??= CancellationToken.None;
+				return extHostLanguageModels.computeTokenLength(languageModel, text, token);
+			},
+			getLanguageModelInformation(languageModel: string) {
+				checkProposedApiEnabled(extension, 'languageModels');
+				return extHostLanguageModels.getLanguageModelInfo(languageModel);
 			}
 		};
 
@@ -1573,6 +1577,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineCompletionItem: extHostTypes.InlineSuggestion,
 			InlineCompletionList: extHostTypes.InlineSuggestionList,
 			Hover: extHostTypes.Hover,
+			VerboseHover: extHostTypes.VerboseHover,
+			HoverVerbosityAction: extHostTypes.HoverVerbosityAction,
 			IndentAction: languageConfiguration.IndentAction,
 			Location: extHostTypes.Location,
 			MarkdownString: extHostTypes.MarkdownString,
@@ -1669,6 +1675,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
+			TestRunRequest2: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
@@ -1701,8 +1708,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			ChatCopyKind: extHostTypes.ChatCopyKind,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
-			StackFrame: extHostTypes.StackFrame,
-			Thread: extHostTypes.Thread,
+			DebugStackFrame: extHostTypes.DebugStackFrame,
+			DebugThread: extHostTypes.DebugThread,
 			RelatedInformationType: extHostTypes.RelatedInformationType,
 			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
 			PartialAcceptTriggerKind: extHostTypes.PartialAcceptTriggerKind,
@@ -1713,19 +1720,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
+			ChatResponseMarkdownWithVulnerabilitiesPart: extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
+			ChatResponseDetectedParticipantPart: extHostTypes.ChatResponseDetectedParticipantPart,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatLocation: extHostTypes.ChatLocation,
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,
 			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
-			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
-			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage,
-			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
+			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage, // TODO@jrieken REMOVE
+			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage, // TODO@jrieken REMOVE
+			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage, // TODO@jrieken REMOVE
 			LanguageModelError: extHostTypes.LanguageModelError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
+			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
 		};

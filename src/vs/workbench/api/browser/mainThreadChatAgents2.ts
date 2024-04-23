@@ -26,6 +26,7 @@ import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParse
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 interface AgentData {
 	dispose: () => void;
@@ -51,6 +52,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -118,8 +120,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
 			},
-			provideWelcomeMessage: (token: CancellationToken) => {
-				return this._proxy.$provideWelcomeMessage(handle, token);
+			provideWelcomeMessage: (location: ChatAgentLocation, token: CancellationToken) => {
+				return this._proxy.$provideWelcomeMessage(handle, location, token);
 			},
 			provideSampleQuestions: (location: ChatAgentLocation, token: CancellationToken) => {
 				return this._proxy.$provideSampleQuestions(handle, location, token);
@@ -128,12 +130,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		let disposable: IDisposable;
 		if (!staticAgentRegistration && dynamicProps) {
+			const extensionDescription = this._extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extension));
 			disposable = this._chatAgentService.registerDynamicAgent(
 				{
 					id,
 					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
+					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
+					extensionPublisher: extensionDescription?.publisherDisplayName ?? extension.value,
 					metadata: revive(metadata),
 					slashCommands: [],
 					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
@@ -206,7 +211,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						kind: CompletionItemKind.Text,
 						detail: v.detail,
 						documentation: v.documentation,
-						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.values) } satisfies IAddDynamicVariableContext] }
+						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.values), command: v.command } satisfies IAddDynamicVariableContext] }
 					} satisfies CompletionItem;
 				});
 
