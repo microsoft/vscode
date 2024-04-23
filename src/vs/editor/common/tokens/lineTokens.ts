@@ -10,7 +10,6 @@ export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;
 	getCount(): number;
 	getForeground(tokenIndex: number): ColorId;
-	getStartOffset(tokenIndex: number): number;
 	getEndOffset(tokenIndex: number): number;
 	getClassName(tokenIndex: number): string;
 	getInlineStyle(tokenIndex: number, colorMap: string[]): string;
@@ -19,7 +18,7 @@ export interface IViewLineTokens {
 	getLineContent(): string;
 	getMetadata(tokenIndex: number): number;
 	getLanguageId(tokenIndex: number): string;
-	getStandardTokenType(tokenIndex: number): StandardTokenType;
+	forEach(f: (text: string, metadata: number) => void): void;
 }
 
 export class LineTokens implements IViewLineTokens {
@@ -183,15 +182,6 @@ export class LineTokens implements IViewLineTokens {
 		return low;
 	}
 
-	public shiftTokenOffsetsBy(delta: number, newTokenText: string): LineTokens {
-		const newTokens = new Array<number>();
-		for (let i = 0; i < this.getCount(); i++) {
-			newTokens.push(this.getEndOffset(i) + delta);
-			newTokens.push(this.getMetadata(i));
-		}
-		return new LineTokens(new Uint32Array(newTokens), newTokenText, this._languageIdCodec);
-	}
-
 	/**
 	 * @pure
 	 * @param insertTokens Must be sorted by offset.
@@ -237,6 +227,22 @@ export class LineTokens implements IViewLineTokens {
 		}
 
 		return new LineTokens(new Uint32Array(newTokens), text, this._languageIdCodec);
+	}
+
+	public getTextForTokenIndex(tokenIndex: number): string {
+		const startOffset = this.getStartOffset(tokenIndex);
+		const endOffset = this.getEndOffset(tokenIndex);
+		const text = this._text.substring(startOffset, endOffset);
+		return text;
+	}
+
+	public forEach(f: (text: string, metadata: number) => void): void {
+		const tokenCount = this.getCount();
+		for (let tokenIndex = 0; tokenIndex < tokenCount; tokenIndex++) {
+			const metadata = this.getMetadata(tokenIndex);
+			const text = this.getTextForTokenIndex(tokenIndex);
+			f(text, metadata);
+		}
 	}
 }
 
@@ -299,11 +305,6 @@ class SliceLineTokens implements IViewLineTokens {
 		return this._source.getForeground(this._firstTokenIndex + tokenIndex);
 	}
 
-	public getStartOffset(tokenIndex: number): number {
-		const tokenStartOffset = this._source.getStartOffset(this._firstTokenIndex + tokenIndex);
-		return Math.max(this._startOffset, tokenStartOffset) - this._startOffset + this._deltaOffset;
-	}
-
 	public getEndOffset(tokenIndex: number): number {
 		const tokenEndOffset = this._source.getEndOffset(this._firstTokenIndex + tokenIndex);
 		return Math.min(this._endOffset, tokenEndOffset) - this._startOffset + this._deltaOffset;
@@ -325,7 +326,13 @@ class SliceLineTokens implements IViewLineTokens {
 		return this._source.findTokenIndexAtOffset(offset + this._startOffset - this._deltaOffset) - this._firstTokenIndex;
 	}
 
-	public getStandardTokenType(tokenIndex: number): StandardTokenType {
-		return this._source.getStandardTokenType(this._firstTokenIndex + tokenIndex);
+	public forEach(f: (text: string, metadata: number) => void): void {
+		const tokenCount = this.getCount();
+		const lastTokenIndex = this._firstTokenIndex + tokenCount;
+		for (let tokenIndex = this._startOffset; tokenIndex < lastTokenIndex; tokenIndex++) {
+			const metadata = this._source.getMetadata(tokenIndex);
+			const text = this._source.getTextForTokenIndex(tokenIndex)
+			f(text, metadata);
+		}
 	}
 }

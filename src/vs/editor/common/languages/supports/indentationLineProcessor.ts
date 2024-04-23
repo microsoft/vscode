@@ -11,7 +11,7 @@ import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/langu
 import { IVirtualModel } from 'vs/editor/common/languages/autoIndent';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
  * This class is a wrapper class around {@link IndentRulesSupport}.
@@ -109,9 +109,8 @@ export class IndentationContextProcessor {
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope;
 		const scopedLineContent = scopedLineTokens.getLineContent();
-		const slicedLine = scopedLineContent.substring(0, columnIndexWithinScope);
 		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedLine, slicedTokens);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedTokens) ?? scopedLineContent.substring(0, columnIndexWithinScope);
 		return processedLine;
 	}
 
@@ -128,9 +127,8 @@ export class IndentationContextProcessor {
 		const scopedLineContent = scopedLineTokens.getLineContent();
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope + 1;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineContent.length + 1;
-		const slicedLine = scopedLineContent.substring(columnIndexWithinScope);
 		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedLine, slicedTokens);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedTokens) ?? scopedLineContent.substring(columnIndexWithinScope);
 		return processedLine;
 	}
 
@@ -149,7 +147,7 @@ export class IndentationContextProcessor {
 				const firstCharacterOffset = previousLineScopedLineTokens.firstCharOffset;
 				const lastCharacterOffset = firstCharacterOffset + previousLine.length;
 				const previousLineTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-				processedPreviousLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(previousLine, previousLineTokens);
+				processedPreviousLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(previousLineTokens) ?? previousLine;
 			}
 		}
 		return processedPreviousLine;
@@ -171,13 +169,15 @@ class IndentationLineProcessor {
 	 * Get the processed line for the given line number and potentially adjust the indentation level. Remove the language configuration brackets from the regex, string and comment tokens.
 	 */
 	getProcessedLine(lineNumber: number, newIndentation?: string): string {
-		const lineContent = this.model.getLineContent(lineNumber);
 		const tokens = this.model.tokenization.getLineTokens(lineNumber);
-		const processedLine = this.getProcessedLineForLineAndTokens(lineContent, tokens);
+		const processedLine = this.getProcessedLineForLineAndTokens(tokens) ?? this.model.getLineContent(lineNumber);
 		const adjustedProcessedLine = this._adjustIndentation(processedLine, newIndentation);
 		return adjustedProcessedLine;
 	}
 
+	/**
+	 * Adjust the indentation of the given line to the given new indentation
+	*/
 	private _adjustIndentation(line: string, newIndentation?: string): string {
 		if (newIndentation === undefined) {
 			return line;
@@ -190,24 +190,9 @@ class IndentationLineProcessor {
 	/**
 	 * Process the line with the given tokens, remove the language configuration brackets from the regex, string and comment tokens.
 	 */
-	getProcessedLineForLineAndTokens(line: string, tokens: IViewLineTokens): string {
+	getProcessedLineForLineAndTokens(tokens: IViewLineTokens): string | undefined {
 
 		// Utility functions
-		const removeBracketsFromTokenWithIndexWithinLine = (tokenIndex: number, offset: number, line: string): { processedOffset: number, processedLine: string } => {
-			const result = removeBracketsFromTokenWithIndex(tokenIndex);
-			const processedOffset = offset - (result.tokenText.length - result.processedTokenText.length);
-			const lineBeforeToken = line.substring(0, offset + result.tokenInitialStartOffset);
-			const lineAfterToken = line.substring(offset + result.tokenInitialEndOffset);
-			const processedLine = lineBeforeToken + result.processedTokenText + lineAfterToken;
-			return { processedOffset, processedLine };
-		};
-		const removeBracketsFromTokenWithIndex = (tokenIndex: number): { tokenText: string; processedTokenText: string; tokenInitialStartOffset: number; tokenInitialEndOffset: number } => {
-			const tokenInitialStartOffset = tokens.getStartOffset(tokenIndex);
-			const tokenInitialEndOffset = tokens.getEndOffset(tokenIndex);
-			const tokenText = line.substring(tokenInitialStartOffset, tokenInitialEndOffset);
-			const processedTokenText = removeBracketsFromText(tokenText);
-			return { tokenText, processedTokenText, tokenInitialStartOffset, tokenInitialEndOffset };
-		}
 		const removeBracketsFromText = (line: string): string => {
 			let processedLine = line;
 			openBrackets.forEach((bracket) => {
@@ -235,25 +220,23 @@ class IndentationLineProcessor {
 		const languageId = tokens.getLanguageId(0);
 		const brackets = this.languageConfigurationService.getLanguageConfiguration(languageId).brackets;
 		if (!brackets) {
-			return line;
+			return undefined;
 		}
 		const openBrackets = brackets.brackets.map((brackets) => brackets.open).flat();
 		const closedBrackets = brackets.brackets.map((brackets) => brackets.close).flat();
 
-		let processedOffset = 0;
-		let processedLine = line;
-
-		for (let i = 0; i < tokens.getCount(); i++) {
-			const standardTokenType = tokens.getStandardTokenType(i);
+		let processedLine = '';
+		tokens.forEach((text: string, metadata: number) => {
+			const standardTokenType = TokenMetadata.getTokenType(metadata);
 			if (standardTokenType === StandardTokenType.String
 				|| standardTokenType === StandardTokenType.RegEx
 				|| standardTokenType === StandardTokenType.Comment
 			) {
-				const result = removeBracketsFromTokenWithIndexWithinLine(i, processedOffset, processedLine);
-				processedOffset = result.processedOffset;
-				processedLine = result.processedLine;
+				processedLine += removeBracketsFromText(text);
+			} else {
+				processedLine += text;
 			}
-		}
+		});
 		return processedLine;
 	}
 }
