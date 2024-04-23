@@ -108,9 +108,8 @@ export class IndentationContextProcessor {
 		const columnIndexWithinScope = (range.startColumn - 1) - scopedLineTokens.firstCharOffset;
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope;
-		const scopedLineContent = scopedLineTokens.getLineContent();
 		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedTokens) ?? scopedLineContent.substring(0, columnIndexWithinScope);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForTokens(slicedTokens);
 		return processedLine;
 	}
 
@@ -128,7 +127,7 @@ export class IndentationContextProcessor {
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope + 1;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineContent.length + 1;
 		const slicedTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(slicedTokens) ?? scopedLineContent.substring(columnIndexWithinScope);
+		const processedLine = this.indentationLineProcessor.getProcessedLineForTokens(slicedTokens);
 		return processedLine;
 	}
 
@@ -143,11 +142,11 @@ export class IndentationContextProcessor {
 			const previousLineScopedLineTokens = createScopedLineTokens(lineTokens, column);
 			if (previousLineScopedLineTokens.languageId === scopedLineTokens.languageId) {
 				// The line above ends with text belonging to the same mode
-				const previousLine = previousLineScopedLineTokens.getLineContent();
+				const previousScopedLine = previousLineScopedLineTokens.getLineContent();
 				const firstCharacterOffset = previousLineScopedLineTokens.firstCharOffset;
-				const lastCharacterOffset = firstCharacterOffset + previousLine.length;
+				const lastCharacterOffset = firstCharacterOffset + previousScopedLine.length;
 				const previousLineTokens = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-				processedPreviousLine = this.indentationLineProcessor.getProcessedLineForLineAndTokens(previousLineTokens) ?? previousLine;
+				processedPreviousLine = this.indentationLineProcessor.getProcessedLineForTokens(previousLineTokens);
 			}
 		}
 		return processedPreviousLine;
@@ -169,28 +168,27 @@ class IndentationLineProcessor {
 	 * Get the processed line for the given line number and potentially adjust the indentation level. Remove the language configuration brackets from the regex, string and comment tokens.
 	 */
 	getProcessedLine(lineNumber: number, newIndentation?: string): string {
-		const tokens = this.model.tokenization.getLineTokens(lineNumber);
-		const processedLine = this.getProcessedLineForLineAndTokens(tokens) ?? this.model.getLineContent(lineNumber);
-		const adjustedProcessedLine = this._adjustIndentation(processedLine, newIndentation);
-		return adjustedProcessedLine;
-	}
 
-	/**
-	 * Adjust the indentation of the given line to the given new indentation
-	*/
-	private _adjustIndentation(line: string, newIndentation?: string): string {
-		if (newIndentation === undefined) {
-			return line;
+		// Utility function
+		const adjustIndentation = (line: string, newIndentation: string): string => {
+			const currentIndentation = strings.getLeadingWhitespace(line);
+			const adjustedLine = newIndentation + line.substring(currentIndentation.length);
+			return adjustedLine;
 		}
-		const currentIndentation = strings.getLeadingWhitespace(line);
-		const adjustedLine = newIndentation + line.substring(currentIndentation.length);
-		return adjustedLine;
+
+		// Main code
+		const tokens = this.model.tokenization.getLineTokens(lineNumber);
+		let processedLine = this.getProcessedLineForTokens(tokens);
+		if (newIndentation !== undefined) {
+			processedLine = adjustIndentation(processedLine, newIndentation);
+		}
+		return processedLine;
 	}
 
 	/**
 	 * Process the line with the given tokens, remove the language configuration brackets from the regex, string and comment tokens.
 	 */
-	getProcessedLineForLineAndTokens(tokens: IViewLineTokens): string | undefined {
+	getProcessedLineForTokens(tokens: IViewLineTokens): string {
 
 		// Utility functions
 		const removeBracketsFromText = (line: string): string => {
@@ -220,7 +218,7 @@ class IndentationLineProcessor {
 		const languageId = tokens.getLanguageId(0);
 		const brackets = this.languageConfigurationService.getLanguageConfiguration(languageId).brackets;
 		if (!brackets) {
-			return undefined;
+			return tokens.getLineContent();
 		}
 		const openBrackets = brackets.brackets.map((brackets) => brackets.open).flat();
 		const closedBrackets = brackets.brackets.map((brackets) => brackets.close).flat();
