@@ -19,7 +19,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
+import { TextEdit } from 'vs/editor/common/core/textEdit';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { TextModelText } from 'vs/editor/common/model/textModelText';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
