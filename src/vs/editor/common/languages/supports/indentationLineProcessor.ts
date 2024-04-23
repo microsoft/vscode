@@ -36,7 +36,7 @@ export class ProcessedIndentRulesSupport {
 	 * Apply the new indentation and return whether the indentation level should be increased after the given line number
 	 */
 	public shouldIncrease(lineNumber: number, newIndentation?: string): boolean {
-		const processedLine = this._processLine(lineNumber, newIndentation);
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIncrease(processedLine);
 	}
 
@@ -44,7 +44,7 @@ export class ProcessedIndentRulesSupport {
 	 * Apply the new indentation and return whether the indentation level should be decreased after the given line number
 	 */
 	public shouldDecrease(lineNumber: number, newIndentation?: string): boolean {
-		const processedLine = this._processLine(lineNumber, newIndentation);
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldDecrease(processedLine);
 	}
 
@@ -52,7 +52,7 @@ export class ProcessedIndentRulesSupport {
 	 * Apply the new indentation and return whether the indentation level should remain unchanged at the given line number
 	 */
 	public shouldIgnore(lineNumber: number, newIndentation?: string): boolean {
-		const processedLine = this._processLine(lineNumber, newIndentation);
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIgnore(processedLine);
 	}
 
@@ -60,19 +60,10 @@ export class ProcessedIndentRulesSupport {
 	 * Apply the new indentation and return whether the indentation level should increase on the line after the given line number
 	 */
 	public shouldIndentNextLine(lineNumber: number, newIndentation?: string): boolean {
-		const processedLine = this._processLine(lineNumber, newIndentation);
+		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
 		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
 	}
 
-	private _processLine(lineNumber: number, newIndentation?: string) {
-		let processedLine: string;
-		if (newIndentation === undefined) {
-			processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber);
-		} else {
-			processedLine = this._indentationLineProcessor.getProcessedLineWithIndentation(lineNumber, newIndentation);
-		}
-		return processedLine;
-	}
 }
 
 /**
@@ -177,26 +168,23 @@ class IndentationLineProcessor {
 	) { }
 
 	/**
-	 * Get the processed line for the given line number. Remove the language configuration brackets from the regex, string and comment tokens.
+	 * Get the processed line for the given line number and potentially adjust the indentation level. Remove the language configuration brackets from the regex, string and comment tokens.
 	 */
-	getProcessedLine(lineNumber: number): string {
+	getProcessedLine(lineNumber: number, newIndentation?: string): string {
 		const lineContent = this.model.getLineContent(lineNumber);
 		const tokens = this.model.tokenization.getLineTokens(lineNumber);
 		const processedLine = this.getProcessedLineForLineAndTokens(lineContent, tokens);
-		return processedLine;
+		const adjustedProcessedLine = this._adjustIndentation(processedLine, newIndentation);
+		return adjustedProcessedLine;
 	}
 
-	/**
-	 * Replace the indentation of the line at the given line number with the new indentation and process the line - remove the language configuration brackets from the regex, string and comment tokens.
-	 */
-	getProcessedLineWithIndentation(lineNumber: number, newIndentation: string): string {
-		const currentLine = this.model.getLineContent(lineNumber);
-		const currentIndentation = strings.getLeadingWhitespace(currentLine);
-		const currentTokens = this.model.tokenization.getLineTokens(lineNumber);
-		const indentationDifference = newIndentation.length - currentIndentation.length;
-		const newLine = newIndentation + currentLine.substring(currentIndentation.length);
-		const newTokens = currentTokens.shiftTokenOffsetsBy(indentationDifference, newLine);
-		return this.getProcessedLineForLineAndTokens(newLine, newTokens);
+	private _adjustIndentation(line: string, newIndentation?: string): string {
+		if (newIndentation === undefined) {
+			return line;
+		}
+		const currentIndentation = strings.getLeadingWhitespace(line);
+		const adjustedLine = newIndentation + line.substring(currentIndentation.length);
+		return adjustedLine;
 	}
 
 	/**
