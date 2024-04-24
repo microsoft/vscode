@@ -40,6 +40,7 @@ import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import * as vscode from 'vscode';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -201,7 +202,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._terminalConfigurationService.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-
 		this.raw = this._register(new xtermCtor({
 			allowProposedApi: true,
 			cols,
@@ -241,6 +241,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				getWinSizeChars: true,
 			},
 		}));
+
+		this.setupXOFFXONHandling();
+		
 		this._updateSmoothScrolling();
 		this._core = (this.raw as any)._core as IXtermCore;
 
@@ -362,6 +365,37 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
 		return this._attached?.container.querySelector('.xterm-screen')!;
+	}
+
+	private setupXOFFXONHandling() {
+		this.raw.onData(data => {
+			if (data === '\x13') { // XOFF (Ctrl+S)
+				this.showPauseNotification();
+			} else if (data === '\x11') { // XON (Ctrl+Q)
+				this.hidePauseNotification();
+			}
+		});
+	}
+	
+	private showPauseNotification() {
+		// Show a notification with actions
+		vscode.window.showInformationMessage(
+			'The terminal is paused. Press Ctrl+Q to resume.',
+			'Resume'
+		).then(selection => {
+			if (selection === 'Resume') {
+				this.sendResumeSignal();
+			}
+		});
+	}
+	
+	private hidePauseNotification() {
+		// Currently, VS Code do not support programmatically closing a notification
+		// This function remains here for structural purposes or future use if the API changes
+	}
+	
+	private sendResumeSignal() {
+		this.raw.write('\x11'); // XON (Ctrl+Q)
 	}
 
 	private _setFocused(isFocused: boolean) {
