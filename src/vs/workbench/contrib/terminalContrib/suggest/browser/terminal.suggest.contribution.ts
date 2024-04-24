@@ -28,7 +28,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		return instance.getContribution<TerminalSuggestContribution>(TerminalSuggestContribution.ID);
 	}
 
-	private _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
+	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
@@ -68,7 +68,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
+			this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 			xterm.loadAddon(this._addon.value);
 			this._addon.value.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
 			this._addon.value.setScreen(xterm.element!.querySelector('.xterm-screen')!);
@@ -77,9 +77,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				this._instance.focus();
 				this._instance.sendText(text, false);
 			}));
-			this.add(this._instance.onDidSendText((text) => {
-				this._addon.value?.handleNonXtermData(text);
-			}));
+			this.add(this._instance.onDidSendText(() => this._addon.value?.hideSuggestWidget()));
 		}
 	}
 }

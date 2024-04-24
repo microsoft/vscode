@@ -2948,7 +2948,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	 */
 	private _getDefaultTasks(tasks: Task[], taskGlobsInList: boolean = false): Task[] {
 		const defaults: Task[] = [];
-		for (const task of tasks) {
+		for (const task of tasks.filter(t => !!t.configurationProperties.group)) {
 			// At this point (assuming taskGlobsInList is true) there are tasks with matching globs, so only put those in defaults
 			if (taskGlobsInList && typeof (task.configurationProperties.group as TaskGroup).isDefault === 'string') {
 				defaults.push(task);
@@ -3050,14 +3050,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			// If no globs are found or matched fallback to checking for default tasks of the task group
 			if (!groupTasks.length) {
-				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
+				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
 			}
 
-			// A single default task was returned, just run it directly
 			if (groupTasks.length === 1) {
+				// A single default task was returned, just run it directly
 				return resolveTaskAndRun(groupTasks[0]);
 			}
-
 			// Multiple default tasks returned, show the quickPicker
 			return handleMultipleTasks(false);
 		})();
@@ -3269,10 +3268,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return result[0].resource;
 				});
 			} else if (fileExists && (tasksExistInFile || content)) {
-				if (content) {
-					this._configurationService.updateValue('tasks', json.parse(content), target);
+				const statResource = stat?.resource;
+				if (content && statResource) {
+					this._configurationService.updateValue('tasks', json.parse(content), { resource: statResource }, target);
 				}
-				return stat?.resource;
+				return statResource;
 			}
 			return undefined;
 		}).then((resource) => {

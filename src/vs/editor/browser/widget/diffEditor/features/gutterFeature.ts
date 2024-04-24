@@ -12,14 +12,14 @@ import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, o
 import { URI } from 'vs/base/common/uri';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { appendRemoveOnDispose, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
+import { appendRemoveOnDispose, applyStyle, prependRemoveOnDispose } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from 'vs/editor/browser/widget/diffEditor/utils/editorGutter';
 import { ActionRunnerWithContext } from 'vs/editor/browser/widget/multiDiffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
+import { TextEdit } from 'vs/editor/common/core/textEdit';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { TextModelText } from 'vs/editor/common/model/textModelText';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
@@ -50,7 +50,7 @@ export class DiffEditorGutter extends Disposable {
 	) {
 		super();
 
-		this._register(appendRemoveOnDispose(diffEditorRoot, this.elements.root));
+		this._register(prependRemoveOnDispose(diffEditorRoot, this.elements.root));
 
 		this._register(addDisposableListener(this.elements.root, 'click', () => {
 			this._editors.modified.focus();
@@ -106,8 +106,11 @@ export class DiffEditorGutter extends Disposable {
 
 	public computeStagedValue(mapping: DetailedLineRangeMapping): string {
 		const c = mapping.innerChanges ?? [];
-		const edit = new TextEdit(c.map(c => new SingleTextEdit(c.originalRange, this._editors.modifiedModel.get()!.getValueInRange(c.modifiedRange))));
-		const value = edit.apply(new TextModelText(this._editors.original.getModel()!));
+		const modified = new TextModelText(this._editors.modifiedModel.get()!);
+		const original = new TextModelText(this._editors.original.getModel()!);
+
+		const edit = new TextEdit(c.map(c => c.toTextEdit(modified)));
+		const value = edit.apply(original);
 		return value;
 	}
 

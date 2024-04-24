@@ -1630,3 +1630,36 @@ export class Relay<T> implements IDisposable {
 		this.emitter.dispose();
 	}
 }
+
+export interface IValueWithChangeEvent<T> {
+	readonly onDidChange: Event<void>;
+	get value(): T;
+}
+
+export class ValueWithChangeEvent<T> implements IValueWithChangeEvent<T> {
+	public static const<T>(value: T): IValueWithChangeEvent<T> {
+		return new ConstValueWithChangeEvent(value);
+	}
+
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	constructor(private _value: T) { }
+
+	get value(): T {
+		return this._value;
+	}
+
+	set value(value: T) {
+		if (value !== this._value) {
+			this._value = value;
+			this._onDidChange.fire(undefined);
+		}
+	}
+}
+
+class ConstValueWithChangeEvent<T> implements IValueWithChangeEvent<T> {
+	public readonly onDidChange: Event<void> = Event.None;
+
+	constructor(readonly value: T) { }
+}

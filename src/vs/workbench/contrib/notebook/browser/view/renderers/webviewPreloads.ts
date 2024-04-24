@@ -70,6 +70,7 @@ export interface RenderOptions {
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
 	readonly linkifyFilePaths: boolean;
+	readonly minimalError: boolean;
 }
 
 interface PreloadContext {
@@ -195,7 +196,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -587,14 +588,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		if (node.hasAttribute('recentlyScrolled')) {
-			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 300) {
+			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 400) {
 				// it has been a while since we actually scrolled
-				// if scroll velocity increases, it's likely a new scroll event
-				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 2) {
+				// if scroll velocity increases significantly, it's likely a new scroll event
+				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 8) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
 					return false;
-				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 2) {
+				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 8) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
 					return false;
@@ -1575,7 +1576,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
 			return;
 		}
 
@@ -1911,6 +1912,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get outputScrolling() { return currentRenderOptions.outputScrolling; },
 					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
 					get linkifyFilePaths() { return currentRenderOptions.linkifyFilePaths; },
+					get minimalError() { return currentRenderOptions.minimalError; },
 				},
 				get onDidChangeSettings() { return settingChange.event; }
 			};

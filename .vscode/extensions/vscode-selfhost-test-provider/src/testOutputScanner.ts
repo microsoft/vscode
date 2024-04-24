@@ -1,6 +1,7 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import {
 	GREATEST_LOWER_BOUND,
@@ -110,11 +111,13 @@ export class TestOutputScanner implements vscode.Disposable {
 		}
 	}
 
-	protected readonly processData = (data: string) => {
+	protected readonly processData = (data: string | Buffer) => {
 		if (this.args) {
 			this.outputEventEmitter.fire(`./scripts/test ${this.args.join(' ')}`);
 			this.args = undefined;
 		}
+
+		data = data.toString();
 
 		try {
 			const parsed = JSON.parse(data.trim()) as unknown;

@@ -183,6 +183,10 @@ extends:
           allTools: true
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslintignore
       sourceAnalysisPool: 1es-windows-2022-x64
     containers:
       snapcraft:
@@ -197,6 +201,7 @@ extends:
       - stage: Compile
         jobs:
           - job: Compile
+            timeoutInMinutes: 90
             pool:
               name: 1es-ubuntu-20.04-x64
               os: linux

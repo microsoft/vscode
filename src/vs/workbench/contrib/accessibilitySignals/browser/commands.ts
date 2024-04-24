@@ -8,7 +8,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { localize, localize2 } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignal, AcknowledgeDocCommentsToken, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -23,7 +23,7 @@ export class ShowSignalSoundHelp extends Action2 {
 			title: localize2('signals.sound.help', "Help: List Signal Sounds"),
 			f1: true,
 			metadata: {
-				description: localize('accessibility.sound.help.description', "List all accessibility sounds / audio cues and configure their settings")
+				description: localize('accessibility.sound.help.description', "List all accessibility sounds, noises, or audio cues and configure their settings")
 			}
 		});
 	}
@@ -72,7 +72,7 @@ export class ShowSignalSoundHelp extends Action2 {
 			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: e.item.signal.settingsKey, edit: true } });
 		});
 		qp.onDidChangeActive(() => {
-			accessibilitySignalService.playSound(qp.activeItems[0].signal.sound.getSound(true), true);
+			accessibilitySignalService.playSound(qp.activeItems[0].signal.sound.getSound(true), true, AcknowledgeDocCommentsToken);
 		});
 		qp.placeholder = localize('sounds.help.placeholder', 'Select a sound to play and configure');
 		qp.canSelectMany = true;
@@ -93,7 +93,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 			title: localize2('accessibility.announcement.help', "Help: List Signal Announcements"),
 			f1: true,
 			metadata: {
-				description: localize('accessibility.announcement.help.description', "List all accessibility announcements / alerts and configure their settings")
+				description: localize('accessibility.announcement.help.description', "List all accessibility announcements, alerts, braille messages, and configure their settings")
 			}
 		});
 	}

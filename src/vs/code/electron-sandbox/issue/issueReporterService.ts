@@ -45,7 +45,6 @@ export class IssueReporter extends Disposable {
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
-	private receivedExtensionData = false;
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
@@ -54,6 +53,7 @@ export class IssueReporter extends Disposable {
 	private selectedExtension = '';
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
+	private nonGitHubIssueUrl = false;
 
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
@@ -264,50 +264,9 @@ export class IssueReporter extends Disposable {
 			if (extension.uri) {
 				const uri = URI.revive(extension.uri);
 				extension.bugsUrl = uri.toString();
-			} else {
-				const uri = await this.issueMainService.$getIssueReporterUri(extension.id);
-				extension.bugsUrl = uri.toString(true);
 			}
-
 		} catch (e) {
-			extension.hasIssueUriRequestHandler = false;
-			// The issue handler failed so fall back to old issue reporter experience.
 			this.renderBlocks();
-		}
-	}
-
-	private async getIssueDataFromExtension(extension: IssueReporterExtensionData): Promise<string> {
-		try {
-			const data = await this.issueMainService.$getIssueReporterData(extension.id);
-			extension.extensionData = data;
-			this.receivedExtensionData = true;
-			this.issueReporterModel.update({ extensionData: data });
-			return data;
-		} catch (e) {
-			extension.hasIssueDataProviders = false;
-			// The issue handler failed so fall back to old issue reporter experience.
-			this.renderBlocks();
-			throw e;
-		}
-	}
-
-	private async getIssueTemplateFromExtension(extension: IssueReporterExtensionData): Promise<string> {
-		try {
-			const data = await this.issueMainService.$getIssueReporterTemplate(extension.id);
-			extension.extensionTemplate = data;
-			return data;
-		} catch (e) {
-			throw e;
-		}
-	}
-
-	private async getReporterStatus(extension: IssueReporterExtensionData): Promise<boolean[]> {
-		try {
-			const data = await this.issueMainService.$getReporterStatus(extension.id, extension.name);
-			return data;
-		} catch (e) {
-			console.error(e);
-			return [false, false];
 		}
 	}
 
@@ -535,14 +494,13 @@ export class IssueReporter extends Disposable {
 			issueRepoName.removeAttribute('style');
 			hide(issueRepoName);
 		}
+
+		// Initial check when first opened.
+		this.getExtensionGitHubUrl();
 	}
 
 	private isPreviewEnabled() {
 		const issueType = this.issueReporterModel.getData().issueType;
-
-		if (this.issueReporterModel.getData().selectedExtension?.hasIssueDataProviders && !this.receivedExtensionData) {
-			return false;
-		}
 
 		if (this.loadingExtensionData) {
 			return false;
@@ -571,10 +529,6 @@ export class IssueReporter extends Disposable {
 	private getExtensionBugsUrl(): string | undefined {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 		return selectedExtension && selectedExtension.bugsUrl;
-	}
-
-	private getExtensionData(): string | undefined {
-		return this.issueReporterModel.getData().selectedExtension?.extensionData;
 	}
 
 	private searchVSCodeIssues(title: string, issueDescription?: string): void {
@@ -850,22 +804,14 @@ export class IssueReporter extends Disposable {
 			show(extensionSelector);
 		}
 
-		if (fileOnExtension && selectedExtension?.hasIssueUriRequestHandler && !selectedExtension.hasIssueDataProviders) {
+
+		if (selectedExtension && this.nonGitHubIssueUrl) {
 			hide(titleTextArea);
 			hide(descriptionTextArea);
 			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
 			reset(descriptionSubtitle, localize('elsewhereDescription', "The '{0}' extension prefers to use an external issue reporter. To be taken to that issue reporting experience, click the button below.", selectedExtension.displayName));
 			this.previewButton.label = localize('openIssueReporter', "Open External Issue Reporter");
 			return;
-		}
-
-		if (fileOnExtension && selectedExtension?.hasIssueDataProviders) {
-			const data = this.getExtensionData();
-			if (data) {
-				(extensionDataTextArea as HTMLElement).innerText = data.toString();
-			}
-			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
-			show(extensionDataBlock);
 		}
 
 		if (fileOnExtension && selectedExtension?.data) {
@@ -986,10 +932,9 @@ export class IssueReporter extends Disposable {
 
 	private async createIssue(): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		const hasUri = selectedExtension?.hasIssueUriRequestHandler;
-		const hasData = selectedExtension?.hasIssueDataProviders;
+		const hasUri = this.nonGitHubIssueUrl;
 		// Short circuit if the extension provides a custom issue handler
-		if (hasUri && !hasData) {
+		if (hasUri) {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
@@ -1032,7 +977,7 @@ export class IssueReporter extends Disposable {
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
-		let issueUrl = hasUri ? this.getExtensionBugsUrl() : this.getIssueUrl();
+		let issueUrl = this.getIssueUrl();
 		if (!issueUrl) {
 			console.error('No issue url found');
 			return false;
@@ -1093,7 +1038,7 @@ export class IssueReporter extends Disposable {
 				repositoryName: match[2]
 			};
 		} else {
-			console.error('No GitHub match');
+			console.error('No GitHub issues match');
 		}
 
 		return undefined;
@@ -1104,10 +1049,15 @@ export class IssueReporter extends Disposable {
 		const bugsUrl = this.getExtensionBugsUrl();
 		const extensionUrl = this.getExtensionRepositoryUrl();
 		// If given, try to match the extension's bug url
-		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?(\/issues)?$/)) {
+			// matches exactly: https://github.com/owner/repo/issues
 			repositoryUrl = normalizeGitHubUrl(bugsUrl);
-		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)$/)) {
+			// matches exactly: https://github.com/owner/repo
 			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+		} else {
+			this.nonGitHubIssueUrl = true;
+			repositoryUrl = bugsUrl || extensionUrl || '';
 		}
 
 		return repositoryUrl;
@@ -1302,6 +1252,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private clearExtensionData(): void {
+		this.nonGitHubIssueUrl = false;
 		this.issueReporterModel.update({ extensionData: undefined });
 		this.configuration.data.issueBody = undefined;
 		this.configuration.data.data = undefined;
@@ -1338,58 +1289,6 @@ export class IssueReporter extends Disposable {
 			this.updateIssueReporterUri(extension);
 		}
 
-		// if extension does not have provider/handles, will check for either. If extension is already active, IPC will return [false, false] and will proceed as normal.
-		if (!extension.hasIssueDataProviders && !extension.hasIssueUriRequestHandler) {
-			const toActivate = await this.getReporterStatus(extension);
-			extension.hasIssueDataProviders = toActivate[0];
-			extension.hasIssueUriRequestHandler = toActivate[1];
-		}
-
-		if (extension.hasIssueUriRequestHandler && extension.hasIssueDataProviders) {
-			// update this first
-			const template = await this.getIssueTemplateFromExtension(extension);
-			const descriptionTextArea = this.getElementById('description')!;
-			const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
-			if (descriptionText === '' || !descriptionText.includes(template)) {
-				const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template;
-				(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
-				this.issueReporterModel.update({ issueDescription: fullTextArea });
-			}
-			const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
-			show(extensionDataBlock);
-
-			// Start loading for extension data.
-			const iconElement = document.createElement('span');
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-			this.setLoading(iconElement);
-			await this.getIssueDataFromExtension(extension);
-			this.removeLoading(iconElement);
-
-			// then update this
-			this.updateIssueReporterUri(extension);
-
-		} else if (extension.hasIssueUriRequestHandler) {
-			this.updateIssueReporterUri(extension);
-		} else if (extension.hasIssueDataProviders) {
-			const template = await this.getIssueTemplateFromExtension(extension);
-			const descriptionTextArea = this.getElementById('description')!;
-			const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
-			if (descriptionText === '' || !descriptionText.includes(template)) {
-				const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template;
-				(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
-				this.issueReporterModel.update({ issueDescription: fullTextArea });
-			}
-			const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
-			show(extensionDataBlock);
-
-			// Start loading for extension data.
-			const iconElement = document.createElement('span');
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-			this.setLoading(iconElement);
-			await this.getIssueDataFromExtension(extension);
-			this.removeLoading(iconElement);
-		}
-
 		this.validateSelectedExtension();
 		const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		this.searchExtensionIssues(title);
@@ -1415,7 +1314,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
-		if (hasValidGitHubUrl || (extension.hasIssueUriRequestHandler && !extension.hasIssueDataProviders)) {
+		if (hasValidGitHubUrl) {
 			this.previewButton.enabled = true;
 		} else {
 			this.setExtensionValidationMessage();
@@ -1425,7 +1324,6 @@ export class IssueReporter extends Disposable {
 
 	private setLoading(element: HTMLElement) {
 		// Show loading
-		this.receivedExtensionData = false;
 		this.openReporter = true;
 		this.loadingExtensionData = true;
 		this.updatePreviewButtonState();

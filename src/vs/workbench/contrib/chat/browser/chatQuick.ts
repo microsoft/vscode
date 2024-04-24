@@ -17,13 +17,13 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IChatWidgetService, IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
+import { IQuickChatOpenOptions, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -45,7 +45,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	}
 
 	get enabled(): boolean {
-		return this.chatService.getProviderInfos().length > 0;
+		return !!this.chatService.isEnabled(ChatAgentLocation.Panel);
 	}
 
 	get focused(): boolean {
@@ -56,13 +56,13 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		return dom.isAncestorOfActiveElement(widget);
 	}
 
-	toggle(providerId?: string, options?: IQuickChatOpenOptions): void {
+	toggle(options?: IQuickChatOpenOptions): void {
 		// If the input is already shown, hide it. This provides a toggle behavior of the quick
 		// pick. This should not happen when there is a query.
 		if (this.focused && !options?.query) {
 			this.close();
 		} else {
-			this.open(providerId, options);
+			this.open(options);
 			// If this is a partial query, the value should be cleared when closed as otherwise it
 			// would remain for the next time the quick chat is opened in any context.
 			if (options?.isPartialQuery) {
@@ -74,7 +74,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		}
 	}
 
-	open(providerId?: string, options?: IQuickChatOpenOptions): void {
+	open(options?: IQuickChatOpenOptions): void {
 		if (this._input) {
 			if (this._currentChat && options?.query) {
 				this._currentChat.focus();
@@ -85,15 +85,6 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 				return;
 			}
 			return this.focus();
-		}
-
-		// Check if any providers are available. If not, show nothing
-		// This shouldn't be needed because of the precondition, but just in case
-		const providerInfo = providerId
-			? this.chatService.getProviderInfos().find(info => info.id === providerId)
-			: this.chatService.getProviderInfos()[0];
-		if (!providerInfo) {
-			return;
 		}
 
 		const disposableStore = new DisposableStore();
@@ -108,9 +99,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 
 		this._input.show();
 		if (!this._currentChat) {
-			this._currentChat = this.instantiationService.createInstance(QuickChat, {
-				providerId: providerInfo.id,
-			});
+			this._currentChat = this.instantiationService.createInstance(QuickChat);
 
 			// show needs to come after the quickpick is shown
 			this._currentChat.render(this._container);
@@ -156,16 +145,15 @@ class QuickChat extends Disposable {
 	private sash!: Sash;
 	private model: ChatModel | undefined;
 	private _currentQuery: string | undefined;
-	private maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
+	private readonly maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private _deferUpdatingDynamicLayout: boolean = false;
 
 	constructor(
-		private readonly _options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ILayoutService private readonly layoutService: ILayoutService
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 	}
@@ -288,18 +276,36 @@ class QuickChat extends Disposable {
 	}
 
 	async openChatView(): Promise<void> {
-		const widget = await this._chatWidgetService.revealViewForProvider(this._options.providerId);
+		const widget = await showChatView(this.viewsService);
 		if (!widget?.viewModel || !this.model) {
 			return;
 		}
 
 		for (const request of this.model.getRequests()) {
 			if (request.response?.response.value || request.response?.result) {
+
+
+				const message: IChatProgress[] = [];
+				for (const item of request.response.response.value) {
+					if (item.kind === 'textEditGroup') {
+						for (const group of item.edits) {
+							message.push({
+								kind: 'textEdit',
+								edits: group,
+								uri: item.uri
+							});
+						}
+					} else {
+						message.push(item);
+					}
+				}
+
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as IParsedChatRequest,
 					request.variableData,
+					request.attempt,
 					{
-						message: request.response.response.value,
+						message,
 						result: request.response.result,
 						followups: request.response.followups
 					});
@@ -325,7 +331,7 @@ class QuickChat extends Disposable {
 	}
 
 	private updateModel(): void {
-		this.model ??= this.chatService.startSession(this._options.providerId, CancellationToken.None);
+		this.model ??= this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		if (!this.model) {
 			throw new Error('Could not start chat session');
 		}

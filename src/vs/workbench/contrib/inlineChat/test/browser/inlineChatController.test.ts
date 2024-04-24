@@ -8,7 +8,6 @@ import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -43,12 +42,10 @@ import { IInlineChatSavingService } from '../../browser/inlineChatSavingService'
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
 import { TestWorkerService } from './testWorkerService';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -58,12 +55,15 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
+import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 
 suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
 
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
-		static INIT_SEQUENCE_AUTO_SEND: readonly State[] = [...this.INIT_SEQUENCE, State.SHOW_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT];
+		static INIT_SEQUENCE_AUTO_SEND: readonly State[] = [...this.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT];
 
 		private readonly _onDidChangeState = new Emitter<State>();
 		readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
@@ -118,13 +118,13 @@ suite('InteractiveChatController', function () {
 
 		const serviceCollection = new ServiceCollection(
 			[IConfigurationService, new TestConfigurationService()],
-			[IChatVariablesService, new MockChatVariablesService()],
+			[IChatVariablesService, new SyncDescriptor(ChatVariablesService)],
 			[ILogService, new NullLogService()],
 			[ITelemetryService, NullTelemetryService],
+			[IHoverService, NullHoverService],
 			[IExtensionService, new TestExtensionService()],
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new TestExtensionService()],
-			[IChatContributionService, new TestExtensionService()],
 			[IWorkspaceContextService, new TestContextService()],
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
@@ -180,6 +180,8 @@ suite('InteractiveChatController', function () {
 
 		store.add(chatAgentService.registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
+			extensionPublisher: '',
+			extensionDisplayName: '',
 			id: 'testAgent',
 			name: 'testAgent',
 			isDefault: true,
@@ -358,7 +360,7 @@ suite('InteractiveChatController', function () {
 		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3)); // initial
 
 		ctrl.acceptInput();
-		await ctrl.waitFor([State.SHOW_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		await ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 3));
 
@@ -418,7 +420,7 @@ suite('InteractiveChatController', function () {
 		const valueThen = editor.getModel().getValue();
 
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		const r = ctrl.run({ message: 'Hello', autoSend: true });
 		await p;
 		ctrl.acceptSession();
@@ -465,7 +467,7 @@ suite('InteractiveChatController', function () {
 			// store.add(editor.getModel().onDidChangeContent(() => { modelChangeCounter++; }));
 
 			ctrl = instaService.createInstance(TestController, editor);
-			const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+			const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 			const r = ctrl.run({ message: 'Hello', autoSend: true });
 			await p;
 
@@ -488,7 +490,7 @@ suite('InteractiveChatController', function () {
 
 		// NO manual edits -> cancel
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		const r = ctrl.run({ message: 'GENERATED', autoSend: true });
 		await p;
 
@@ -504,7 +506,7 @@ suite('InteractiveChatController', function () {
 
 		// manual edits -> finish
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		const r = ctrl.run({ message: 'GENERATED', autoSend: true });
 		await p;
 
@@ -559,7 +561,6 @@ suite('InteractiveChatController', function () {
 		assert.strictEqual(requests.length, 2);
 
 		assert.strictEqual(requests[0].previewDocument.toString(), model.uri.toString()); // live
-		assert.strictEqual(requests[1].previewDocument.scheme, Schemas.vscode); // preview
-		assert.strictEqual(requests[1].previewDocument.authority, 'inline-chat');
+		assert.strictEqual(requests[1].previewDocument.toString(), model.uri.toString()); // preview (both use the same but edits aren't applied like that)
 	});
 });

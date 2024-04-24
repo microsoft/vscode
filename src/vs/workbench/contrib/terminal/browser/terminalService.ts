@@ -92,7 +92,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get restoredGroupCount(): number { return this._restoredGroupCount; }
 
 	get instances(): ITerminalInstance[] {
-		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
+		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances).concat(this._backgroundedTerminalInstances);
 	}
 	get detachedInstances(): Iterable<IDetachedTerminalInstance> {
 		return this._detachedXterms;
@@ -221,12 +221,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(this._contextKeyService);
 
-		this.onDidChangeActiveInstance(instance => {
+		this._register(this.onDidChangeActiveInstance(instance => {
 			this._terminalEditorActive.set(!!instance?.target && instance.target === TerminalLocation.Editor);
-		});
+		}));
 
-		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+		this._register(_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal')));
+		this._register(_lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 
 		this._initializePrimaryBackend();
 
@@ -536,7 +536,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			terminalIsOpenContext.set(this.instances.length > 0);
 			this._terminalCountContextKey.set(this.instances.length);
 		};
-		this.onDidChangeInstances(() => updateTerminalContextKeys());
+		this._register(this.onDidChangeInstances(() => updateTerminalContextKeys()));
 	}
 
 	async getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance> {
@@ -952,7 +952,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
-		const contributedProfile = await this._getContributedProfile(shellLaunchConfig, options);
+		const contributedProfile = options?.skipContributedProfileCheck ? undefined : await this._getContributedProfile(shellLaunchConfig, options);
 
 		const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
 

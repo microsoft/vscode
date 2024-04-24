@@ -40,7 +40,7 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 		));
 
 		// React on unexpected termination of the watcher process
-		disposables.add(client.onDidProcessExit(({ code, signal }) => this.onError(`terminated by itself with code ${code}, signal: ${signal}`)));
+		disposables.add(client.onDidProcessExit(({ code, signal }) => this.onError(`terminated by itself with code ${code}, signal: ${signal} (ETERM)`)));
 
 		return ProxyChannel.toService<IUniversalWatcher>(getNextTickChannel(client.getChannel('watcher')));
 	}

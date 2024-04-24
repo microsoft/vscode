@@ -15,7 +15,7 @@ import 'vs/editor/browser/services/hoverService/hoverService';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, IValueWithChangeEvent, ValueWithChangeEvent } from 'vs/base/common/event';
 import { ResolvedKeybinding, KeyCodeChord, Keybinding, decodeKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -88,12 +88,13 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AccessibilitySignal, IAccessibilitySignalService, Sound } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService, Sound } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { mainWindow } from 'vs/base/browser/window';
+import { ResourceMap } from 'vs/base/common/map';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -629,9 +630,22 @@ export class StandaloneConfigurationService implements IConfigurationService {
 
 	private readonly _configuration: Configuration;
 
-	constructor() {
-		const defaultConfiguration = new DefaultConfiguration();
-		this._configuration = new Configuration(defaultConfiguration.reload(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+	constructor(
+		@ILogService private readonly logService: ILogService,
+	) {
+		const defaultConfiguration = new DefaultConfiguration(logService);
+		this._configuration = new Configuration(
+			defaultConfiguration.reload(),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			logService
+		);
 		defaultConfiguration.dispose();
 	}
 
@@ -660,7 +674,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		}
 
 		if (changedKeys.length > 0) {
-			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
+			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration, undefined, this.logService);
 			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
 			this._onDidChangeConfiguration.fire(configurationChangeEvent);
 		}
@@ -1065,6 +1079,10 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	async playSignals(cues: AccessibilitySignal[]): Promise<void> {
 	}
 
+	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
+		return ValueWithChangeEvent.const(false);
+	}
+
 	isSoundEnabled(cue: AccessibilitySignal): boolean {
 		return false;
 	}
@@ -1074,10 +1092,6 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	}
 
 	onSoundEnabledChanged(cue: AccessibilitySignal): Event<void> {
-		return Event.None;
-	}
-
-	onAnnouncementEnabledChanged(cue: AccessibilitySignal): Event<void> {
 		return Event.None;
 	}
 
@@ -1092,6 +1106,7 @@ export interface IEditorOverrideServices {
 	[index: string]: any;
 }
 
+registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourcePropertiesService, StandaloneResourcePropertiesService, InstantiationType.Eager);
@@ -1104,7 +1119,6 @@ registerSingleton(INotificationService, StandaloneNotificationService, Instantia
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Eager);
 registerSingleton(ILanguageService, StandaloneLanguageService, InstantiationType.Eager);
 registerSingleton(IStandaloneThemeService, StandaloneThemeService, InstantiationType.Eager);
-registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IModelService, ModelService, InstantiationType.Eager);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Eager);
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager);

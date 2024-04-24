@@ -9,8 +9,9 @@ import { IBulkEditService, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceEditDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IWorkspaceCellEditDto, IWorkspaceEditDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
@@ -67,6 +68,24 @@ export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined, uriI
 		}
 		if (ResourceNotebookCellEdit.is(edit)) {
 			edit.resource = uriIdentityService.asCanonicalUri(edit.resource);
+			const cellEdit = (edit as IWorkspaceCellEditDto).cellEdit;
+			if (cellEdit.editType === CellEditType.Replace) {
+				edit.cellEdit = {
+					...cellEdit,
+					cells: cellEdit.cells.map(cell => ({
+						...cell,
+						outputs: cell.outputs.map(output => ({
+							...output,
+							outputs: output.items.map(item => {
+								return {
+									mime: item.mime,
+									data: item.valueBytes
+								};
+							})
+						}))
+					}))
+				};
+			}
 		}
 	}
 	return <WorkspaceEdit>data;

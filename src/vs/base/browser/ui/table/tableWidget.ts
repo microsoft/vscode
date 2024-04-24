@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
@@ -134,7 +134,7 @@ class ColumnHeader<TRow, TCell> extends Disposable implements IView {
 		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.label);
 
 		if (column.tooltip) {
-			this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, column.tooltip));
+			this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, column.tooltip));
 		}
 	}
 

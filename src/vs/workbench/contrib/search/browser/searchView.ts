@@ -81,8 +81,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -193,12 +193,13 @@ export class SearchView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.container = dom.$('.search-view');
 
@@ -454,7 +455,7 @@ export class SearchView extends ViewPane {
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
 			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
-		this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
+		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -956,9 +957,7 @@ export class SearchView extends ViewPane {
 				}),
 				multipleSelectionSupport: true,
 				selectionNavigation: true,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				},
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SearchDelegate.ITEM_HEIGHT
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -1723,20 +1722,20 @@ export class SearchView extends ViewPane {
 			if (!completed) {
 				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
 					nls.localize('rerunSearch.message', "Search again"),
-					() => this.triggerQueryChange({ preserveFocus: false })));
+					() => this.triggerQueryChange({ preserveFocus: false }), this.hoverService));
 				dom.append(messageEl, searchAgainButton.element);
 			} else if (hasIncludes || hasExcludes) {
-				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
+				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this), this.hoverService));
 				dom.append(messageEl, searchAgainButton.element);
 			} else {
-				const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
+				const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this), this.hoverService));
 				dom.append(messageEl, openSettingsButton.element);
 			}
 
 			if (completed) {
 				dom.append(messageEl, $('span', undefined, ' - '));
 
-				const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
+				const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this), this.hoverService));
 				dom.append(messageEl, learnMoreButton.element);
 			}
 
@@ -1875,13 +1874,13 @@ export class SearchView extends ViewPane {
 		if (fileCount > 0) {
 			if (disregardExcludesAndIgnores) {
 				const excludesDisabledMessage = ' - ' + nls.localize('useIgnoresAndExcludesDisabled', "exclude settings and ignore files are disabled") + ' ';
-				const enableExcludesButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files")));
+				const enableExcludesButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), this.hoverService, nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files")));
 				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton.element, ')'));
 			}
 
 			if (onlyOpenEditors) {
 				const searchingInOpenMessage = ' - ' + nls.localize('onlyOpenEditors', "searching only in open files") + ' ';
-				const disableOpenEditorsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openEditors.disable', "disable"), this.onDisableSearchInOpenEditors.bind(this), nls.localize('disableOpenEditors', "Search in entire workspace")));
+				const disableOpenEditorsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openEditors.disable', "disable"), this.onDisableSearchInOpenEditors.bind(this), this.hoverService, nls.localize('disableOpenEditors', "Search in entire workspace")));
 				dom.append(messageEl, $('span', undefined, searchingInOpenMessage, '(', disableOpenEditorsButton.element, ')'));
 			}
 
@@ -1892,7 +1891,7 @@ export class SearchView extends ViewPane {
 				this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.OpenInEditorCommandId));
 			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
 				nls.localize('openInEditor.message', "Open in editor"),
-				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()),
+				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()), this.hoverService,
 				openInEditorTooltip));
 			dom.append(messageEl, openInEditorButton.element);
 
@@ -1930,7 +1929,7 @@ export class SearchView extends ViewPane {
 			nls.localize('openFolder', "Open Folder"),
 			() => {
 				this.commandService.executeCommand(env.isMacintosh && env.isNative ? OpenFileFolderAction.ID : OpenFolderAction.ID).catch(err => errors.onUnexpectedError(err));
-			}));
+			}, this.hoverService));
 		dom.append(textEl, openFolderButton.element);
 	}
 
@@ -2220,10 +2219,10 @@ export class SearchView extends ViewPane {
 class SearchLinkButton extends Disposable {
 	public readonly element: HTMLElement;
 
-	constructor(label: string, handler: (e: dom.EventLike) => unknown, tooltip?: string) {
+	constructor(label: string, handler: (e: dom.EventLike) => unknown, hoverService: IHoverService, tooltip?: string) {
 		super();
 		this.element = $('a.pointer', { tabindex: 0 }, label);
-		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
+		this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
 		this.addEventHandlers(handler);
 	}
 

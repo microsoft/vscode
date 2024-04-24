@@ -40,7 +40,7 @@
 	display: initial !important;
 }
 
-.interactive-result-code-block {
+.interactive-item-container .value .rendered-markdown [data-code] {
 	margin: 16px 0;
 }
 
@@ -110,4 +110,21 @@
 
 .interactive-result-code-block .interactive-result-vulns-header .monaco-text-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
+}
+
+/* compare code block */
+
+.interactive-result-code-block.compare.no-diff .message {
+	display: inherit;
+}
+
+.interactive-result-code-block.compare .message {
+	display: none;
+	padding: 6px;
+}
+
+
+.interactive-result-code-block.compare .message A {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
 }

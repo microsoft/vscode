@@ -7,13 +7,13 @@ import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
 import { AccessibilityAlertSettingId, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
-import { soundFeatureBase } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
+import { isDefined } from 'vs/base/common/types';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -95,6 +95,17 @@ export const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNo
 	type: 'object'
 });
 
+export const soundFeatureBase: IConfigurationPropertySchema = {
+	'type': 'string',
+	'enum': ['auto', 'on', 'off'],
+	'default': 'auto',
+	'enumDescriptions': [
+		localize('sound.enabled.auto', "Enable sound when a screen reader is attached."),
+		localize('sound.enabled.on', "Enable sound."),
+		localize('sound.enabled.off', "Disable sound.")
+	],
+	tags: ['accessibility'],
+};
 
 const signalFeatureBase: IConfigurationPropertySchema = {
 	'type': 'object',
@@ -128,6 +139,7 @@ const defaultNoAnnouncement: IConfigurationPropertySchema = {
 
 const configuration: IConfigurationNode = {
 	...accessibilityConfigurationNodeBase,
+	scope: ConfigurationScope.RESOURCE,
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
 			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),
@@ -246,8 +258,8 @@ const configuration: IConfigurationNode = {
 			'markdownDescription': localize('announcement.chatRequestSent', "Indicates when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
 			...baseAlertProperty
 		},
-		[AccessibilityAlertSettingId.ChatResponsePending]: {
-			'markdownDescription': localize('announcement.chatResponsePending', "Indicates when a chat response is pending. Also see {0}.", '`#audioCues.chatResponsePending#`'),
+		[AccessibilityAlertSettingId.Progress]: {
+			'markdownDescription': localize('announcement.progress', "Indicates when a chat response is pending. Also see {0}.", '`#audioCues.chatResponsePending#`'),
 			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.NoInlayHints]: {
@@ -359,6 +371,36 @@ const configuration: IConfigurationNode = {
 				},
 			},
 		},
+		'accessibility.signals.positionHasError': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.positionHasError', "Plays a signal when the active line has a warning."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.positionHasError.sound', "Plays a sound when the active line has a warning."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.positionHasError.announcement', "Indicates when the active line has a warning."),
+					...announcementFeatureBase,
+					default: 'on'
+				},
+			},
+		},
+		'accessibility.signals.positionHasWarning': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.positionHasWarning', "Plays a signal when the active line has a warning."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.positionHasWarning.sound', "Plays a sound when the active line has a warning."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.positionHasWarning.announcement', "Indicates when the active line has a warning."),
+					...announcementFeatureBase,
+					default: 'on'
+				},
+			},
+		},
 		'accessibility.signals.onDebugBreak': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.onDebugBreak', "Plays a signal when the debugger stopped on a breakpoint."),
@@ -417,14 +459,14 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.terminalCommandFailed': {
 			...signalFeatureBase,
-			'description': localize('accessibility.signals.terminalCommandFailed', "Plays a signal when a terminal command fails (non-zero exit code)."),
+			'description': localize('accessibility.signals.terminalCommandFailed', "Plays a signal when a terminal command fails (non-zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
 			'properties': {
 				'sound': {
-					'description': localize('accessibility.signals.terminalCommandFailed.sound', "Plays a sound when a terminal command fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.terminalCommandFailed.sound', "Plays a sound when a terminal command fails (non-zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.terminalCommandFailed.announcement', "Indicates when a terminal command fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.terminalCommandFailed.announcement', "Indicates when a terminal command fails (non-zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
 					...announcementFeatureBase
 				},
 			}
@@ -529,16 +571,16 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
-		'accessibility.signals.chatResponsePending': {
+		'accessibility.signals.progress': {
 			...signalFeatureBase,
-			'description': localize('accessibility.signals.chatResponsePending', "Plays a signal on loop while the response is pending."),
+			'description': localize('accessibility.signals.progress', "Plays a signal on loop while progress is occurring."),
 			'properties': {
 				'sound': {
-					'description': localize('accessibility.signals.chatResponsePending.sound', "Plays a sound on loop while the response is pending."),
+					'description': localize('accessibility.signals.progress.sound', "Plays a sound on loop while progress is occurring."),
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.chatResponsePending.announcement', "Alerts on loop while the response is pending."),
+					'description': localize('accessibility.signals.progress.announcement', "Alerts on loop while progress is occurring."),
 					...announcementFeatureBase
 				},
 			},
@@ -779,8 +821,20 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		}
 	}]);
 
+
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.map(item => ({
+	.registerConfigurationMigrations([{
+		key: 'accessibility.signals.chatResponsePending',
+		migrateFn: (value, accessor) => {
+			return [
+				['accessibility.signals.progress', { value }],
+				['accessibility.signals.chatResponsePending', { value: undefined }],
+			];
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.map<ConfigurationMigration | undefined>(item => item.legacySoundSettingsKey ? ({
 		key: item.legacySoundSettingsKey,
 		migrateFn: (sound, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
@@ -796,14 +850,14 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement !== undefined ? { announcement, sound } : { sound } }]);
 			return configurationKeyValuePairs;
 		}
-	})));
+	}) : undefined).filter(isDefined));
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.legacyAnnouncementSettingsKey).map(item => ({
+	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.legacyAnnouncementSettingsKey && !!i.legacySoundSettingsKey).map(item => ({
 		key: item.legacyAnnouncementSettingsKey!,
 		migrateFn: (announcement, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			const sound = accessor(item.settingsKey)?.sound || accessor(item.legacySoundSettingsKey);
+			const sound = accessor(item.settingsKey)?.sound || accessor(item.legacySoundSettingsKey!);
 			if (announcement !== undefined && typeof announcement !== 'string') {
 				announcement = announcement ? 'auto' : 'off';
 			}

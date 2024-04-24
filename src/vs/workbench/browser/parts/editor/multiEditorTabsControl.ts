@@ -815,6 +815,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const tabActionBarDisposable = combinedDisposable(tabActionBar, tabActionListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
 
+		// Tab Fade Hider
+		// Hides the tab fade to the right when tab action left and sizing shrink/fixed, ::after, ::before are already used
+		const tabShadowHider = document.createElement('div');
+		tabShadowHider.classList.add('tab-fade-hider');
+		tabContainer.appendChild(tabShadowHider);
+
 		// Tab Border Bottom
 		const tabBorderBottomContainer = document.createElement('div');
 		tabBorderBottomContainer.classList.add('tab-border-bottom-container');

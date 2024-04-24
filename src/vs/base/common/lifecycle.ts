@@ -561,7 +561,7 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
  * exist and cannot be undefined.
  */
 export class MandatoryMutableDisposable<T extends IDisposable> implements IDisposable {
-	private _disposable = new MutableDisposable<T>();
+	private readonly _disposable = new MutableDisposable<T>();
 	private _isDisposed = false;
 
 	constructor(initialValue: T) {

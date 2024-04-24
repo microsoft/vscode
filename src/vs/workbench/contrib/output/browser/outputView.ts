@@ -34,6 +34,7 @@ import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class OutputViewPane extends ViewPane {
 
@@ -56,8 +57,9 @@ export class OutputViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
 
 		const editorInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));

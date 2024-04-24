@@ -533,6 +533,13 @@ export interface IWorkspaceNotebookCellEdit {
 	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
 }
 
+export interface IWorkspaceNotebookCellEditDto {
+	metadata?: WorkspaceEditMetadata;
+	resource: URI;
+	notebookVersionId: number | undefined;
+	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
+}
+
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
@@ -902,7 +909,6 @@ export interface INotebookCellStatusBarItemList {
 }
 
 export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
-
 export const NotebookSetting = {
 	displayOrder: 'notebook.displayOrder',
 	cellToolbarLocation: 'notebook.cellToolbarLocation',
@@ -931,6 +937,7 @@ export const NotebookSetting = {
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	LinkifyOutputFilePaths: 'notebook.output.linkifyFilePaths',
+	minimalErrorRendering: 'notebook.output.minimalErrorRendering',
 	formatOnSave: 'notebook.formatOnSave.enabled',
 	insertFinalNewline: 'notebook.insertFinalNewline',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
@@ -953,9 +960,11 @@ export const NotebookSetting = {
 	breadcrumbsShowCodeCells: 'notebook.breadcrumbs.showCodeCells',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	cellChat: 'notebook.experimental.cellChat',
+	cellGenerate: 'notebook.experimental.generate',
 	notebookVariablesView: 'notebook.experimental.variablesView',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
+	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
 } as const;
 
 export const enum CellStatusbarAlignment {

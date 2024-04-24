@@ -62,6 +62,8 @@
 		"list.hoverBackground": "#F2F2F2",
 		"list.focusAndSelectionOutline": "#005FB8",
 		"menu.border": "#CECECE",
+		"menu.selectionBackground": "#005FB8",
+		"menu.selectionForeground": "#ffffff",
 		"notebook.cellBorderColor": "#E5E5E5",
 		"notebook.selectedCellBackground": "#C8DDF150",
 		"notificationCenterHeader.background": "#FFFFFF",
