@@ -33,11 +33,12 @@ import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
 const decreaseHoverVerbosityIcon = registerIcon('hover-decrease-verbosity', Codicon.remove, nls.localize('decreaseHoverVerbosity', 'Icon for decreasing hover verbosity.'));
-// const hoverSpinnerIcon = registerIcon('hover-spinner', Codicon.sync, nls.localize('hoverSpinner', 'Icon to indicate a hover computation.'));
+const hoverSpinnerIcon = registerIcon('hover-spinner', Codicon.loading, nls.localize('hoverSpinner', 'Spinner which indicates a hover computation is under way.'));
 
 export class MarkdownHover implements IHoverPart {
 
@@ -203,13 +204,13 @@ interface RenderedHoverPart {
 	renderedMarkdown: HTMLElement;
 	disposables: DisposableStore;
 	hoverSource?: HoverSource;
-	increaseVerbosityElementState?: HoverVerbosityElementState;
-	decreaseVerbosityElementState?: HoverVerbosityElementState;
+	renderedHoverActions?: RenderedHoverActions;
 }
 
-interface HoverVerbosityElementState {
-	element: HTMLElement;
-	initialEnablement: boolean;
+interface RenderedHoverActions {
+	hoverSpinner: HTMLElement;
+	increaseVerbosityElement: HTMLElement;
+	decreaseVerbosityElement: HTMLElement;
 }
 
 interface FocusedHoverInfo {
@@ -223,8 +224,10 @@ class MarkdownRenderedHoverParts extends Disposable {
 	private _renderedHoverParts: RenderedHoverPart[];
 	private _hoverFocusInfo: FocusedHoverInfo = { hoverPartIndex: -1, focusRemains: false };
 
-	private static ACTION_DISABLED_CLASS = 'action-disabled';
+	private static ACTION_VISIBLE_CLASS = 'action-visible';
+	private static ACTION_HIDDEN_CLASS = 'action-hidden';
 	private static ACTION_ENABLED_CLASS = 'action-enabled';
+	private static ACTION_DISABLED_CLASS = 'action-disabled';
 
 	constructor(
 		hoverParts: MarkdownHover[], // we own!
@@ -287,10 +290,11 @@ class MarkdownRenderedHoverParts extends Disposable {
 		const actionsContainer = $('div.verbosity-actions');
 		renderedMarkdown.prepend(actionsContainer);
 
-		const { disposables: increaseVerbosityDisposables, elementState: increaseVerbosityElementState } = this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity);
-		const { disposables: decreaseVerbosityDisposables, elementState: decreaseVerbosityElementState } = this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity);
-		disposables.add(increaseVerbosityDisposables);
-		disposables.add(decreaseVerbosityDisposables);
+		const hoverSpinner = this._renderHoverSpinner(actionsContainer);
+		const renderedIncreaseVerbosityAction = this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity);
+		const renderedDecreaseVerbosityAction = this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity);
+		disposables.add(renderedIncreaseVerbosityAction.disposables);
+		disposables.add(renderedDecreaseVerbosityAction.disposables);
 
 		const focusTracker = disposables.add(dom.trackFocus(renderedMarkdown));
 		disposables.add(focusTracker.onDidFocus(() => {
@@ -305,7 +309,12 @@ class MarkdownRenderedHoverParts extends Disposable {
 				return;
 			}
 		}));
-		return { renderedMarkdown, disposables, hoverSource, increaseVerbosityElementState, decreaseVerbosityElementState };
+		const renderedHoverActions: RenderedHoverActions = {
+			hoverSpinner,
+			increaseVerbosityElement: renderedIncreaseVerbosityAction.actionElement,
+			decreaseVerbosityElement: renderedDecreaseVerbosityAction.actionElement
+		};
+		return { renderedMarkdown, disposables, hoverSource, renderedHoverActions };
 	}
 
 	private _renderMarkdownContent(
@@ -328,7 +337,14 @@ class MarkdownRenderedHoverParts extends Disposable {
 		return { renderedMarkdown, disposables };
 	}
 
-	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, actionEnabled: boolean): { disposables: DisposableStore, elementState: HoverVerbosityElementState } {
+	private _renderHoverSpinner(container: HTMLElement): HTMLElement {
+		const hoverSpinner = renderIcon(hoverSpinnerIcon);
+		hoverSpinner.classList.add(MarkdownRenderedHoverParts.ACTION_HIDDEN_CLASS);
+		container.appendChild(hoverSpinner);
+		return hoverSpinner;
+	}
+
+	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, actionEnabled: boolean): { actionElement: HTMLElement; disposables: DisposableStore } {
 		const disposables = new DisposableStore();
 		const isActionIncrease = action === HoverVerbosityAction.Increase;
 		const actionElement = dom.append(container, $(ThemeIcon.asCSSSelector(isActionIncrease ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
@@ -345,16 +361,15 @@ class MarkdownRenderedHoverParts extends Disposable {
 				nls.localize('decreaseVerbosityWithKb', "Decrease Verbosity ({0})", kb.getLabel()) :
 				nls.localize('decreaseVerbosity', "Decrease Verbosity")));
 		}
-		const elementState: HoverVerbosityElementState = { element: actionElement, initialEnablement: actionEnabled };
 		if (!actionEnabled) {
 			actionElement.classList.add(MarkdownRenderedHoverParts.ACTION_DISABLED_CLASS);
-			return { disposables, elementState };
+			return { actionElement, disposables };
 		}
 		actionElement.classList.add(MarkdownRenderedHoverParts.ACTION_ENABLED_CLASS);
 		const actionFunction = () => this.updateFocusedHoverPartVerbosityLevel(action);
 		disposables.add(new ClickAction(actionElement, actionFunction));
 		disposables.add(new KeyDownAction(actionElement, actionFunction, [KeyCode.Enter, KeyCode.Space]));
-		return { disposables, elementState };
+		return { actionElement, disposables };
 	}
 
 	public async updateFocusedHoverPartVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
@@ -371,10 +386,12 @@ class MarkdownRenderedHoverParts extends Disposable {
 		if (hoverSource.isComputing) {
 			return;
 		}
-		const increaseVerbosityElement = hoverRenderedPart.increaseVerbosityElementState;
-		const decreaseVerbosityElement = hoverRenderedPart.decreaseVerbosityElementState;
-		this._lockHoverVerbosityRequests(hoverSource, increaseVerbosityElement, decreaseVerbosityElement, true);
+		const renderedHoverActions = hoverRenderedPart.renderedHoverActions;
+		if (!renderedHoverActions) {
+			return;
+		}
 
+		this._lockHoverVerbosityRequests(hoverSource, renderedHoverActions, true);
 		const hoverPosition = hoverSource.hoverPosition;
 		const hoverProvider = hoverSource.hoverProvider;
 		const hover = hoverSource.hover;
@@ -383,12 +400,11 @@ class MarkdownRenderedHoverParts extends Disposable {
 		let newHover: Hover | null | undefined;
 		try {
 			newHover = await Promise.resolve(hoverProvider.provideHover(model, hoverPosition, CancellationToken.None, hoverContext));
-			await new Promise(resolve => setTimeout(resolve, 3000));
 		} catch (e) {
 			onUnexpectedExternalError(e);
 		}
 		if (!newHover) {
-			this._lockHoverVerbosityRequests(hoverSource, increaseVerbosityElement, decreaseVerbosityElement, false);
+			this._lockHoverVerbosityRequests(hoverSource, renderedHoverActions, false);
 			return;
 		}
 
@@ -404,27 +420,24 @@ class MarkdownRenderedHoverParts extends Disposable {
 		this._onFinishedRendering();
 	}
 
-	private _lockHoverVerbosityRequests(hoverSource: HoverSource, increaseVerbosityElement: HoverVerbosityElementState | undefined, decreaseVerbosityElement: HoverVerbosityElementState | undefined, lock: boolean): void {
+	private _lockHoverVerbosityRequests(hoverSource: HoverSource, renderedHoverActions: RenderedHoverActions, lock: boolean): void {
 
 		// Utility functions
-		const changeClassEnablement = (element: HTMLElement, enabled: boolean) => {
-			if (enabled) {
-				element.classList.remove(MarkdownRenderedHoverParts.ACTION_DISABLED_CLASS);
-				element.classList.add(MarkdownRenderedHoverParts.ACTION_ENABLED_CLASS);
+		const changeElementVisibility = (element: HTMLElement, isVisible: boolean) => {
+			if (isVisible) {
+				element.classList.remove(MarkdownRenderedHoverParts.ACTION_HIDDEN_CLASS);
+				element.classList.add(MarkdownRenderedHoverParts.ACTION_VISIBLE_CLASS);
 			} else {
-				element.classList.remove(MarkdownRenderedHoverParts.ACTION_ENABLED_CLASS);
-				element.classList.add(MarkdownRenderedHoverParts.ACTION_DISABLED_CLASS);
+				element.classList.remove(MarkdownRenderedHoverParts.ACTION_VISIBLE_CLASS);
+				element.classList.add(MarkdownRenderedHoverParts.ACTION_HIDDEN_CLASS);
 			}
 		}
 
 		// Main code
 		hoverSource.isComputing = lock;
-		if (increaseVerbosityElement && increaseVerbosityElement.initialEnablement) {
-			changeClassEnablement(increaseVerbosityElement.element, !lock);
-		}
-		if (decreaseVerbosityElement && decreaseVerbosityElement.initialEnablement) {
-			changeClassEnablement(decreaseVerbosityElement.element, !lock);
-		}
+		changeElementVisibility(renderedHoverActions.hoverSpinner, lock);
+		changeElementVisibility(renderedHoverActions.increaseVerbosityElement, !lock);
+		changeElementVisibility(renderedHoverActions.decreaseVerbosityElement, !lock);
 	}
 
 	private _replaceRenderedHoverPartAtIndex(index: number, renderedHoverPart: RenderedHoverPart): void {
