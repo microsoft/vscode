@@ -42,6 +42,10 @@
 	background-color: var(--vscode-toolbar-hoverBackground)
 }
 
+.monaco-editor .rename-box .rename-candidate-list-container .monaco-list-row {
+	border-radius: 2px;
+}
+
 .monaco-editor .rename-box .rename-label {
 	display: none;
 	opacity: .8;

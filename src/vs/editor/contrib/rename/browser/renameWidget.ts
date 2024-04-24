@@ -667,6 +667,7 @@ class RenameCandidateListView {
 		this._typicalHalfwidthCharacterWidth = opts.fontInfo.typicalHalfwidthCharacterWidth;
 
 		this._listContainer = document.createElement('div');
+		this._listContainer.className = 'rename-box rename-candidate-list-container';
 		parent.appendChild(this._listContainer);
 
 		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
@@ -992,6 +993,7 @@ class RenameCandidateView {
 	constructor(parent: HTMLElement, fontInfo: FontInfo) {
 
 		this._domNode = document.createElement('div');
+		this._domNode.className = 'rename-box rename-candidate';
 		this._domNode.style.display = `flex`;
 		this._domNode.style.columnGap = `5px`;
 		this._domNode.style.alignItems = `center`;
