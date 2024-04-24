@@ -49,7 +49,6 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { COLOR_THEME_CONFIGURATION_SETTINGS_TAG } from 'vs/workbench/services/themes/common/themeConfiguration';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
