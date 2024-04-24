@@ -134,7 +134,7 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyR,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -151,7 +151,7 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyW,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -168,7 +168,7 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyC,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
