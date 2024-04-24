@@ -42,7 +42,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS -$MILESTONE is:issue is:closed reason:completed label:feature-request label:insiders-released -label:on-testplan -label:verified -label:*duplicate"
+    "value": "$REPOS -$MILESTONE is:issue is:closed reason:completed label:feature-request label:insiders-released -label:on-testplan -label:verified -label:*duplicate -label:error-telemetry"
   },
   {
     "kind": 1,
