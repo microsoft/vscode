@@ -46,11 +46,11 @@
 	font-size: 11px;
 }
 
-.monaco-editor .monaco-hover .hover-row .verbosity-actions .codicon.enabled {
+.monaco-editor .monaco-hover .hover-row .verbosity-actions .codicon.action-enabled {
 	color: var(--vscode-textLink-foreground);
 }
 
-.monaco-editor .monaco-hover .hover-row .verbosity-actions .codicon.disabled {
+.monaco-editor .monaco-hover .hover-row .verbosity-actions .codicon.action-disabled {
 	opacity: 0.6;
 }
 
