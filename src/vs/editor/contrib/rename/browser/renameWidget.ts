@@ -370,6 +370,9 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		}
 	}
 
+	/**
+	 * @param requestRenameCandidates is `undefined` when there are no rename suggestion providers
+	 */
 	getInput(
 		where: IRange,
 		currentName: string,
@@ -526,6 +529,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			const candidates = this._requestRenameCandidatesOnce(triggerKind, this._renameCandidateProvidersCts.token);
 
 			if (candidates.length === 0) {
+				this._inputWithButton.setSparkleButton();
 				return;
 			}
 
