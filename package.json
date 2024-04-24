@@ -100,6 +100,7 @@
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta11",
     "tas-client-umd": "0.1.8",
+    "ternary-stream": "^3.0.0",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",

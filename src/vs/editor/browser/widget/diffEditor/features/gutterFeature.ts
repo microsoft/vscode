@@ -106,8 +106,15 @@ export class DiffEditorGutter extends Disposable {
 
 	public computeStagedValue(mapping: DetailedLineRangeMapping): string {
 		const c = mapping.innerChanges ?? [];
-		const edit = new TextEdit(c.map(c => new SingleTextEdit(c.originalRange, this._editors.modifiedModel.get()!.getValueInRange(c.modifiedRange))));
-		const value = edit.apply(new TextModelText(this._editors.original.getModel()!));
+		// const edit = new TextEdit(c.map(c => new SingleTextEdit(c.originalRange, this._editors.modifiedModel.get()!.getValueInRange(c.modifiedRange))));
+		// const value = edit.apply(new TextModelText(this._editors.original.getModel()!));
+
+		const orig = new TextModelText(this._editors.original.getModel()!);
+		const modModel = new TextModelText(this._editors.modifiedModel.get()!);
+
+
+		const edit = new TextEdit(c.map(c => c.editText(modModel)));
+		const value = edit.apply(orig);
 		return value;
 	}
 

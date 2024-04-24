@@ -11,8 +11,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextLength } from 'vs/editor/common/core/textLength';
 
 export class TextEdit {
+
+
 	constructor(public readonly edits: readonly SingleTextEdit[]) {
 		assertFn(() => checkAdjacentItems(edits, (a, b) => a.range.getEndPosition().isBeforeOrEqual(b.range.getStartPosition())));
+	}
+
+	public static single(origRange: Range, newTextEdit: string): TextEdit {
+		return new TextEdit([new SingleTextEdit(origRange, newTextEdit)]);
 	}
 
 	/**
@@ -154,6 +160,13 @@ export class SingleTextEdit {
 	) {
 	}
 
+	// public singleTextEditOperation(): ISingleEditOperation {
+	// 	return {
+	// 		range: this.range,
+	// 		text: this.text,
+	// 	};
+	// }
+
 	get isEmpty(): boolean {
 		return this.range.isEmpty() && this.text.length === 0;
 	}
@@ -161,10 +174,18 @@ export class SingleTextEdit {
 	static equals(first: SingleTextEdit, second: SingleTextEdit) {
 		return first.range.equalsRange(second.range) && first.text === second.text;
 	}
+
+
 }
 
+
+
 function rangeFromPositions(start: Position, end: Position): Range {
-	if (!start.isBeforeOrEqual(end)) {
+	//if (!start.isBeforeOrEqual(end)) {
+
+	if (start.column === Number.MAX_SAFE_INTEGER && start.lineNumber === end.lineNumber) {
+		return Range.fromPositions(end, end);
+	} else if (!start.isBeforeOrEqual(end)) {
 		throw new BugIndicatingError('start must be before end');
 	}
 	return new Range(start.lineNumber, start.column, end.lineNumber, end.column);

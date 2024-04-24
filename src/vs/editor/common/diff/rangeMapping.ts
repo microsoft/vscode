@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
+import { AbstractText, SingleTextEdit } from 'vs/editor/common/core/textEdit';
 
 /**
  * Maps a line range in the original text model to a line range in the modified text model.
@@ -85,6 +86,46 @@ export class LineRangeMapping {
 	public get changedLineCount() {
 		return Math.max(this.original.length, this.modified.length);
 	}
+
+
+	public mapRange(): RangeMapping {
+		const origRange = this.original.toInclusiveRange();
+		const modRange = this.modified.toInclusiveRange();
+
+		// Check if both ranges are defined
+		if (origRange && modRange) {
+			return new RangeMapping(origRange, modRange);
+		}
+
+		// Handle cases where start line number is 1
+		if (this.original.startLineNumber === 1 || this.modified.startLineNumber === 1) {
+			this.validateSingleStartAtFirstLine();
+			return this.handleBothStartAtFirstLine();
+		}
+
+		// Assume start line numbers are greater than 1 for both
+		return this.expandStartLineNumbers();
+	}
+
+	private validateSingleStartAtFirstLine(): void {
+		if (!(this.modified.startLineNumber === 1 && this.original.startLineNumber === 1)) {
+			throw new BugIndicatingError('not a valid diff');
+		}
+	}
+
+	private handleBothStartAtFirstLine(): RangeMapping {
+		return new RangeMapping(
+			new Range(this.original.startLineNumber, 1, this.original.endLineNumberExclusive, 1),
+			new Range(this.modified.startLineNumber, 1, this.modified.endLineNumberExclusive, 1),
+		);
+	}
+
+	private expandStartLineNumbers(): RangeMapping {
+		return new RangeMapping(
+			new Range(this.original.startLineNumber - 1, Number.MAX_SAFE_INTEGER, this.original.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER),
+			new Range(this.modified.startLineNumber - 1, Number.MAX_SAFE_INTEGER, this.modified.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER),
+		);
+	}
 }
 
 /**
@@ -120,9 +161,10 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 	}
 
 	public withInnerChangesFromLineRanges(): DetailedLineRangeMapping {
-		return new DetailedLineRangeMapping(this.original, this.modified, [
-			new RangeMapping(this.original.toExclusiveRange(), this.modified.toExclusiveRange()),
-		]);
+		// return new DetailedLineRangeMapping(this.original, this.modified, [
+		// 	new RangeMapping(this.original.toExclusiveRange(), this.modified.toExclusiveRange()),
+		// ]);
+		return new DetailedLineRangeMapping(this.original, this.modified, [this.mapRange()]);
 	}
 }
 
@@ -148,6 +190,11 @@ export class RangeMapping {
 		this.modifiedRange = modifiedRange;
 	}
 
+	public editText(targetText: AbstractText): SingleTextEdit {
+		const extractedText = targetText.getValueOfRange(this.modifiedRange);
+		return new SingleTextEdit(this.originalRange, extractedText);
+	}
+
 	public toString(): string {
 		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
 	}
@@ -155,4 +202,8 @@ export class RangeMapping {
 	public flip(): RangeMapping {
 		return new RangeMapping(this.modifiedRange, this.originalRange);
 	}
+
+
+
+
 }
