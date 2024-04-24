@@ -253,16 +253,16 @@ class TypeDefinitionAdapter {
 	}
 }
 
-class HoverAdapter<T extends vscode.Hover = vscode.Hover> {
+class HoverAdapter {
 
 	private _hoverCounter: number = 0;
-	private _hoverMap: Map<number, T> = new Map<number, T>();
+	private _hoverMap: Map<number, vscode.Hover> = new Map<number, vscode.Hover>();
 
 	private static HOVER_MAP_MAX_SIZE = 10;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.HoverProvider<T>,
+		private readonly _provider: vscode.HoverProvider,
 	) { }
 
 	async provideHover(resource: URI, position: IPosition, context: languages.HoverContext<{ id: number }> | undefined, token: CancellationToken): Promise<extHostProtocol.HoverWithId | undefined> {
@@ -270,14 +270,14 @@ class HoverAdapter<T extends vscode.Hover = vscode.Hover> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		let value: T | null | undefined;
+		let value: vscode.Hover | null | undefined;
 		if (context && context.verbosityRequest) {
 			const previousHoverId = context.verbosityRequest.previousHover.id;
 			const previousHover = this._hoverMap.get(previousHoverId);
 			if (!previousHover) {
 				throw new Error(`Hover with id ${previousHoverId} not found`);
 			}
-			const hoverContext: vscode.HoverContext<T> = { action: context.verbosityRequest.action, previousHover };
+			const hoverContext: vscode.HoverContext = { action: context.verbosityRequest.action, previousHover };
 			value = await this._provider.provideHover(doc, pos, token, hoverContext);
 		} else {
 			value = await this._provider.provideHover(doc, pos, token);
