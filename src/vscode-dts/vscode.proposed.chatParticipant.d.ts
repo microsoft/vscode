@@ -32,9 +32,9 @@ declare module 'vscode' {
 		/**
 		 * The variables that were referenced in this message.
 		 * Either
-		 * - a variable which is a skill (#codebase)
-		 * - a variable with an immediate value (#selection) because it's fast and should only be resolved once at the beginning, since it may change. And is probably also a skill.
+		 * - a variable which is a skill invocation (#codebase)
 		 * - a reference to a resource (#file) which is not a skill
+		 * - a variable with an immediate value (#selection) because it's fast and should only be resolved once at the beginning, since it may change. And is probably also a skill.
 		 */
 		readonly variables: ChatVariableIdentifier[];
 
@@ -253,6 +253,7 @@ declare module 'vscode' {
 		 */
 		readonly command: string | undefined;
 
+		skillInvocations: SkillInvocation[];
 
 		/**
 		 * The list of variables and their values that are referenced in the prompt.
@@ -265,6 +266,33 @@ declare module 'vscode' {
 		 */
 		readonly variables: readonly ChatVariableIdentifier[];
 	}
+
+	// export interface ChatWorkspaceContext {
+	// 	selection?: Location;
+
+	// 	viewportCode?: Location;
+
+	// 	terminalSelection?: string;
+	// 	terminalLastCommand?: string;
+
+	// 	files?: Uri[];
+	// }
+
+	export interface Reference<T = any> {
+		/**
+		 * The name of the skill invoked.
+		 */
+		readonly name: string;
+
+		readonly range: [start: number, end: number];
+
+		/**
+		 * The value or result of the skill invocation.
+		 */
+		readonly value: T;
+	}
+
+	export type SkillInvocation = Reference<string | Uri>;
 
 	export interface ChatVariableIdentifier {
 		/**
@@ -284,7 +312,7 @@ declare module 'vscode' {
 		readonly range: [start: number, end: number];
 
 		// If no value, needs to be resolved
-		readonly value: string | Uri | undefined;
+		readonly value: string | Uri | Location | any | undefined;
 	}
 
 	/**

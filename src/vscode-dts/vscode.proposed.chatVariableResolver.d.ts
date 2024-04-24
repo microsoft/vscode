@@ -56,21 +56,26 @@ declare module 'vscode' {
 
 	export interface ChatSkillOptions {
 		/** Does it show up as a variable in the UI? */
-		isVariable?: boolean; // "manual" skill, "explicit" skill, ...
+		// ~~Must not have parameters to set this~~
+		// Can have parameters, and then function calling has to happen
+		// But what if the parameters can't be determined from the query by the LLM?
+		canBeAddedManually?: boolean; // "manual" skill, "explicit" skill, ...
 
 		/** Is invoked automatically before the chat request is made? */
 		isFast?: boolean;
 	}
 
 	export namespace chat {
-		export function registerSkill(skill: ChatSkill): Disposable;
+		export function registerSkill(skill: ChatSkill, options: ChatSkillOptions): Disposable;
 
 		export const skills: ReadonlyArray<ChatSkillDescription>;
 		// Can non-chat participant AI actions invoke skills, just at any random time?
 		// For chat participants, this should be part of the request
+		// #codebase declares a parameter as "the user's query" and we have to do real function calling to resolve that parameter
 		export function invokeSkill(skillName: string, parameters: Object, token: CancellationToken): Thenable<string | undefined>;
 	}
 
+	// TODO This part declared in package.json
 	export interface ChatSkillDescription {
 		name: string;
 		description: string;
