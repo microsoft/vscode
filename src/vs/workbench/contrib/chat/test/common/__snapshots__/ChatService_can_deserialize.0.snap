@@ -28,6 +28,7 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionPublisherId: "",
               extensionPublisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
@@ -65,12 +66,12 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionPublisherId: "",
         extensionPublisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
         metadata: {  },
-        slashCommands: [  ],
-        extensionPublisherId: ""
+        slashCommands: [  ]
       },
       slashCommand: undefined,
       usedContext: {
