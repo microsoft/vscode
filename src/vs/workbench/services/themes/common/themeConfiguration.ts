@@ -43,7 +43,7 @@ const colorThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string', //
-	markdownDescription: nls.localize({ key: 'preferredDarkColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when the system color is dark and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
+	markdownDescription: nls.localize({ key: 'preferredDarkColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when the system color mode is dark and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
 	default: ThemeSettingDefaults.COLOR_THEME_DARK,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 	enum: colorThemeSettingEnum,
@@ -53,7 +53,7 @@ const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	markdownDescription: nls.localize({ key: 'preferredLightColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when the system color is light and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
+	markdownDescription: nls.localize({ key: 'preferredLightColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when the system color mode is light and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
 	default: ThemeSettingDefaults.COLOR_THEME_LIGHT,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 	enum: colorThemeSettingEnum,
@@ -84,7 +84,7 @@ const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	markdownDescription:
-		nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the OS system color. If the OS system color is dark, the theme specified at {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME))
+		nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME))
 		+ (ENABLE_SYSTEM_COLOR_SCHEME_SETTING ? nls.localize({ key: 'detectColorSchemeSys', comment: ['{0} will become a link to another setting.'] }, '\n\nThis setting is ignored if {0} is configured.', formatSettingAsLink(ThemeSettings.SYSTEM_COLOR_THEME)) : ''),
 
 	default: false,

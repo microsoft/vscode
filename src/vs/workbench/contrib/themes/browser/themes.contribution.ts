@@ -425,12 +425,12 @@ registerAction2(class extends Action2 {
 
 	private getTitle(colorScheme: ColorScheme | undefined): string {
 		switch (colorScheme) {
-			case ColorScheme.DARK: return localize('themes.selectTheme.darkScheme', "Select Color Theme for Dark OS System Theme");
-			case ColorScheme.LIGHT: return localize('themes.selectTheme.lightScheme', "Select Color Theme for Light OS System Theme");
+			case ColorScheme.DARK: return localize('themes.selectTheme.darkScheme', "Select Color Theme for Dark System Color Mode");
+			case ColorScheme.LIGHT: return localize('themes.selectTheme.lightScheme', "Select Color Theme for Light System Color Mode");
 			case ColorScheme.HIGH_CONTRAST_DARK: return localize('themes.selectTheme.darkHC', "Select Color Theme for Dark High Contrast Mode");
 			case ColorScheme.HIGH_CONTRAST_LIGHT: return localize('themes.selectTheme.lightHC', "Select Color Theme for Light High Contrast Mode");
 			default:
-				return localize('themes.selectTheme.default', "Select Color Theme for all OS System Themes");
+				return localize('themes.selectTheme.default', "Select Color Theme for all System Color Modes");
 		}
 	}
 
@@ -443,14 +443,14 @@ registerAction2(class extends Action2 {
 		let modeConfigureToggle;
 		if (preferredColorScheme) {
 			modeConfigureToggle = new Toggle({
-				title: localize('themes.configure.switchingEnabled', 'Configure themes for other OS system themes.'),
+				title: localize('themes.configure.switchingEnabled', 'Configure theme switching based on the system color mode.'),
 				icon: Codicon.colorMode,
 				isChecked: false,
 				...defaultToggleStyles
 			});
 		} else {
 			modeConfigureToggle = new Toggle({
-				title: localize('themes.configure.switchingDisabled', 'Configure themes switching based on the OS system theme.'),
+				title: localize('themes.configure.switchingDisabled', 'Configure theme switching based on the system color mode.'),
 				icon: Codicon.colorMode,
 				isChecked: false,
 				...defaultToggleStyles
