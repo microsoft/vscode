@@ -3,51 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { Extensions, IExtensionFeatureMarkdownAndTableRenderer, IExtensionFeaturesRegistry, IRenderedData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { ILanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
-import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-
-export interface ILanguageModelStats {
-	readonly identifier: string;
-	readonly extensions: {
-		readonly extensionId: string;
-		readonly requestCount: number;
-		readonly tokenCount: number;
-		readonly sessionRequestCount: number;
-		readonly sessionTokenCount: number;
-		readonly participants: {
-			readonly id: string;
-			readonly requestCount: number;
-			readonly tokenCount: number;
-			readonly sessionRequestCount: number;
-			readonly sessionTokenCount: number;
-		}[];
-	}[];
-}
 
 export const ILanguageModelStatsService = createDecorator<ILanguageModelStatsService>('ILanguageModelStatsService');
 
 export interface ILanguageModelStatsService {
-
 	readonly _serviceBrand: undefined;
 
-	readonly onDidChangeLanguageMoelStats: Event<string>;
-
-	hasAccessedModel(extensionId: string, model: string): boolean;
-
 	update(model: string, extensionId: ExtensionIdentifier, agent: string | undefined, tokenCount: number | undefined): Promise<void>;
-	fetch(model: string): Promise<ILanguageModelStats>;
-
 }
 
 interface LanguageModelStats {
@@ -76,6 +46,7 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 	private readonly sessionStats = new Map<string, LanguageModelStats>();
 
 	constructor(
+		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
@@ -91,35 +62,9 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 		return this.getAccessExtensions(model).includes(extensionId.toLowerCase());
 	}
 
-	async fetch(model: string): Promise<ILanguageModelStats> {
-		const globalStats = await this.read(model);
-		const sessionStats = this.sessionStats.get(model) ?? { extensions: [] };
-		return {
-			identifier: model,
-			extensions: globalStats.extensions.map(extension => {
-				const sessionExtension = sessionStats.extensions.find(e => e.extensionId === extension.extensionId);
-				return {
-					extensionId: extension.extensionId,
-					requestCount: extension.requestCount,
-					tokenCount: extension.tokenCount,
-					sessionRequestCount: sessionExtension?.requestCount ?? 0,
-					sessionTokenCount: sessionExtension?.tokenCount ?? 0,
-					participants: extension.participants.map(participant => {
-						const sessionParticipant = sessionExtension?.participants.find(p => p.id === participant.id);
-						return {
-							id: participant.id,
-							requestCount: participant.requestCount,
-							tokenCount: participant.tokenCount,
-							sessionRequestCount: sessionParticipant?.requestCount ?? 0,
-							sessionTokenCount: sessionParticipant?.tokenCount ?? 0
-						};
-					})
-				};
-			})
-		};
-	}
-
 	async update(model: string, extensionId: ExtensionIdentifier, agent: string | undefined, tokenCount: number | undefined): Promise<void> {
+		await this.extensionFeaturesManagementService.getAccess(extensionId, 'languageModels');
+
 		// update model access
 		this.addAccess(model, extensionId.value);
 
@@ -215,166 +160,6 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 	}
 }
 
-interface Stats {
-	requestCount: number;
-	tokenCount: number;
-	sessionRequestCount: number;
-	sessionTokenCount: number;
-}
-
-interface ExtensionLanguageModelStats extends Stats {
-	languageModelId: string;
-	other: Stats;
-	participants: Array<Stats & { name: string }>;
-}
-
-class LanguageModelFeatureRenderer extends Disposable implements IExtensionFeatureMarkdownAndTableRenderer {
-
-	readonly type = 'markdown+table';
-
-	constructor(
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@ILanguageModelStatsService private readonly _languageModelStatsService: ILanguageModelStatsService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-	) {
-		super();
-	}
-
-	shouldRender(manifest: IExtensionManifest): boolean {
-		if (!!manifest.contributes?.chatParticipants?.length) {
-			return true;
-		}
-		const extensionId = getExtensionId(manifest.publisher, manifest.name);
-		if (this._languageModelsService.getLanguageModelIds().some(id =>
-			this._languageModelStatsService.hasAccessedModel(extensionId, id)
-			|| ExtensionIdentifier.equals(this._languageModelsService.lookupLanguageModel(id)?.extension, extensionId))) {
-			return true;
-		}
-		return false;
-	}
-
-	render(manifest: IExtensionManifest): IRenderedData<Array<IMarkdownString | ITableData>> {
-		const disposables = new DisposableStore();
-		const extensionId = getExtensionId(manifest.publisher, manifest.name);
-		const emitter = disposables.add(new Emitter<Array<IMarkdownString | ITableData>>());
-
-		this.fetchAllLanguageModelStats(extensionId).then(({ data, onDidChange, disposable }) => {
-			disposables.add(disposable);
-			const renderData = (languageModelStats: ExtensionLanguageModelStats[]) => {
-				const data: Array<IMarkdownString | ITableData> = [];
-				for (const stats of languageModelStats) {
-					if (stats.requestCount > 0) {
-						const languageModelTitle = new MarkdownString();
-						languageModelTitle.appendMarkdown(`&nbsp;&nbsp;`);
-						languageModelTitle.appendMarkdown(`\n\n### ${stats.languageModelId}\n---\n\n`);
-						data.push(languageModelTitle);
-						const tableData: ITableData = {
-							headers: [localize('participant', "Participant"), localize('requests', "Requests"), localize('tokens', "Tokens"), localize('requests session', "Requests (Session)"), localize('tokens session', "Tokens (Session)")],
-							rows: [
-								...stats.participants.map(participant => [participant.name, `${participant.requestCount}`, `${participant.tokenCount}`, `${participant.sessionRequestCount}`, `${participant.sessionTokenCount}`]),
-								stats.other.requestCount > 0 ? [stats.participants.length ? 'Other' : '', `${stats.other.requestCount}`, `${stats.other.tokenCount}`, `${stats.other.sessionRequestCount}`, `${stats.other.sessionTokenCount}`] : [],
-								stats.participants.length ? ['Total', `${stats.requestCount}`, `${stats.tokenCount}`, `${stats.sessionRequestCount}`, `${stats.sessionTokenCount}`] : [],
-							]
-						};
-						data.push(tableData);
-					}
-				}
-				return data;
-			};
-			emitter.fire(renderData(data));
-			disposables.add(onDidChange(data => emitter.fire(renderData(data))));
-		});
-
-		const data: Array<IMarkdownString | ITableData> = [];
-		data.push(new MarkdownString().appendMarkdown(`Fetching...`));
-
-		return {
-			data,
-			onDidChange: emitter.event,
-			dispose: () => {
-				disposables.dispose();
-			}
-		};
-	}
-
-	private async fetchAllLanguageModelStats(extensionId: string): Promise<{ data: ExtensionLanguageModelStats[]; onDidChange: Event<ExtensionLanguageModelStats[]>; disposable: IDisposable }> {
-		const disposables = new DisposableStore();
-		const data: ExtensionLanguageModelStats[] = [];
-		const emitter = disposables.add(new Emitter<ExtensionLanguageModelStats[]>());
-
-		const models = this._languageModelsService.getLanguageModelIds();
-		for (const model of models) {
-			data.push(await this.fetchLanguageModelStats(extensionId, model));
-		}
-
-		disposables.add(this._languageModelStatsService.onDidChangeLanguageMoelStats(model => {
-			this.fetchLanguageModelStats(extensionId, model).then(stats => {
-				const index = data.findIndex(d => d.languageModelId === model);
-				if (index !== -1) {
-					data[index] = stats;
-				} else {
-					data.push(stats);
-				}
-				emitter.fire(data);
-			});
-		}));
-
-		return {
-			data,
-			onDidChange: emitter.event,
-			disposable: disposables
-		};
-	}
-
-	private async fetchLanguageModelStats(extensionId: string, languageModel: string): Promise<ExtensionLanguageModelStats> {
-		const result: ExtensionLanguageModelStats = {
-			languageModelId: languageModel,
-			requestCount: 0,
-			tokenCount: 0,
-			sessionRequestCount: 0,
-			sessionTokenCount: 0,
-			other: {
-				requestCount: 0,
-				tokenCount: 0,
-				sessionRequestCount: 0,
-				sessionTokenCount: 0,
-			},
-			participants: []
-		};
-		const stats = await this._languageModelStatsService.fetch(languageModel);
-		const extensionStats = stats?.extensions.find(e => ExtensionIdentifier.equals(e.extensionId, extensionId));
-		if (extensionStats) {
-			result.requestCount = extensionStats.requestCount;
-			result.tokenCount = extensionStats.tokenCount;
-			result.sessionRequestCount = extensionStats.sessionRequestCount;
-			result.sessionTokenCount = extensionStats.sessionTokenCount;
-			result.other.requestCount = extensionStats.requestCount;
-			result.other.tokenCount = extensionStats.tokenCount;
-			result.other.sessionRequestCount = extensionStats.sessionRequestCount;
-			result.other.sessionTokenCount = extensionStats.sessionTokenCount;
-			for (const participant of extensionStats.participants) {
-				const agent = this._chatAgentService.getAgent(participant.id);
-				result.requestCount += participant.requestCount;
-				result.tokenCount += participant.tokenCount;
-				result.sessionRequestCount += participant.sessionRequestCount;
-				result.sessionTokenCount += participant.sessionTokenCount;
-				result.participants.splice(agent?.isDefault ? 0 : result.participants.length, 0, {
-					name: agent ?
-						agent?.isDefault ?
-							agent.locations.includes(ChatAgentLocation.Editor) ? localize('chat editor', "Inline Chat (Editor)") : localize('chat', "Chat")
-							: `@${agent.name}`
-						: participant.id,
-					requestCount: participant.requestCount,
-					tokenCount: participant.tokenCount,
-					sessionRequestCount: participant.sessionRequestCount,
-					sessionTokenCount: participant.sessionTokenCount
-				});
-			}
-		}
-		return result;
-	}
-}
-
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'languageModels',
 	label: localize('Language Models', "Language Models"),
@@ -382,5 +167,4 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 	access: {
 		canToggle: false
 	},
-	renderer: new SyncDescriptor(LanguageModelFeatureRenderer),
 });
