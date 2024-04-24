@@ -8,6 +8,7 @@ import { Derived, derived } from 'vs/base/common/observableInternal/derived';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
 import { strictEquals } from 'vs/base/common/equals';
+import { CancellationError } from 'vs/base/common/errors';
 
 export class ObservableLazy<T> {
 	private readonly _value = observableValue<T | undefined>(this, undefined);
@@ -120,9 +121,9 @@ export class ObservableLazyPromise<T> {
  * Resolves the promise when the observables state matches the predicate.
  */
 export function waitForState<T>(observable: IObservable<T | null | undefined>): Promise<T>;
-export function waitForState<T, TState extends T>(observable: IObservable<T>, predicate: (state: T) => state is TState, isError?: (state: T) => boolean | unknown | undefined): Promise<TState>;
-export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean, isError?: (state: T) => boolean | unknown | undefined): Promise<T>;
-export function waitForState<T>(observable: IObservable<T>, predicate?: (state: T) => boolean, isError?: (state: T) => boolean | unknown | undefined): Promise<T> {
+export function waitForState<T, TState extends T>(observable: IObservable<T>, predicate: (state: T) => state is TState, isError?: (state: T) => boolean | unknown | undefined, cancellationToken?: CancellationToken): Promise<TState>;
+export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean, isError?: (state: T) => boolean | unknown | undefined, cancellationToken?: CancellationToken): Promise<T>;
+export function waitForState<T>(observable: IObservable<T>, predicate?: (state: T) => boolean, isError?: (state: T) => boolean | unknown | undefined, cancellationToken?: CancellationToken): Promise<T> {
 	if (!predicate) {
 		predicate = state => state !== null && state !== undefined;
 	}
@@ -154,6 +155,19 @@ export function waitForState<T>(observable: IObservable<T>, predicate?: (state: 
 				}
 			}
 		});
+		if (cancellationToken) {
+			const dc = cancellationToken.onCancellationRequested(() => {
+				d.dispose();
+				dc.dispose();
+				reject(new CancellationError());
+			});
+			if (cancellationToken.isCancellationRequested) {
+				d.dispose();
+				dc.dispose();
+				reject(new CancellationError());
+				return;
+			}
+		}
 		isImmediateRun = false;
 		if (shouldDispose) {
 			d.dispose();

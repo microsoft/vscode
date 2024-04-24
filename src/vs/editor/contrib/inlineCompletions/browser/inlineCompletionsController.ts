@@ -5,8 +5,14 @@
 
 import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { timeout } from 'vs/base/common/async';
+import { cancelOnDispose } from 'vs/base/common/cancellation';
+import { itemEquals, itemsEquals } from 'vs/base/common/equals';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from 'vs/base/common/observable';
+import { ISettableObservable, observableValueOpts } from 'vs/base/common/observableInternal/base';
+import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
+import { isUndefined } from 'vs/base/common/types';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -23,16 +29,13 @@ import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from
 import { InlineCompletionsModel, VersionIdChangeReason } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
-import { ISettableObservable, observableValueOpts } from 'vs/base/common/observableInternal/base';
-import { itemsEquals, itemEquals } from 'vs/base/common/equals';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -217,6 +220,7 @@ export class InlineCompletionsController extends Disposable {
 			this._suggestWidgetAdaptor.stopForceRenderingAbove();
 		}));
 
+		const cancellationStore = this._register(new DisposableStore());
 		let lastInlineCompletionId: string | undefined = undefined;
 		this._register(autorunHandleChanges({
 			handleChange: (context, changeSummary) => {
@@ -225,7 +229,7 @@ export class InlineCompletionsController extends Disposable {
 				}
 				return true;
 			},
-		}, async reader => {
+		}, async (reader, _) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
 			this._playAccessibilitySignal.read(reader);
 
@@ -237,13 +241,18 @@ export class InlineCompletionsController extends Disposable {
 			}
 
 			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
+				cancellationStore.clear();
 				lastInlineCompletionId = state.inlineCompletion.semanticId;
 				const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
-				this._accessibilitySignalService.playSignal(AccessibilitySignal.inlineSuggestion).then(() => {
-					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						this.provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));
-					}
-				});
+
+				await timeout(50, cancelOnDispose(cancellationStore));
+				await waitForState(this._suggestWidgetAdaptor.selectedItem, isUndefined, () => false, cancelOnDispose(cancellationStore));
+
+				await this._accessibilitySignalService.playSignal(AccessibilitySignal.inlineSuggestion);
+
+				if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
+					this.provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));
+				}
 			}
 		}));
 

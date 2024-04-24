@@ -8,23 +8,23 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as model from 'vs/editor/common/model';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import * as languages from 'vs/editor/common/languages';
+import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/languages/language';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
+import * as model from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 
 /**
  * Register information about a new language.
@@ -809,6 +809,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		InlineEditTriggerKind: standaloneEnums.InlineEditTriggerKind,
 		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 		NewSymbolNameTag: standaloneEnums.NewSymbolNameTag,
+		NewSymbolNameTriggerKind: standaloneEnums.NewSymbolNameTriggerKind,
 		PartialAcceptTriggerKind: standaloneEnums.PartialAcceptTriggerKind,
 		HoverVerbosityAction: standaloneEnums.HoverVerbosityAction,
 
