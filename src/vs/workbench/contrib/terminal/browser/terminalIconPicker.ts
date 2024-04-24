@@ -18,6 +18,9 @@ const icons = new Lazy<IconContribution[]>(() => {
 	const iconDefinitions = getIconRegistry().getIcons();
 	const includedChars = new Set<string>();
 	const dedupedIcons = iconDefinitions.filter(e => {
+		if (e.id === 'blank') {
+			return false;
+		}
 		if (!('fontCharacter' in e.defaults)) {
 			return false;
 		}
