@@ -177,6 +177,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 	private getNthDirname(path: string, filename: string, n: number): string | undefined {
 		// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
+		path = path.startsWith('/') ? path.slice(1) : path;
 		const pathFragments = path.split('/');
 
 		const length = pathFragments.length;
