@@ -24,6 +24,12 @@ declare module 'vscode' {
 	}
 
 	export interface NewSymbolNamesProvider {
+
+		/**
+		 * @default false
+		 */
+		readonly supportsAutomaticTriggerKind?: Thenable<boolean>;
+
 		/**
 		 * Provide possible new names for the symbol at the given range.
 		 *

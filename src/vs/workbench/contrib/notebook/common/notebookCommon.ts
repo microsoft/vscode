@@ -960,6 +960,7 @@ export const NotebookSetting = {
 	breadcrumbsShowCodeCells: 'notebook.breadcrumbs.showCodeCells',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	cellChat: 'notebook.experimental.cellChat',
+	cellGenerate: 'notebook.experimental.generate',
 	notebookVariablesView: 'notebook.experimental.variablesView',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',

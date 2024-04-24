@@ -53,7 +53,13 @@ import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chat
 import { ILabelService } from 'vs/platform/label/common/label';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
+import { TextEdit } from 'vs/editor/common/languages';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { isEqual } from 'vs/base/common/resources';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { TextModelText } from 'vs/editor/common/model/textModelText';
 
 const $ = dom.$;
 
@@ -491,7 +497,6 @@ export class CodeCompareBlockPart extends Disposable {
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
-			readOnly: true,
 			lineNumbers: 'on',
 			selectOnLineNumbers: true,
 			scrollBeyondLastLine: false,
@@ -755,5 +760,110 @@ export class CodeCompareBlockPart extends Disposable {
 			element: data.element,
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
+	}
+}
+
+export class DefaultChatTextEditor {
+
+	private readonly _sha1 = new DefaultModelSHA1Computer();
+
+	constructor(
+		@ITextModelService private readonly modelService: ITextModelService,
+		@ICodeEditorService private readonly editorService: ICodeEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
+	) { }
+
+	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup): Promise<void> {
+
+		if (!response.response.value.includes(item)) {
+			// bogous item
+			return;
+		}
+
+		if (item.state?.applied) {
+			// already applied
+			return;
+		}
+
+		let diffEditor: IDiffEditor | undefined;
+		for (const candidate of this.editorService.listDiffEditors()) {
+			if (!candidate.getContainerDomNode().isConnected) {
+				continue;
+			}
+			const model = candidate.getModel();
+			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompreBlock) {
+				diffEditor = candidate;
+				break;
+			}
+		}
+
+		const edits = diffEditor
+			? await this._applyWithDiffEditor(diffEditor, item)
+			: await this._apply(item);
+
+		response.setEditApplied(item, edits);
+	}
+
+	private async _applyWithDiffEditor(diffEditor: IDiffEditor, item: IChatTextEditGroup) {
+		const model = diffEditor.getModel();
+		if (!model) {
+			return 0;
+		}
+
+		const diff = diffEditor.getDiffComputationResult();
+		if (!diff || diff.identical) {
+			return 0;
+		}
+
+
+		if (!await this._checkSha1(model.original, item)) {
+			return 0;
+		}
+
+		const modified = new TextModelText(model.modified);
+		const edits = diff.changes2.map(i => i.toRangeMapping().toTextEdit(modified).toSingleEditOperation());
+
+		model.original.pushStackElement();
+		model.original.pushEditOperations(null, edits, () => null);
+		model.original.pushStackElement();
+
+		return edits.length;
+	}
+
+	private async _apply(item: IChatTextEditGroup) {
+		const ref = await this.modelService.createModelReference(item.uri);
+		try {
+
+			if (!await this._checkSha1(ref.object.textEditorModel, item)) {
+				return 0;
+			}
+
+			ref.object.textEditorModel.pushStackElement();
+			let total = 0;
+			for (const group of item.edits) {
+				const edits = group.map(TextEdit.asEditOperation);
+				ref.object.textEditorModel.pushEditOperations(null, edits, () => null);
+				total += edits.length;
+			}
+			ref.object.textEditorModel.pushStackElement();
+			return total;
+
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _checkSha1(model: ITextModel, item: IChatTextEditGroup) {
+		if (item.state?.sha1 && this._sha1.computeSHA1(model) && this._sha1.computeSHA1(model) !== item.state.sha1) {
+			const result = await this.dialogService.confirm({
+				message: localize('interactive.compare.apply.confirm', "The original file has been modified."),
+				detail: localize('interactive.compare.apply.confirm.detail', "Do you want to apply the changes anyway?"),
+			});
+
+			if (!result.confirmed) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

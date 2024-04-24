@@ -7903,6 +7903,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface NewSymbolNamesProvider {
+		supportsAutomaticNewSymbolNamesTriggerKind?: Promise<boolean | undefined>;
 		provideNewSymbolNames(model: editor.ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): ProviderResult<NewSymbolName[]>;
 	}
 
