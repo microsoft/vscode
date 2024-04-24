@@ -42,6 +42,10 @@ export class NotebookCellOutlineProvider {
 	readonly outlineKind = 'notebookCells';
 
 	get activeElement(): OutlineEntry | undefined {
+		if (this.delayedOutlineRecompute.isTriggered()) {
+			this.delayedOutlineRecompute.cancel();
+			this._recomputeState();
+		}
 		return this._activeEntry;
 	}
 
@@ -57,8 +61,8 @@ export class NotebookCellOutlineProvider {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService);
-		const delayerRecomputeActive = this._disposables.add(new Delayer(200));
 
+		const delayerRecomputeActive = this._disposables.add(new Delayer(200));
 		this._disposables.add(_editor.onDidChangeSelection(() => {
 			delayerRecomputeActive.trigger(() => this._recomputeActive());
 		}, this))
