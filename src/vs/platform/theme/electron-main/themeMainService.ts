@@ -63,14 +63,14 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateSystemColorTheme(): void {
-		switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(SYSTEM_COLOR_THEME)) {
+		switch (this.configurationService.getValue<'default' | 'matchColorTheme' | 'light' | 'dark'>(SYSTEM_COLOR_THEME)) {
 			case 'dark':
 				nativeTheme.themeSource = 'dark';
 				break;
 			case 'light':
 				nativeTheme.themeSource = 'light';
 				break;
-			case 'auto':
+			case 'matchColorTheme':
 				switch (this.getBaseTheme()) {
 					case 'vs': nativeTheme.themeSource = 'light'; break;
 					case 'vs-dark': nativeTheme.themeSource = 'dark'; break;
