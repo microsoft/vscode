@@ -704,20 +704,24 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterExtensionsByFeature(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		const value = query.value.replace(/@feature:/g, '').trim().toLowerCase();
+		const value = query.value.replace(/@feature:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
 			return [];
 		}
 		const renderer = feature.renderer ? this.instantiationService.createInstance<IExtensionFeatureRenderer>(feature.renderer) : undefined;
-		const result = local.filter(e => {
-			if (!e.local) {
-				return false;
-			}
-			return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
-		});
-		return this.sortExtensions(result, options);
+		try {
+			const result = local.filter(e => {
+				if (!e.local) {
+					return false;
+				}
+				return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
+			});
+			return this.sortExtensions(result, options);
+		} finally {
+			renderer?.dispose();
+		}
 	}
 
 	private mergeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
