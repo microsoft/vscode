@@ -21,7 +21,7 @@ configurationRegistry.registerConfiguration({
 				localize('window.systemColorTheme.light', "Enforce a light system color theme."),
 				localize('window.systemColorTheme.dark', "Enforce a dark system color theme."),
 			],
-			markdownDescription: localize({ key: 'window.systemColorTheme', comment: ['{0} and {1} will become links to other settings.'] }, "Overrides the system color theme that is used for native UI elements such as native dialogs, menus and title bar. Even if your OS is configured in light appearance mode, you can select a dark system color theme for the window. You can also configure to automatically adjust based on the {0} setting. Note: Using this setting will disable {1}", formatSettingAsLink(ThemeSettings.COLOR_THEME), formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
+			markdownDescription: localize({ key: 'window.systemColorTheme', comment: ['{0} and {1} will become links to other settings.'] }, "Overrides the system color theme that is used for native UI elements such as native dialogs, menus and title bar. Even if your OS is configured in light appearance mode, you can select a dark system color theme for the window. You can also configure to automatically adjust based on the {0} setting. Note: Using this setting will disable {1}.", formatSettingAsLink(ThemeSettings.COLOR_THEME), formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
 			default: 'default',
 			included: ENABLE_SYSTEM_COLOR_SCHEME_SETTING,
 			scope: ConfigurationScope.APPLICATION,
