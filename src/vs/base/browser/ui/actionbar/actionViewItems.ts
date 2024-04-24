@@ -37,6 +37,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	readonly _action: IAction;
 
 	private customHover?: IUpdatableHover;
+	protected _canClick?: boolean;
 
 	get action() {
 		return this._action;
@@ -49,6 +50,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 		this._context = context || this;
 		this._action = action;
+		this._canClick = true;
 
 		if (action instanceof Action) {
 			this._register(action.onDidChange(event => {
@@ -120,7 +122,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			}
 		}
 
-		this._register(addDisposableListener(element, TouchEventType.Tap, e => this.onClick(e, true))); // Preserve focus on tap #125470
+		this._register(addDisposableListener(element, TouchEventType.Tap, e => {
+			if (this._canClick) {
+				this.onClick(e, true);
+			}
+		})); // Preserve focus on tap #125470
 
 		this._register(addDisposableListener(element, EventType.MOUSE_DOWN, e => {
 			if (!enableDragging) {
@@ -148,7 +154,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			EventHelper.stop(e, true);
 
 			// menus do not use the click event
-			if (!(this.options && this.options.isMenu)) {
+			if (!(this.options && this.options.isMenu) && this._canClick) {
 				this.onClick(e);
 			}
 		}));
@@ -311,6 +317,17 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.updateTooltip();
 		this.updateEnabled();
 		this.updateChecked();
+
+		// Prevent Firefox from triggering a click on mouse up from a draggable element - #180833
+		if (isFirefox) {
+			this._canClick = false;
+			this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, e => {
+				this._canClick = true;
+			}));
+			this._register(addDisposableListener(this.element, EventType.MOUSE_LEAVE, e => {
+				this._canClick = false;
+			}));
+		}
 	}
 
 	private getDefaultAriaRole(): 'presentation' | 'menuitem' | 'button' {

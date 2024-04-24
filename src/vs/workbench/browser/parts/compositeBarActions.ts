@@ -27,6 +27,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import { isFirefox } from 'vs/base/common/platform';
 
 export interface ICompositeBar {
 
@@ -268,6 +269,17 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		append(container, $('.active-item-indicator'));
 
 		hide(this.badge);
+
+		// Prevent Firefox from triggering a click on mouse up from a draggable element - #180833
+		if (isFirefox && this.element) {
+			this._canClick = false;
+			this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, e => {
+				this._canClick = true;
+			}));
+			this._register(addDisposableListener(this.element, EventType.MOUSE_LEAVE, e => {
+				this._canClick = false;
+			}));
+		}
 
 		this.update();
 		this.updateStyles();
