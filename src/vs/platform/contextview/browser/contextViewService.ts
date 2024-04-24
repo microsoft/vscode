@@ -45,7 +45,7 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 		this.contextView.show(delegate);
 
 		const disposable = toDisposable(() => {
-			if (this.currentViewDisposable.value === disposable) {
+			if (this.currentViewDisposable === disposable) {
 				this.hideContextView();
 			}
 		});
