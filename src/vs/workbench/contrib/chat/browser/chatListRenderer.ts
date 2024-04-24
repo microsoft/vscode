@@ -398,12 +398,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			agentName = this.chatAgentNameService.getAgentNameRestriction(element.agent)
 				.map(allowed => allowed ? name : name); // TODO
 		}
-		sdfsdfsdf;
+		// // sdfsdfsdf;
 		templateData.elementDisposables.add(autorun(reader => {
 			this._renderDetail(element, agentName.read(reader), templateData);
 		}));
 	}
-
+	// sdfs
 	private _renderDetail(element: IChatResponseViewModel, agentName: string | undefined, templateData: IChatListItemTemplate): void {
 		let progressMsg: string = '';
 		if (!isUndefined(agentName)) {
