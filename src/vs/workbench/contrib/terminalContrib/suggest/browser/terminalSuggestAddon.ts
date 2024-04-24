@@ -348,13 +348,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (model.items.length === 0 || !this._terminal?.element || !this._promptInputModel) {
 			return;
 		}
-		if (model.items.length === 1) {
-			this.acceptSelectedSuggestion({
-				item: model.items[0],
-				model: model
-			});
-			return;
-		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		const dimensions = this._getTerminalDimensions();
 		if (!dimensions.width || !dimensions.height) {
