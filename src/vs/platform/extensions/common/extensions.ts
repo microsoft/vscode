@@ -162,6 +162,11 @@ export interface INotebookRendererContribution {
 	readonly mimeTypes: string[];
 }
 
+export interface IDebugVisualizationContribution {
+	readonly id: string;
+	readonly when: string;
+}
+
 export interface ITranslation {
 	id: string;
 	path: string;
@@ -199,6 +204,8 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
+	readonly debugVisualizers?: IDebugVisualizationContribution[];
+	readonly chatParticipants?: ReadonlyArray<{ id: string }>;
 }
 
 export interface IExtensionCapabilities {
@@ -249,6 +256,8 @@ export const EXTENSION_CATEGORIES = [
 	'Testing',
 	'Themes',
 	'Visualization',
+	'AI',
+	'Chat',
 	'Other',
 ];
 
@@ -316,6 +325,7 @@ export interface IExtension {
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
 	readonly targetPlatform: TargetPlatform;
+	readonly publisherDisplayName?: string;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
@@ -452,6 +462,7 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	id?: string;
 	identifier: ExtensionIdentifier;
 	uuid?: string;
+	publisherDisplayName?: string;
 	targetPlatform: TargetPlatform;
 	isBuiltin: boolean;
 	isUserBuiltin: boolean;

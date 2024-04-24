@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -16,6 +15,11 @@ const agentReg = /^@([\w_\-]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
 const slashReg = /\/([\w_\-]+)(?=(\s|$|\b))/i; // A / command
 
+export interface IChatParserContext {
+	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
+	selectedAgent?: IChatAgentData;
+}
+
 export class ChatRequestParser {
 	constructor(
 		@IChatAgentService private readonly agentService: IChatAgentService,
@@ -23,7 +27,7 @@ export class ChatRequestParser {
 		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService
 	) { }
 
-	async parseChatRequest(sessionId: string, message: string): Promise<IParsedChatRequest> {
+	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
 
@@ -37,10 +41,9 @@ export class ChatRequestParser {
 				if (char === chatVariableLeader) {
 					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts);
 				} else if (char === chatAgentLeader) {
-					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts);
+					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				} else if (char === chatSubcommandLeader) {
-					// TODO try to make this sync
-					newPart = await this.tryToParseSlashCommand(sessionId, message.slice(i), message, i, new Position(lineNumber, column), parts);
+					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts);
 				}
 
 				if (!newPart) {
@@ -87,18 +90,24 @@ export class ChatRequestParser {
 		};
 	}
 
-	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
-		const nextVariableMatch = message.match(agentReg);
-		if (!nextVariableMatch) {
+	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
+		const nextAgentMatch = message.match(agentReg);
+		if (!nextAgentMatch) {
 			return;
 		}
 
-		const [full, name] = nextVariableMatch;
-		const varRange = new OffsetRange(offset, offset + full.length);
-		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
+		const [full, name] = nextAgentMatch;
+		const agentRange = new OffsetRange(offset, offset + full.length);
+		const agentEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const agent = this.agentService.getAgent(name);
-		if (!agent) {
+		const agents = this.agentService.getAgentsByName(name);
+
+		// If there is more than one agent with this name, and the user picked it from the suggest widget, then the selected agent should be in the
+		// context and we use that one. Otherwise just pick the first.
+		const agent = agents.length > 1 && context?.selectedAgent ?
+			context.selectedAgent :
+			agents[0];
+		if (!agent || !agent.locations.includes(location)) {
 			return;
 		}
 
@@ -119,7 +128,7 @@ export class ChatRequestParser {
 			return;
 		}
 
-		return new ChatRequestAgentPart(varRange, varEditorRange, agent);
+		return new ChatRequestAgentPart(agentRange, agentEditorRange, agent);
 	}
 
 	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
@@ -140,7 +149,7 @@ export class ChatRequestParser {
 		return;
 	}
 
-	private async tryToParseSlashCommand(sessionId: string, remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): Promise<ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined> {
+	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
 		const nextSlashMatch = remainingMessage.match(slashReg);
 		if (!nextSlashMatch) {
 			return;
@@ -169,8 +178,7 @@ export class ChatRequestParser {
 				return;
 			}
 
-			const subCommands = await usedAgent.agent.provideSlashCommands(CancellationToken.None);
-			const subCommand = subCommands.find(c => c.name === command);
+			const subCommand = usedAgent.agent.slashCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);

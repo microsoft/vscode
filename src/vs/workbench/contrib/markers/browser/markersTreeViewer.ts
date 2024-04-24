@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/path';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -18,7 +17,7 @@ import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname, basename, isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
@@ -39,7 +38,6 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IFileService } from 'vs/platform/files/common/files';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
@@ -51,6 +49,9 @@ import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/marker
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import Severity from 'vs/base/common/severity';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 interface IResourceMarkersTemplateData {
 	readonly resourceLabel: IResourceLabel;
@@ -156,8 +157,6 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	constructor(
 		private labels: ResourceLabels,
 		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
-		@ILabelService private readonly labelService: ILabelService,
-		@IFileService private readonly fileService: IFileService
 	) {
 		onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this, this.disposables);
 	}
@@ -178,11 +177,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		const resourceMarkers = node.element;
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 
-		if (this.fileService.hasProvider(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
-			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
-		} else {
-			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
-		}
+		templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 
 		this.updateCount(node, templateData);
 		const nodeRenders = this.renderedNodes.get(resourceMarkers) ?? [];
@@ -234,6 +229,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	constructor(
 		private readonly markersViewState: MarkersViewModel,
+		@IHoverService protected hoverService: IHoverService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
 	) { }
@@ -242,7 +238,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.openerService, this.instantiationService);
+		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.hoverService, this.openerService, this.instantiationService);
 		return data;
 	}
 
@@ -285,17 +281,19 @@ class MarkerWidget extends Disposable {
 	private readonly icon: HTMLElement;
 	private readonly iconContainer: HTMLElement;
 	private readonly messageAndDetailsContainer: HTMLElement;
+	private readonly messageAndDetailsContainerHover: IUpdatableHover;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		private parent: HTMLElement,
 		private readonly markersViewModel: MarkersViewModel,
+		private readonly _hoverService: IHoverService,
 		private readonly _openerService: IOpenerService,
 		_instantiationService: IInstantiationService
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
+			actionViewItemProvider: (action: IAction, options) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action, options) : undefined
 		}));
 
 		// wrap the icon in a container that get the icon color as foreground color. That way, if the
@@ -304,6 +302,7 @@ class MarkerWidget extends Disposable {
 		this.iconContainer = dom.append(parent, dom.$(''));
 		this.icon = dom.append(this.iconContainer, dom.$(''));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
+		this.messageAndDetailsContainerHover = this._register(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.messageAndDetailsContainer, ''));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
@@ -342,9 +341,9 @@ class MarkerWidget extends Disposable {
 
 	private renderMultilineActionbar(marker: Marker, parent: HTMLElement): void {
 		const multilineActionbar = this.disposables.add(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), {
-			actionViewItemProvider: (action) => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === toggleMultilineAction) {
-					return new ToggleMultilineActionViewItem(undefined, action, { icon: true });
+					return new ToggleMultilineActionViewItem(undefined, action, { ...options, icon: true });
 				}
 				return undefined;
 			}
@@ -366,13 +365,13 @@ class MarkerWidget extends Disposable {
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
 		const lineMatches = filterData && filterData.lineMatches || [];
-		this.messageAndDetailsContainer.title = element.marker.message;
+		this.messageAndDetailsContainerHover.update(element.marker.message);
 
 		const lineElements: HTMLElement[] = [];
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			const lineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
 			const messageElement = dom.append(lineElement, dom.$('.marker-message'));
-			const highlightedLabel = new HighlightedLabel(messageElement);
+			const highlightedLabel = this.disposables.add(new HighlightedLabel(messageElement));
 			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
 			if (lines[index] === '') {
 				lineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
@@ -387,20 +386,20 @@ class MarkerWidget extends Disposable {
 		parent.classList.add('details-container');
 
 		if (marker.source || marker.code) {
-			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')));
+			const source = this.disposables.add(new HighlightedLabel(dom.append(parent, dom.$('.marker-source'))));
 			const sourceMatches = filterData && filterData.sourceMatches || [];
 			source.set(marker.source, sourceMatches);
 
 			if (marker.code) {
 				if (typeof marker.code === 'string') {
-					const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')));
+					const code = this.disposables.add(new HighlightedLabel(dom.append(parent, dom.$('.marker-code'))));
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code, codeMatches);
 				} else {
 					const container = dom.$('.marker-code');
-					const code = new HighlightedLabel(container);
+					const code = this.disposables.add(new HighlightedLabel(container));
 					const link = marker.code.target.toString(true);
-					this.disposables.add(new Link(parent, { href: link, label: container, title: link }, undefined, this._openerService));
+					this.disposables.add(new Link(parent, { href: link, label: container, title: link }, undefined, this._hoverService, this._openerService));
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
 				}
@@ -443,15 +442,15 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 		const messageMatches = node.filterData && node.filterData.messageMatches || [];
 
-		templateData.resourceLabel.set(basename(relatedInformation.resource), uriMatches);
-		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
+		const resourceLabelTitle = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
+		templateData.resourceLabel.set(basename(relatedInformation.resource), uriMatches, resourceLabelTitle);
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
-		templateData.description.set(relatedInformation.message, messageMatches);
-		templateData.description.element.title = relatedInformation.message;
+		templateData.description.set(relatedInformation.message, messageMatches, relatedInformation.message);
 	}
 
 	disposeTemplate(templateData: IRelatedInformationTemplateData): void {
-		// noop
+		templateData.resourceLabel.dispose();
+		templateData.description.dispose();
 	}
 }
 

@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
@@ -93,11 +93,18 @@ export const testingCoveredBackground = registerColor('testing.coveredBackground
 	hcLight: null
 }, localize('testing.coveredBackground', 'Background color of text that was covered.'));
 
+export const testingCoveredBorder = registerColor('testing.coveredBorder', {
+	dark: transparent(testingCoveredBackground, 0.75),
+	light: transparent(testingCoveredBackground, 0.75),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('testing.coveredBorder', 'Border color of text that was covered.'));
+
 export const testingCoveredGutterBackground = registerColor('testing.coveredGutterBackground', {
 	dark: transparent(diffInserted, 0.6),
 	light: transparent(diffInserted, 0.6),
-	hcDark: null,
-	hcLight: null
+	hcDark: chartsGreen,
+	hcLight: chartsGreen
 }, localize('testing.coveredGutterBackground', 'Gutter color of regions where code was covered.'));
 
 export const testingUncoveredBranchBackground = registerColor('testing.uncoveredBranchBackground', {
@@ -114,12 +121,33 @@ export const testingUncoveredBackground = registerColor('testing.uncoveredBackgr
 	hcLight: null
 }, localize('testing.uncoveredBackground', 'Background color of text that was not covered.'));
 
+export const testingUncoveredBorder = registerColor('testing.uncoveredBorder', {
+	dark: transparent(testingUncoveredBackground, 0.75),
+	light: transparent(testingUncoveredBackground, 0.75),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('testing.uncoveredBorder', 'Border color of text that was not covered.'));
+
 export const testingUncoveredGutterBackground = registerColor('testing.uncoveredGutterBackground', {
 	dark: transparent(diffRemoved, 1.5),
 	light: transparent(diffRemoved, 1.5),
-	hcDark: null,
-	hcLight: null
+	hcDark: chartsRed,
+	hcLight: chartsRed
 }, localize('testing.uncoveredGutterBackground', 'Gutter color of regions where code not covered.'));
+
+export const testingCoverCountBadgeBackground = registerColor('testing.coverCountBadgeBackground', {
+	dark: badgeBackground,
+	light: badgeBackground,
+	hcDark: badgeBackground,
+	hcLight: badgeBackground
+}, localize('testing.coverCountBadgeBackground', 'Background for the badge indicating execution count'));
+
+export const testingCoverCountBadgeForeground = registerColor('testing.coverCountBadgeForeground', {
+	dark: badgeForeground,
+	light: badgeForeground,
+	hcDark: badgeForeground,
+	hcLight: badgeForeground
+}, localize('testing.coverCountBadgeForeground', 'Foreground for the badge indicating execution count'));
 
 export const testMessageSeverityColors: {
 	[K in TestMessageType]: {
@@ -162,25 +190,70 @@ export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 	[TestResultState.Skipped]: testingColorIconSkipped,
 };
 
+export const testingRetiredColorIconErrored = registerColor('testing.iconErrored.retired', {
+	dark: transparent(testingColorIconErrored, 0.7),
+	light: transparent(testingColorIconErrored, 0.7),
+	hcDark: transparent(testingColorIconErrored, 0.7),
+	hcLight: transparent(testingColorIconErrored, 0.7)
+}, localize('testing.iconErrored.retired', "Retired color for the 'Errored' icon in the test explorer."));
+
+export const testingRetiredColorIconFailed = registerColor('testing.iconFailed.retired', {
+	dark: transparent(testingColorIconFailed, 0.7),
+	light: transparent(testingColorIconFailed, 0.7),
+	hcDark: transparent(testingColorIconFailed, 0.7),
+	hcLight: transparent(testingColorIconFailed, 0.7)
+}, localize('testing.iconFailed.retired', "Retired color for the 'failed' icon in the test explorer."));
+
+export const testingRetiredColorIconPassed = registerColor('testing.iconPassed.retired', {
+	dark: transparent(testingColorIconPassed, 0.7),
+	light: transparent(testingColorIconPassed, 0.7),
+	hcDark: transparent(testingColorIconPassed, 0.7),
+	hcLight: transparent(testingColorIconPassed, 0.7)
+}, localize('testing.iconPassed.retired', "Retired color for the 'passed' icon in the test explorer."));
+
+export const testingRetiredColorIconQueued = registerColor('testing.iconQueued.retired', {
+	dark: transparent(testingColorIconQueued, 0.7),
+	light: transparent(testingColorIconQueued, 0.7),
+	hcDark: transparent(testingColorIconQueued, 0.7),
+	hcLight: transparent(testingColorIconQueued, 0.7)
+}, localize('testing.iconQueued.retired', "Retired color for the 'Queued' icon in the test explorer."));
+
+export const testingRetiredColorIconUnset = registerColor('testing.iconUnset.retired', {
+	dark: transparent(testingColorIconUnset, 0.7),
+	light: transparent(testingColorIconUnset, 0.7),
+	hcDark: transparent(testingColorIconUnset, 0.7),
+	hcLight: transparent(testingColorIconUnset, 0.7)
+}, localize('testing.iconUnset.retired', "Retired color for the 'Unset' icon in the test explorer."));
+
+export const testingRetiredColorIconSkipped = registerColor('testing.iconSkipped.retired', {
+	dark: transparent(testingColorIconSkipped, 0.7),
+	light: transparent(testingColorIconSkipped, 0.7),
+	hcDark: transparent(testingColorIconSkipped, 0.7),
+	hcLight: transparent(testingColorIconSkipped, 0.7)
+}, localize('testing.iconSkipped.retired', "Retired color for the 'Skipped' icon in the test explorer."));
+
+export const testStatesToRetiredIconColors: { [K in TestResultState]?: string } = {
+	[TestResultState.Errored]: testingRetiredColorIconErrored,
+	[TestResultState.Failed]: testingRetiredColorIconFailed,
+	[TestResultState.Passed]: testingRetiredColorIconPassed,
+	[TestResultState.Queued]: testingRetiredColorIconQueued,
+	[TestResultState.Unset]: testingRetiredColorIconUnset,
+	[TestResultState.Skipped]: testingRetiredColorIconSkipped,
+};
+
 registerThemingParticipant((theme, collector) => {
 
 	const editorBg = theme.getColor(editorBackground);
 	const missBadgeBackground = editorBg && theme.getColor(testingUncoveredBackground)?.transparent(2).makeOpaque(editorBg);
 
 	collector.addRule(`
-	.coverage-deco-inline.coverage-deco-hit {
-		outline: 1px solid ${theme.getColor(testingCoveredBackground)?.transparent(0.75)};
-	}
 	.coverage-deco-inline.coverage-deco-hit.coverage-deco-hovered {
 		background: ${theme.getColor(testingCoveredBackground)?.transparent(1.3)};
-		outline: 1px solid ${theme.getColor(testingCoveredBackground)?.transparent(2)};
-	}
-	.coverage-deco-inline.coverage-deco-miss {
-		outline: 1px solid ${theme.getColor(testingUncoveredBackground)?.transparent(0.75)};
+		outline-color: ${theme.getColor(testingCoveredBorder)?.transparent(2)};
 	}
 	.coverage-deco-inline.coverage-deco-miss.coverage-deco-hovered {
 		background: ${theme.getColor(testingUncoveredBackground)?.transparent(1.3)};
-		outline: 1px solid ${theme.getColor(testingUncoveredBackground)?.transparent(2)};
+		outline-color: ${theme.getColor(testingUncoveredBorder)?.transparent(2)};
 	}
 	.coverage-deco-branch-miss-indicator::before {
 		border-color: ${missBadgeBackground?.transparent(1.3)};

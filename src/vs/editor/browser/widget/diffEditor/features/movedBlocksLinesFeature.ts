@@ -7,7 +7,7 @@ import { h } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { booleanComparator, compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
-import { findMaxIdxBy } from 'vs/base/common/arraysFind';
+import { findMaxIdx } from 'vs/base/common/arraysFind';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
@@ -83,8 +83,6 @@ export class MovedBlocksLinesFeature extends Disposable {
 			}
 		}));
 
-		const originalCursorPosition = observableFromEvent(this._editors.original.onDidChangeCursorPosition, () => this._editors.original.getPosition());
-		const modifiedCursorPosition = observableFromEvent(this._editors.modified.onDidChangeCursorPosition, () => this._editors.modified.getPosition());
 		const originalHasFocus = observableSignalFromEvent(
 			'original.onDidFocusEditorWidget',
 			e => this._editors.original.onDidFocusEditorWidget(() => setTimeout(() => e(undefined), 0))
@@ -115,14 +113,14 @@ export class MovedBlocksLinesFeature extends Disposable {
 			let movedText: MovedText | undefined = undefined;
 
 			if (diff && lastChangedEditor === 'original') {
-				const originalPos = originalCursorPosition.read(reader);
+				const originalPos = this._editors.originalCursor.read(reader);
 				if (originalPos) {
 					movedText = diff.movedTexts.find(m => m.lineRangeMapping.original.contains(originalPos.lineNumber));
 				}
 			}
 
 			if (diff && lastChangedEditor === 'modified') {
-				const modifiedPos = modifiedCursorPosition.read(reader);
+				const modifiedPos = this._editors.modifiedCursor.read(reader);
 				if (modifiedPos) {
 					movedText = diff.movedTexts.find(m => m.lineRangeMapping.modified.contains(modifiedPos.lineNumber));
 				}
@@ -260,7 +258,7 @@ class LinesLayout {
 			if (trackIdx === -1) {
 				const maxTrackCount = 6;
 				if (setsPerTrack.length >= maxTrackCount) {
-					trackIdx = findMaxIdxBy(setsPerTrack, compareBy(set => set.intersectWithRangeLength(line), numberComparator));
+					trackIdx = findMaxIdx(setsPerTrack, compareBy(set => set.intersectWithRangeLength(line), numberComparator));
 				} else {
 					trackIdx = setsPerTrack.length;
 					setsPerTrack.push(new OffsetRangeSet());

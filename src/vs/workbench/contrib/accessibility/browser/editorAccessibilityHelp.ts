@@ -15,10 +15,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibleViewProviderId, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
-import { IAccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
+import { IAccessibleViewService, IAccessibleViewContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/comments.contribution';
+import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
@@ -42,7 +43,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 	}
 }
 
-class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
+class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Editor;
 	onClose() {
 		this._editor.focus();
@@ -74,8 +75,13 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
-		content.push(AccessibilityHelpNLS.listAudioCues);
+		content.push(AccessibilityHelpNLS.listSignalSounds);
 		content.push(AccessibilityHelpNLS.listAlerts);
+
+		const chatCommandInfo = getChatCommandInfo(this._keybindingService, this._contextKeyService);
+		if (chatCommandInfo) {
+			content.push(chatCommandInfo);
+		}
 
 		const commentCommandInfo = getCommentCommandInfo(this._keybindingService, this._contextKeyService, this._editor);
 		if (commentCommandInfo) {
@@ -105,6 +111,16 @@ export function getCommentCommandInfo(keybindingService: IKeybindingService, con
 		commentCommandInfo.push(descriptionForCommand(CommentCommandId.PreviousThread, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadNoKb, keybindingService));
 		commentCommandInfo.push(descriptionForCommand(CommentCommandId.NextRange, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb, keybindingService));
 		commentCommandInfo.push(descriptionForCommand(CommentCommandId.PreviousRange, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb, keybindingService));
+		return commentCommandInfo.join('\n');
+	}
+	return;
+}
+
+export function getChatCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService): string | undefined {
+	if (CONTEXT_CHAT_ENABLED.getValue(contextKeyService)) {
+		const commentCommandInfo: string[] = [];
+		commentCommandInfo.push(descriptionForCommand('workbench.action.quickchat.toggle', AccessibilityHelpNLS.quickChat, AccessibilityHelpNLS.quickChatNoKb, keybindingService));
+		commentCommandInfo.push(descriptionForCommand('inlineChat.start', AccessibilityHelpNLS.startInlineChat, AccessibilityHelpNLS.startInlineChatNoKb, keybindingService));
 		return commentCommandInfo.join('\n');
 	}
 	return;

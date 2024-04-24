@@ -6,6 +6,12 @@
 import * as nls from 'vs/nls';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
+import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 enum CodeActionExtensionPointFields {
 	languages = 'languages',
@@ -65,3 +71,57 @@ export const codeActionsExtensionPointDescriptor = {
 	deps: [languagesExtPoint],
 	jsonSchema: codeActionsExtensionPointSchema
 };
+
+class CodeActionsTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.codeActions;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const codeActions = manifest.contributes?.codeActions || [];
+		if (!codeActions.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const flatActions =
+			codeActions.map(contribution =>
+				contribution.actions.map(action => ({ ...action, languages: contribution.languages }))).flat();
+
+		const headers = [
+			nls.localize('codeActions.title', "Title"),
+			nls.localize('codeActions.kind', "Kind"),
+			nls.localize('codeActions.description', "Description"),
+			nls.localize('codeActions.languages', "Languages")
+		];
+
+		const rows: IRowData[][] = flatActions.sort((a, b) => a.title.localeCompare(b.title))
+			.map(action => {
+				return [
+					action.title,
+					new MarkdownString().appendMarkdown(`\`${action.kind}\``),
+					action.description ?? '',
+					new MarkdownString().appendMarkdown(`${action.languages.map(lang => `\`${lang}\``).join('&nbsp;')}`),
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'codeActions',
+	label: nls.localize('codeactions', "Code Actions"),
+	access: {
+		canToggle: false,
+	},
+	renderer: new SyncDescriptor(CodeActionsTableRenderer),
+});

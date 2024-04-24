@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -19,6 +17,8 @@ import { editorErrorForeground, editorWarningForeground } from 'vs/platform/them
 import { isEqual } from 'vs/base/common/resources';
 
 class MarkerListProvider implements IMarkerListProvider {
+
+	static readonly ID = 'workbench.contrib.markerListProvider';
 
 	private readonly _dispoables: IDisposable;
 
@@ -97,8 +97,6 @@ class NotebookMarkerDecorationContribution extends Disposable implements INotebo
 	}
 }
 
-Registry
-	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MarkerListProvider, LifecyclePhase.Ready);
+registerWorkbenchContribution2(MarkerListProvider.ID, MarkerListProvider, WorkbenchPhase.BlockRestore);
 
 registerNotebookContribution(NotebookMarkerDecorationContribution.id, NotebookMarkerDecorationContribution);

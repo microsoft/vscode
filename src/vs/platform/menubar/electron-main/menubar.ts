@@ -22,7 +22,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/window/common/window';
+import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 
@@ -85,7 +85,7 @@ export class Menubar {
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
 
-		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
+		if (isMacintosh || hasNativeTitlebar(configurationService)) {
 			this.restoreCachedMenubarData();
 		}
 
@@ -247,7 +247,7 @@ export class Menubar {
 		}
 
 		const focusedWindow = BrowserWindow.getFocusedWindow();
-		this.noActiveMainWindow = !focusedWindow || !!this.auxiliaryWindowsMainService.getWindowById(focusedWindow.id);
+		this.noActiveMainWindow = !focusedWindow || !!this.auxiliaryWindowsMainService.getWindowByWebContents(focusedWindow.webContents);
 		this.scheduleUpdateMenu();
 	}
 
@@ -379,6 +379,13 @@ export class Menubar {
 		// Setting the application menu sets it to all opened windows,
 		// but we currently do not support a menu in auxiliary windows,
 		// so we need to unset it there.
+		//
+		// This is a bit ugly but `setApplicationMenu()` has some nice
+		// behaviour we want:
+		// - on macOS it is required because menus are application set
+		// - we use `getApplicationMenu()` to access the current state
+		// - new windows immediately get the same menu when opening
+		//   reducing overall flicker for these
 
 		Menu.setApplicationMenu(menu);
 
@@ -469,7 +476,7 @@ export class Menubar {
 
 	private shouldDrawMenu(menuId: string): boolean {
 		// We need to draw an empty menu to override the electron default
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
+		if (!isMacintosh && !hasNativeTitlebar(this.configurationService)) {
 			return false;
 		}
 
@@ -640,7 +647,7 @@ export class Menubar {
 				return [new MenuItem({ label: nls.localize('miDownloadingUpdate', "Downloading Update..."), enabled: false })];
 
 			case StateType.Downloaded:
-				return [new MenuItem({
+				return isMacintosh ? [] : [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miInstallUpdate', "Install &&Update...")), click: () => {
 						this.reportMenuActionTelemetry('InstallUpdate');
 						this.updateService.applyUpdate();
@@ -761,7 +768,7 @@ export class Menubar {
 		// actions via the main window.
 		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
 		if (activeBrowserWindow) {
-			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowById(activeBrowserWindow.id);
+			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowByWebContents(activeBrowserWindow.webContents);
 			if (auxiliaryWindowCandidate) {
 				activeBrowserWindow = this.windowsMainService.getWindowById(auxiliaryWindowCandidate.parentId)?.win ?? null;
 			}

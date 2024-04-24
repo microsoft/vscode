@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -116,6 +116,7 @@ export type ICloseEditorsFilter = {
 
 export interface ICloseAllEditorsOptions {
 	readonly excludeSticky?: boolean;
+	readonly excludeConfirming?: boolean;
 }
 
 export interface IEditorReplacement {
@@ -393,13 +394,17 @@ export interface IEditorGroupsContainer {
 	 * will be moved over to the target and the source group will close. Configure to
 	 * `MOVE_EDITORS_KEEP_GROUP` to prevent the source group from closing. Set to
 	 * `COPY_EDITORS` to copy the editors into the target instead of moding them.
+	 *
+	 * @returns if merging was successful
 	 */
-	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
+	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	/**
 	 * Merge all editor groups into the target one.
+	 *
+	 * @returns if merging was successful
 	 */
-	mergeAllGroups(target: IEditorGroup | GroupIdentifier): IEditorGroup;
+	mergeAllGroups(target: IEditorGroup | GroupIdentifier): boolean;
 
 	/**
 	 * Copy a group to a new group in the container.
@@ -434,6 +439,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	readonly onDidScroll: Event<void>;
 
 	/**
+	 * The identifier of the window the editor part is contained in.
+	 */
+	readonly windowId: number;
+
+	/**
 	 * The size of the editor part.
 	 */
 	readonly contentDimension: IDimension;
@@ -462,21 +472,23 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
-	 * The identifier of the window the auxiliary editor part is contained in.
-	 */
-	readonly windowId: number;
-
-	/**
 	 * Close this auxiliary editor part after moving all
 	 * editors of all groups back to the main editor part.
+	 *
+	 * @returns `false` if an editor could not be moved back.
 	 */
-	close(): void;
+	close(): boolean;
 }
 
 export interface IAuxiliaryEditorPartCreateEvent {
 	readonly part: IAuxiliaryEditorPart;
 	readonly instantiationService: IInstantiationService;
 	readonly disposables: DisposableStore;
+}
+
+export interface IEditorWorkingSet {
+	readonly id: string;
+	readonly name: string;
 }
 
 /**
@@ -490,11 +502,6 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * An event for when a new auxiliary editor part is created.
 	 */
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
-
-	/**
-	 * Provides access to the currently active editor part.
-	 */
-	readonly activePart: IEditorPart;
 
 	/**
 	 * Provides access to the main window editor part.
@@ -531,6 +538,29 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
+
+	/**
+	 * Save a new editor working set from the currently opened
+	 * editors and group layout.
+	 */
+	saveWorkingSet(name: string): IEditorWorkingSet;
+
+	/**
+	 * Returns all known editor working sets.
+	 */
+	getWorkingSets(): IEditorWorkingSet[];
+
+	/**
+	 * Applies the working set. Use `empty` to apply an empty working set.
+	 *
+	 * @returns `true` when the working set as applied.
+	 */
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean>;
+
+	/**
+	 * Deletes a working set.
+	 */
+	deleteWorkingSet(workingSet: IEditorWorkingSet): void;
 }
 
 export const enum OpenEditorContext {
@@ -578,19 +608,13 @@ export interface IEditorGroup {
 	readonly onWillMoveEditor: Event<IEditorWillMoveEvent>;
 
 	/**
-	 * An event that is fired when an editor is about to be opened
-	 * in the group.
-	 */
-	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
-
-	/**
 	 * A unique identifier of this group that remains identical even if the
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
 
 	/**
-	 * The identifier of the `CodeWindow` this editor group is part of.
+	 * The identifier of the window this editor group is part of.
 	 */
 	readonly windowId: number;
 
@@ -734,6 +758,11 @@ export interface IEditorGroup {
 	isSticky(editorOrIndex: EditorInput | number): boolean;
 
 	/**
+	 * Find out if the provided editor or index of editor is transient in the group.
+	 */
+	isTransient(editorOrIndex: EditorInput | number): boolean;
+
+	/**
 	 * Find out if the provided editor is active in the group.
 	 */
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
@@ -748,13 +777,17 @@ export interface IEditorGroup {
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
+	 *
+	 * @returns whether the editor was moved or not.
 	 */
-	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
+	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): boolean;
 
 	/**
 	 * Move editors from this group either within this group or to another group.
+	 *
+	 * @returns whether all editors were moved or not.
 	 */
-	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): void;
+	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): boolean;
 
 	/**
 	 * Copy an editor from this group to another group.

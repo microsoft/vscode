@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/comm
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
@@ -110,6 +111,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestResultStorage private readonly storage: ITestResultStorage,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(toDisposable(() => dispose(this._resultsDisposables)));
@@ -137,7 +139,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 	public createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest) {
 		if ('targets' in req) {
 			const id = generateUuid();
-			return this.push(new LiveTestResult(id, true, req));
+			return this.push(new LiveTestResult(id, true, req, this.telemetryService));
 		}
 
 		let profile: ITestRunProfile | undefined;
@@ -147,7 +149,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 		}
 
 		const resolved: ResolvedTestRunRequest = {
-			isUiTriggered: false,
+			preserveFocus: req.preserveFocus,
 			targets: [],
 			exclude: req.exclude,
 			continuous: req.continuous,
@@ -162,7 +164,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 			});
 		}
 
-		return this.push(new LiveTestResult(req.id, req.persist, resolved));
+		return this.push(new LiveTestResult(req.id, req.persist, resolved, this.telemetryService));
 	}
 
 	/**

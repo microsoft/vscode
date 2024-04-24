@@ -657,7 +657,11 @@ declare module 'vscode' {
 		/**
 		 * Render the line numbers with values relative to the primary cursor location.
 		 */
-		Relative = 2
+		Relative = 2,
+		/**
+		 * Render the line numbers on every 10th line number.
+		 */
+		Interval = 3,
 	}
 
 	/**
@@ -1352,7 +1356,7 @@ declare module 'vscode' {
 	export interface TextEditorEdit {
 		/**
 		 * Replace a certain text region with a new value.
-		 * You can use \r\n or \n in `value` and they will be normalized to the current {@link TextDocument document}.
+		 * You can use `\r\n` or `\n` in `value` and they will be normalized to the current {@link TextDocument document}.
 		 *
 		 * @param location The range this operation should remove.
 		 * @param value The new text this operation should insert after removing `location`.
@@ -1361,7 +1365,7 @@ declare module 'vscode' {
 
 		/**
 		 * Insert text at a location.
-		 * You can use \r\n or \n in `value` and they will be normalized to the current {@link TextDocument document}.
+		 * You can use `\r\n` or `\n` in `value` and they will be normalized to the current {@link TextDocument document}.
 		 * Although the equivalent text edit can be made with {@link TextEditorEdit.replace replace}, `insert` will produce a different resulting selection (it will get moved).
 		 *
 		 * @param location The position where the new text should be inserted.
@@ -1530,7 +1534,7 @@ declare module 'vscode' {
 		 * ```ts
 		 * const u = URI.parse('file://server/c$/folder/file.txt')
 		 * u.authority === 'server'
-		 * u.path === '/shares/c$/file.txt'
+		 * u.path === '/c$/folder/file.txt'
 		 * u.fsPath === '\\server\c$\folder\file.txt'
 		 * ```
 		 */
@@ -2514,7 +2518,7 @@ declare module 'vscode' {
 		/**
 		 * Checks if this code action kind intersects `other`.
 		 *
-		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and ``"refactor.extract.function"`,
+		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and `"refactor.extract.function"`,
 		 * but not `"unicorn.refactor.extract"`, or `"refactor.extractAll"`.
 		 *
 		 * @param other Kind to check.
@@ -3952,7 +3956,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
+		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata | undefined]>): void;
 
 		/**
 		 * Set (and replace) notebook edits for a resource.
@@ -3968,7 +3972,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata | undefined]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -7331,7 +7335,7 @@ declare module 'vscode' {
 		 *
 		 * @param text The text to send.
 		 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
-		 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
+		 * The character(s) added are `\n` or `\r\n`, depending on the platform. This defaults to `true`.
 		 */
 		sendText(text: string, shouldExecute?: boolean): void;
 
@@ -9598,7 +9602,7 @@ declare module 'vscode' {
 	 */
 	export interface WebviewViewProvider {
 		/**
-		 * Revolves a webview view.
+		 * Resolves a webview view.
 		 *
 		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
 		 * first loaded or when the user hides and then shows a view again.
@@ -10295,6 +10299,12 @@ declare module 'vscode' {
 		 * Whether the current window is focused.
 		 */
 		readonly focused: boolean;
+
+		/**
+		 * Whether the window has been interacted with recently. This will change
+		 * immediately on activity, or after a short time of user inactivity.
+		 */
+		readonly active: boolean;
 	}
 
 	/**
@@ -10446,7 +10456,7 @@ declare module 'vscode' {
 		export const state: WindowState;
 
 		/**
-		 * An {@link Event} which fires when the focus state of the current window
+		 * An {@link Event} which fires when the focus or activity state of the current window
 		 * changes. The value of the event represents whether the window is focused.
 		 */
 		export const onDidChangeWindowState: Event<WindowState>;
@@ -11737,7 +11747,7 @@ declare module 'vscode' {
 		 * until `Terminal.show` is called. The typical usage for this is when you need to run
 		 * something that may need interactivity but only want to tell the user about it when
 		 * interaction is needed. Note that the terminals will still be exposed to all extensions
-		 * as normal.
+		 * as normal. The hidden terminals will not be restored when the workspace is next opened.
 		 */
 		hideFromUser?: boolean;
 
@@ -13152,17 +13162,12 @@ declare module 'vscode' {
 		 * for file changes recursively.
 		 *
 		 * Additional paths can be added for file watching by providing a {@link RelativePattern} with
-		 * a `base` path to watch. If the `pattern` is complex (e.g. contains `**` or path segments),
-		 * the path will be watched recursively and otherwise will be watched non-recursively (i.e. only
-		 * changes to the first level of the path will be reported).
+		 * a `base` path to watch. If the path is a folder and the `pattern` is complex (e.g. contains
+		 * `**` or path segments), it will be watched recursively and otherwise will be watched
+		 * non-recursively (i.e. only changes to the first level of the path will be reported).
 		 *
-		 * *Note* that requests for recursive file watchers for a `base` path that is inside the opened
-		 * workspace are ignored given all opened {@link workspace.workspaceFolders workspace folders} are
-		 * watched for file changes recursively by default. Non-recursive file watchers however are always
-		 * supported, even inside the opened workspace because they allow to bypass the configured settings
-		 * for excludes (`files.watcherExclude`). If you need to watch in a location that is typically
-		 * excluded (for example `node_modules` or `.git` folder), then you can use a non-recursive watcher
-		 * in the workspace for this purpose.
+		 * *Note* that paths must exist in the file system to be watched. File watching may stop when
+		 * the watched path is renamed or deleted.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.
@@ -13285,6 +13290,29 @@ declare module 'vscode' {
 		 * {@link workspace.workspaceFolders workspace folders} are opened.
 		 */
 		export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+
+		/**
+		 * Saves the editor identified by the given resource and returns the resulting resource or `undefined`
+		 * if save was not successful or no editor with the given resource was found.
+		 *
+		 * **Note** that an editor with the provided resource must be opened in order to be saved.
+		 *
+		 * @param uri the associated uri for the opened editor to save.
+		 * @returns A thenable that resolves when the save operation has finished.
+		 */
+		export function save(uri: Uri): Thenable<Uri | undefined>;
+
+		/**
+		 * Saves the editor identified by the given resource to a new file name as provided by the user and
+		 * returns the resulting resource or `undefined` if save was not successful or cancelled or no editor
+		 * with the given resource was found.
+		 *
+		 * **Note** that an editor with the provided resource must be opened in order to be saved as.
+		 *
+		 * @param uri the associated uri for the opened editor to save as.
+		 * @returns A thenable that resolves when the save-as operation has finished.
+		 */
+		export function saveAs(uri: Uri): Thenable<Uri | undefined>;
 
 		/**
 		 * Save all dirty files.
@@ -13649,29 +13677,6 @@ declare module 'vscode' {
 		 * Event that fires when the current workspace has been trusted.
 		 */
 		export const onDidGrantWorkspaceTrust: Event<void>;
-
-		/**
-		 * Saves the editor identified by the given resource and returns the resulting resource or `undefined`
-		 * if save was not successful or no editor with the given resource was found.
-		 *
-		 * **Note** that an editor with the provided resource must be opened in order to be saved.
-		 *
-		 * @param uri the associated uri for the opened editor to save.
-		 * @returns A thenable that resolves when the save operation has finished.
-		 */
-		export function save(uri: Uri): Thenable<Uri | undefined>;
-
-		/**
-		 * Saves the editor identified by the given resource to a new file name as provided by the user and
-		 * returns the resulting resource or `undefined` if save was not successful or cancelled or no editor
-		 * with the given resource was found.
-		 *
-		 * **Note** that an editor with the provided resource must be opened in order to be saved as.
-		 *
-		 * @param uri the associated uri for the opened editor to save as.
-		 * @returns A thenable that resolves when the save-as operation has finished.
-		 */
-		export function saveAs(uri: Uri): Thenable<Uri | undefined>;
 	}
 
 	/**
@@ -17150,6 +17155,12 @@ declare module 'vscode' {
 		isDefault: boolean;
 
 		/**
+		 * Fired when a user has changed whether this is a default profile. The
+		 * event contains the new value of {@link isDefault}
+		 */
+		onDidChangeDefault: Event<boolean>;
+
+		/**
 		 * Whether this profile supports continuous running of requests. If so,
 		 * then {@link TestRunRequest.continuous} may be set to `true`. Defaults
 		 * to false.
@@ -17188,6 +17199,17 @@ declare module 'vscode' {
 		 * automatically cancelled as well.
 		 */
 		runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
+
+		/**
+		 * An extension-provided function that provides detailed statement and
+		 * function-level coverage for a file. The editor will call this when more
+		 * detail is needed for a file, such as when it's opened in an editor or
+		 * expanded in the **Test Coverage** view.
+		 *
+		 * The {@link FileCoverage} object passed to this function is the same instance
+		 * emitted on {@link TestRun.addCoverage} calls associated with this profile.
+		 */
+		loadDetailedCoverage?: (testRun: TestRun, fileCoverage: FileCoverage, token: CancellationToken) => Thenable<FileCoverageDetail[]>;
 
 		/**
 		 * Deletes the run profile.
@@ -17469,10 +17491,21 @@ declare module 'vscode' {
 		appendOutput(output: string, location?: Location, test?: TestItem): void;
 
 		/**
+		 * Adds coverage for a file in the run.
+		 */
+		addCoverage(fileCoverage: FileCoverage): void;
+
+		/**
 		 * Signals the end of the test run. Any tests included in the run whose
 		 * states have not been updated will have their state reset.
 		 */
 		end(): void;
+
+		/**
+		 * An event fired when the editor is no longer interested in data
+		 * associated with the test run.
+		 */
+		onDidDispose: Event<void>;
 	}
 
 	/**
@@ -17681,6 +17714,177 @@ declare module 'vscode' {
 		 */
 		constructor(message: string | MarkdownString);
 	}
+
+	/**
+	 * A class that contains information about a covered resource. A count can
+	 * be give for lines, branches, and declarations in a file.
+	 */
+	export class TestCoverageCount {
+		/**
+		 * Number of items covered in the file.
+		 */
+		covered: number;
+		/**
+		 * Total number of covered items in the file.
+		 */
+		total: number;
+
+		/**
+		 * @param covered Value for {@link TestCoverageCount.covered}
+		 * @param total Value for {@link TestCoverageCount.total}
+		 */
+		constructor(covered: number, total: number);
+	}
+
+	/**
+	 * Contains coverage metadata for a file.
+	 */
+	export class FileCoverage {
+		/**
+		 * File URI.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Statement coverage information. If the reporter does not provide statement
+		 * coverage information, this can instead be used to represent line coverage.
+		 */
+		statementCoverage: TestCoverageCount;
+
+		/**
+		 * Branch coverage information.
+		 */
+		branchCoverage?: TestCoverageCount;
+
+		/**
+		 * Declaration coverage information. Depending on the reporter and
+		 * language, this may be types such as functions, methods, or namespaces.
+		 */
+		declarationCoverage?: TestCoverageCount;
+
+		/**
+		 * Creates a {@link FileCoverage} instance with counts filled in from
+		 * the coverage details.
+		 * @param uri Covered file URI
+		 * @param detailed Detailed coverage information
+		 */
+		static fromDetails(uri: Uri, details: readonly FileCoverageDetail[]): FileCoverage;
+
+		/**
+		 * @param uri Covered file URI
+		 * @param statementCoverage Statement coverage information. If the reporter
+		 * does not provide statement coverage information, this can instead be
+		 * used to represent line coverage.
+		 * @param branchCoverage Branch coverage information
+		 * @param declarationCoverage Declaration coverage information
+		 */
+		constructor(
+			uri: Uri,
+			statementCoverage: TestCoverageCount,
+			branchCoverage?: TestCoverageCount,
+			declarationCoverage?: TestCoverageCount,
+		);
+	}
+
+	/**
+	 * Contains coverage information for a single statement or line.
+	 */
+	export class StatementCoverage {
+		/**
+		 * The number of times this statement was executed, or a boolean indicating
+		 * whether it was executed if the exact count is unknown. If zero or false,
+		 * the statement will be marked as un-covered.
+		 */
+		executed: number | boolean;
+
+		/**
+		 * Statement location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * Coverage from branches of this line or statement. If it's not a
+		 * conditional, this will be empty.
+		 */
+		branches: BranchCoverage[];
+
+		/**
+		 * @param location The statement position.
+		 * @param executed The number of times this statement was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the statement will be marked as un-covered.
+		 * @param branches Coverage from branches of this line.  If it's not a
+		 * conditional, this should be omitted.
+		 */
+		constructor(executed: number | boolean, location: Position | Range, branches?: BranchCoverage[]);
+	}
+
+	/**
+	 * Contains coverage information for a branch of a {@link StatementCoverage}.
+	 */
+	export class BranchCoverage {
+		/**
+		 * The number of times this branch was executed, or a boolean indicating
+		 * whether it was executed if the exact count is unknown. If zero or false,
+		 * the branch will be marked as un-covered.
+		 */
+		executed: number | boolean;
+
+		/**
+		 * Branch location.
+		 */
+		location?: Position | Range;
+
+		/**
+		 * Label for the branch, used in the context of "the ${label} branch was
+		 * not taken," for example.
+		 */
+		label?: string;
+
+		/**
+		 * @param executed The number of times this branch was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the branch will be marked as un-covered.
+		 * @param location The branch position.
+		 */
+		constructor(executed: number | boolean, location?: Position | Range, label?: string);
+	}
+
+	/**
+	 * Contains coverage information for a declaration. Depending on the reporter
+	 * and language, this may be types such as functions, methods, or namespaces.
+	 */
+	export class DeclarationCoverage {
+		/**
+		 * Name of the declaration.
+		 */
+		name: string;
+
+		/**
+		 * The number of times this declaration was executed, or a boolean
+		 * indicating whether it was executed if the exact count is unknown. If
+		 * zero or false, the declaration will be marked as un-covered.
+		 */
+		executed: number | boolean;
+
+		/**
+		 * Declaration location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * @param executed The number of times this declaration was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the declaration will be marked as un-covered.
+		 * @param location The declaration position.
+		 */
+		constructor(name: string, executed: number | boolean, location: Position | Range);
+	}
+
+	/**
+	 * Coverage details returned from {@link TestRunProfile.loadDetailedCoverage}.
+	 */
+	export type FileCoverageDetail = StatementCoverage | DeclarationCoverage;
 
 	/**
 	 * The tab represents a single text based resource.

@@ -474,6 +474,11 @@
 	pointer-events: none;
 }
 
+.terminal-range-highlight {
+	outline: 1px solid var(--vscode-focusBorder);
+	pointer-events: none;
+}
+
 .terminal-command-guide {
 	left: 0;
 	border: 1.5px solid #ffffff;
@@ -481,6 +486,7 @@
 	border-color: var(--vscode-notebook-inactiveFocusedCellBorder);
 	box-sizing: border-box;
 	transform: translateX(3px);
+	pointer-events: none;
 }
 .terminal-command-guide.top {
 	border-top-left-radius: 1px;

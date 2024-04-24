@@ -3,35 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatFollowup, IChatProgress, IChatService, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-type AgentData = {
+interface AgentData {
 	dispose: () => void;
-	name: string;
-	hasSlashCommands?: boolean;
+	id: string;
+	extensionId: ExtensionIdentifier;
 	hasFollowups?: boolean;
-};
+}
 
 @extHostNamedCustomer(MainContext.MainThreadChatAgents2)
 export class MainThreadChatAgents2 extends Disposable implements MainThreadChatAgentsShape2 {
@@ -42,9 +44,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
-	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | IMarkdownString | IChatTreeData>>();
-
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -52,6 +51,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -62,11 +63,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._register(this._chatService.onDidPerformUserAction(e => {
 			if (typeof e.agentId === 'string') {
 				for (const [handle, agent] of this._agents) {
-					if (agent.name === e.agentId) {
+					if (agent.id === e.agentId) {
 						if (e.action.kind === 'vote') {
-							this._proxy.$acceptFeedback(handle, e.sessionId, e.requestId, e.action.direction);
+							this._proxy.$acceptFeedback(handle, e.result ?? {}, e.action.direction);
 						} else {
-							this._proxy.$acceptAction(handle, e.sessionId, e.requestId, e);
+							this._proxy.$acceptAction(handle, e.result || {}, e);
 						}
 						break;
 					}
@@ -79,36 +80,78 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
-	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void {
-		const d = this._chatAgentService.registerAgent({
-			id: name,
-			metadata: revive(metadata),
+	$transferActiveChatSession(toWorkspace: UriComponents): void {
+		const widget = this._chatWidgetService.lastFocusedWidget;
+		const sessionId = widget?.viewModel?.model.sessionId;
+		if (!sessionId) {
+			this._logService.error(`MainThreadChat#$transferActiveChatSession: No active chat session found`);
+			return;
+		}
+
+		const inputValue = widget?.inputEditor.getValue() ?? '';
+		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
+	}
+
+	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string } | undefined): void {
+		const staticAgentRegistration = this._chatAgentService.getAgent(id);
+		if (!staticAgentRegistration && !dynamicProps) {
+			if (this._chatAgentService.getAgentsByName(id).length) {
+				// Likely some extension authors will not adopt the new ID, so give a hint if they register a
+				// participant by name instead of ID.
+				throw new Error(`chatParticipant must be declared with an ID in package.json. The "id" property may be missing! "${id}"`);
+			}
+
+			throw new Error(`chatParticipant must be declared in package.json: ${id}`);
+		}
+
+		const impl: IChatAgentImplementation = {
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, request.sessionId, request.requestId, request, { history }, token) ?? {};
+					return await this._proxy.$invokeAgent(handle, request, { history }, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
-			provideFollowups: async (sessionId, token): Promise<IChatFollowup[]> => {
+			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(handle, sessionId, token);
+				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
 			},
-			provideSlashCommands: async (token) => {
-				if (!this._agents.get(handle)?.hasSlashCommands) {
-					return []; // save an IPC call
-				}
-				return this._proxy.$provideSlashCommands(handle, token);
+			provideWelcomeMessage: (location: ChatAgentLocation, token: CancellationToken) => {
+				return this._proxy.$provideWelcomeMessage(handle, location, token);
+			},
+			provideSampleQuestions: (location: ChatAgentLocation, token: CancellationToken) => {
+				return this._proxy.$provideSampleQuestions(handle, location, token);
 			}
-		});
+		};
+
+		let disposable: IDisposable;
+		if (!staticAgentRegistration && dynamicProps) {
+			const extensionDescription = this._extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extension));
+			disposable = this._chatAgentService.registerDynamicAgent(
+				{
+					id,
+					name: dynamicProps.name,
+					description: dynamicProps.description,
+					extensionId: extension,
+					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
+					extensionPublisher: extensionDescription?.publisherDisplayName ?? extension.value,
+					metadata: revive(metadata),
+					slashCommands: [],
+					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
+				},
+				impl);
+		} else {
+			disposable = this._chatAgentService.registerAgentImplementation(id, impl);
+		}
+
 		this._agents.set(handle, {
-			name,
-			dispose: d.dispose,
-			hasSlashCommands: metadata.hasSlashCommands,
+			id: id,
+			extensionId: extension,
+			dispose: disposable.dispose,
 			hasFollowups: metadata.hasFollowups
 		});
 	}
@@ -118,34 +161,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		if (!data) {
 			throw new Error(`No agent with handle ${handle} registered`);
 		}
-		data.hasSlashCommands = metadataUpdate.hasSlashCommands;
 		data.hasFollowups = metadataUpdate.hasFollowups;
-		this._chatAgentService.updateAgent(data.name, revive(metadataUpdate));
+		this._chatAgentService.updateAgent(data.id, revive(metadataUpdate));
 	}
 
-	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
-		if (progress.kind === 'asyncContent') {
-			const handle = ++this._responsePartHandlePool;
-			const responsePartId = `${requestId}_${handle}`;
-			const deferredContentPromise = new DeferredPromise<string | IMarkdownString | IChatTreeData>();
-			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
-			this._pendingProgress.get(requestId)?.({ ...progress, resolvedContent: deferredContentPromise.p });
-			return handle;
-		} else if (typeof responsePartHandle === 'number') {
-			// Complete an existing deferred promise with resolved content
-			const responsePartId = `${requestId}_${responsePartHandle}`;
-			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
-			if (deferredContentPromise && progress.kind === 'treeData') {
-				const withRevivedUris = revive<IChatTreeData>(progress);
-				deferredContentPromise.complete(withRevivedUris);
-				this._activeResponsePartPromises.delete(responsePartId);
-			} else if (deferredContentPromise && progress.kind === 'content') {
-				deferredContentPromise.complete(progress.content);
-				this._activeResponsePartPromises.delete(responsePartId);
-			}
-			return responsePartHandle;
-		}
-
+	async $handleProgressChunk(requestId: string, progress: IChatProgressDto): Promise<number | void> {
 		const revivedProgress = revive(progress);
 		this._pendingProgress.get(requestId)?.(revivedProgress as IChatProgress);
 	}
@@ -168,10 +188,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const parsedRequest = (await this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
+				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue()).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
-				const thisAgentName = this._agents.get(handle)?.name;
-				if (agentPart?.agent.id !== thisAgentName) {
+				const thisAgentId = this._agents.get(handle)?.id;
+				if (agentPart?.agent.id !== thisAgentId) {
 					return;
 				}
 
@@ -191,7 +211,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						kind: CompletionItemKind.Text,
 						detail: v.detail,
 						documentation: v.documentation,
-						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.values) } satisfies IAddDynamicVariableContext] }
+						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.values), command: v.command } satisfies IAddDynamicVariableContext] }
 					} satisfies CompletionItem;
 				});
 

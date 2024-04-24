@@ -82,20 +82,20 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 
 	const vars = new Map<string, string>([
 		// Document
-		['documentDirName', documentDirName.path], // Absolute parent directory path
-		['documentRelativeDirName', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentDirName.path) : documentDirName.path], // Absolute parent directory path
-		['documentFileName', documentBaseName], // Full filename: file.md
-		['documentBaseName', documentBaseName.slice(0, documentBaseName.length - documentExtName.length)], // Just the name: file
-		['documentExtName', documentExtName.replace('.', '')], // The document ext (without dot): md
-		['documentFilePath', documentUri.path], // Full document path
-		['documentRelativeFilePath', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentUri.path) : documentUri.path], // Full document path relative to workspace
+		['documentDirName', documentDirName.path], // Absolute parent directory path of the Markdown document, e.g. `/Users/me/myProject/docs`.
+		['documentRelativeDirName', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentDirName.path) : documentDirName.path], // Relative parent directory path of the Markdown document, e.g. `docs`. This is the same as `${documentDirName}` if the file is not part of a workspace.
+		['documentFileName', documentBaseName], // The full filename of the Markdown document, e.g. `README.md`.
+		['documentBaseName', documentBaseName.slice(0, documentBaseName.length - documentExtName.length)], // The basename of the Markdown document, e.g. `README`.
+		['documentExtName', documentExtName.replace('.', '')], // The extension of the Markdown document, e.g. `md`.
+		['documentFilePath', documentUri.path], // Absolute path of the Markdown document, e.g. `/Users/me/myProject/docs/README.md`.
+		['documentRelativeFilePath', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentUri.path) : documentUri.path], // Relative path of the Markdown document, e.g. `docs/README.md`. This is the same as `${documentFilePath}` if the file is not part of a workspace.
 
 		// Workspace
-		['documentWorkspaceFolder', ((workspaceFolder ?? documentDirName).path)],
+		['documentWorkspaceFolder', ((workspaceFolder ?? documentDirName).path)], // The workspace folder for the Markdown document, e.g. `/Users/me/myProject`. This is the same as `${documentDirName}` if the file is not part of a workspace.
 
 		// File
-		['fileName', fileName], // Full file name
-		['fileExtName', path.extname(fileName).replace('.', '')], // File extension (without dot): png
+		['fileName', fileName], // The file name of the dropped file, e.g. `image.png`.
+		['fileExtName', path.extname(fileName).replace('.', '')], // The extension of the dropped file, e.g. `png`.
 	]);
 
 	return outDest.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}\/])+)\/(?<replacement>(?:\\\/|[^\}\/])*)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {

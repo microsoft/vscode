@@ -88,7 +88,7 @@ export class OutputLinkComputer {
 		}
 
 		for (const workspaceFolderVariant of workspaceFolderVariants) {
-			const validPathCharacterPattern = '[^\\s\\(\\):<>"]';
+			const validPathCharacterPattern = '[^\\s\\(\\):<>\'"]';
 			const validPathCharacterOrSpacePattern = `(?:${validPathCharacterPattern}| ${validPathCharacterPattern})`;
 			const pathPattern = `${validPathCharacterOrSpacePattern}+\\.${validPathCharacterPattern}+`;
 			const strictPathPattern = `${validPathCharacterPattern}+`;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/editor/browser/coreCommands';
-import 'vs/editor/browser/widget/codeEditorWidget';
+import 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 import 'vs/editor/contrib/anchorSelect/browser/anchorSelect';
 import 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
@@ -31,7 +31,7 @@ import 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
 import 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import 'vs/editor/contrib/gotoError/browser/gotoError';
-import 'vs/editor/contrib/hover/browser/hover';
+import 'vs/editor/contrib/hover/browser/hoverContribution';
 import 'vs/editor/contrib/indentation/browser/indentation';
 import 'vs/editor/contrib/inlayHints/browser/inlayHintsContribution';
 import 'vs/editor/contrib/inPlaceReplace/browser/inPlaceReplace';
@@ -41,8 +41,10 @@ import 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
 import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/longLinesHelper/browser/longLinesHelper';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
+import 'vs/editor/contrib/inlineEdit/browser/inlineEdit.contribution';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/rename/browser/rename';
+import 'vs/editor/contrib/sectionHeaders/browser/sectionHeaders';
 import 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';
 import 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import 'vs/editor/contrib/smartSelect/browser/smartSelect';

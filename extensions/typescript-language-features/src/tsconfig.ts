@@ -26,8 +26,8 @@ export function inferredProjectCompilerOptions(
 	serviceConfig: TypeScriptServiceConfiguration,
 ): Proto.ExternalProjectCompilerOptions {
 	const projectConfig: Proto.ExternalProjectCompilerOptions = {
-		module: 'ESNext' as Proto.ModuleKind,
-		moduleResolution: 'Node' as Proto.ModuleResolutionKind,
+		module: (version.gte(API.v540) ? 'Preserve' : 'ESNext') as Proto.ModuleKind,
+		moduleResolution: (version.gte(API.v540) ? 'Bundler' : 'Node') as Proto.ModuleResolutionKind,
 		target: 'ES2022' as Proto.ScriptTarget,
 		jsx: 'react' as Proto.JsxEmit,
 	};

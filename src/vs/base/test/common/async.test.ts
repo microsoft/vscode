@@ -651,26 +651,28 @@ suite('Async', () => {
 		});
 
 		test('order is kept', function () {
-			const queue = new async.Queue();
+			return runWithFakedTimers({}, () => {
+				const queue = new async.Queue();
 
-			const res: number[] = [];
+				const res: number[] = [];
 
-			const f1 = () => Promise.resolve(true).then(() => res.push(1));
-			const f2 = () => async.timeout(10).then(() => res.push(2));
-			const f3 = () => Promise.resolve(true).then(() => res.push(3));
-			const f4 = () => async.timeout(20).then(() => res.push(4));
-			const f5 = () => async.timeout(0).then(() => res.push(5));
+				const f1 = () => Promise.resolve(true).then(() => res.push(1));
+				const f2 = () => async.timeout(10).then(() => res.push(2));
+				const f3 = () => Promise.resolve(true).then(() => res.push(3));
+				const f4 = () => async.timeout(20).then(() => res.push(4));
+				const f5 = () => async.timeout(0).then(() => res.push(5));
 
-			queue.queue(f1);
-			queue.queue(f2);
-			queue.queue(f3);
-			queue.queue(f4);
-			return queue.queue(f5).then(() => {
-				assert.strictEqual(res[0], 1);
-				assert.strictEqual(res[1], 2);
-				assert.strictEqual(res[2], 3);
-				assert.strictEqual(res[3], 4);
-				assert.strictEqual(res[4], 5);
+				queue.queue(f1);
+				queue.queue(f2);
+				queue.queue(f3);
+				queue.queue(f4);
+				return queue.queue(f5).then(() => {
+					assert.strictEqual(res[0], 1);
+					assert.strictEqual(res[1], 2);
+					assert.strictEqual(res[2], 3);
+					assert.strictEqual(res[3], 4);
+					assert.strictEqual(res[4], 5);
+				});
 			});
 		});
 
@@ -1554,6 +1556,125 @@ suite('Async', () => {
 
 			// only the last task executed
 			assert.strictEqual(counter, 4);
+		});
+	});
+
+	suite('AsyncIterableObject', function () {
+
+
+		test('onReturn NOT called', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
+
+		});
+
+		test('onReturn called on break', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn called on return', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			await (async function test() {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					return;
+				}
+			})();
+
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+
+		test('onReturn called on throwing', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			try {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					throw new Error();
+				}
+			} catch (e) {
+
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+		});
+	});
+
+	suite('AsyncIterableSource', function () {
+
+		test('onReturn is wired up', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn is wired up 2', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
 		});
 	});
 });

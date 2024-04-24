@@ -49,7 +49,7 @@ import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/co
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -76,7 +76,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/browser/userDataProfile';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { LogService } from 'vs/platform/log/common/logService';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
@@ -95,6 +95,7 @@ import { IEncryptionService } from 'vs/platform/encryption/common/encryptionServ
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
 import { mainWindow } from 'vs/base/browser/window';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export class BrowserMain extends Disposable {
 
@@ -156,10 +157,27 @@ export class BrowserMain extends Disposable {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const labelService = accessor.get(ILabelService);
 			const embedderTerminalService = accessor.get(IEmbedderTerminalService);
+			const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
+			const notificationService = accessor.get(INotificationService);
+
+			async function showMessage<T extends string>(severity: Severity, message: string, ...items: T[]): Promise<T | undefined> {
+				const choice = new DeferredPromise<T | undefined>();
+				const handle = notificationService.prompt(severity, message, items.map(item => ({
+					label: item,
+					run: () => choice.complete(item)
+				})));
+				const disposable = handle.onDidClose(() => {
+					choice.complete(undefined);
+					disposable.dispose();
+				});
+				const result = await choice.p;
+				handle.close();
+				return result;
+			}
 
 			let logger: DelayedLogChannel | undefined = undefined;
 
-			return {
+			return <IWorkbench>{
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
 				},
@@ -188,8 +206,16 @@ export class BrowserMain extends Disposable {
 				window: {
 					withProgress: (options, task) => progressService.withProgress(options, task),
 					createTerminal: async (options) => embedderTerminalService.createTerminal(options),
+					showInformationMessage: (message, ...items) => showMessage(Severity.Info, message, ...items),
 				},
 				workspace: {
+					didResolveRemoteAuthority: async () => {
+						if (!this.configuration.remoteAuthority) {
+							return;
+						}
+
+						await remoteAuthorityResolverService.resolveAuthority(this.configuration.remoteAuthority);
+					},
 					openTunnel: async tunnelOptions => {
 						const tunnel = assertIsDefined(await remoteExplorerService.forward({
 							remote: tunnelOptions.remoteAddress,
@@ -284,11 +310,11 @@ export class BrowserMain extends Disposable {
 		// Register them early because they are needed for the profiles initialization
 		await this.registerIndexedDBFileSystemProviders(environmentService, fileService, logService, loggerService, logsPath);
 
-		// Remote
+
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
 		const remoteResourceLoader = this.configuration.remoteResourceProvider ? new BrowserRemoteResourceLoader(fileService, this.configuration.remoteResourceProvider) : undefined;
 		const resourceUriProvider = this.configuration.resourceUriProvider ?? remoteResourceLoader?.getResourceUriProvider();
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, productService, logService);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, this.configuration.serverBasePath, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
@@ -476,11 +502,11 @@ export class BrowserMain extends Disposable {
 	}
 
 	private registerDeveloperActions(provider: IndexedDBFileSystemProvider): void {
-		registerAction2(class ResetUserDataAction extends Action2 {
+		this._register(registerAction2(class ResetUserDataAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.resetUserData',
-					title: { original: 'Reset User Data', value: localize('reset', "Reset User Data") },
+					title: localize2('reset', "Reset User Data"),
 					category: Categories.Developer,
 					menu: {
 						id: MenuId.CommandPalette
@@ -511,7 +537,7 @@ export class BrowserMain extends Disposable {
 
 				hostService.reload();
 			}
-		});
+		}));
 	}
 
 	private async createStorageService(workspace: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService): Promise<IStorageService> {

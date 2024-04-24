@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { $window } from 'vs/base/browser/window';
+import { CodeWindow } from 'vs/base/browser/window';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 
@@ -15,10 +15,10 @@ import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
  * event so it can handle editor element drag drop.
  */
 export class WebviewWindowDragMonitor extends Disposable {
-	constructor(getWebview: () => IWebview | undefined) {
+	constructor(targetWindow: CodeWindow, getWebview: () => IWebview | undefined) {
 		super();
 
-		this._register(DOM.addDisposableListener($window, DOM.EventType.DRAG_START, () => {
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_START, () => {
 			getWebview()?.windowDidDragStart();
 		}));
 
@@ -26,8 +26,8 @@ export class WebviewWindowDragMonitor extends Disposable {
 			getWebview()?.windowDidDragEnd();
 		};
 
-		this._register(DOM.addDisposableListener($window, DOM.EventType.DRAG_END, onDragEnd));
-		this._register(DOM.addDisposableListener($window, DOM.EventType.MOUSE_MOVE, currentEvent => {
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_END, onDragEnd));
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.MOUSE_MOVE, currentEvent => {
 			if (currentEvent.buttons === 0) {
 				onDragEnd();
 			}

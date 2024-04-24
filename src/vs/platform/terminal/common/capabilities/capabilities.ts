@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import type { IPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
@@ -161,6 +162,7 @@ export interface IBufferMarkCapability {
 
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
+	readonly promptInputModel: IPromptInputModel;
 	readonly commands: readonly ITerminalCommand[];
 	/** The command currently being executed, otherwise undefined. */
 	readonly executingCommand: string | undefined;
@@ -175,9 +177,10 @@ export interface ICommandDetectionCapability {
 	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
-	readonly onCommandExecuted: Event<void>;
+	readonly onCommandExecuted: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
+	setContinuationPrompt(value: string): void;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
 	setIsCommandStorageDisabled(): void;
@@ -240,8 +243,10 @@ export interface IPartialCommandDetectionCapability {
 interface IBaseTerminalCommand {
 	// Mandatory
 	command: string;
+	commandLineConfidence: 'low' | 'medium' | 'high';
 	isTrusted: boolean;
 	timestamp: number;
+	duration: number;
 
 	// Optional serializable
 	cwd: string | undefined;
@@ -261,6 +266,7 @@ export interface ITerminalCommand extends IBaseTerminalCommand {
 	readonly aliases?: string[][];
 	readonly wasReplayed?: boolean;
 
+	extractCommandLine(): string;
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;

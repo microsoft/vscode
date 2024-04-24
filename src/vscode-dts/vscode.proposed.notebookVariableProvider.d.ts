@@ -38,6 +38,18 @@ declare module 'vscode' {
 			An empty string can be used if no value should be shown in the UI.
 		*/
 		value: string;
+
+		/** The code that represents how the variable would be accessed in the runtime environment */
+		expression?: string;
+
+		/** The type of the variable's value */
+		type?: string;
+
+		/** The interfaces or contracts that the type satisfies */
+		interfaces?: string[];
+
+		/** The language of the variable's value */
+		language?: string;
 	}
 
 }

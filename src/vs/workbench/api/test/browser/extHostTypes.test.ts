@@ -357,7 +357,7 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(edit.newText, '');
 		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
 
-		edit = new types.TextEdit(range, null!);
+		edit = new types.TextEdit(range, null);
 		assert.strictEqual(edit.newText, '');
 
 		edit = new types.TextEdit(range, '');
@@ -433,6 +433,22 @@ suite('ExtHostTypes', function () {
 		assertType(second._type === types.FileEditType.Text);
 		assert.strictEqual(first.edit.newText, 'Hello');
 		assert.strictEqual(second.edit.newText, 'Foo');
+	});
+
+	test('WorkspaceEdit - set with metadata accepts undefined', function () {
+		const edit = new types.WorkspaceEdit();
+		const uri = URI.parse('foo:bar');
+
+		edit.set(uri, [
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), { needsConfirmation: true, label: 'foo' }],
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), undefined],
+		]);
+
+		const all = edit._allEntries();
+		assert.strictEqual(all.length, 2);
+		const [first, second] = all;
+		assert.ok(first.metadata);
+		assert.ok(!second.metadata);
 	});
 
 	test('DocumentLink', () => {

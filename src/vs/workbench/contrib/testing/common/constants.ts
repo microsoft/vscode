@@ -18,6 +18,8 @@ export const enum Testing {
 
 	ResultsPanelId = 'workbench.panel.testResults',
 	ResultsViewId = 'workbench.panel.testResults.view',
+
+	MessageLanguageId = 'vscodeInternalTestMessage'
 }
 
 export const enum TestExplorerViewMode {
@@ -62,7 +64,7 @@ export const enum TestCommandId {
 	CoverageAtCursor = 'testing.coverageAtCursor',
 	CoverageByUri = 'testing.coverage.uri',
 	CoverageViewChangeSorting = 'testing.coverageViewChangeSorting',
-	CoverageClose = 'testing.coverage.close',
+	CoverageClear = 'testing.coverage.close',
 	CoverageCurrentFile = 'testing.coverageCurrentFile',
 	CoverageLastRun = 'testing.coverageLastRun',
 	CoverageSelectedAction = 'testing.coverageSelected',

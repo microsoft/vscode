@@ -19,7 +19,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { getBreakpointMessageAndIcon, getExpandedBodySize } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { DataBreakpointSetType, IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Breakpoint, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
@@ -39,8 +39,8 @@ function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakp
 		eventCount++;
 		dispose(toDispose);
 		for (let i = 0; i < data.length; i++) {
-			assert.strictEqual(e!.added![i] instanceof Breakpoint, true);
-			assert.strictEqual((e!.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
+			assert.strictEqual(e.added![i] instanceof Breakpoint, true);
+			assert.strictEqual((e.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
 		}
 	});
 	const bps = model.addBreakpoints(uri, data);
@@ -291,7 +291,7 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 		//address: string, offset: number, condition?: string, hitCondition?: string
-		model.addInstructionBreakpoint('0xCCCCFFFF', 0, 0n);
+		model.addInstructionBreakpoint({ instructionReference: '0xCCCCFFFF', offset: 0, address: 0n, canPersist: false });
 
 		assert.strictEqual(eventCount, 1);
 		let instructionBreakpoints = model.getInstructionBreakpoints();
@@ -299,7 +299,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(instructionBreakpoints[0].instructionReference, '0xCCCCFFFF');
 		assert.strictEqual(instructionBreakpoints[0].offset, 0);
 
-		model.addInstructionBreakpoint('0xCCCCEEEE', 1, 0n);
+		model.addInstructionBreakpoint({ instructionReference: '0xCCCCEEEE', offset: 1, address: 0n, canPersist: false });
 		assert.strictEqual(eventCount, 2);
 		instructionBreakpoints = model.getInstructionBreakpoints();
 		assert.strictEqual(instructionBreakpoints.length, 2);
@@ -313,13 +313,13 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 
-		model.addDataBreakpoint('label', 'id', true, ['read'], 'read', '1');
-		model.addDataBreakpoint('second', 'secondId', false, ['readWrite'], 'readWrite', '2');
+		model.addDataBreakpoint({ description: 'label', src: { type: DataBreakpointSetType.Variable, dataId: 'id' }, canPersist: true, accessTypes: ['read'], accessType: 'read' }, '1');
+		model.addDataBreakpoint({ description: 'second', src: { type: DataBreakpointSetType.Variable, dataId: 'secondId' }, canPersist: false, accessTypes: ['readWrite'], accessType: 'readWrite' }, '2');
 		model.updateDataBreakpoint('1', { condition: 'aCondition' });
 		model.updateDataBreakpoint('2', { hitCondition: '10' });
 		const dataBreakpoints = model.getDataBreakpoints();
 		assert.strictEqual(dataBreakpoints[0].canPersist, true);
-		assert.strictEqual(dataBreakpoints[0].dataId, 'id');
+		assert.deepStrictEqual(dataBreakpoints[0].src, { type: DataBreakpointSetType.Variable, dataId: 'id' });
 		assert.strictEqual(dataBreakpoints[0].accessType, 'read');
 		assert.strictEqual(dataBreakpoints[0].condition, 'aCondition');
 		assert.strictEqual(dataBreakpoints[1].canPersist, false);
@@ -374,7 +374,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(result.message, 'Disabled Logpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-log-disabled');
 
-		model.addDataBreakpoint('label', 'id', true, ['read'], 'read');
+		model.addDataBreakpoint({ description: 'label', canPersist: true, accessTypes: ['read'], accessType: 'read', src: { type: DataBreakpointSetType.Variable, dataId: 'id' } });
 		const dataBreakpoints = model.getDataBreakpoints();
 		result = getBreakpointMessageAndIcon(State.Stopped, true, dataBreakpoints[0], ls, model);
 		assert.strictEqual(result.message, 'Data Breakpoint');

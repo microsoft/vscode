@@ -12,6 +12,8 @@ import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/api/test/c
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 
@@ -24,8 +26,8 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadBulkEdits, new class extends mock<MainThreadBulkEditsShape>() {
-			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
-				workspaceResourceEdits = _workspaceResourceEdits;
+			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: SerializableObjectWithBuffers<IWorkspaceEditDto>): Promise<boolean> {
+				workspaceResourceEdits = _workspaceResourceEdits.value;
 				return Promise.resolve(true);
 			}
 		});
@@ -42,6 +44,8 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 		});
 		bulkEdits = new ExtHostBulkEdits(rpcProtocol, documentsAndEditors);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses version id if document available', async () => {
 		const edit = new extHostTypes.WorkspaceEdit();

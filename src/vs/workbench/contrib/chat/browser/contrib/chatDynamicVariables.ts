@@ -10,15 +10,19 @@ import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { Command } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
+import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatRequestVariableValue, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -135,6 +139,8 @@ export class SelectAndInsertFileAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const textModelService = accessor.get(ITextModelService);
 		const logService = accessor.get(ILogService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const chatVariablesService = accessor.get(IChatVariablesService);
 
 		const context = args[0];
 		if (!isSelectAndInsertFileActionContext(context)) {
@@ -146,14 +152,45 @@ export class SelectAndInsertFileAction extends Action2 {
 			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
 		};
 
-		const quickInputService = accessor.get(IQuickInputService);
-		const picks = await quickInputService.quickAccess.pick('');
+		let options: IQuickAccessOptions | undefined;
+		const filesVariableName = 'files';
+		const filesItem = {
+			label: localize('allFiles', 'All Files'),
+			description: localize('allFilesDescription', 'Search for relevant files in the workspace and provide context from them'),
+		};
+		// If we have a `files` variable, add an option to select all files in the picker.
+		// This of course assumes that the `files` variable has the behavior that it searches
+		// through files in the workspace.
+		if (chatVariablesService.hasVariable(filesVariableName)) {
+			options = {
+				providerOptions: <AnythingQuickAccessProviderRunOptions>{
+					additionPicks: [filesItem, { type: 'separator' }]
+				},
+			};
+		}
+		// TODO: have dedicated UX for this instead of using the quick access picker
+		const picks = await quickInputService.quickAccess.pick('', options);
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertFileAction: no file selected');
 			doCleanup();
 			return;
 		}
 
+		const editor = context.widget.inputEditor;
+		const range = context.range;
+
+		// Handle the special case of selecting all files
+		if (picks[0] === filesItem) {
+			const text = `#${filesVariableName}`;
+			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
+			if (!success) {
+				logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
+				doCleanup();
+			}
+			return;
+		}
+
+		// Handle the case of selecting a specific file
 		const resource = (picks[0] as unknown as { resource: unknown }).resource as URI;
 		if (!textModelService.canHandleResource(resource)) {
 			logService.trace('SelectAndInsertFileAction: non-text resource selected');
@@ -162,9 +199,7 @@ export class SelectAndInsertFileAction extends Action2 {
 		}
 
 		const fileName = basename(resource);
-		const editor = context.widget.inputEditor;
 		const text = `#file:${fileName}`;
-		const range = context.range;
 		const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
 		if (!success) {
 			logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
@@ -184,6 +219,7 @@ export interface IAddDynamicVariableContext {
 	widget: IChatWidget;
 	range: IRange;
 	variableData: IChatRequestVariableValue[];
+	command?: Command;
 }
 
 function isAddDynamicVariableContext(context: any): context is IAddDynamicVariableContext {
@@ -208,9 +244,39 @@ export class AddDynamicVariableAction extends Action2 {
 			return;
 		}
 
+		let range = context.range;
+		const variableData = context.variableData;
+
+		const doCleanup = () => {
+			// Failed, remove the dangling variable prefix
+			context.widget.inputEditor.executeEdits('chatInsertDynamicVariableWithArguments', [{ range: context.range, text: `` }]);
+		};
+
+		// If this completion item has no command, return it directly
+		if (context.command) {
+			// Invoke the command on this completion item along with its args and return the result
+			const commandService = accessor.get(ICommandService);
+			const selection: string | undefined = await commandService.executeCommand(context.command.id, ...(context.command.arguments ?? []));
+			if (!selection) {
+				doCleanup();
+				return;
+			}
+
+			// Compute new range and variableData
+			const insertText = ':' + selection;
+			const insertRange = new Range(range.startLineNumber, range.endColumn, range.endLineNumber, range.endColumn + insertText.length);
+			range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + insertText.length);
+			const editor = context.widget.inputEditor;
+			const success = editor.executeEdits('chatInsertDynamicVariableWithArguments', [{ range: insertRange, text: insertText + ' ' }]);
+			if (!success) {
+				doCleanup();
+				return;
+			}
+		}
+
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			range: context.range,
-			data: context.variableData
+			range: range,
+			data: variableData
 		});
 	}
 }

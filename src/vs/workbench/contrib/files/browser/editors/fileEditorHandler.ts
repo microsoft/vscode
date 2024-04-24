@@ -69,6 +69,8 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 
 export class FileEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
+	static readonly ID = 'workbench.contrib.fileEditorWorkingCopyEditorHandler';
+
 	constructor(
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService,

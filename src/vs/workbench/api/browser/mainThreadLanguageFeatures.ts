@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { combinedDisposable, Disposable, DisposableMap, toDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { revive } from 'vs/base/common/marshalling';
 import { mixin } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
+import { Position as EditorPosition, IPosition } from 'vs/editor/common/core/position';
+import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -32,9 +35,7 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
-import { ResourceMap } from 'vs/base/common/map';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -250,9 +251,22 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider>{
-			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.Hover | undefined> => {
-				return this._proxy.$provideHover(handle, model.uri, position, token);
+		/*
+		const hoverFinalizationRegistry = new FinalizationRegistry((hoverId: number) => {
+			this._proxy.$releaseHover(handle, hoverId);
+		});
+		*/
+		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider<HoverWithId>>{
+			provideHover: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context?: languages.HoverContext<HoverWithId>): Promise<HoverWithId | undefined> => {
+				const serializedContext: languages.HoverContext<{ id: number }> = {
+					verbosityRequest: context?.verbosityRequest ? {
+						action: context.verbosityRequest.action,
+						previousHover: { id: context.verbosityRequest.previousHover.id }
+					} : undefined,
+				};
+				const hover = await this._proxy.$provideHover(handle, model.uri, position, serializedContext, token);
+				// hoverFinalizationRegistry.register(hover, hover.id);
+				return hover;
 			}
 		}));
 	}
@@ -398,8 +412,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _pasteEditProviders = new Map<number, MainThreadPasteEditProvider>();
 
-	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], id: string, metadata: IPasteEditProviderMetadataDto): void {
-		const provider = new MainThreadPasteEditProvider(handle, this._proxy, id, metadata, this._uriIdentService);
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IPasteEditProviderMetadataDto): void {
+		const provider = new MainThreadPasteEditProvider(handle, this._proxy, metadata, this._uriIdentService);
 		this._pasteEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentPasteEditProvider.register(selector, provider),
@@ -479,7 +493,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportResolveLocation: boolean): void {
-		this._registrations.set(handle, this._languageFeaturesService.renameProvider.register(selector, <languages.RenameProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.renameProvider.register(selector, {
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken) => {
 				return this._proxy.$provideRenameEdits(handle, model.uri, position, newName, token).then(data => reviveWorkspaceEditDto(data, this._uriIdentService));
 			},
@@ -487,6 +501,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.RenameLocation | undefined> => this._proxy.$resolveRenameLocation(handle, model.uri, position, token)
 				: undefined
 		}));
+	}
+
+	$registerNewSymbolNamesProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, this._languageFeaturesService.newSymbolNamesProvider.register(selector, {
+			supportsAutomaticNewSymbolNamesTriggerKind: this._proxy.$supportsAutomaticNewSymbolNamesTriggerKind(handle),
+			provideNewSymbolNames: (model: ITextModel, range: IRange, triggerKind: languages.NewSymbolNameTriggerKind, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> => {
+				return this._proxy.$provideNewSymbolNames(handle, model.uri, range, triggerKind, token);
+			}
+		} satisfies languages.NewSymbolNamesProvider));
 	}
 
 	// --- semantic tokens
@@ -593,9 +616,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);
 				}
 			},
-			handlePartialAccept: async (completions, item, acceptedCharacters): Promise<void> => {
+			handlePartialAccept: async (completions, item, acceptedCharacters, info: languages.PartialAcceptInfo): Promise<void> => {
 				if (supportsHandleEvents) {
-					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters);
+					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters, info);
 				}
 			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
@@ -608,6 +631,19 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			}
 		};
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
+	}
+
+	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void {
+		const provider: languages.InlineEditProvider<IdentifiableInlineEdit> = {
+			provideInlineEdit: async (model: ITextModel, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined> => {
+				return this._proxy.$provideInlineEdit(handle, model.uri, context, token);
+			},
+			freeInlineEdit: (edit: IdentifiableInlineEdit): void => {
+				this._proxy.$freeInlineEdit(handle, edit.pid);
+			}
+
+		};
+		this._registrations.set(handle, this._languageFeaturesService.inlineEditProvider.register(selector, provider));
 	}
 
 	// --- parameter hints
@@ -942,11 +978,11 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _documentOnDropEditProviders = new Map<number, MainThreadDocumentOnDropEditProvider>();
 
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], id: string | undefined, metadata: IDocumentDropEditProviderMetadata): void {
-		const provider = new MainThreadDocumentOnDropEditProvider(handle, this._proxy, id, metadata, this._uriIdentService);
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IDocumentDropEditProviderMetadata): void {
+		const provider = new MainThreadDocumentOnDropEditProvider(handle, this._proxy, metadata, this._uriIdentService);
 		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
-			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
+			this._languageFeaturesService.documentDropEditProvider.register(selector, provider),
 			toDisposable(() => this._documentOnDropEditProviders.delete(handle)),
 		));
 	}
@@ -971,23 +1007,23 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 	private readonly dataTransfers = new DataTransferFileCache();
 
-	public readonly id: string;
 	public readonly copyMimeTypes?: readonly string[];
 	public readonly pasteMimeTypes?: readonly string[];
+	public readonly providedPasteEditKinds?: readonly HierarchicalKind[];
 
 	readonly prepareDocumentPaste?: languages.DocumentPasteEditProvider['prepareDocumentPaste'];
 	readonly provideDocumentPasteEdits?: languages.DocumentPasteEditProvider['provideDocumentPasteEdits'];
+	readonly resolveDocumentPasteEdit?: languages.DocumentPasteEditProvider['resolveDocumentPasteEdit'];
 
 	constructor(
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
-		id: string,
 		metadata: IPasteEditProviderMetadataDto,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
-		this.id = id;
 		this.copyMimeTypes = metadata.copyMimeTypes;
 		this.pasteMimeTypes = metadata.pasteMimeTypes;
+		this.providedPasteEditKinds = metadata.providedPasteEditKinds?.map(kind => new HierarchicalKind(kind));
 
 		if (metadata.supportsCopy) {
 			this.prepareDocumentPaste = async (model: ITextModel, selections: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<IReadonlyVSDataTransfer | undefined> => {
@@ -1018,18 +1054,39 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 						return;
 					}
 
-					const result = await this._proxy.$providePasteEdits(this._handle, request.id, model.uri, selections, dataTransferDto, token);
-					if (!result) {
+					const edits = await this._proxy.$providePasteEdits(this._handle, request.id, model.uri, selections, dataTransferDto, {
+						only: context.only?.value,
+						triggerKind: context.triggerKind,
+					}, token);
+					if (!edits) {
 						return;
 					}
 
 					return {
-						...result,
-						additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
+						edits: edits.map((edit): languages.DocumentPasteEdit => {
+							return {
+								...edit,
+								kind: edit.kind ? new HierarchicalKind(edit.kind.value) : new HierarchicalKind(''),
+								yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
+								additionalEdit: edit.additionalEdit ? reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
+							};
+						}),
+						dispose: () => {
+							this._proxy.$releasePasteEdits(this._handle, request.id);
+						},
 					};
 				} finally {
 					request.dispose();
 				}
+			};
+		}
+		if (metadata.supportsResolve) {
+			this.resolveDocumentPasteEdit = async (edit: languages.DocumentPasteEdit, token: CancellationToken) => {
+				const resolved = await this._proxy.$resolvePasteEdit(this._handle, (<IPasteEditDto>edit)._cacheId!, token);
+				if (resolved.additionalEdit) {
+					edit.additionalEdit = reviveWorkspaceEditDto(resolved.additionalEdit, this._uriIdentService);
+				}
+				return edit;
 			};
 		}
 	}
@@ -1039,25 +1096,34 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 	}
 }
 
-class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEditProvider {
+class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEditProvider {
 
 	private readonly dataTransfers = new DataTransferFileCache();
 
-	readonly id: string | undefined;
 	readonly dropMimeTypes?: readonly string[];
+
+	readonly resolveDocumentDropEdit?: languages.DocumentDropEditProvider['resolveDocumentDropEdit'];
 
 	constructor(
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
-		id: string | undefined,
 		metadata: IDocumentDropEditProviderMetadata | undefined,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
-		this.id = id;
 		this.dropMimeTypes = metadata?.dropMimeTypes ?? ['*/*'];
+
+		if (metadata?.supportsResolve) {
+			this.resolveDocumentDropEdit = async (edit, token) => {
+				const resolved = await this._proxy.$resolvePasteEdit(this._handle, (<IDocumentDropEditDto>edit)._cacheId!, token);
+				if (resolved.additionalEdit) {
+					edit.additionalEdit = reviveWorkspaceEditDto(resolved.additionalEdit, this._uriIdentService);
+				}
+				return edit;
+			};
+		}
 	}
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit | null | undefined> {
+	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEdit[] | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
 			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
@@ -1065,15 +1131,19 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 				return;
 			}
 
-			const edit = await this._proxy.$provideDocumentOnDropEdits(this._handle, request.id, model.uri, position, dataTransferDto, token);
-			if (!edit) {
+			const edits = await this._proxy.$provideDocumentOnDropEdits(this._handle, request.id, model.uri, position, dataTransferDto, token);
+			if (!edits) {
 				return;
 			}
 
-			return {
-				...edit,
-				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
-			};
+			return edits.map(edit => {
+				return {
+					...edit,
+					yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
+					kind: edit.kind ? new HierarchicalKind(edit.kind) : undefined,
+					additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
+				};
+			});
 		} finally {
 			request.dispose();
 		}

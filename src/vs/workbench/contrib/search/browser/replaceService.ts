@@ -42,6 +42,8 @@ const toFileResource = (replaceResource: URI): URI => {
 
 export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.replacePreviewContentProvider';
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService

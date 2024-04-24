@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
+import { AbstractText, SingleTextEdit } from 'vs/editor/common/core/textEdit';
 
 /**
  * Maps a line range in the original text model to a line range in the modified text model.
@@ -85,6 +87,37 @@ export class LineRangeMapping {
 	public get changedLineCount() {
 		return Math.max(this.original.length, this.modified.length);
 	}
+
+	/**
+	 * This method assumes that the LineRangeMapping describes a valid diff!
+	 * I.e. if one range is empty, the other range cannot be the entire document.
+	 * It avoids various problems when the line range points to non-existing line-numbers.
+	*/
+	public toRangeMapping(): RangeMapping {
+		const origInclusiveRange = this.original.toInclusiveRange();
+		const modInclusiveRange = this.modified.toInclusiveRange();
+		if (origInclusiveRange && modInclusiveRange) {
+			return new RangeMapping(origInclusiveRange, modInclusiveRange);
+		} else if (this.original.startLineNumber === 1 || this.modified.startLineNumber === 1) {
+			if (!(this.modified.startLineNumber === 1 && this.original.startLineNumber === 1)) {
+				// If one line range starts at 1, the other one must start at 1 as well.
+				throw new BugIndicatingError('not a valid diff');
+			}
+
+			// Because one range is empty and both ranges start at line 1, none of the ranges can cover all lines.
+			// Thus, `endLineNumberExclusive` is a valid line number.
+			return new RangeMapping(
+				new Range(this.original.startLineNumber, 1, this.original.endLineNumberExclusive, 1),
+				new Range(this.modified.startLineNumber, 1, this.modified.endLineNumberExclusive, 1),
+			);
+		} else {
+			// We can assume here that both startLineNumbers are greater than 1.
+			return new RangeMapping(
+				new Range(this.original.startLineNumber - 1, Number.MAX_SAFE_INTEGER, this.original.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER),
+				new Range(this.modified.startLineNumber - 1, Number.MAX_SAFE_INTEGER, this.modified.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER),
+			);
+		}
+	}
 }
 
 /**
@@ -92,6 +125,12 @@ export class LineRangeMapping {
  * Also contains inner range mappings.
  */
 export class DetailedLineRangeMapping extends LineRangeMapping {
+	public static fromRangeMappings(rangeMappings: RangeMapping[]): DetailedLineRangeMapping {
+		const originalRange = LineRange.join(rangeMappings.map(r => LineRange.fromRangeInclusive(r.originalRange)));
+		const modifiedRange = LineRange.join(rangeMappings.map(r => LineRange.fromRangeInclusive(r.modifiedRange)));
+		return new DetailedLineRangeMapping(originalRange, modifiedRange, rangeMappings);
+	}
+
 	/**
 	 * If inner changes have not been computed, this is set to undefined.
 	 * Otherwise, it represents the character-level diff in this line range.
@@ -111,6 +150,10 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 
 	public override flip(): DetailedLineRangeMapping {
 		return new DetailedLineRangeMapping(this.modified, this.original, this.innerChanges?.map(c => c.flip()));
+	}
+
+	public withInnerChangesFromLineRanges(): DetailedLineRangeMapping {
+		return new DetailedLineRangeMapping(this.original, this.modified, [this.toRangeMapping()]);
 	}
 }
 
@@ -142,5 +185,13 @@ export class RangeMapping {
 
 	public flip(): RangeMapping {
 		return new RangeMapping(this.modifiedRange, this.originalRange);
+	}
+
+	/**
+	 * Creates a single text edit that describes the change from the original to the modified text.
+	*/
+	public toTextEdit(modified: AbstractText): SingleTextEdit {
+		const newText = modified.getValueOfRange(this.modifiedRange);
+		return new SingleTextEdit(this.originalRange, newText);
 	}
 }

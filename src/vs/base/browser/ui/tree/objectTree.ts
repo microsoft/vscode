@@ -189,25 +189,30 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 
 	private compressStickyNodes(stickyNodes: StickyScrollNode<T, TFilterData>[]): StickyScrollNode<T, TFilterData> {
 
-		if (!this.modelProvider().isCompressionEnabled()) {
+		if (stickyNodes.length === 0) {
+			throw new Error('Can\'t compress empty sticky nodes');
+		}
+		const compressionModel = this.modelProvider();
+		if (!compressionModel.isCompressionEnabled()) {
 			return stickyNodes[0];
 		}
 
 		// Collect all elements to be compressed
 		const elements: T[] = [];
-		for (const stickyNode of stickyNodes) {
-			const compressedNode = this.modelProvider().getCompressedTreeNode(stickyNode.node.element);
+		for (let i = 0; i < stickyNodes.length; i++) {
+			const stickyNode = stickyNodes[i];
+			const compressedNode = compressionModel.getCompressedTreeNode(stickyNode.node.element);
 
 			if (compressedNode.element) {
+				// if an element is incompressible, it can't be compressed with it's parent element
+				if (i !== 0 && compressedNode.element.incompressible) {
+					break;
+				}
 				elements.push(...compressedNode.element.elements);
 			}
 		}
 
-		if (elements.length === 0) {
-			throw new Error('Can\'t compress when there are no elements to compress');
-		}
-
-		if (elements.length === 1) {
+		if (elements.length < 2) {
 			return stickyNodes[0];
 		}
 

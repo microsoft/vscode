@@ -402,7 +402,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	 */
 	private getSuggestedLanguage(notebookTextModel: NotebookTextModel): string | undefined {
 		const metaData = notebookTextModel.metadata;
-		let suggestedKernelLanguage: string | undefined = (metaData.custom as any)?.metadata?.language_info?.name;
+		let suggestedKernelLanguage: string | undefined = (metaData as any)?.metadata?.language_info?.name;
 		// TODO how do we suggest multi language notebooks?
 		if (!suggestedKernelLanguage) {
 			const cellLanguages = notebookTextModel.cells.map(cell => cell.language).filter(language => language !== 'markdown');
@@ -600,7 +600,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				await this._selecteKernel(notebook, selectedKernelPickItem.kernel);
 				return true;
 			} else if (isGroupedKernelsPick(selectedKernelPickItem)) {
-				await this._selectOneKernel(notebook, selectedKernelPickItem.source, selectedKernelPickItem.kernels);
+				await this._selectOneKernel(notebook, selectedKernelPickItem.label, selectedKernelPickItem.kernels);
 				return true;
 			} else if (isSourcePick(selectedKernelPickItem)) {
 				// selected explicilty, it should trigger the execution?
@@ -674,7 +674,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				tooltip: localize('learnMoreTooltip', 'Learn More'),
 			}] : [];
 			return {
-				id: typeof action.command! === 'string' ? action.command! : action.command!.id,
+				id: typeof action.command! === 'string' ? action.command : action.command!.id,
 				label: action.label,
 				description: action.description,
 				command: action.command,

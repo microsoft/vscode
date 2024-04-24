@@ -101,8 +101,11 @@ steps:
     displayName: Process artifacts
     retryCountOnTaskFailure: 3
 
-  - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
-    artifact: artifacts_processed_$(System.StageAttempt)
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
+      artifactName: artifacts_processed_$(System.StageAttempt)
+      sbomEnabled: false
     displayName: Publish the artifacts processed for this stage attempt
     condition: always()
 
@@ -113,6 +116,7 @@ steps:
       $stages = @(
         if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
         if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
+        if ($env:VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER -eq 'True') { 'LinuxLegacyServer' }
         if ($env:VSCODE_BUILD_STAGE_ALPINE -eq 'True') { 'Alpine' }
         if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
         if ($env:VSCODE_BUILD_STAGE_WEB -eq 'True') { 'Web' }

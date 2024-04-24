@@ -73,8 +73,8 @@ suite('KeybindingsSync', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), '[]');
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), '[]');
+		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content, true, client.instantiationService.get(ILogService)), '[]');
+		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData.syncData!.content, true, client.instantiationService.get(ILogService)), '[]');
 		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), '');
 	});
 
@@ -98,8 +98,8 @@ suite('KeybindingsSync', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content, true, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData.syncData!.content, true, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), content);
 	});
 
@@ -113,8 +113,8 @@ suite('KeybindingsSync', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), expectedContent);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), expectedContent);
+		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content, true, client.instantiationService.get(ILogService)), expectedContent);
+		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData.syncData!.content, true, client.instantiationService.get(ILogService)), expectedContent);
 		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), expectedContent);
 	});
 
@@ -138,8 +138,8 @@ suite('KeybindingsSync', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content, true, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData.syncData!.content, true, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), content);
 	});
 
@@ -162,8 +162,8 @@ suite('KeybindingsSync', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content, true, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData.syncData!.content, true, client.instantiationService.get(ILogService)), content);
 		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), expectedLocalContent);
 	});
 
@@ -186,7 +186,7 @@ suite('KeybindingsSync', () => {
 		const remoteUserData = await testObject.getRemoteUserData(null);
 		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true, client.instantiationService.get(ILogService)), '[]');
+		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content, true, client.instantiationService.get(ILogService)), '[]');
 	});
 
 	test('test apply remote when keybindings file does not exist', async () => {

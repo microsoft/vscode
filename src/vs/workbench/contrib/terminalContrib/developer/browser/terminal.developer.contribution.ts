@@ -16,15 +16,15 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import type { Terminal } from '@xterm/xterm';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { getWindow } from 'vs/base/browser/dom';
+import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry, type IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 registerTerminalAction({
 	id: TerminalCommandId.ShowTextureAtlas,
@@ -118,15 +118,18 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 	}
 
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
-	private _activeDevModeDisposables = new MutableDisposable();
+	private readonly _activeDevModeDisposables = new MutableDisposable();
 	private _currentColor = 0;
+
+	private _statusbarEntry: IStatusbarEntry | undefined;
+	private readonly _statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor> = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 	) {
 		super();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -145,19 +148,16 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		const devMode: boolean = this._isEnabled();
 		this._xterm?.raw.element?.classList.toggle('dev-mode', devMode);
 
-		// Text area syncing
-		if (this._xterm?.raw.textarea) {
-			const font = this._terminalService.configHelper.getFont(getWindow(this._xterm.raw.textarea));
-			this._xterm.raw.textarea.style.fontFamily = font.fontFamily;
-			this._xterm.raw.textarea.style.fontSize = `${font.fontSize}px`;
-		}
-
-		// Sequence markers
 		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (devMode) {
 			if (commandDetection) {
 				const commandDecorations = new Map<ITerminalCommand, IDisposable[]>();
 				this._activeDevModeDisposables.value = combinedDisposable(
+					// Prompt input
+					this._instance.onDidBlur(() => this._updateDevMode()),
+					this._instance.onDidFocus(() => this._updateDevMode()),
+					commandDetection.promptInputModel.onDidChangeInput(() => this._updateDevMode()),
+					// Sequence markers
 					commandDetection.onCommandFinished(command => {
 						const colorClass = `color-${this._currentColor}`;
 						const decorations: IDisposable[] = [];
@@ -224,6 +224,8 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 						}
 					})
 				);
+
+				this._updatePromptInputStatusBar(commandDetection);
 			} else {
 				this._activeDevModeDisposables.value = this._instance.capabilities.onDidAddCapabilityType(e => {
 					if (e === TerminalCapability.CommandDetection) {
@@ -238,6 +240,27 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 
 	private _isEnabled(): boolean {
 		return this._configurationService.getValue(TerminalSettingId.DevMode) || false;
+	}
+
+	private _updatePromptInputStatusBar(commandDetection: ICommandDetectionCapability) {
+		const promptInputModel = commandDetection.promptInputModel;
+		if (promptInputModel) {
+			const name = localize('terminalDevMode', 'Terminal Dev Mode');
+			const isExecuting = promptInputModel.cursorIndex === -1;
+			this._statusbarEntry = {
+				name,
+				text: `$(${isExecuting ? 'loading~spin' : 'terminal'}) ${promptInputModel.getCombinedString()}`,
+				ariaLabel: name,
+				tooltip: 'The detected terminal prompt input',
+				kind: 'prominent'
+			};
+			if (!this._statusbarEntryAccessor.value) {
+				this._statusbarEntryAccessor.value = this._statusbarService.addEntry(this._statusbarEntry, `terminal.promptInput.${this._instance.instanceId}`, StatusbarAlignment.LEFT);
+			} else {
+				this._statusbarEntryAccessor.value.update(this._statusbarEntry);
+			}
+			this._statusbarService.updateEntryVisibility(`terminal.promptInput.${this._instance.instanceId}`, this._instance.hasFocus);
+		}
 	}
 }
 
