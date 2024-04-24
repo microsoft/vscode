@@ -398,7 +398,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			agentName = this.chatAgentNameService.getAgentNameRestriction(element.agent)
 				.map(allowed => allowed ? name : name); // TODO
 		}
-
+		sdfsdfsdf;
 		templateData.elementDisposables.add(autorun(reader => {
 			this._renderDetail(element, agentName.read(reader), templateData);
 		}));
