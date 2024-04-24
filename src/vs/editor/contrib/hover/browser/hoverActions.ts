@@ -430,12 +430,12 @@ export class IncreaseHoverVerbosityLevel extends EditorAction {
 				comment: ['Label for action that will increase the hover verbosity level.']
 			}, "Increase Hover Verbosity Level"),
 			alias: 'Increase Hover Verbosity Level',
-			precondition: EditorContextKeys.hoverFocused
+			precondition: EditorContextKeys.hoverVisible
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Increase);
+		HoverController.get(editor)?.updateMarkdownHoverVerbosityLevels(HoverVerbosityAction.Increase);
 	}
 }
 
@@ -449,11 +449,11 @@ export class DecreaseHoverVerbosityLevel extends EditorAction {
 				comment: ['Label for action that will decrease the hover verbosity level.']
 			}, "Decrease Hover Verbosity Level"),
 			alias: 'Decrease Hover Verbosity Level',
-			precondition: EditorContextKeys.hoverFocused
+			precondition: EditorContextKeys.hoverVisible
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Decrease);
+		HoverController.get(editor)?.updateMarkdownHoverVerbosityLevels(HoverVerbosityAction.Decrease);
 	}
 }

@@ -25,7 +25,6 @@ import { Hover, HoverContext, HoverProvider, HoverVerbosityAction } from 'vs/edi
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ClickAction, HoverPosition, KeyDownAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -33,6 +32,7 @@ import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -191,8 +191,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return this._renderedHoverParts;
 	}
 
-	public updateFocusedMarkdownHoverPartVerbosityLevel(action: HoverVerbosityAction) {
-		this._renderedHoverParts?.updateFocusedHoverPartVerbosityLevel(action);
+	public updateMarkdownHoverVerbosityLevels(action: HoverVerbosityAction) {
+		this._renderedHoverParts?.updateMarkdownHoverVerbosityLevels(action);
 	}
 }
 
@@ -335,19 +335,29 @@ class MarkdownRenderedHoverParts extends Disposable {
 			return store;
 		}
 		actionElement.classList.add('enabled');
-		const actionFunction = () => this.updateFocusedHoverPartVerbosityLevel(action);
+		const actionFunction = () => this.updateMarkdownHoverVerbosityLevels(action);
 		store.add(new ClickAction(actionElement, actionFunction));
 		store.add(new KeyDownAction(actionElement, actionFunction, [KeyCode.Enter, KeyCode.Space]));
 		return store;
 	}
 
-	public async updateFocusedHoverPartVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
+	public async updateMarkdownHoverVerbosityLevels(action: HoverVerbosityAction): Promise<void> {
+		const hoverIndicesToUpdate: number[] = [];
+		const hoverFocusedPartIndex = this._hoverFocusInfo.hoverPartIndex;
+		if (hoverFocusedPartIndex >= 0) {
+			hoverIndicesToUpdate.push(hoverFocusedPartIndex);
+		} else {
+
+		}
+		hoverIndicesToUpdate.forEach(index => this.updateMarkdownHoverVerbosityLevelAtIndex(action, index));
+	}
+
+	public async updateMarkdownHoverVerbosityLevelAtIndex(action: HoverVerbosityAction, index: number): Promise<void> {
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
 		}
-		const hoverFocusedPartIndex = this._hoverFocusInfo.hoverPartIndex;
-		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(hoverFocusedPartIndex);
+		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(index);
 		if (!hoverRenderedPart || !hoverRenderedPart.hoverSource?.supportsVerbosityAction(action)) {
 			return;
 		}
@@ -368,13 +378,13 @@ class MarkdownRenderedHoverParts extends Disposable {
 
 		const hoverSource = new HoverSource(newHover, hoverProvider, hoverPosition);
 		const renderedHoverPart = this._renderHoverPart(
-			hoverFocusedPartIndex,
+			index,
 			newHover.contents,
 			hoverSource,
 			this._onFinishedRendering
 		);
-		this._replaceRenderedHoverPartAtIndex(hoverFocusedPartIndex, renderedHoverPart);
-		this._focusOnHoverPartWithIndex(hoverFocusedPartIndex);
+		this._replaceRenderedHoverPartAtIndex(index, renderedHoverPart);
+		this._focusOnHoverPartWithIndex(index);
 		this._onFinishedRendering();
 	}
 

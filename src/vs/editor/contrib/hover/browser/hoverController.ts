@@ -402,8 +402,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.widget.isResizing || false;
 	}
 
-	public updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): void {
-		this._getOrCreateContentWidget().updateFocusedMarkdownHoverVerbosityLevel(action);
+	public updateMarkdownHoverVerbosityLevels(action: HoverVerbosityAction): void {
+		this._getOrCreateContentWidget().updateMarkdownHoverVerbosityLevels(action);
 	}
 
 	public focus(): void {

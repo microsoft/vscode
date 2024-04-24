@@ -351,8 +351,8 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
-		this._markdownHoverParticipant?.updateFocusedMarkdownHoverPartVerbosityLevel(action);
+	public async updateMarkdownHoverVerbosityLevels(action: HoverVerbosityAction): Promise<void> {
+		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevels(action);
 	}
 
 	public getWidgetContent(): string | undefined {
