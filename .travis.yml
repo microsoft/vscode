@@ -1,0 +1,20 @@
+language: node_js
+node_js:
+  - "14"      # Use Node.js 14
+  - "16"      # Use Node.js 16
+  - "18"      # Use Node.js 18, or the current LTS version
+
+# Use the cache option to speed up builds by caching directories like node_modules
+cache:
+  directories:
+    - "node_modules"
+
+# Use the install step to install dependencies and any specific global packages
+install:
+  - npm install        # Install dependencies listed in your package.json file
+  - npm install -g typescript  # Install TypeScript globally
+
+# Use the script step to compile TypeScript and run any tests or other scripts
+script:
+  - tsc                # Compile TypeScript files
+  - npm test           # Run tests specified in the package.json scripts section
