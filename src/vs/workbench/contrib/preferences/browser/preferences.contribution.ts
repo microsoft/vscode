@@ -423,8 +423,17 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, resource: URI) {
-				return accessor.get(IPreferencesService).openFolderSettings({ folderUri: resource });
+			async run(accessor: ServicesAccessor, resource?: URI) {
+				if (URI.isUri(resource)) {
+					await accessor.get(IPreferencesService).openFolderSettings({ folderUri: resource });
+				} else {
+					const commandService = accessor.get(ICommandService);
+					const preferencesService = accessor.get(IPreferencesService);
+					const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
+					if (workspaceFolder) {
+						await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri });
+					}
+				}
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {
