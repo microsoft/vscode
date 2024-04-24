@@ -425,10 +425,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const currentPromptInputState = this._currentPromptInputState ?? initialPromptInputState;
 		const additionalInput = currentPromptInputState.value.substring(initialPromptInputState.cursorIndex, currentPromptInputState.cursorIndex);
 
-		// We could start from a common prefix to reduce the number of characters we need to send
+		// Get the final completion on the right side of the cursor
 		const initialInput = initialPromptInputState.value.substring(0, initialPromptInputState.cursorIndex);
 		const lastSpaceIndex = initialInput.lastIndexOf(' ');
-		const finalCompletion = suggestion.item.completion.label.substring(initialPromptInputState.cursorIndex - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+		const finalCompletionRightSide = suggestion.item.completion.label.substring(initialPromptInputState.cursorIndex - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+
+		// Get the final completion on the right side of the cursor if it differs from the initial
+		// propmt input state
+		let finalCompletionLeftSide = suggestion.item.completion.label.substring(0, initialPromptInputState.cursorIndex - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+		if (initialInput.endsWith(finalCompletionLeftSide)) {
+			finalCompletionLeftSide = '';
+		}
 
 		// Send the completion
 		this._onAcceptedCompletion.fire([
@@ -436,8 +443,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			'\x1b[24~y',
 			// Backspace to remove all additional input
 			'\x7F'.repeat(additionalInput.length),
+			// Backspace to remove left side of completion
+			'\x7F'.repeat(finalCompletionLeftSide.length),
+			// Write the left side of the completion if it differed
+			finalCompletionLeftSide,
 			// Write the completion
-			finalCompletion,
+			finalCompletionRightSide,
 			// Enable suggestions
 			'\x1b[24~z',
 		].join(''));
