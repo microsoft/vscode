@@ -906,12 +906,7 @@ class InputWithButton implements IDisposable {
 			this._domNode.appendChild(this._inputNode);
 
 			this._buttonNode = document.createElement('div');
-			this._buttonNode.style.display = 'flex';
-			this._buttonNode.style.alignItems = 'center';
-			this._buttonNode.style.padding = '3px';
-			this._buttonNode.style.backgroundColor = 'transparent';
-			this._buttonNode.style.border = 'none';
-			this._buttonNode.style.borderRadius = '5px';
+			this._buttonNode.className = 'rename-suggestions-button';
 			this._buttonNode.setAttribute('tabindex', '0');
 
 			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate new name suggestions");
