@@ -6,6 +6,9 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -28,6 +31,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { NewSymbolName, NewSymbolNameTag, NewSymbolNameTriggerKind, ProviderResult } from 'vs/editor/common/languages';
+import * as nls from 'vs/nls';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -366,6 +370,9 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		}
 	}
 
+	/**
+	 * @param requestRenameCandidates is `undefined` when there are no rename suggestion providers
+	 */
 	getInput(
 		where: IRange,
 		currentName: string,
@@ -522,6 +529,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			const candidates = this._requestRenameCandidatesOnce(triggerKind, this._renameCandidateProvidersCts.token);
 
 			if (candidates.length === 0) {
+				this._inputWithButton.setSparkleButton();
 				return;
 			}
 
@@ -659,6 +667,7 @@ class RenameCandidateListView {
 		this._typicalHalfwidthCharacterWidth = opts.fontInfo.typicalHalfwidthCharacterWidth;
 
 		this._listContainer = document.createElement('div');
+		this._listContainer.className = 'rename-box rename-candidate-list-container';
 		parent.appendChild(this._listContainer);
 
 		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
@@ -869,6 +878,9 @@ class InputWithButton implements IDisposable {
 	private _domNode: HTMLDivElement | undefined;
 	private _inputNode: HTMLInputElement | undefined;
 	private _buttonNode: HTMLElement | undefined;
+	private _buttonHover: IUpdatableHover | undefined;
+	private _buttonGenHoverText: string | undefined;
+	private _buttonCancelHoverText: string | undefined;
 	private _sparkleIcon: HTMLElement | undefined;
 	private _stopIcon: HTMLElement | undefined;
 
@@ -895,13 +907,13 @@ class InputWithButton implements IDisposable {
 			this._domNode.appendChild(this._inputNode);
 
 			this._buttonNode = document.createElement('div');
-			this._buttonNode.style.display = 'flex';
-			this._buttonNode.style.alignItems = 'center';
-			this._buttonNode.style.padding = '3px';
-			this._buttonNode.style.backgroundColor = 'transparent';
-			this._buttonNode.style.border = 'none';
-			this._buttonNode.style.borderRadius = '5px';
+			this._buttonNode.className = 'rename-suggestions-button';
 			this._buttonNode.setAttribute('tabindex', '0');
+
+			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate new name suggestions");
+			this._buttonCancelHoverText = nls.localize('cancelRenameSuggestionsButton', "Cancel");
+			this._buttonHover = getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('element'), this._buttonNode, this._buttonGenHoverText);
+			this._disposables.add(this._buttonHover);
 
 			this._domNode.appendChild(this._buttonNode);
 
@@ -950,6 +962,8 @@ class InputWithButton implements IDisposable {
 		this._sparkleIcon ??= renderIcon(Codicon.sparkle);
 		dom.clearNode(this.button);
 		this.button.appendChild(this._sparkleIcon);
+		this.button.setAttribute('aria-label', 'Generating new name suggestions');
+		this._buttonHover?.update(this._buttonGenHoverText);
 		this.input.focus();
 	}
 
@@ -958,6 +972,8 @@ class InputWithButton implements IDisposable {
 		this._stopIcon ??= renderIcon(Codicon.primitiveSquare);
 		dom.clearNode(this.button);
 		this.button.appendChild(this._stopIcon);
+		this.button.setAttribute('aria-label', 'Cancel generating new name suggestions');
+		this._buttonHover?.update(this._buttonCancelHoverText);
 		this.input.focus();
 	}
 
@@ -977,6 +993,7 @@ class RenameCandidateView {
 	constructor(parent: HTMLElement, fontInfo: FontInfo) {
 
 		this._domNode = document.createElement('div');
+		this._domNode.className = 'rename-box rename-candidate';
 		this._domNode.style.display = `flex`;
 		this._domNode.style.columnGap = `5px`;
 		this._domNode.style.alignItems = `center`;

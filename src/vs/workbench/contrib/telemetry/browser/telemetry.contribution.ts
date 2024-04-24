@@ -410,6 +410,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('extensions.verifySignature', { settingValue: this.getValueToReport(key, target), source });
 				return;
+
+			case 'window.systemColorTheme':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'bpasero';
+					comment: 'This is used to know how system color theme is enforced';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.systemColorTheme', { settingValue: this.getValueToReport(key, target), source });
+				return;
 		}
 	}
 

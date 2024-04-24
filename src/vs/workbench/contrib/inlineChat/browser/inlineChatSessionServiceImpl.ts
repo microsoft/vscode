@@ -229,6 +229,7 @@ export class InlineChatError extends Error {
 
 const _bridgeAgentId = 'brigde.editor';
 const _inlineChatContext = '_inlineChatContext';
+const _inlineChatDocument = '_inlineChatDocument';
 
 class InlineChatContext {
 
@@ -387,6 +388,17 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							level: 'full',
 							value: JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange))
 						}];
+					}
+				}
+				return undefined;
+			}
+		));
+		this._store.add(chatVariableService.registerVariable(
+			{ name: _inlineChatDocument, description: '', hidden: true },
+			async (_message, _arg, model) => {
+				for (const [, data] of this._sessions) {
+					if (data.session.chatModel === model) {
+						return [{ level: 'full', value: data.session.textModelN.uri }];
 					}
 				}
 				return undefined;
