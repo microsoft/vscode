@@ -103,7 +103,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		const fullscreen = isFullscreen(this.window);
 		return {
 			...state,
-			bounds: this.maximized ? undefined : state.bounds, // ignore if maximized (fullscreen is not yet supported!)
+			bounds: state.bounds,
 			mode: this.maximized ? AuxiliaryWindowMode.Maximized : fullscreen ? AuxiliaryWindowMode.Fullscreen : AuxiliaryWindowMode.Normal
 		};
 	}

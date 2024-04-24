@@ -211,17 +211,17 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 				const setting = this._signalConfigValue.get(arg.signal).read(reader);
 
 				if (arg.modality === 'sound' || arg.modality === undefined) {
-					if (!checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-						return false;
+					if (checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+						return true;
 					}
 				}
 				if (arg.modality === 'announcement' || arg.modality === undefined) {
-					if (!checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-						return false;
+					if (checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+						return true;
 					}
 				}
-				return true;
-			});
+				return false;
+			}).recomputeInitiallyAndOnChange(this._store);
 		}
 	);
 

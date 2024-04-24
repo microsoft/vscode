@@ -15,7 +15,6 @@ import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -58,7 +57,6 @@ export const enum State {
 	INIT_UI = 'INIT_UI',
 	WAIT_FOR_INPUT = 'WAIT_FOR_INPUT',
 	SHOW_REQUEST = 'SHOW_REQUEST',
-	APPLY_RESPONSE = 'APPLY_RESPONSE',
 	SHOW_RESPONSE = 'SHOW_RESPONSE',
 	PAUSE = 'PAUSE',
 	CANCEL = 'CANCEL',
@@ -144,7 +142,6 @@ export class InlineChatController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -332,6 +329,8 @@ export class InlineChatController implements IEditorContribution {
 			return State.CANCEL;
 		}
 
+		await session.chatModel.waitForInitialization();
+
 		// create a new strategy
 		switch (session.editMode) {
 			case EditMode.Preview:
@@ -347,7 +346,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.INIT_UI;
 	}
 
-	private async [State.INIT_UI](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
+	private async [State.INIT_UI](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE> {
 		assertType(this._session);
 		assertType(this._strategy);
 
@@ -528,7 +527,7 @@ export class InlineChatController implements IEditorContribution {
 			return State.WAIT_FOR_INPUT;
 		} else if (options.isUnstashed) {
 			delete options.isUnstashed;
-			return State.APPLY_RESPONSE;
+			return State.SHOW_RESPONSE;
 		} else {
 			return State.SHOW_RESPONSE;
 		}
@@ -641,7 +640,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 
-	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.APPLY_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT> {
+	private async [State.SHOW_REQUEST](): Promise<State.SHOW_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT> {
 		assertType(this._session);
 		assertType(this._session.chatModel.requestInProgress);
 
@@ -703,7 +702,7 @@ export class InlineChatController implements IEditorContribution {
 			const editsShouldBeInstant = false;
 
 			const edits = response.response.value.map(part => {
-				if (part.kind === 'textEdit' && isEqual(part.uri, this._session?.textModelN.uri)) {
+				if (part.kind === 'textEditGroup' && isEqual(part.uri, this._session?.textModelN.uri)) {
 					return part.edits;
 				} else {
 					return [];
@@ -727,10 +726,12 @@ export class InlineChatController implements IEditorContribution {
 				// making changes goes into a queue because otherwise the async-progress time will
 				// influence the time it takes to receive the changes and progressive typing will
 				// become infinitely fast
-				await this._makeChanges(newEdits, editsShouldBeInstant
-					? undefined
-					: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
-				);
+				for (const edits of newEdits) {
+					await this._makeChanges(edits, editsShouldBeInstant
+						? undefined
+						: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
+					);
+				}
 
 				// reshow the widget if the start position changed or shows at the wrong position
 				const startNow = this._session!.wholeRange.value.getStartPosition();
@@ -762,21 +763,8 @@ export class InlineChatController implements IEditorContribution {
 		} else if (message & Message.ACCEPT_SESSION) {
 			return State.ACCEPT;
 		} else {
-			return State.APPLY_RESPONSE;
+			return State.SHOW_RESPONSE;
 		}
-	}
-
-	private async[State.APPLY_RESPONSE](): Promise<State.SHOW_RESPONSE | State.CANCEL> {
-		assertType(this._session);
-		assertType(this._strategy);
-
-		const { response } = this._session.lastExchange!;
-		if (response instanceof ReplyResponse && response.workspaceEdit) {
-			// this reply cannot be applied in the normal inline chat UI and needs to be handled off to workspace edit
-			this._bulkEditService.apply(response.workspaceEdit, { showPreview: true });
-			return State.CANCEL;
-		}
-		return State.SHOW_RESPONSE;
 	}
 
 	private async[State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT> {
@@ -958,7 +946,7 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			this._input.value.hide();
 			this._zone.value.show(widgetPosition);
-			if (this._session && this._zone.value.widget.chatWidget.viewModel?.model !== this._session.chatModel) {
+			if (this._session) {
 				this._zone.value.widget.setChatModel(this._session.chatModel);
 			}
 		}
@@ -1226,7 +1214,7 @@ function asInlineChatResponseType(response: IResponse): InlineChatResponseTypes 
 	for (const item of response.value) {
 		let thisType: InlineChatResponseTypes;
 		switch (item.kind) {
-			case 'textEdit':
+			case 'textEditGroup':
 				thisType = InlineChatResponseTypes.OnlyEdits;
 				break;
 			case 'markdownContent':

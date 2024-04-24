@@ -504,13 +504,15 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 						for (const item of response.response.value) {
 							if (item.kind === 'markdownContent') {
 								markdownContent.value += item.content.value;
-							} else if (item.kind === 'textEdit') {
-								for (const edit of item.edits) {
-									raw.edits.edits.push({
-										resource: item.uri,
-										textEdit: edit,
-										versionId: undefined
-									});
+							} else if (item.kind === 'textEditGroup') {
+								for (const group of item.edits) {
+									for (const edit of group) {
+										raw.edits.edits.push({
+											resource: item.uri,
+											textEdit: edit,
+											versionId: undefined
+										});
+									}
 								}
 							}
 						}
@@ -525,10 +527,17 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							e.request.id,
 							e.request.response
 						);
+
 					}
 				}
 
 				session.addExchange(new SessionExchange(session.lastInput!, inlineResponse));
+
+				if (inlineResponse instanceof ReplyResponse && inlineResponse.untitledTextModel) {
+					this._textModelService.createModelReference(inlineResponse.untitledTextModel.resource).then(ref => {
+						store.add(ref);
+					});
+				}
 			});
 		}));
 

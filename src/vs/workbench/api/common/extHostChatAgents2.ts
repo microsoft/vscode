@@ -123,7 +123,7 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				reference(value) {
+				reference(value, iconPath) {
 					throwIfDone(this.reference);
 
 					if ('variableName' in value && !value.value) {
@@ -138,7 +138,7 @@ class ChatAgentResponseStream {
 								} satisfies IChatContentReference));
 							} else {
 								// Participant sent a variableName reference but the variable produced no references. Show variable reference with no value
-								const part = new extHostTypes.ChatResponseReferencePart(value);
+								const part = new extHostTypes.ChatResponseReferencePart(value, iconPath);
 								const dto = typeConvert.ChatResponseReferencePart.from(part);
 								references = [dto];
 							}
@@ -149,7 +149,7 @@ class ChatAgentResponseStream {
 							// Something went wrong- that variable doesn't actually exist
 						}
 					} else {
-						const part = new extHostTypes.ChatResponseReferencePart(value);
+						const part = new extHostTypes.ChatResponseReferencePart(value, iconPath);
 						const dto = typeConvert.ChatResponseReferencePart.from(part);
 						_report(dto);
 					}
@@ -183,7 +183,7 @@ class ChatAgentResponseStream {
 
 					if (part instanceof extHostTypes.ChatResponseReferencePart) {
 						// Ensure variable reference values get fixed up
-						this.reference(part.value);
+						this.reference(part.value, part.iconPath);
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);

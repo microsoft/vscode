@@ -35,12 +35,12 @@ declare module 'vscode' {
 		/**
 		 * Whether to increase or decrease the hover's verbosity
 		 */
-		action?: HoverVerbosityAction;
+		readonly action?: HoverVerbosityAction;
 
 		/**
 		 * The previous hover sent for the same position
 		 */
-		previousHover?: Hover;
+		readonly previousHover?: Hover;
 	}
 
 	export enum HoverVerbosityAction {
