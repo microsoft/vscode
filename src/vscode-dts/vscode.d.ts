@@ -3070,7 +3070,7 @@ declare module 'vscode' {
 	 * The hover provider interface defines the contract between extensions and
 	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
 	 */
-	export interface HoverProvider {
+	export interface HoverProvider<T extends Hover = Hover> {
 
 		/**
 		 * Provide a hover for the given position and document. Multiple hovers at the same
@@ -3083,7 +3083,7 @@ declare module 'vscode' {
 		 * @returns A hover or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
+		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**

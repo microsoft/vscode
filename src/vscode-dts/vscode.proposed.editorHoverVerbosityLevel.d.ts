@@ -30,7 +30,7 @@ declare module 'vscode' {
 		constructor(contents: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>, range?: Range, canIncreaseVerbosity?: boolean, canDecreaseVerbosity?: boolean);
 	}
 
-	export interface HoverContext {
+	export interface HoverContext<T extends Hover = Hover> {
 
 		/**
 		 * Whether to increase or decrease the hover's verbosity
@@ -40,7 +40,7 @@ declare module 'vscode' {
 		/**
 		 * The previous hover sent for the same position
 		 */
-		previousHover?: Hover;
+		previousHover?: T;
 	}
 
 	export enum HoverVerbosityAction {
@@ -57,7 +57,7 @@ declare module 'vscode' {
 	/**
 	 * The hover provider class
 	 */
-	export interface HoverProvider {
+	export interface HoverProvider<T extends Hover = Hover> {
 
 		/**
 		 * Provide a hover for the given position and document. Multiple hovers at the same
@@ -71,6 +71,6 @@ declare module 'vscode' {
 		 * @returns A hover or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideHover(document: TextDocument, position: Position, token: CancellationToken, context?: HoverContext): ProviderResult<VerboseHover>;
+		provideHover(document: TextDocument, position: Position, token: CancellationToken, context?: HoverContext<T>): ProviderResult<T>;
 	}
 }
