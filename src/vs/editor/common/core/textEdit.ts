@@ -160,13 +160,6 @@ export class SingleTextEdit {
 	) {
 	}
 
-	// public singleTextEditOperation(): ISingleEditOperation {
-	// 	return {
-	// 		range: this.range,
-	// 		text: this.text,
-	// 	};
-	// }
-
 	get isEmpty(): boolean {
 		return this.range.isEmpty() && this.text.length === 0;
 	}
