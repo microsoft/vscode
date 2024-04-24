@@ -59,7 +59,8 @@ export interface IChatAgentData {
 	name: string;
 	description?: string;
 	extensionId: ExtensionIdentifier;
-	extensionPublisher: string;
+	extensionPublisherId: string;
+	extensionPublisherDisplayName?: string;
 	extensionDisplayName: string;
 	/** The agent invoked when no agent is specified */
 	isDefault?: boolean;
@@ -325,7 +326,8 @@ export class MergedChatAgent implements IChatAgent {
 	get name(): string { return this.data.name ?? ''; }
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
-	get extensionPublisher(): string { return this.data.extensionPublisher; }
+	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
+	get extensionPublisherDisplayName() { return this.data.extensionPublisherDisplayName; }
 	get extensionDisplayName(): string { return this.data.extensionDisplayName; }
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
@@ -445,7 +447,7 @@ export class ChatAgentNameService implements IChatAgentNameService {
 				return true;
 			}
 
-			return allowList.some(id => equalsIgnoreCase(id, id.includes('.') ? chatAgentData.extensionId.value : chatAgentData.extensionPublisher));
+			return allowList.some(id => equalsIgnoreCase(id, id.includes('.') ? chatAgentData.extensionId.value : chatAgentData.extensionPublisherId));
 		});
 	}
 

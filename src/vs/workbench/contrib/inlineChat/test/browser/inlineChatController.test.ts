@@ -180,8 +180,9 @@ suite('InteractiveChatController', function () {
 
 		store.add(chatAgentService.registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
-			extensionPublisher: '',
+			extensionPublisherDisplayName: '',
 			extensionDisplayName: '',
+			extensionPublisherId: '',
 			id: 'testAgent',
 			name: 'testAgent',
 			isDefault: true,

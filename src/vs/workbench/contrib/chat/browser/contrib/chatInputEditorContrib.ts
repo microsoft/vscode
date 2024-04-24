@@ -213,7 +213,7 @@ class InputEditorDecorations extends Disposable {
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
 			const isDupe = !!this.chatAgentService.getAgents().find(other => other.name === agentPart.agent.name && other.id !== agentPart.agent.id);
-			const publisher = isDupe ? `(${agentPart.agent.extensionPublisher}) ` : '';
+			const publisher = isDupe ? `(${agentPart.agent.extensionPublisherDisplayName}) ` : '';
 			const agentHover = `${publisher}${agentPart.agent.description}`;
 			textDecorations.push({ range: agentPart.editorRange, hoverMessage: new MarkdownString(agentHover) });
 			if (agentSubcommandPart) {
@@ -361,7 +361,7 @@ class AgentCompletions extends Disposable {
 						return <CompletionItem>{
 							// Leading space is important because detail has no space at the start by design
 							label: isDupe ?
-								{ label: withAt, description: a.description, detail: ` (${a.extensionPublisher})` } :
+								{ label: withAt, description: a.description, detail: ` (${a.extensionPublisherDisplayName})` } :
 								withAt,
 							insertText: `${withAt} `,
 							detail: a.description,
@@ -452,7 +452,7 @@ class AgentCompletions extends Disposable {
 
 						return {
 							label: isDupe ?
-								{ label: agentLabel, description: agent.description, detail: ` (${agent.extensionPublisher})` } :
+								{ label: agentLabel, description: agent.description, detail: ` (${agent.extensionPublisherDisplayName})` } :
 								agentLabel,
 							detail,
 							filterText: `${chatSubcommandLeader}${agent.name}`,

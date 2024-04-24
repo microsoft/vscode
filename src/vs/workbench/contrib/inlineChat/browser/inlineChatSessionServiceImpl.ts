@@ -318,8 +318,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				id: _bridgeAgentId,
 				name: 'editor',
 				extensionId: nullExtensionDescription.identifier,
-				extensionPublisher: '',
+				extensionPublisherDisplayName: '',
 				extensionDisplayName: '',
+				extensionPublisherId: '',
 				isDefault: true,
 				locations: [ChatAgentLocation.Editor],
 				get slashCommands(): IChatAgentCommand[] {
