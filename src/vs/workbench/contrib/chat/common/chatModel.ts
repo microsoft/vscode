@@ -15,6 +15,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { TextEdit } from 'vs/editor/common/languages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -48,6 +49,16 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 }
 
+export interface IChatTextEditGroup {
+	uri: URI;
+	edits: TextEdit[][];
+	state?: {
+		sha1: string;
+		applied: number;
+	};
+	kind: 'textEditGroup';
+}
+
 export type IChatProgressResponseContent =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -55,7 +66,7 @@ export type IChatProgressResponseContent =
 	| IChatContentInlineReference
 	| IChatProgressMessage
 	| IChatCommandButton
-	| IChatTextEdit;
+	| IChatTextEditGroup;
 
 export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>;
 
@@ -86,6 +97,7 @@ export interface IChatResponseModel {
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
 	setVote(vote: InteractiveSessionVoteDirection): void;
+	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -160,7 +172,7 @@ export class Response implements IResponse {
 		this._updateRepr(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit, quiet?: boolean): void {
 		if (progress.kind === 'markdownContent') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -184,13 +196,17 @@ export class Response implements IResponse {
 				let found = false;
 				for (let i = 0; !found && i < this._responseParts.length; i++) {
 					const candidate = this._responseParts[i];
-					if (candidate.kind === 'textEdit' && isEqual(candidate.uri, progress.uri)) {
-						candidate.edits.push(...progress.edits);
+					if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
+						candidate.edits.push(progress.edits);
 						found = true;
 					}
 				}
 				if (!found) {
-					this._responseParts.push(progress);
+					this._responseParts.push({
+						kind: 'textEditGroup',
+						uri: progress.uri,
+						edits: [progress.edits]
+					});
 				}
 				this._updateRepr(quiet);
 			}
@@ -209,7 +225,7 @@ export class Response implements IResponse {
 				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
 			} else if (part.kind === 'command') {
 				return part.command.title;
-			} else if (part.kind === 'textEdit') {
+			} else if (part.kind === 'textEditGroup') {
 				return '';
 			} else {
 				return part.content.value;
@@ -327,7 +343,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	/**
 	 * Apply a progress update to the actual response content.
 	 */
-	updateContent(responsePart: IChatProgressResponseContent, quiet?: boolean) {
+	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
@@ -378,6 +394,18 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setVote(vote: InteractiveSessionVoteDirection): void {
 		this._vote = vote;
 		this._onDidChange.fire();
+	}
+
+	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean {
+		if (!this.response.value.includes(edit)) {
+			return false;
+		}
+		if (!edit.state) {
+			return false;
+		}
+		edit.state.applied = editCount; // must not be edit.edits.length
+		this._onDidChange.fire();
+		return true;
 	}
 }
 

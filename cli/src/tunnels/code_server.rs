@@ -407,7 +407,8 @@ impl<'a> ServerBuilder<'a> {
 			&self.server_params.release.commit,
 		);
 
-		self.launcher_paths
+		let result = self
+			.launcher_paths
 			.server_cache
 			.create(name, |target_dir| async move {
 				let tmpdir =
@@ -460,7 +461,12 @@ impl<'a> ServerBuilder<'a> {
 
 				Ok(())
 			})
-			.await?;
+			.await;
+
+		if let Err(e) = result {
+			error!(self.logger, "Error installing server: {}", e);
+			return Err(e);
+		}
 
 		debug!(self.logger, "Server setup complete");
 
@@ -607,7 +613,9 @@ impl<'a> ServerBuilder<'a> {
 		// Partial fix: https://github.com/microsoft/vscode/pull/184621
 		#[cfg(target_os = "windows")]
 		let cmd = cmd.creation_flags(
-			winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+			winapi::um::winbase::CREATE_NO_WINDOW
+				| winapi::um::winbase::CREATE_NEW_PROCESS_GROUP
+				| winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
 		);
 
 		let child = cmd

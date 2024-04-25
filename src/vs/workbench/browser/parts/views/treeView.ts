@@ -800,8 +800,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		event.stopPropagation();
 
 		this.tree!.setFocus([node]);
-		const selected = this.canSelectMany ? this.getSelection() : [];
-		selected.unshift(node);
+		let selected = this.canSelectMany ? this.getSelection() : [];
+		if (selected.length === 0) {
+			selected = [node];
+		}
 		const actions = treeMenus.getResourceContextActions(selected);
 		if (!actions.length) {
 			return;
@@ -1565,8 +1567,8 @@ class MultipleSelectionActionRunner extends ActionRunner {
 			});
 		}
 
-		if (!actionInSelected) {
-			selectionHandleArgs = undefined;
+		if (!actionInSelected && selectionHandleArgs && selectionHandleArgs.length > 0) {
+			context = selectionHandleArgs[0];
 		}
 
 		await action.run(context, selectionHandleArgs);

@@ -53,6 +53,7 @@ export class IssueReporter extends Disposable {
 	private selectedExtension = '';
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
+	private nonGitHubIssueUrl = false;
 
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
@@ -493,6 +494,9 @@ export class IssueReporter extends Disposable {
 			issueRepoName.removeAttribute('style');
 			hide(issueRepoName);
 		}
+
+		// Initial check when first opened.
+		this.getExtensionGitHubUrl();
 	}
 
 	private isPreviewEnabled() {
@@ -800,6 +804,16 @@ export class IssueReporter extends Disposable {
 			show(extensionSelector);
 		}
 
+
+		if (selectedExtension && this.nonGitHubIssueUrl) {
+			hide(titleTextArea);
+			hide(descriptionTextArea);
+			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
+			reset(descriptionSubtitle, localize('elsewhereDescription', "The '{0}' extension prefers to use an external issue reporter. To be taken to that issue reporting experience, click the button below.", selectedExtension.displayName));
+			this.previewButton.label = localize('openIssueReporter', "Open External Issue Reporter");
+			return;
+		}
+
 		if (fileOnExtension && selectedExtension?.data) {
 			const data = selectedExtension?.data;
 			(extensionDataTextArea as HTMLElement).innerText = data.toString();
@@ -918,6 +932,17 @@ export class IssueReporter extends Disposable {
 
 	private async createIssue(): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
+		const hasUri = this.nonGitHubIssueUrl;
+		// Short circuit if the extension provides a custom issue handler
+		if (hasUri) {
+			const url = this.getExtensionBugsUrl();
+			if (url) {
+				this.hasBeenSubmitted = true;
+				await this.nativeHostService.openExternal(url);
+				return true;
+			}
+		}
+
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
@@ -1013,7 +1038,7 @@ export class IssueReporter extends Disposable {
 				repositoryName: match[2]
 			};
 		} else {
-			console.error('No GitHub match');
+			console.error('No GitHub issues match');
 		}
 
 		return undefined;
@@ -1024,10 +1049,15 @@ export class IssueReporter extends Disposable {
 		const bugsUrl = this.getExtensionBugsUrl();
 		const extensionUrl = this.getExtensionRepositoryUrl();
 		// If given, try to match the extension's bug url
-		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?(\/issues)?$/)) {
+			// matches exactly: https://github.com/owner/repo/issues
 			repositoryUrl = normalizeGitHubUrl(bugsUrl);
-		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)$/)) {
+			// matches exactly: https://github.com/owner/repo
 			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+		} else {
+			this.nonGitHubIssueUrl = true;
+			repositoryUrl = bugsUrl || extensionUrl || '';
 		}
 
 		return repositoryUrl;
@@ -1222,6 +1252,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private clearExtensionData(): void {
+		this.nonGitHubIssueUrl = false;
 		this.issueReporterModel.update({ extensionData: undefined });
 		this.configuration.data.issueBody = undefined;
 		this.configuration.data.data = undefined;
