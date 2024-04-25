@@ -32,7 +32,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { coalesce } from 'vs/base/common/arrays';
 
 interface ISideBySideEditorViewState {
 	primary: object;
@@ -454,10 +453,6 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 	override getControl(): IEditorControl | undefined {
 		return this.getLastFocusedEditorPane()?.getControl();
-	}
-
-	getControls(): IEditorControl[] {
-		return coalesce([this.primaryEditorPane?.getControl(), this.secondaryEditorPane?.getControl()]);
 	}
 
 	getPrimaryEditorPane(): IEditorPane | undefined {

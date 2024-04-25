@@ -168,16 +168,6 @@ export interface IEditorPane extends IComposite {
 	getControl(): IEditorControl | undefined;
 
 	/**
-	 * Returns the underlying controls of this editor. Callers need to cast
-	 * the control to a specific instance as needed, e.g. by using the
-	 * `isCodeEditor` helper method to access the text code editor.
-	 *
-	 * Use the `onDidChangeControl` event to track whenever the control
-	 * changes.
-	 */
-	getControls?(): IEditorControl[];
-
-	/**
 	 * Returns the current view state of the editor if any.
 	 *
 	 * This method is optional to override for the editor pane
