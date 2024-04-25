@@ -11,10 +11,11 @@ cache:
 
 # Use the install step to install dependencies and any specific global packages
 install:
-  - npm install        # Install dependencies listed in your package.json file
-  - npm install -g typescript  # Install TypeScript globally
+  - nvm install 18.15
+  - yarn install        # Install dependencies listed in your package.json file
+  - yarn install -g typescript  # Install TypeScript globally
 
 # Use the script step to compile TypeScript and run any tests or other scripts
 script:
   - tsc                # Compile TypeScript files
-  - npm test           # Run tests specified in the package.json scripts section
+  - yarn test           # Run tests specified in the package.json scripts section
