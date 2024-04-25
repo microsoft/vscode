@@ -38,7 +38,9 @@ export enum ThemeSettings {
 	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
 	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
-	DETECT_HC = 'window.autoDetectHighContrast'
+	DETECT_HC = 'window.autoDetectHighContrast',
+
+	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
 
 export enum ThemeSettingDefaults {

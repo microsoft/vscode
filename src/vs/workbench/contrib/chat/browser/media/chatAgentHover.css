@@ -51,6 +51,14 @@
 	opacity: 0.7;
 }
 
-.chat-agent-hover-description {
+.chat-agent-hover-description,
+.chat-agent-hover-marketplace-button .monaco-text-button {
 	font-size: 13px;
+}
+
+.chat-agent-hover .chat-agent-hover-marketplace-button .monaco-text-button {
+	display: unset;
+	padding: unset;
+	border: unset;
+	line-height: unset;
 }

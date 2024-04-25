@@ -145,7 +145,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	let confirmation: IConfirmationResult;
 	// We do not support undo of folders, so in that case the delete action is irreversible
 	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "This action is irreversible!") :
-		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command") : nls.localize('restore', "You can restore this file using the Undo command");
+		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command.") : nls.localize('restore', "You can restore this file using the Undo command.");
 
 	// Check if we need to ask for confirmation at all
 	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {

@@ -318,7 +318,7 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 		}
 
 		return {
-			value: element.checked,
+			get value() { return element.checked; },
 			onDidChange: e => element.onChecked(() => e()),
 		};
 	}

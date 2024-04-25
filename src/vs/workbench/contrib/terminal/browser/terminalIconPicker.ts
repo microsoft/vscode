@@ -5,6 +5,7 @@
 
 import { Dimension, getActiveDocument } from 'vs/base/browser/dom';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { codiconsLibrary } from 'vs/base/common/codiconsLibrary';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { ThemeIcon } from 'vs/base/common/themables';
@@ -18,6 +19,9 @@ const icons = new Lazy<IconContribution[]>(() => {
 	const iconDefinitions = getIconRegistry().getIcons();
 	const includedChars = new Set<string>();
 	const dedupedIcons = iconDefinitions.filter(e => {
+		if (e.id === codiconsLibrary.blank.id) {
+			return false;
+		}
 		if (!('fontCharacter' in e.defaults)) {
 			return false;
 		}

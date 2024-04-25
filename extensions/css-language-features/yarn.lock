@@ -45,10 +45,10 @@ vscode-jsonrpc@9.0.0-next.2:
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-9.0.0-next.2.tgz#29e9741c742c80329bba1c60ce38fd014651ba80"
   integrity sha512-meIaXAgChCHzWy45QGU8YpCNyqnZQ/sYeCj32OLDDbUYsCF7AvgpdXx3nnZn9yzr8ed0Od9bW+NGphEmXsqvIQ==
 
-vscode-languageclient@^10.0.0-next.3:
-  version "10.0.0-next.3"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-10.0.0-next.3.tgz#d7336bafafb37569ac1d8e931d20ba2a6385cc64"
-  integrity sha512-jJhPdZaiELpPRnCUt8kQcF2HJuvzLgeW4HOGc6dp8Je+p08ndueVT4fpSsbly6KiEHr/Ri73tNz0CSfsOye6MA==
+vscode-languageclient@^10.0.0-next.5:
+  version "10.0.0-next.5"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-10.0.0-next.5.tgz#7431d88255a5fd99e9423659ac484b1f968200f3"
+  integrity sha512-JIf1WE7fvV0RElFM062bAummI433vcxuFwqoYAp+1zTVhta/jznxkTz1zs3Hbj2tiDfclf0TZ0qCxflAP1mY2Q==
   dependencies:
     minimatch "^9.0.3"
     semver "^7.6.0"
