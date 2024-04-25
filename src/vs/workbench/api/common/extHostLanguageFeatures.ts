@@ -32,7 +32,7 @@ import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
+import { CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
@@ -271,13 +271,13 @@ class HoverAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		let value: vscode.Hover | null | undefined;
-		if (context && context.previousHover !== undefined && context.action !== undefined) {
-			const previousHoverId = context.previousHover.id;
+		if (context && context.verbosityRequest) {
+			const previousHoverId = context.verbosityRequest.previousHover.id;
 			const previousHover = this._hoverMap.get(previousHoverId);
 			if (!previousHover) {
 				throw new Error(`Hover with id ${previousHoverId} not found`);
 			}
-			const hoverContext: vscode.HoverContext = { action: context.action, previousHover };
+			const hoverContext: vscode.HoverContext = { action: context.verbosityRequest.action, previousHover };
 			value = await this._provider.provideHover(doc, pos, token, hoverContext);
 		} else {
 			value = await this._provider.provideHover(doc, pos, token);
@@ -869,19 +869,29 @@ class RenameAdapter {
 
 class NewSymbolNamesAdapter {
 
+	private static languageTriggerKindToVSCodeTriggerKind: Record<languages.NewSymbolNameTriggerKind, vscode.NewSymbolNameTriggerKind> = {
+		[languages.NewSymbolNameTriggerKind.Invoke]: NewSymbolNameTriggerKind.Invoke,
+		[languages.NewSymbolNameTriggerKind.Automatic]: NewSymbolNameTriggerKind.Automatic,
+	};
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.NewSymbolNamesProvider,
 		private readonly _logService: ILogService
 	) { }
 
-	async provideNewSymbolNames(resource: URI, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
+	async supportsAutomaticNewSymbolNamesTriggerKind() {
+		return this._provider.supportsAutomaticTriggerKind;
+	}
+
+	async provideNewSymbolNames(resource: URI, range: IRange, triggerKind: languages.NewSymbolNameTriggerKind, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Range.to(range);
 
 		try {
-			const value = await this._provider.provideNewSymbolNames(doc, pos, token);
+			const kind = NewSymbolNamesAdapter.languageTriggerKindToVSCodeTriggerKind[triggerKind];
+			const value = await this._provider.provideNewSymbolNames(doc, pos, kind, token);
 			if (!value) {
 				return undefined;
 			}
@@ -2483,8 +2493,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
-		return this._withAdapter(handle, NewSymbolNamesAdapter, adapter => adapter.provideNewSymbolNames(URI.revive(resource), range, token), undefined, token);
+	$supportsAutomaticNewSymbolNamesTriggerKind(handle: number): Promise<boolean | undefined> {
+		return this._withAdapter(
+			handle,
+			NewSymbolNamesAdapter,
+			adapter => adapter.supportsAutomaticNewSymbolNamesTriggerKind(),
+			false,
+			undefined
+		);
+	}
+
+	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, triggerKind: languages.NewSymbolNameTriggerKind, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
+		return this._withAdapter(handle, NewSymbolNamesAdapter, adapter => adapter.provideNewSymbolNames(URI.revive(resource), range, triggerKind, token), undefined, token);
 	}
 
 	//#region semantic coloring

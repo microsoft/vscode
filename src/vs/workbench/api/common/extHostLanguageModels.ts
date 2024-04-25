@@ -161,9 +161,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			auth
 		});
 
+		const responseReceivedListener = provider.onDidReceiveLanguageModelResponse2?.(({ extensionId, participant, tokenCount }) => {
+			this._proxy.$whenLanguageModelChatRequestMade(identifier, new ExtensionIdentifier(extensionId), participant, tokenCount);
+		});
+
 		return toDisposable(() => {
 			this._languageModels.delete(handle);
 			this._proxy.$unregisterProvider(handle);
+			responseReceivedListener?.dispose();
 		});
 	}
 

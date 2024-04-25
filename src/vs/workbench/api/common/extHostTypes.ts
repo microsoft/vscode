@@ -3180,6 +3180,11 @@ export enum NewSymbolNameTag {
 	AIGenerated = 1
 }
 
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
 export class NewSymbolName implements vscode.NewSymbolName {
 	readonly newSymbolName: string;
 	readonly tags?: readonly vscode.NewSymbolNameTag[] | undefined;
@@ -4018,12 +4023,13 @@ export enum TestRunProfileKind {
 }
 
 @es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest {
+export class TestRunRequest implements vscode.TestRunRequest2 {
 	constructor(
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
 		public readonly continuous = false,
+		public readonly preserveFocus = true,
 	) { }
 }
 
@@ -4365,8 +4371,10 @@ export class ChatResponseCommandButtonPart {
 
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }) {
+	iconPath?: vscode.ThemeIcon;
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.ThemeIcon) {
 		this.value = value;
+		this.iconPath = iconPath;
 	}
 }
 
