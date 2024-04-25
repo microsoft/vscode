@@ -109,7 +109,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	private async showCodeActionsFromLightbulb(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
 
-		// Telemetry for showing code actions here. only log on `showLightbulb`. Shows us how often it was clicked.
+		// Telemetry for showing code actions from lightbulb. Shows us how often it was clicked.
 		type ShowCodeActionListEvent = {
 			codeActionListLength: number;
 			codeActions: string[];
