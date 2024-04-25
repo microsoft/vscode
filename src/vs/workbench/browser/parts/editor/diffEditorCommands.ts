@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { localize2, localize } from 'vs/nls';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { localize, localize2 } from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveCompareEditorCanSwapContext } from 'vs/workbench/common/contextkeys';
+import { ActiveCompareEditorCanSwapContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from 'vs/workbench/common/contextkeys';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -104,17 +104,27 @@ export function registerDiffEditorCommands(): void {
 	}
 
 	function toggleDiffSideBySide(accessor: ServicesAccessor): void {
-		const configurationService = accessor.get(IConfigurationService);
+		const configService = accessor.get(ITextResourceConfigurationService);
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
 
-		const newValue = !configurationService.getValue('diffEditor.renderSideBySide');
-		configurationService.updateValue('diffEditor.renderSideBySide', newValue);
+		const m = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
+		if (!m) { return; }
+
+		const key = 'diffEditor.renderSideBySide';
+		const val = configService.getValue(m.uri, key);
+		configService.updateValue(m.uri, key, !val);
 	}
 
 	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor): void {
-		const configurationService = accessor.get(IConfigurationService);
+		const configService = accessor.get(ITextResourceConfigurationService);
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
 
-		const newValue = !configurationService.getValue('diffEditor.ignoreTrimWhitespace');
-		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue);
+		const m = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
+		if (!m) { return; }
+
+		const key = 'diffEditor.ignoreTrimWhitespace';
+		const val = configService.getValue(m.uri, key);
+		configService.updateValue(m.uri, key, !val);
 	}
 
 	async function swapDiffSides(accessor: ServicesAccessor): Promise<void> {
