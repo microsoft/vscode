@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent, IEditorControl } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
@@ -491,9 +491,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get visibleTextEditorControls(): Array<ICodeEditor | IDiffEditor> {
 		const visibleTextEditorControls: Array<ICodeEditor | IDiffEditor> = [];
 		for (const visibleEditorPane of this.visibleEditorPanes) {
-			const control = visibleEditorPane.getControl();
-			if (isCodeEditor(control) || isDiffEditor(control)) {
-				visibleTextEditorControls.push(control);
+			const controls: (IEditorControl | undefined)[] = visibleEditorPane.getControls ? visibleEditorPane.getControls() : [visibleEditorPane.getControl()];
+			for (const control of controls) {
+				if (isCodeEditor(control) || isDiffEditor(control)) {
+					visibleTextEditorControls.push(control);
+				}
 			}
 		}
 
