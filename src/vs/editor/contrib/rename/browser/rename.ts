@@ -359,6 +359,10 @@ class RenameController implements IEditorContribution {
 				timeBeforeFirstInputFieldEdit?: number;
 				/** provided only if kind = 'accepted' */
 				wantsPreview?: boolean;
+				/** provided only if kind = 'accepted' */
+				nRenameSuggestionsInvocations?: number;
+				/** provided only if kind = 'accepted' */
+				hadAutomaticRenameSuggestionsInvocation?: boolean;
 			};
 
 		type RenameInvokedClassification = {
@@ -373,6 +377,8 @@ class RenameController implements IEditorContribution {
 			nRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename suggestions user has got' };
 			timeBeforeFirstInputFieldEdit?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Milliseconds before user edits the input field for the first time' };
 			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.' };
+			nRenameSuggestionsInvocations?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of times rename suggestions were invoked' };
+			hadAutomaticRenameSuggestionsInvocation?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether rename suggestions were invoked automatically' };
 		};
 
 		const value: RenameInvokedEvent =
@@ -391,6 +397,8 @@ class RenameController implements IEditorContribution {
 					nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
 					timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
 					wantsPreview: inputFieldResult.wantsPreview,
+					nRenameSuggestionsInvocations: inputFieldResult.stats.nRenameSuggestionsInvocations,
+					hadAutomaticRenameSuggestionsInvocation: inputFieldResult.stats.hadAutomaticRenameSuggestionsInvocation,
 				};
 
 		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);

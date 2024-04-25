@@ -42,7 +42,7 @@ export class ChatMarkdownDecorationsRenderer {
 				let text = part.text;
 				const isDupe = this.chatAgentService.getAgentsByName(part.agent.name).length > 1;
 				if (isDupe) {
-					text += ` (${part.agent.extensionPublisher})`;
+					text += ` (${part.agent.extensionPublisherDisplayName})`;
 				}
 
 				result += `[${text}](${agentRefUrl}?${encodeURIComponent(part.agent.id)})`;
