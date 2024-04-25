@@ -55,7 +55,7 @@ import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextMenuService, IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewDelegate, IContextViewService, IOpenContextView } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
@@ -989,7 +989,7 @@ class StandaloneContextViewService extends ContextViewService {
 		super(layoutService);
 	}
 
-	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
+	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
 		if (!container) {
 			const codeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
 			if (codeEditor) {

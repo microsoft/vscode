@@ -16,7 +16,7 @@ import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService, IOpenContextView } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -2286,7 +2286,7 @@ class SCMInputWidget {
 	private readonly repositoryDisposables = new DisposableStore();
 
 	private validation: IInputValidation | undefined;
-	private validationDisposable: IDisposable = Disposable.None;
+	private validationContextView: IOpenContextView | undefined;
 	private validationHasFocus: boolean = false;
 	private _validationTimer: any;
 
@@ -2652,7 +2652,7 @@ class SCMInputWidget {
 
 		const disposables = new DisposableStore();
 
-		this.validationDisposable = this.contextViewService.showContextView({
+		this.validationContextView = this.contextViewService.showContextView({
 			getAnchor: () => this.element,
 			render: container => {
 				this.element.style.borderBottomLeftRadius = '0';
@@ -2733,7 +2733,8 @@ class SCMInputWidget {
 	}
 
 	clearValidation(): void {
-		this.validationDisposable.dispose();
+		this.validationContextView?.close();
+		this.validationContextView = undefined;
 		this.validationHasFocus = false;
 	}
 
