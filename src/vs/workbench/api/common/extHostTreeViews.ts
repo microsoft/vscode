@@ -355,7 +355,12 @@ class ExtHostTreeView<T> extends Disposable {
 		this.dataProvider = options.treeDataProvider;
 		this.dndController = options.dragAndDropController;
 		if (this.dataProvider.onDidChangeTreeData) {
-			this._register(this.dataProvider.onDidChangeTreeData(elementOrElements => this._onDidChangeData.fire({ message: false, element: elementOrElements })));
+			this._register(this.dataProvider.onDidChangeTreeData(elementOrElements => {
+				if (Array.isArray(elementOrElements) && elementOrElements.length === 0) {
+					return;
+				}
+				this._onDidChangeData.fire({ message: false, element: elementOrElements });
+			}));
 		}
 
 		let refreshingPromise: Promise<void> | null;
