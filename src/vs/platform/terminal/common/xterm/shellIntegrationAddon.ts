@@ -398,6 +398,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
 						return true;
 					}
+					case 'Prompt': {
+						const sanitizedValue = (value
+							.replace(/\\+x1b\[[0-9;]*m/g, '')
+							.replace(/\x1b\[[0-9;]*m/g, '')
+							.replace(/\\\[.*?\\\]/g, '')
+						);
+						this._updatePromptTerminator(sanitizedValue);
+						return true;
+					}
 					case 'Task': {
 						this._createOrGetBufferMarkDetection(this._terminal);
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
@@ -420,6 +429,16 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return;
 		}
 		this._createOrGetCommandDetection(this._terminal).setContinuationPrompt(value);
+	}
+
+	private _updatePromptTerminator(prompt: string) {
+		if (!this._terminal) {
+			return;
+		}
+		const promptTerminator = prompt?.trim()?.split('\n').pop()?.trim().split(' ').pop();
+		if (promptTerminator) {
+			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator);
+		}
 	}
 
 	private _updateCwd(value: string) {

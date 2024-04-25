@@ -165,6 +165,11 @@ unset VSCODE_NONCE
 # Report continuation prompt
 builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
 
+__vsc_report_prompt() {
+	__vsc_prompt="$(builtin printf "%s" "${__vsc_original_PS1@P}" | sed 's/\x1b/\\\\x1b/g')"
+	builtin printf "\e]633;P;Prompt=%s\a" "$(__vsc_escape_value "$__vsc_prompt")"
+}
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -229,6 +234,7 @@ __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
 	__vsc_update_prompt
+	__vsc_report_prompt
 	__vsc_first_prompt=1
 }
 
