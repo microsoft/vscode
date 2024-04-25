@@ -118,7 +118,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		type ShowListEventClassification = {
 			codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list from the lightbulb widget.' };
 			codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
-			codeActionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
+			codeActionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of code actions in this menu.' };
 			owner: 'justschen';
 			comment: 'Event used to gain insights into what code actions are being shown';
 		};
