@@ -182,11 +182,10 @@ class LanguageTableRenderer extends Disposable implements IExtensionFeatureTable
 			localize('grammar', "Grammar"),
 			localize('snippets', "Snippets")
 		];
-		const rows: IRowData[][] = languages.sort((a, b) => (a.id || '').localeCompare(b.id || ''))
+		const rows: IRowData[][] = languages.sort((a, b) => a.id.localeCompare(b.id))
 			.map(l => {
 				return [
-					l.id,
-					l.name,
+					l.id, l.name,
 					new MarkdownString().appendMarkdown(`${l.extensions.map(e => `\`${e}\``).join('&nbsp;')}`),
 					l.hasGrammar ? '✔︎' : '\u2014',
 					l.hasSnippets ? '✔︎' : '\u2014'
