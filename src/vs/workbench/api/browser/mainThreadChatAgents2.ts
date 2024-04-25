@@ -138,7 +138,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					description: dynamicProps.description,
 					extensionId: extension,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
-					extensionPublisher: extensionDescription?.publisherDisplayName ?? extension.value,
+					extensionPublisherId: extensionDescription?.publisher ?? '', // extensionDescription _should_ be present at this point, since this extension is active and registering agents
+					extensionPublisherDisplayName: extensionDescription?.publisherDisplayName,
 					metadata: revive(metadata),
 					slashCommands: [],
 					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
