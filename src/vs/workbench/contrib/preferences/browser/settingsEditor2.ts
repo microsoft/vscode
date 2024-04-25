@@ -1662,7 +1662,8 @@ export class SettingsEditor2 extends EditorPane {
 		const data = {
 			'counts.nlpResult': counts['nlpResult'],
 			'counts.filterResult': counts['filterResult'],
-			'counts.uniqueResultsCount': uniqueResults?.filterMatches.length
+			'counts.uniqueResultsCount': uniqueResults?.filterMatches.length,
+			'value': 1
 		};
 		this.telemetryService.publicLog2<SettingsEditorFilterEvent, SettingsEditorFilterClassification>('settingsEditor.filter', data);
 	}
