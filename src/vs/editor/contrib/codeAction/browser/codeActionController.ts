@@ -40,7 +40,6 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, 
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { filter } from 'vs/base/common/objects';
 
 
 interface IActionShowOptions {
@@ -113,11 +112,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		type ShowCodeActionListEvent = {
 			codeActionListLength: number;
 			codeActions: string[];
+			codeActionProviders: string[];
 		};
 
 		type ShowListEventClassification = {
 			codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list from the lightbulb widget.' };
 			codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
+			codeActionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
 			owner: 'justschen';
 			comment: 'Event used to gain insights into what code actions are being shown';
 		};
@@ -125,6 +126,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionsFromLightbulb', {
 			codeActionListLength: actions.validActions.length,
 			codeActions: actions.validActions.map(action => action.action.title),
+			codeActionProviders: actions.validActions.map(action => action.provider?.displayName ?? ''),
 		});
 
 
