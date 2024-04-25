@@ -446,5 +446,8 @@ export function getIndentMetadata(
 export function isWithinEmbeddedLanguage(model: ITextModel, position: Position): boolean {
 	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 	const scopedLineTokens = createScopedLineTokens(lineTokens, position.column - 1);
-	return scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId;
+	const doesScopeStartAtOffsetZero = scopedLineTokens.doesScopeStartAtOffsetZero();
+	const isScopedLanguageEqualToFirstLanguageOnLine = lineTokens.getLanguageId(0) === scopedLineTokens.languageId;
+	const isWithinEmbeddedLanguage = !doesScopeStartAtOffsetZero && !isScopedLanguageEqualToFirstLanguageOnLine;
+	return isWithinEmbeddedLanguage;
 };

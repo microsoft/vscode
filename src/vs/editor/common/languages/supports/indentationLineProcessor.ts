@@ -141,9 +141,18 @@ export class IndentationContextProcessor {
 			const scopedLineTokensAtEndColumn = createScopedLineTokens(lineTokens, endColumnOfLine);
 			return scopedLineTokensAtEndColumn;
 		}
+		const getSlicedLineTokensForScopeAtLine = (scopedLineTokens: ScopedLineTokens, lineNumber: number): IViewLineTokens => {
+			const initialLine = this.model.tokenization.getLineTokens(lineNumber);
+			const scopedLine = scopedLineTokens.getLineContent();
+			const firstCharacterOffset = scopedLineTokens.firstCharOffset;
+			const lastCharacterOffset = firstCharacterOffset + scopedLine.length;
+			const slicedLineTokens = initialLine.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
+			return slicedLineTokens;
+		}
 
 		// Main code
-		const isFirstLine = range.startLineNumber === 1;
+		const previousLineNumber = range.startLineNumber - 1;
+		const isFirstLine = previousLineNumber === 0;
 		if (isFirstLine) {
 			return '';
 		}
@@ -151,17 +160,12 @@ export class IndentationContextProcessor {
 		if (!canScopeExtendOnPreviousLine) {
 			return '';
 		}
-		const previousLineNumber = range.startLineNumber - 1;
 		const scopedLineTokensAtEndColumnOfPreviousLine = getScopedLineTokensAtEndColumnOfLine(previousLineNumber);
 		const doesLanguageContinueOnPreviousLine = scopedLineTokens.languageId === scopedLineTokensAtEndColumnOfPreviousLine.languageId;
 		if (!doesLanguageContinueOnPreviousLine) {
 			return '';
 		}
-		const previousScopedLine = scopedLineTokensAtEndColumnOfPreviousLine.getLineContent();
-		const firstCharacterOffset = scopedLineTokensAtEndColumnOfPreviousLine.firstCharOffset;
-		const lastCharacterOffset = firstCharacterOffset + previousScopedLine.length;
-		const previousLineTokens = this.model.tokenization.getLineTokens(previousLineNumber);
-		const previousSlicedLineTokens = previousLineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
+		const previousSlicedLineTokens = getSlicedLineTokensForScopeAtLine(scopedLineTokensAtEndColumnOfPreviousLine, previousLineNumber);
 		const processedPreviousScopedLine = this.indentationLineProcessor.getProcessedLineForTokens(previousSlicedLineTokens);
 		return processedPreviousScopedLine;
 	}
