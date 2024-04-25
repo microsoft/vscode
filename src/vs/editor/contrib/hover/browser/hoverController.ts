@@ -332,7 +332,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		// If the beginning of a multi-chord keybinding is pressed,
 		// or the command aims to focus the hover,
 		// set the variable to true, otherwise false
-		const mightTriggerFocus = (
+		const shouldKeepHoverVisible = (
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
 				&& (resolvedKeyboardEvent.commandId === SHOW_OR_FOCUS_HOVER_ACTION_ID
@@ -347,7 +347,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 			|| e.keyCode === KeyCode.Alt
 			|| e.keyCode === KeyCode.Meta
 			|| e.keyCode === KeyCode.Shift
-			|| mightTriggerFocus
+			|| shouldKeepHoverVisible
 		) {
 			// Do not hide hover when a modifier key is pressed
 			return;
