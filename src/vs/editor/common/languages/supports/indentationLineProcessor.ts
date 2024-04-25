@@ -124,8 +124,8 @@ export class IndentationContextProcessor {
 			lineTokens = this.model.tokenization.getLineTokens(range.endLineNumber);
 		}
 		const scopedLineContent = scopedLineTokens.getLineContent();
-		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope + 1;
-		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineContent.length + 1;
+		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope;
+		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineContent.length;
 		const slicedTokensAfter = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
 		const processedLine = this.indentationLineProcessor.getProcessedLineForTokens(slicedTokensAfter);
 		return processedLine;
