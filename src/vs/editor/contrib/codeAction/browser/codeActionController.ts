@@ -40,6 +40,7 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, 
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { filter } from 'vs/base/common/objects';
 
 
 interface IActionShowOptions {
@@ -109,24 +110,23 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	private async showCodeActionsFromLightbulb(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
 
 		// Telemetry for showing code actions here. only log on `showLightbulb`. Shows us how often it was clicked.
-		if (actions.validActions.length <= 2) {
-			type ShowCodeActionListEvent = {
-				codeActionListLength: number;
-				codeActions: string[];
-			};
+		type ShowCodeActionListEvent = {
+			codeActionListLength: number;
+			codeActions: string[];
+		};
 
-			type ShowListEventClassification = {
-				codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list from the lightbulb widget.' };
-				codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
-				owner: 'justschen';
-				comment: 'Event used to gain insights into what code actions are being shown';
-			};
+		type ShowListEventClassification = {
+			codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list from the lightbulb widget.' };
+			codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
+			owner: 'justschen';
+			comment: 'Event used to gain insights into what code actions are being shown';
+		};
 
-			this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionsFromLightbulb', {
-				codeActionListLength: actions.validActions.length,
-				codeActions: actions.validActions.map(action => action.action.title),
-			});
-		}
+		this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionsFromLightbulb', {
+			codeActionListLength: actions.validActions.length,
+			codeActions: actions.validActions.map(action => action.action.title),
+		});
+
 
 		if (actions.allAIFixes && actions.validActions.length === 1) {
 			const actionItem = actions.validActions[0];
