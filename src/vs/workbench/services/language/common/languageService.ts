@@ -15,7 +15,7 @@ import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/file
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
