@@ -344,7 +344,10 @@ class MarkdownRenderedHoverParts extends Disposable {
 
 	public async updateMarkdownHoverVerbosityLevels(action: HoverVerbosityAction): Promise<void> {
 
-		// Utility function
+		/**
+		 * If a hover part is focused it will be updated and focused again.
+		 * If no hover part is focused all hover parts will be updated, focus will remain where it is.
+		 */
 		const getHoverIndexRangeToUpdate = (): { startIndex: number, endIndex: number, shouldFocus: boolean } => {
 			const focusedHoverPartIndex = this._hoverFocusInfo.hoverPartIndex;
 			const isHoverPartFocused = focusedHoverPartIndex >= 0;
