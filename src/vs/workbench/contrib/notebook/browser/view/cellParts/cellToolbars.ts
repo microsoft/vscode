@@ -84,6 +84,7 @@ export class BetweenCellToolbar extends CellOverlayPart {
 			ui: true,
 			cell: element,
 			notebookEditor: this._notebookEditor,
+			source: 'insertToolbar',
 			$mid: MarshalledId.NotebookCellActionContext
 		};
 		this.updateInternalLayoutNow(element);
@@ -205,6 +206,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			ui: true,
 			cell: element,
 			notebookEditor: this._notebookEditor,
+			source: 'cellToolbar',
 			$mid: MarshalledId.NotebookCellActionContext
 		});
 	}

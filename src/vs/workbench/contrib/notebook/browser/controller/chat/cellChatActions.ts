@@ -365,9 +365,10 @@ registerAction2(class extends NotebookAction {
 interface IInsertCellWithChatArgs extends INotebookActionContext {
 	input?: string;
 	autoSend?: boolean;
+	source?: string;
 }
 
-async function startChat(accessor: ServicesAccessor, context: INotebookActionContext, index: number, input?: string, autoSend?: boolean) {
+async function startChat(accessor: ServicesAccessor, context: INotebookActionContext, index: number, input?: string, autoSend?: boolean, source?: string) {
 	const configurationService = accessor.get(IConfigurationService);
 	const commandService = accessor.get(ICommandService);
 
@@ -375,11 +376,13 @@ async function startChat(accessor: ServicesAccessor, context: INotebookActionCon
 		context.notebookEditor.focusContainer();
 		NotebookChatController.get(context.notebookEditor)?.run(index, input, autoSend);
 	} else if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate)) {
-		const newCell = await insertNewCell(accessor, context, CellKind.Code, 'below', true);
-		if (newCell) {
-			newCell.enableAutoLanguageDetection();
-			await context.notebookEditor.revealFirstLineIfOutsideViewport(newCell);
-			const codeEditor = context.notebookEditor.codeEditors.find(ce => ce[0] === newCell)?.[1];
+		const activeCell = context.notebookEditor.getActiveCell();
+		const targetCell = activeCell?.getTextLength() === 0 && source !== 'insertToolbar' ? activeCell : (await insertNewCell(accessor, context, CellKind.Code, 'below', true));
+
+		if (targetCell) {
+			targetCell.enableAutoLanguageDetection();
+			await context.notebookEditor.revealFirstLineIfOutsideViewport(targetCell);
+			const codeEditor = context.notebookEditor.codeEditors.find(ce => ce[0] === targetCell)?.[1];
 			if (codeEditor) {
 				codeEditor.focus();
 				commandService.executeCommand('inlineChat.start');
@@ -497,7 +500,7 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: IInsertCellWithChatArgs) {
 		const index = Math.max(0, context.cell ? context.notebookEditor.getCellIndex(context.cell) + 1 : 0);
-		await startChat(accessor, context, index, context.input, context.autoSend);
+		await startChat(accessor, context, index, context.input, context.autoSend, context.source);
 	}
 });
 
