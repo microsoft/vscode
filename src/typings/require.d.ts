@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare const enum LoaderEventType {
+	
 	LoaderAvailable = 1,
 
 	BeginLoadingScript = 10,
@@ -59,6 +60,7 @@ interface NodeRequire {
 	getStats?(): ReadonlyArray<LoaderEvent>;
 	hasDependencyCycle?(): boolean;
 	define(amdModuleId: string, dependencies: string[], callback: (...args: any[]) => any): any;
+	config(data: any): NodeRequire;
 }
 
 declare var require: NodeRequire;
