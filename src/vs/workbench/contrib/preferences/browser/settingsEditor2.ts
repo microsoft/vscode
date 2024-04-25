@@ -1636,11 +1636,13 @@ export class SettingsEditor2 extends EditorPane {
 			'counts.nlpResult': number | undefined;
 			'counts.filterResult': number | undefined;
 			'counts.uniqueResultsCount': number | undefined;
+			'value': number | undefined;
 		};
 		type SettingsEditorFilterClassification = {
 			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
 			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of matches found by the local search provider, if applicable.' };
 			'counts.uniqueResultsCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of unique matches over both search providers, if applicable.' };
+			'value': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'Provides insight by breaking the pipeline.' };
 			owner: 'rzhao271';
 			comment: 'Tracks the performance of the built-in search providers';
 		};
