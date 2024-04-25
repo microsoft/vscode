@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
+import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -332,10 +332,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 		// If the beginning of a multi-chord keybinding is pressed,
 		// or the command aims to focus the hover,
 		// set the variable to true, otherwise false
-		const mightTriggerFocus = (
+		const shouldKeepHoverVisible = (
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
-				&& resolvedKeyboardEvent.commandId === SHOW_OR_FOCUS_HOVER_ACTION_ID
+				&& (resolvedKeyboardEvent.commandId === SHOW_OR_FOCUS_HOVER_ACTION_ID
+					|| resolvedKeyboardEvent.commandId === INCREASE_HOVER_VERBOSITY_ACTION_ID
+					|| resolvedKeyboardEvent.commandId === DECREASE_HOVER_VERBOSITY_ACTION_ID)
 				&& this._contentWidget?.isVisible
 			)
 		);
@@ -345,7 +347,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 			|| e.keyCode === KeyCode.Alt
 			|| e.keyCode === KeyCode.Meta
 			|| e.keyCode === KeyCode.Shift
-			|| mightTriggerFocus
+			|| shouldKeepHoverVisible
 		) {
 			// Do not hide hover when a modifier key is pressed
 			return;
