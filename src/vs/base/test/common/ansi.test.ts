@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { stripAnsiEscapeSequences } from 'vs/base/common/ansi';
+import { stripAnsiEscapeSequences, stripAnsiEscapeSequencesFromPrompt } from 'vs/base/common/ansi';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ansi', () => {
@@ -19,6 +19,15 @@ suite('ansi', () => {
 		});
 		test('should strip ED, EL escape sequences', () => {
 			strictEqual(stripAnsiEscapeSequences('\u001b[KHello, World!\r\n\u001b[2J'), 'Hello, World!\r\n');
+		});
+	});
+
+	suite('stripAnsiEscapeSequencesFromPrompt', () => {
+		test('should strip simple SGR escape sequences', () => {
+			strictEqual(stripAnsiEscapeSequences('\u001b[31m$ \u001b[0m'), '$ ');
+		});
+		test('should strip \[ and \] chars and their contents', () => {
+			strictEqual(stripAnsiEscapeSequencesFromPrompt('\n\\[\u001b[01;34m\\]\\w\\[\u001b[00m\\]\n\\[\u001b[1;32m\\]> \\[\u001b[0m\\]'), '\n\\w\n> ');
 		});
 	});
 });
