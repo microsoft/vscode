@@ -367,7 +367,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			if (data === '\x13') { // XOFF (Ctrl+S)
 				this.showPauseNotification();
 			} else if (data === '\x11') { // XON (Ctrl+Q)
-				this.hidePauseNotification();
+
 			}
 		});
 	}
@@ -382,11 +382,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this.sendResumeSignal();
 			}
 		});
-	}
-	
-	private hidePauseNotification() {
-		// Currently, VS Code do not support programmatically closing a notification
-		// This function remains here for structural purposes or future use if the API changes
 	}
 	
 	private sendResumeSignal() {
