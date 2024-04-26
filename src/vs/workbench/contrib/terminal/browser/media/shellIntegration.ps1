@@ -157,7 +157,6 @@ function Set-MappedKeyHandler {
 	}
 }
 
-$Global:__VSCodeHaltCompletions = $false
 function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
@@ -171,34 +170,6 @@ function Set-MappedKeyHandlers {
 		# VS Code send completions request (may override Ctrl+Spacebar)
 		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
 			Send-Completions
-		}
-
-		# Suggest trigger characters
-		# Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
-		# 	[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
-		# 	if (!$Global:__VSCodeHaltCompletions) {
-		# 		Send-Completions
-		# 	}
-		# }
-		# Set-PSReadLineKeyHandler -Chord "\" -ScriptBlock {
-		# 	[Microsoft.PowerShell.PSConsoleReadLine]::Insert("\")
-		# 	if (!$Global:__VSCodeHaltCompletions) {
-		# 		Send-Completions
-		# 	}
-		# }
-		# Set-PSReadLineKeyHandler -Chord "/" -ScriptBlock {
-		# 	[Microsoft.PowerShell.PSConsoleReadLine]::Insert("/")
-		# 	if (!$Global:__VSCodeHaltCompletions) {
-		# 		Send-Completions
-		# 	}
-		# }
-
-		Set-PSReadLineKeyHandler -Chord 'F12,y' -ScriptBlock {
-			$Global:__VSCodeHaltCompletions = $true
-		}
-
-		Set-PSReadLineKeyHandler -Chord 'F12,z' -ScriptBlock {
-			$Global:__VSCodeHaltCompletions = $false
 		}
 
 		# TODO: When does this invalidate? Installing a new module could add new commands

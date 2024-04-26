@@ -19,10 +19,12 @@ import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
+
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { TerminalCapability, type ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { IPromptInputModel, IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 const enum VSCodeOscPt {
 	Completions = 'Completions',
@@ -135,21 +137,26 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
+	private _requestCompletions(): void {
+		// TODO: Debounce? Prevent this flooding the channel
+		this._onAcceptedCompletion.fire('\x1b[24~e');
+	}
+
 	private _sync(promptInputState: IPromptInputModelState): void {
 		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 			// If input has been added
 			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
 				// Quick suggestions
 				if (promptInputState.cursorIndex === 1 || promptInputState.value.substring(0, promptInputState.cursorIndex).match(/\s[^\s]$/)) {
-					// TODO: Allow the user to configure when completions are triggered - this is equivalent to editor.quickSuggestions
-					// TODO: Debounce? Prevent this flooding the channel
-					this._onAcceptedCompletion.fire('\x1b[24~e');
+					// TODO: Allow the user to configure terminal quickSuggestions
+					this._requestCompletions();
 				}
 
 				// Trigger characters
 				const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
 				if (lastChar?.match(/[\\\/\-]/)) {
-					this._onAcceptedCompletion.fire('\x1b[24~e');
+					// TODO: Allow the user to configure terminal suggestOnTriggerCharacters
+					this._requestCompletions();
 				}
 			}
 		}
@@ -173,23 +180,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			const inputBeforeCursor = this._currentPromptInputState.value.substring(0, this._currentPromptInputState.cursorIndex);
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
-
-			console.log('setLineContext', {
-				inputBeforeCursor,
-				cursorIndexDelta: this._cursorIndexDelta
-			});
 			this._suggestWidget.setLineContext(new LineContext(inputBeforeCursor, this._cursorIndexDelta));
 		}
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
 			this.hideSuggestWidget();
-			// TODO: Don't request every time; refine completions
-			// this._onAcceptedCompletion.fire('\x1b[24~e');
 			return;
 		}
 
-		// TODO: Expose on xterm.js
 		const dimensions = this._getTerminalDimensions();
 		if (!dimensions.width || !dimensions.height) {
 			return;
@@ -235,8 +234,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		let replacementIndex = 0; //args.length === 0 ? 0 : parseInt(args[0]);
-		let replacementLength = this._promptInputModel.cursorIndex; //args.length === 0 ? 0 : parseInt(args[1]);
+		let replacementIndex = 0;
+		let replacementLength = this._promptInputModel.cursorIndex;
 
 		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
 		let completionList: IPwshCompletion[] | IPwshCompletion = args.length === 0 || payload.length === 0 ? [] : JSON.parse(payload);
@@ -267,6 +266,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._handleCompletionModel(model);
 	}
 
+	// TODO: These aren't persisted across reloads
 	private _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
 	private _handleCompletionsPwshCommandsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
 		const type = args[0];
@@ -387,9 +387,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _getTerminalDimensions(): { width: number; height: number } {
+		const cssCellDims = (this._terminal as any as { _core: IXtermCore })._core._renderService.dimensions.css.cell;
 		return {
-			width: (this._terminal as any)._core._renderService.dimensions.css.cell.width,
-			height: (this._terminal as any)._core._renderService.dimensions.css.cell.height,
+			width: cssCellDims.width,
+			height: cssCellDims.height,
 		};
 	}
 
@@ -481,8 +482,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire([
-			// Disable suggestions
-			'\x1b[24~y',
 			// Backspace to remove all additional input
 			'\x7F'.repeat(additionalInput.length),
 			// Backspace to remove left side of completion
@@ -491,8 +490,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			finalCompletionLeftSide,
 			// Write the completion
 			finalCompletionRightSide,
-			// Enable suggestions
-			'\x1b[24~z',
 		].join(''));
 
 		this.hideSuggestWidget();
