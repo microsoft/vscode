@@ -94,6 +94,37 @@ jobs:
         timeout-minutes: 20
         run: .\scripts\test-remote-integration.bat
 
+  name: Workflow for Codecov example-python
+  on: [push, pull_request]
+  jobs:
+    run:
+      runs-on: ubuntu-latest
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+    - name: Run ATS
+      uses: codecov/codecov-ats@v0
+      env:
+        CODECOV_STATIC_TOKEN: ${{ secrets.CODECOV_STATIC_TOKEN }}
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    - name: Run tests and collect coverage
+      run: pytest --cov app ${{ env.CODECOV_ATS_TESTS }}
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        flags: smart-tests
+        verbose: true
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          
   linux:
     name: Linux
     runs-on: ubuntu-latest
