@@ -208,7 +208,6 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		applyFontInfo(this.domNode, fontInfo);
 
 		this._onOptionsMaybeChanged();
-
 		if (e.hasChanged(EditorOption.layoutInfo)) {
 			this._maxLineWidth = 0;
 		}

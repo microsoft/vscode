@@ -47,6 +47,7 @@ export class ViewCursor {
 
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineCursorWidth: number;
+	private _lineCursorHeight: number;
 	private _lineHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
@@ -57,6 +58,7 @@ export class ViewCursor {
 
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData | null;
+	private _fontsize: number;
 
 	constructor(context: ViewContext, plurality: CursorPlurality) {
 		this._context = context;
@@ -67,6 +69,7 @@ export class ViewCursor {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
+		this._lineCursorHeight = options.get(EditorOption.cursorHeight);
 
 		this._isVisible = true;
 
@@ -85,6 +88,7 @@ export class ViewCursor {
 
 		this._lastRenderedContent = '';
 		this._renderData = null;
+		this._fontsize = options.get(EditorOption.fontSize);
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -126,20 +130,30 @@ export class ViewCursor {
 		}
 	}
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(
+		e: viewEvents.ViewConfigurationChangedEvent
+	): boolean {
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._cursorStyle = options.get(EditorOption.cursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
+		this._lineCursorHeight = options.get(EditorOption.cursorHeight);
+		this._typicalHalfwidthCharacterWidth =
+			fontInfo.typicalHalfwidthCharacterWidth;
+		this._lineCursorWidth = Math.min(
+			options.get(EditorOption.cursorWidth),
+			this._typicalHalfwidthCharacterWidth
+		);
 		applyFontInfo(this._domNode, fontInfo);
 
 		return true;
 	}
 
-	public onCursorPositionChanged(position: Position, pauseAnimation: boolean): boolean {
+	public onCursorPositionChanged(
+		position: Position,
+		pauseAnimation: boolean
+	): boolean {
 		if (pauseAnimation) {
 			this._domNode.domNode.style.transitionProperty = 'none';
 		} else {
@@ -156,16 +170,31 @@ export class ViewCursor {
 	private _getGraphemeAwarePosition(): [Position, string] {
 		const { lineNumber, column } = this._position;
 		const lineContent = this._context.viewModel.getLineContent(lineNumber);
-		const [startOffset, endOffset] = strings.getCharContainingOffset(lineContent, column - 1);
-		return [new Position(lineNumber, startOffset + 1), lineContent.substring(startOffset, endOffset)];
+		const [startOffset, endOffset] = strings.getCharContainingOffset(
+			lineContent,
+			column - 1
+		);
+		return [
+			new Position(lineNumber, startOffset + 1),
+			lineContent.substring(startOffset, endOffset),
+		];
 	}
 
 	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData | null {
 		let textContent = '';
 		let textContentClassName = '';
 		const [position, nextGrapheme] = this._getGraphemeAwarePosition();
+		const isCurrentLine = position.lineNumber === this._position.lineNumber;
+		const cursorHeight = isCurrentLine
+			? this._lineCursorHeight
+			: this._lineHeight;
+		const lineHeightAdjustment =
+			(this._lineHeight - this._lineCursorHeight) / 2;
 
-		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
+		if (
+			this._cursorStyle === TextEditorCursorStyle.Line ||
+			this._cursorStyle === TextEditorCursorStyle.LineThin
+		) {
 			const visibleRange = ctx.visibleRangeForPosition(position);
 			if (!visibleRange || visibleRange.outsideRenderedLine) {
 				// Outside viewport
@@ -175,7 +204,10 @@ export class ViewCursor {
 			const window = dom.getWindow(this._domNode.domNode);
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
-				width = dom.computeScreenAwareSize(window, this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);
+				width = dom.computeScreenAwareSize(
+					window,
+					this._lineCursorWidth > 0 ? this._lineCursorWidth : 2
+				);
 				if (width > 2) {
 					textContent = nextGrapheme;
 					textContentClassName = this._getTokenClassName(position);
@@ -192,51 +224,99 @@ export class ViewCursor {
 				left -= paddingLeft;
 			}
 
-			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeight, textContent, textContentClassName);
+			const top =
+				ctx.getVerticalOffsetForLineNumber(position.lineNumber) -
+				ctx.bigNumbersDelta +
+				lineHeightAdjustment;
+			if (cursorHeight > this._lineHeight && cursorHeight > this._fontsize) {
+				this._lineCursorHeight = Math.max(this._lineHeight, this._fontsize);
+			} else if (
+				cursorHeight >= this._lineHeight &&
+				cursorHeight <= this._fontsize
+			) {
+				this._lineCursorHeight = this._lineHeight;
+			} else {
+				this._lineCursorHeight = cursorHeight;
+			}
+
+			return new ViewCursorRenderData(
+				top,
+				left,
+				paddingLeft,
+				width,
+				this._lineCursorHeight,
+				textContent,
+				textContentClassName
+			);
 		}
 
-		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
+		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(
+			new Range(
+				position.lineNumber,
+				position.column,
+				position.lineNumber,
+				position.column + nextGrapheme.length
+			),
+			false
+		);
 		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0) {
 			// Outside viewport
 			return null;
 		}
 
 		const firstVisibleRangeForCharacter = visibleRangeForCharacter[0];
-		if (firstVisibleRangeForCharacter.outsideRenderedLine || firstVisibleRangeForCharacter.ranges.length === 0) {
+		if (
+			firstVisibleRangeForCharacter.outsideRenderedLine ||
+			firstVisibleRangeForCharacter.ranges.length === 0
+		) {
 			// Outside viewport
 			return null;
 		}
 
 		const range = firstVisibleRangeForCharacter.ranges[0];
-		const width = (
+		const width =
 			nextGrapheme === '\t'
 				? this._typicalHalfwidthCharacterWidth
-				: (range.width < 1
+				: range.width < 1
 					? this._typicalHalfwidthCharacterWidth
-					: range.width)
-		);
+					: range.width;
 
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {
 			textContent = nextGrapheme;
 			textContentClassName = this._getTokenClassName(position);
 		}
 
-		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-		let height = this._lineHeight;
+		let top =
+			ctx.getVerticalOffsetForLineNumber(position.lineNumber) -
+			ctx.bigNumbersDelta;
+		let height = cursorHeight;
 
 		// Underline might interfere with clicking
-		if (this._cursorStyle === TextEditorCursorStyle.Underline || this._cursorStyle === TextEditorCursorStyle.UnderlineThin) {
-			top += this._lineHeight - 2;
+		if (
+			this._cursorStyle === TextEditorCursorStyle.Underline ||
+			this._cursorStyle === TextEditorCursorStyle.UnderlineThin
+		) {
+			top += cursorHeight - 2;
 			height = 2;
 		}
-
-		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
+		return new ViewCursorRenderData(
+			top,
+			range.left,
+			0,
+			width,
+			height,
+			textContent,
+			textContentClassName
+		);
 	}
 
 	private _getTokenClassName(position: Position): string {
-		const lineData = this._context.viewModel.getViewLineData(position.lineNumber);
-		const tokenIndex = lineData.tokens.findTokenIndexAtOffset(position.column - 1);
+		const lineData = this._context.viewModel.getViewLineData(
+			position.lineNumber
+		);
+		const tokenIndex = lineData.tokens.findTokenIndexAtOffset(
+			position.column - 1
+		);
 		return lineData.tokens.getClassName(tokenIndex);
 	}
 
@@ -255,7 +335,9 @@ export class ViewCursor {
 			this._domNode.domNode.textContent = this._lastRenderedContent;
 		}
 
-		this._domNode.setClassName(`cursor ${this._pluralityClass} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ${this._renderData.textContentClassName}`);
+		this._domNode.setClassName(
+			`cursor ${this._pluralityClass} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ${this._renderData.textContentClassName}`
+		);
 
 		this._domNode.setDisplay('block');
 		this._domNode.setTop(this._renderData.top);
@@ -270,7 +352,7 @@ export class ViewCursor {
 			position: this._position,
 			contentLeft: this._renderData.left,
 			height: this._renderData.height,
-			width: 2
+			width: 2,
 		};
 	}
 }
