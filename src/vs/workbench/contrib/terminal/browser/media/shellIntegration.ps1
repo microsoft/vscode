@@ -201,7 +201,7 @@ function Send-Completions {
 	$completionPrefix = $commandLine
 
 	# Get completions
-	$result = "`e]633;Completions"
+	$result = "$([char]0x1b)]633;Completions"
 	if ($completionPrefix.Length -gt 0) {
 		# Get and send completions
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex

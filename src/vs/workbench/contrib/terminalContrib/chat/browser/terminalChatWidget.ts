@@ -129,6 +129,7 @@ export class TerminalChatWidget extends Disposable {
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
+		this._instance.scrollToBottom();
 	}
 
 	private _updateVerticalPosition(): void {

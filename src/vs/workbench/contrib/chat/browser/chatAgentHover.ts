@@ -108,7 +108,7 @@ export class ChatAgentHover extends Disposable {
 
 		this.name.textContent = `@${agent.name}`;
 		this.extensionName.textContent = agent.extensionDisplayName;
-		this.publisherName.textContent = agent.extensionPublisher;
+		this.publisherName.textContent = agent.extensionPublisherDisplayName ?? agent.extensionPublisherId;
 
 		const description = agent.description && !agent.description.endsWith('.') ?
 			`${agent.description}. ` :
