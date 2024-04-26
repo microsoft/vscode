@@ -382,16 +382,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
 				listInactiveFocusOutline: activeContrastBorder
 			}));
-			this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e));
-			this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.set(false));
-			this._suggestWidget.onDidShow(() => {
+			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
+			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.set(false)));
+			this._register(this._suggestWidget.onDidShow(() => {
 				this._initialPromptInputState = {
 					value: this._promptInputModel!.value,
 					cursorIndex: this._promptInputModel!.cursorIndex,
 					ghostTextIndex: this._promptInputModel!.ghostTextIndex
 				};
 				this._terminalSuggestWidgetVisibleContextKey.set(true);
-			});
+			}));
 		}
 		return this._suggestWidget;
 	}
