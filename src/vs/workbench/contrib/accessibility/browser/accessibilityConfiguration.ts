@@ -192,14 +192,14 @@ const configuration: IConfigurationNode = {
 			additionalProperties: false,
 			properties: {
 				'volume': {
-					'description': localize('accessibility.signals.sounds.volume', "The volume of the sounds in percent (0-100)."),
+					'description': localize('accessibility.signalOptions.volume', "The volume of the sounds in percent (0-100)."),
 					'type': 'number',
 					'minimum': 0,
 					'maximum': 100,
 					'default': 70,
 				},
 				'debouncePositionChanges': {
-					'description': localize('accessibility.signals.debouncePositionChanges', "Whether or not position changes should be debounced"),
+					'description': localize('accessibility.signalOptions.debouncePositionChanges', "Whether or not position changes should be debounced"),
 					'type': 'boolean',
 					'default': false,
 				},
