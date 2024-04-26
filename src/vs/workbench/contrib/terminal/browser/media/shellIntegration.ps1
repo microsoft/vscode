@@ -184,9 +184,6 @@ function Set-MappedKeyHandlers {
 function Send-Completions {
 	$commandLine = ""
 	$cursorIndex = 0
-	# TODO: Since fuzzy matching exists, should completions be provided only for character after the
-	#       last space and then filter on the client side? That would let you trigger ctrl+space
-	#       anywhere on a word and have full completions available
 	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
 	$completionPrefix = $commandLine
 
@@ -205,12 +202,7 @@ function Send-Completions {
 	# If there is no space, get completions using CompletionCompleters as it gives us more
 	# control and works on the empty string
 	else {
-		# $completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-		# if ($null -ne $completions.CompletionMatches) {
-		# 	$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-		# 	$result += $completions.CompletionMatches | ConvertTo-Json -Compress
-		# }
-		# Get and send completions, note that CompleteCommand isn't included here as it's expensive
+		# Note that CompleteCommand isn't included here as it's expensive
 		$completions = $(
 			([System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix));
 			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix));
@@ -222,23 +214,6 @@ function Send-Completions {
 			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
 		}
 	}
-	# } else {
-	# 	# TODO: Consolidate this case with the above
-	# 	# TODO: Try use this approach after the last whitespace for everything so intellisense is always consistent
-
-	# 	# Special case when the prefix is empty since TabExpansion2 doesn't handle it
-	# 	if ($completionPrefix.Length -eq 0) {
-	# 		# Get and send completions
-	# 		$completions = $(
-	# 			([System.Management.Automation.CompletionCompleters]::CompleteFilename(''));
-	# 			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''));
-	# 		)
-	# 		if ($null -ne $completions) {
-	# 			$result += ";0;0;0;"
-	# 			$result += $completions | ConvertTo-Json -Compress
-	# 		}
-	# 	}
-	# }
 
 	# End completions sequence
 	$result += "`a"
