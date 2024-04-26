@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/multieditortabscontrol';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -315,6 +315,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				e.preventDefault();
 			}
 		}));
+
+		// Prevent auto-pasting (https://github.com/microsoft/vscode/issues/201696)
+		if (isLinux) {
+			this._register(addDisposableListener(tabsContainer, EventType.MOUSE_UP, e => {
+				if (e.button === 1) {
+					e.preventDefault();
+				}
+			}));
+		}
 
 		// Drag & Drop support
 		let lastDragEvent: DragEvent | undefined = undefined;
