@@ -577,6 +577,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@IListService private readonly _listService: IListService,
 	) {
 		super();
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
@@ -707,10 +708,27 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		}
 
 		let focused = false;
+		// Retrieve the currently active instance asynchronously
+		let activeInstancePromise = this._terminalService.activeInstance;
+		let setActiveInstance = async (instance: ITerminalInstance) => {
+			const activeInstance = await activeInstancePromise; // Ensure the promise is resolved before comparison.
+			if (activeInstance === instance) {
+				this._terminalService.setActiveInstance(instance);
+			}
+		};
+
 		for (const instance of sourceInstances) {
+			let targetWasFocus = (targetInstance === this._terminalService.activeInstance);
 			this._terminalGroupService.moveGroup(instance, targetInstance);
 			if (!focused) {
-				this._terminalService.setActiveInstance(instance);
+				// Await the setActiveInstance call to keep the loop synchronous
+				await setActiveInstance(instance);
+				if (targetWasFocus) {
+					if (targetIndex)
+						this._listService.lastFocusedList?.setSelection([targetIndex]);
+					else
+						this._listService.lastFocusedList?.setSelection([0]);
+				}
 				focused = true;
 			}
 		}
