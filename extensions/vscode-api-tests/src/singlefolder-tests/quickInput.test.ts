@@ -139,8 +139,8 @@ suite('vscode API - quick input', function () {
 		};
 
 		const quickPick = createQuickPick({
-			events: ['active', 'selection', 'accept', 'active', 'selection', 'accept', 'hide'],
-			activeItems: [['eins'], ['drei']],
+			events: ['active', 'selection', 'accept', 'active', 'active', 'selection', 'accept', 'hide'],
+			activeItems: [['eins'], [], ['drei']],
 			selectionItems: [['eins'], ['drei']],
 			acceptedItems: {
 				active: [['eins'], ['drei']],
@@ -253,6 +253,7 @@ suite('vscode API - quick input', function () {
 function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void, record = false) {
 	const quickPick = window.createQuickPick();
 	let eventIndex = -1;
+	quickPick.ignoreFocusOut = true;
 	quickPick.onDidChangeActive(items => {
 		if (record) {
 			console.log(`active: [${items.map(item => item.label).join(', ')}]`);
