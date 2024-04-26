@@ -637,7 +637,7 @@ const configuration: IConfigurationNode = {
 			'type': 'object',
 			'tags': ['accessibility'],
 			additionalProperties: false,
-			'markdownDescription': localize('accessibility.signals.save', "Plays a signal - sound (audio cue)  and/or announcement (alert) - when a file is saved."),
+			'markdownDescription': localize('accessibility.signals.save', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a file is saved."),
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.save.sound', "Plays a sound when a file is saved."),
@@ -671,7 +671,7 @@ const configuration: IConfigurationNode = {
 			'type': 'object',
 			'tags': ['accessibility'],
 			additionalProperties: false,
-			'markdownDescription': localize('accessibility.signals.format', "Plays a signal - sound (audio cue)  and/or announcement (alert) - when a file or notebook is formatted."),
+			'markdownDescription': localize('accessibility.signals.format', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a file or notebook is formatted."),
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.format.sound', "Plays a sound when a file or notebook is formatted."),
