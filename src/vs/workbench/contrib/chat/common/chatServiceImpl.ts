@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Action } from 'vs/base/common/actions';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -13,9 +14,10 @@ import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -145,7 +147,9 @@ export class ChatService extends Disposable implements IChatService {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -349,6 +353,17 @@ export class ChatService extends Disposable implements IChatService {
 			const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
 			if (!defaultAgent) {
 				// Should have been registered during activation above!
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('chatFailErrorMessage', "Chat failed to load. Please ensure that the GitHub Copilot Chat extension is up to date."),
+					actions: {
+						primary: [
+							new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
+								return this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', ['GitHub.copilot-chat']);
+							})
+						]
+					}
+				});
 				throw new ErrorNoTelemetry('No default agent registered');
 			}
 			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(model.initialLocation, token) ?? undefined;

@@ -101,7 +101,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
-	outline: 1px solid var(--vscode-chat-requestBorder)
+	outline: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .header .avatar.codicon-avatar {
@@ -647,10 +647,11 @@
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
 	display: flex;
 	gap: 5px;
 	align-items: center;
-	opacity: 0.7;
 	margin-bottom: 4px;
 }
 

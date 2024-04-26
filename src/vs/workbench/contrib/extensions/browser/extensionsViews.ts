@@ -704,20 +704,24 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterExtensionsByFeature(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		const value = query.value.replace(/@feature:/g, '').trim().toLowerCase();
+		const value = query.value.replace(/@feature:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
 			return [];
 		}
 		const renderer = feature.renderer ? this.instantiationService.createInstance<IExtensionFeatureRenderer>(feature.renderer) : undefined;
-		const result = local.filter(e => {
-			if (!e.local) {
-				return false;
-			}
-			return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
-		});
-		return this.sortExtensions(result, options);
+		try {
+			const result = local.filter(e => {
+				if (!e.local) {
+					return false;
+				}
+				return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
+			});
+			return this.sortExtensions(result, options);
+		} finally {
+			renderer?.dispose();
+		}
 	}
 
 	private mergeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
@@ -985,7 +989,8 @@ export class ExtensionsListView extends ViewPane {
 
 	// Get All types of recommendations, trimmed to show a max of 8 at any given time
 	private async getAllRecommendationsModel(options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const local = (await this.extensionsWorkbenchService.queryLocal(this.options.server)).map(e => e.identifier.id.toLowerCase());
+		const localExtensions = await this.extensionsWorkbenchService.queryLocal(this.options.server);
+		const localExtensionIds = localExtensions.map(e => e.identifier.id.toLowerCase());
 
 		const allRecommendations = distinct(
 			flatten(await Promise.all([
@@ -994,10 +999,32 @@ export class ExtensionsListView extends ViewPane {
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !isString(extensionId) || !local.includes(extensionId.toLowerCase())));
+			])).filter(extensionId => {
+				if (isString(extensionId)) {
+					return !localExtensionIds.includes(extensionId.toLowerCase());
+				}
+				return !localExtensions.some(localExtension => localExtension.local && this.uriIdentityService.extUri.isEqual(localExtension.local.location, extensionId));
+			}));
 
 		const installableRecommendations = await this.getInstallableRecommendations(allRecommendations, { ...options, source: 'recommendations-all', sortBy: undefined }, token);
-		return new PagedModel(installableRecommendations.slice(0, 8));
+
+		const result: IExtension[] = [];
+		for (let i = 0; i < installableRecommendations.length && result.length < 8; i++) {
+			const recommendation = allRecommendations[i];
+			if (isString(recommendation)) {
+				const extension = installableRecommendations.find(extension => areSameExtensions(extension.identifier, { id: recommendation }));
+				if (extension) {
+					result.push(extension);
+				}
+			} else {
+				const extension = installableRecommendations.find(extension => extension.resourceExtension && this.uriIdentityService.extUri.isEqual(extension.resourceExtension.location, recommendation));
+				if (extension) {
+					result.push(extension);
+				}
+			}
+		}
+
+		return new PagedModel(result);
 	}
 
 	private async searchRecommendations(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {

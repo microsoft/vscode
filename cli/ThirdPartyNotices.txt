@@ -1812,7 +1812,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-crossbeam-channel 0.5.6 - MIT OR Apache-2.0
+crossbeam-channel 0.5.12 - MIT OR Apache-2.0
 https://github.com/crossbeam-rs/crossbeam
 
 The MIT License (MIT)
@@ -1846,7 +1846,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-crossbeam-utils 0.8.16 - MIT OR Apache-2.0
+crossbeam-utils 0.8.19 - MIT OR Apache-2.0
 https://github.com/crossbeam-rs/crossbeam
 
 The MIT License (MIT)
@@ -3298,7 +3298,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-h2 0.3.24 - MIT
+h2 0.3.26 - MIT
 https://github.com/hyperium/h2
 
 The MIT License (MIT)
@@ -3825,7 +3825,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-indexmap 1.9.1 - Apache-2.0 OR MIT
+indexmap 1.9.3 - Apache-2.0 OR MIT
 indexmap 2.1.0 - Apache-2.0 OR MIT
 https://github.com/indexmap-rs/indexmap
 
@@ -4466,7 +4466,7 @@ The following two notices apply to every file of the project.
 ## The Apache License
 
 ```
-Copyright 2015–2019 The md5 Developers
+Copyright 2015–2024 The md5 Developers
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 this file except in compliance with the License. You may obtain a copy of the
@@ -4483,7 +4483,7 @@ specific language governing permissions and limitations under the License.
 ## The MIT License
 
 ```
-Copyright 2015–2019 The md5 Developers
+Copyright 2015–2024 The md5 Developers
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -5346,7 +5346,7 @@ Apache License
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright The OpenTelemetry Authors
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -5554,7 +5554,7 @@ Apache License
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright The OpenTelemetry Authors
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -5762,7 +5762,7 @@ Apache License
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright The OpenTelemetry Authors
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -6679,7 +6679,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-proc-macro2 1.0.59 - MIT OR Apache-2.0
+proc-macro2 1.0.80 - MIT OR Apache-2.0
 https://github.com/dtolnay/proc-macro2
 
 Permission is hereby granted, free of charge, to any
@@ -8138,6 +8138,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`md5`]: ./md5
 [`ripemd`]: ./ripemd
 [`sha1`]: ./sha1
+[`sha1-checked`]: ./sha1-checked
 [`sha2`]: ./sha2
 [`sha3`]: ./sha3
 [`shabal`]: ./shabal
@@ -8179,6 +8180,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [MD5]: https://en.wikipedia.org/wiki/MD5
 [RIPEMD]: https://en.wikipedia.org/wiki/RIPEMD
 [SHA-1]: https://en.wikipedia.org/wiki/SHA-1
+[SHA-1 Checked]: https://github.com/cr-marcstevens/sha1collisiondetection
 [SHA-2]: https://en.wikipedia.org/wiki/SHA-2
 [SHA-3]: https://en.wikipedia.org/wiki/SHA-3
 [SHABAL]: https://www.cs.rit.edu/~ark/20090927/Round2Candidates/Shabal.pdf
@@ -8231,6 +8233,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`md5`]: ./md5
 [`ripemd`]: ./ripemd
 [`sha1`]: ./sha1
+[`sha1-checked`]: ./sha1-checked
 [`sha2`]: ./sha2
 [`sha3`]: ./sha3
 [`shabal`]: ./shabal
@@ -8272,6 +8275,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [MD5]: https://en.wikipedia.org/wiki/MD5
 [RIPEMD]: https://en.wikipedia.org/wiki/RIPEMD
 [SHA-1]: https://en.wikipedia.org/wiki/SHA-1
+[SHA-1 Checked]: https://github.com/cr-marcstevens/sha1collisiondetection
 [SHA-2]: https://en.wikipedia.org/wiki/SHA-2
 [SHA-3]: https://en.wikipedia.org/wiki/SHA-3
 [SHABAL]: https://www.cs.rit.edu/~ark/20090927/Round2Candidates/Shabal.pdf
@@ -10734,6 +10738,8 @@ https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
 
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the
@@ -10766,6 +10772,8 @@ https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
 
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the
@@ -10797,6 +10805,8 @@ zbus_names 2.5.1 - MIT
 https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -10880,7 +10890,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 ---------------------------------------------------------
 
 zip 0.6.6 - MIT
-https://github.com/zip-rs/zip
+https://github.com/Pr0methean/zip
 
 The MIT License (MIT)
 
@@ -10911,6 +10921,8 @@ zvariant 3.14.0 - MIT
 https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -10944,6 +10956,8 @@ https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
 
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the
@@ -10975,6 +10989,8 @@ zvariant_utils 1.0.1 - MIT
 https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated

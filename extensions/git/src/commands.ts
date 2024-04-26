@@ -4160,6 +4160,17 @@ export class CommandCenter {
 
 	private async _viewResourceGroupChanges(repository: Repository, resourceGroup: GitResourceGroup): Promise<void> {
 		if (resourceGroup.resourceStates.length === 0) {
+			switch (resourceGroup.id) {
+				case 'index':
+					window.showInformationMessage(l10n.t('The repository does not have any staged changes.'));
+					break;
+				case 'workingTree':
+					window.showInformationMessage(l10n.t('The repository does not have any changes.'));
+					break;
+				case 'untracked':
+					window.showInformationMessage(l10n.t('The repository does not have any untracked changes.'));
+					break;
+			}
 			return;
 		}
 

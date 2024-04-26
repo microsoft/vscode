@@ -54,6 +54,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export namespace Command {
 
@@ -945,15 +946,22 @@ export namespace DefinitionLink {
 }
 
 export namespace Hover {
-	export function from(hover: vscode.Hover): languages.Hover {
-		return <languages.Hover>{
+	export function from(hover: vscode.VerboseHover): languages.Hover {
+		const convertedHover: languages.Hover = {
 			range: Range.from(hover.range),
-			contents: MarkdownString.fromMany(hover.contents)
+			contents: MarkdownString.fromMany(hover.contents),
+			canIncreaseVerbosity: hover.canIncreaseVerbosity,
+			canDecreaseVerbosity: hover.canDecreaseVerbosity,
 		};
+		return convertedHover;
 	}
 
-	export function to(info: languages.Hover): types.Hover {
-		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
+	export function to(info: languages.Hover): types.VerboseHover {
+		const contents = info.contents.map(MarkdownString.to);
+		const range = Range.to(info.range);
+		const canIncreaseVerbosity = info.canIncreaseVerbosity;
+		const canDecreaseVerbosity = info.canDecreaseVerbosity;
+		return new types.VerboseHover(contents, range, canIncreaseVerbosity, canDecreaseVerbosity);
 	}
 }
 
@@ -2486,6 +2494,7 @@ export namespace ChatResponseTextEditPart {
 
 export namespace ChatResponseReferencePart {
 	export function from(part: vscode.ChatResponseReferencePart): Dto<IChatContentReference> {
+		const iconPath = ThemeIcon.isThemeIcon(part.iconPath) ? part.iconPath : undefined;
 		if ('variableName' in part.value) {
 			return {
 				kind: 'reference',
@@ -2494,7 +2503,8 @@ export namespace ChatResponseReferencePart {
 					value: URI.isUri(part.value.value) || !part.value.value ?
 						part.value.value :
 						Location.from(part.value.value as vscode.Location)
-				}
+				},
+				iconPath
 			};
 		}
 
@@ -2502,7 +2512,8 @@ export namespace ChatResponseReferencePart {
 			kind: 'reference',
 			reference: URI.isUri(part.value) ?
 				part.value :
-				Location.from(<vscode.Location>part.value)
+				Location.from(<vscode.Location>part.value),
+			iconPath
 		};
 	}
 	export function to(part: Dto<IChatContentReference>): vscode.ChatResponseReferencePart {
@@ -2612,13 +2623,14 @@ export namespace ChatAgentResolvedVariable {
 }
 
 export namespace ChatAgentCompletionItem {
-	export function from(item: vscode.ChatCompletionItem): extHostProtocol.IChatAgentCompletionItem {
+	export function from(item: vscode.ChatCompletionItem, commandsConverter: CommandsConverter, disposables: DisposableStore): extHostProtocol.IChatAgentCompletionItem {
 		return {
 			label: item.label,
 			values: item.values.map(ChatVariable.from),
 			insertText: item.insertText,
 			detail: item.detail,
 			documentation: item.documentation,
+			command: commandsConverter.toInternal(item.command, disposables),
 		};
 	}
 }

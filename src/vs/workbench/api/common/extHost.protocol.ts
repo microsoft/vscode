@@ -64,7 +64,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
 import { IRawClosedNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
+import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent } from 'vs/workbench/contrib/speech/common/speechService';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
@@ -1181,12 +1181,17 @@ export interface MainThreadSpeechShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 
 	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void;
+	$emitTextToSpeechEvent(session: number, event: ITextToSpeechEvent): void;
 	$emitKeywordRecognitionEvent(session: number, event: IKeywordRecognitionEvent): void;
 }
 
 export interface ExtHostSpeechShape {
 	$createSpeechToTextSession(handle: number, session: number, language?: string): Promise<void>;
 	$cancelSpeechToTextSession(session: number): Promise<void>;
+
+	$createTextToSpeechSession(handle: number, session: number): Promise<void>;
+	$synthesizeSpeech(session: number, text: string): Promise<void>;
+	$cancelTextToSpeechSession(session: number): Promise<void>;
 
 	$createKeywordRecognitionSession(handle: number, session: number): Promise<void>;
 	$cancelKeywordRecognitionSession(session: number): Promise<void>;
@@ -1200,7 +1205,8 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 	$prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined>;
 	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
 
-	$countTokens(provider: string, value: string, token: CancellationToken): Promise<number>;
+	$whenLanguageModelChatRequestMade(identifier: string, extension: ExtensionIdentifier, participant?: string, tokenCount?: number): void;
+	$countTokens(provider: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export interface ExtHostLanguageModelsShape {
@@ -1208,7 +1214,7 @@ export interface ExtHostLanguageModelsShape {
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
-	$provideTokenLength(handle: number, value: string, token: CancellationToken): Promise<number>;
+	$provideTokenLength(handle: number, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
@@ -1232,6 +1238,7 @@ export interface IChatAgentCompletionItem {
 	values: IChatRequestVariableValueDto[];
 	detail?: string;
 	documentation?: string | IMarkdownString;
+	command?: ICommandDto;
 }
 
 export type IChatContentProgressDto =
@@ -1616,6 +1623,13 @@ export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
 	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
+}
+
+export interface HoverWithId extends languages.Hover {
+	/**
+	 * Id of the hover
+	 */
+	id: number;
 }
 
 // -- extension host
@@ -2109,7 +2123,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined>;
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext<{ id: number }> | undefined, token: CancellationToken): Promise<HoverWithId | undefined>;
+	$releaseHover(handle: number, id: number): void;
 	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.EvaluatableExpression | undefined>;
 	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: languages.InlineValueContext, token: CancellationToken): Promise<languages.InlineValue[] | undefined>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined>;
@@ -2132,7 +2147,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<IWorkspaceEditDto & { rejectReason?: string } | undefined>;
 	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.RenameLocation | undefined>;
-	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined>;
+	$supportsAutomaticNewSymbolNamesTriggerKind(handle: number): Promise<boolean | undefined>;
+	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, triggerKind: languages.NewSymbolNameTriggerKind, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined>;
 	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null>;
 	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void;
 	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null>;

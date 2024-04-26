@@ -12,11 +12,11 @@ import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/commo
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 
-export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
+export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Terminal;
 	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', id: AccessibleViewProviderId.Terminal };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
