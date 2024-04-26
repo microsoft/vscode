@@ -108,8 +108,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const fakeProviders = this._store.add(new DisposableMap<string, IDisposable>());
 
-		this._store.add(this._chatAgentService.onDidChangeAgents(() => {
-
+		const updateFakeProviders = () => {
 			const providersNow = new Set<string>();
 
 			for (const agent of this._chatAgentService.getActivatedAgents()) {
@@ -135,7 +134,10 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					this._logService.debug(`REMOVED inline chat provider for agent ${id}`);
 				}
 			}
-		}));
+		};
+
+		this._store.add(this._chatAgentService.onDidChangeAgents(updateFakeProviders));
+		updateFakeProviders();
 
 		// MARK: implicit variable for editor selection and (tracked) whole range
 		this._store.add(chatVariableService.registerVariable(
