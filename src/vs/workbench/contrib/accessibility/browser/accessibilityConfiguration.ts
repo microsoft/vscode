@@ -690,7 +690,7 @@ const configuration: IConfigurationNode = {
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.signals.format.announcement.userGesture', "Announceswhen a user explicitly formats a file."),
+						localize('accessibility.signals.format.announcement.userGesture', "Announces when a user explicitly formats a file."),
 						localize('accessibility.signals.format.announcement.always', "Announces whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
 						localize('accessibility.signals.format.announcement.never', "Never announces.")
 					],
