@@ -16,7 +16,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, type CodeActionSet, type CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -71,7 +71,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		super();
 
 		this._domNode = dom.$('div.lightBulbWidget');
-		this._domNode.role = 'menu';
+		this._domNode.role = 'listbox';
 		this._register(Gesture.ignoreTarget(this._domNode));
 
 		this._editor.addContentWidget(this);
