@@ -604,13 +604,13 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findFiles2 - null exclude', async () => {
-		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: true, useDefaultSearchExcludes: false }).then((res) => {
+		await vscode.workspace.findFiles2('**/file.txt', { excludeSettings: vscode.ExcludeSettingOptions.filesExclude }).then((res) => {
 			// file.exclude folder is still searched, search.exclude folder is not
 			assert.strictEqual(res.length, 1);
 			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
 		});
 
-		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: false, useDefaultSearchExcludes: false }).then((res) => {
+		await vscode.workspace.findFiles2('**/file.txt', { excludeSettings: vscode.ExcludeSettingOptions.none }).then((res) => {
 			// search.exclude and files.exclude folders are both searched
 			assert.strictEqual(res.length, 2);
 			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');

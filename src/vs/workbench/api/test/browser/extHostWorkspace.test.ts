@@ -26,6 +26,7 @@ import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { nullExtensionDescription as extensionDescriptor } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ExcludeSettingOptions, SearchIgnoreOptions } from 'vscode';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
@@ -710,7 +711,7 @@ suite('ExtHostWorkspace', function () {
 		});
 
 		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles2('foo', { maxResults: 10, useDefaultExcludes: true }, new ExtensionIdentifier('test')).then(() => {
+		return ws.findFiles2('foo', { maxResults: 10, excludeSettings: ExcludeSettingOptions.searchAndFilesExclude }, new ExtensionIdentifier('test')).then(() => {
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 	});
@@ -825,7 +826,7 @@ suite('ExtHostWorkspace', function () {
 		});
 
 		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles2('', { useIgnoreFiles: true, useParentIgnoreFiles: true, useGlobalIgnoreFiles: true }, new ExtensionIdentifier('test')).then(() => {
+		return ws.findFiles2('', { ignoreFilesToUse: SearchIgnoreOptions.all }, new ExtensionIdentifier('test')).then(() => {
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 	});

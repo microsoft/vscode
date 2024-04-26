@@ -44,37 +44,40 @@ declare module 'vscode' {
 		fuzzy?: boolean;
 	}
 
+	/*
+	 * Options for following search.exclude and files.exclude settings.
+	 */
 	export enum ExcludeSettingOptions {
 		/*
 		 * Don't use any exclude settings.
 		 */
-		none,
+		none = 1,
 		/*
 		 * Use:
 		 * - files.exclude setting
 		 */
-		filesExclude,
+		filesExclude = 2,
 		/*
 		 * Use:
 		 * - files.exclude setting
 		 * - search.exclude setting
 		 */
-		searchAndFilesExclude
+		searchAndFilesExclude = 3
 	}
 
 	/*
-	 * Which locations of .gitignore and .ignore files to follow.
+	 * Which locations of .gitignore and .ignore files to follow when searching.
 	*/
 	export enum SearchIgnoreOptions {
 		/*
 		 * Don't use ignore files.
 		 */
-		none,
+		none = 1,
 		/*
 		 * Use:
 		 * - ignore files at the workspace root.
 		 */
-		localOnly,
+		localOnly = 2,
 		/*
 		 * Use:
 		 * - ignore files at the workspace root.
@@ -82,30 +85,30 @@ declare module 'vscode' {
 		 * Follow `search.useParentIgnoreFiles`and `search.useGlobalIgnoreFiles` in settings
 		 * to dictate whether to use parent and global ignore files.
 		 */
-		localAndFollowSettings,
+		localAndFollowSettings = 3,
 		/*
 		 * Use:
 		 * - ignore files at the workspace root.
 		 * - ignore files directly under parent folder(s) of the workspace root.
 		 */
-		localAndParent,
+		localAndParent = 4,
 		/*
 		 * Use:
 		 * - ignore files at the workspace root.
 		 * - global ignore files (e.g. $HOME/.config/git/ignore).
 		 */
-		localAndGlobal,
+		localAndGlobal = 5,
 		/*
 		 * Use:
 		 * - ignore files at the workspace root.
 		 * - ignore files directly under parent folder(s) of the workspace root.
 		 * - global ignore files (e.g. $HOME/.config/git/ignore).
 		 */
-		all,
+		all = 6,
 		/*
 		* Follow `search.useIgnoreFiles`, `search.useParentIgnoreFiles`, and `search.useGlobalIgnoreFiles` in settings.
 		*/
-		followSettings,
+		followSettings = 7,
 	}
 
 	/**

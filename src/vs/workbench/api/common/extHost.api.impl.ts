@@ -105,7 +105,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+import { ExcludeSettingOptions, SearchIgnoreOptions, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
 
 export interface IExtensionRegistries {
@@ -1725,6 +1725,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
+			SearchIgnoreOptions: SearchIgnoreOptions,
+			ExcludeSettingOptions: ExcludeSettingOptions,
 		};
 	};
 }
