@@ -756,14 +756,12 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		}
 	}]);
 
-function getVolumeFromConfig(accessor: (key: string) => any) {
-	const volume = accessor('accessibility.signalOptions')?.volume || accessor('accessibility.signals.sounds.volume') || accessor('audioCues.volume');
-	return volume;
+function getVolumeFromConfig(accessor: (key: string) => any): string | undefined {
+	return accessor('accessibility.signalOptions')?.volume || accessor('accessibility.signals.sounds.volume') || accessor('audioCues.volume');
 }
 
-function getDebouncePositionChangesFromConfig(accessor: (key: string) => any) {
-	const debouncePositionChanges = accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('accessibility.signals.debouncePositionChanges') || accessor('audioCues.debouncePositionChanges');
-	return debouncePositionChanges;
+function getDebouncePositionChangesFromConfig(accessor: (key: string) => any): number | undefined {
+	return accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('accessibility.signals.debouncePositionChanges') || accessor('audioCues.debouncePositionChanges');
 }
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
