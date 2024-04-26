@@ -628,7 +628,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.clear.announcement', "Anounces when a feature is cleared."),
+					'description': localize('accessibility.signals.clear.announcement', "Announces when a feature is cleared."),
 					...announcementFeatureBase
 				},
 			},
