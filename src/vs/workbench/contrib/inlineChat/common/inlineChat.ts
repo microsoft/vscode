@@ -130,6 +130,7 @@ export interface IInlineChatSessionProvider {
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
 
+/** @deprecated DO NOT USE, use agents/participants */
 export const IInlineChatService = createDecorator<IInlineChatService>('IInlineChatService');
 
 export interface InlineChatProviderChangeEvent {
@@ -137,11 +138,15 @@ export interface InlineChatProviderChangeEvent {
 	readonly removed?: IInlineChatSessionProvider;
 }
 
+/** @deprecated DO NOT USE, use agents/participants */
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
+	/** @deprecated DO NOT USE, use agents/participants */
 	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
+	/** @deprecated DO NOT USE, use agents/participants */
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
+	/** @deprecated DO NOT USE, use agents/participants */
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }
 
@@ -173,6 +178,7 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 
 // --- (select) action identifier
 
+export const ACTION_START = 'inlineChat.start';
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
@@ -268,4 +274,5 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			],
 		}
 	}
+
 });
