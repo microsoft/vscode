@@ -43,7 +43,7 @@ import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatC
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
-import { IInlineChatCommandFollowup, IInlineChatFollowup, IInlineChatReplyFollowup, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -2238,28 +2238,6 @@ export namespace ChatFollowup {
 			participant: followup.agentId,
 			command: followup.subCommand,
 		};
-	}
-}
-
-export namespace ChatInlineFollowup {
-	export function from(followup: vscode.InteractiveEditorFollowup): IInlineChatFollowup {
-		if ('commandId' in followup) {
-			return {
-				kind: 'command',
-				title: followup.title ?? '',
-				commandId: followup.commandId ?? '',
-				when: followup.when ?? '',
-				args: followup.args
-			} satisfies IInlineChatCommandFollowup;
-		} else {
-			return {
-				kind: 'reply',
-				message: followup.message,
-				title: followup.title,
-				tooltip: followup.tooltip,
-			} satisfies IInlineChatReplyFollowup;
-		}
-
 	}
 }
 

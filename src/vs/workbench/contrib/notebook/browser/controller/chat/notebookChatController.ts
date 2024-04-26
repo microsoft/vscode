@@ -27,7 +27,6 @@ import { ICursorStateComputer, ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
@@ -262,7 +261,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInlineChatSavingService private readonly _inlineChatSavingService: IInlineChatSavingService,
 		@IModelService private readonly _modelService: IModelService,
@@ -459,12 +457,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				if (fakeParentEditor.hasModel()) {
 					await this._startSession(fakeParentEditor, token);
 					this._warmupRequestCts = new CancellationTokenSource();
-					this._startInitialFolowups(fakeParentEditor, this._warmupRequestCts.token);
 
 					if (this._widget) {
 						this._widget.inlineChatWidget.placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 						this._widget.inlineChatWidget.updateInfo(this._activeSession?.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
-						this._widget.inlineChatWidget.updateSlashCommands(this._activeSession?.session.slashCommands ?? []);
 						this._focusWidget();
 					}
 
@@ -554,7 +550,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		this._ctxHasActiveRequest.set(true);
-		this._widget.inlineChatWidget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._widget?.inlineChatWidget.updateProgress(true);
 
 		const request: IInlineChatRequest = {
@@ -628,7 +623,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		try {
 			this._widget?.inlineChatWidget.updateChatMessage(undefined);
-			this._widget?.inlineChatWidget.updateFollowUps(undefined);
 			this._widget?.inlineChatWidget.updateProgress(true);
 			this._widget?.inlineChatWidget.updateInfo(!this._activeSession.lastExchange ? GeneratingPhrase + '\u2026' : '');
 			this._ctxHasActiveRequest.set(true);
@@ -647,23 +641,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				const replyResponse = response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId, undefined);
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);
-				}
-
-				if (this._activeSession?.provider.provideFollowups) {
-					const followupCts = new CancellationTokenSource();
-					const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, replyResponse.raw, followupCts.token);
-					if (followups && this._widget) {
-						const widget = this._widget;
-						widget.inlineChatWidget.updateFollowUps(followups, async followup => {
-							if (followup.kind === 'reply') {
-								widget.inlineChatWidget.value = followup.message;
-								this.acceptInput();
-							} else {
-								await this.acceptSession();
-								this._commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
-							}
-						});
-					}
 				}
 
 				this._userEditingDisposables.clear();
@@ -717,50 +694,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		this._activeSession = session;
 		this._strategy = new EditStrategy(session);
-	}
-
-	private async _startInitialFolowups(editor: IActiveCodeEditor, token: CancellationToken) {
-		if (!this._activeSession || !this._activeSession.provider.provideFollowups) {
-			return;
-		}
-
-		const request: IInlineChatRequest = {
-			requestId: generateUuid(),
-			prompt: '',
-			attempt: 0,
-			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
-			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-			live: true,
-			previewDocument: editor.getModel().uri,
-			withIntentDetection: true
-		};
-
-		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => { });
-		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, token);
-		const reply = await raceCancellationError(Promise.resolve(task), token);
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		if (!reply) {
-			return;
-		}
-
-		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-		const response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), [], request.requestId, undefined);
-		const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, response.raw, token);
-		if (followups && this._widget) {
-			const widget = this._widget;
-			widget.inlineChatWidget.updateFollowUps(followups, async followup => {
-				if (followup.kind === 'reply') {
-					widget.inlineChatWidget.value = followup.message;
-					this.acceptInput();
-				} else {
-					await this.acceptSession();
-					this._commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
-				}
-			});
-		}
 	}
 
 	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {

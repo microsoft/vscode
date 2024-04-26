@@ -98,23 +98,6 @@ export const enum InlineChatResponseFeedbackKind {
 	Bug = 4
 }
 
-export interface IInlineChatReplyFollowup {
-	kind: 'reply';
-	message: string;
-	title?: string;
-	tooltip?: string;
-}
-
-export interface IInlineChatCommandFollowup {
-	kind: 'command';
-	commandId: string;
-	args?: any[];
-	title: string; // supports codicon strings
-	when?: string;
-}
-
-export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandFollowup;
-
 export interface IInlineChatSessionProvider {
 
 	extensionId: ExtensionIdentifier;
@@ -124,8 +107,6 @@ export interface IInlineChatSessionProvider {
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
-
-	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IInlineChatFollowup[]>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }

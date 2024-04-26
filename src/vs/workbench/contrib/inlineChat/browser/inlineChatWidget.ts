@@ -36,11 +36,10 @@ import { asCssVariable, asCssVariableName, editorBackground, editorForeground, i
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -137,7 +136,6 @@ export class InlineChatWidget {
 
 	private _isLayouting: boolean = false;
 
-	private readonly _followUpDisposables = this._store.add(new DisposableStore());
 	constructor(
 		location: ChatAgentLocation,
 		options: IInlineChatWidgetConstructionOptions,
@@ -533,28 +531,6 @@ export class InlineChatWidget {
 			}
 		};
 	}
-	/**
-	 * @deprecated use `setChatModel` instead
-	 */
-	updateFollowUps(items: IInlineChatFollowup[], onFollowup: (followup: IInlineChatFollowup) => void): void;
-	updateFollowUps(items: undefined): void;
-	updateFollowUps(items: IInlineChatFollowup[] | undefined, onFollowup?: ((followup: IInlineChatFollowup) => void)) {
-		this._followUpDisposables.clear();
-		this._elements.followUps.classList.toggle('hidden', !items || items.length === 0);
-		reset(this._elements.followUps);
-		if (items && items.length > 0 && onFollowup) {
-			this._followUpDisposables.add(
-				this._instantiationService.createInstance(ChatFollowups, this._elements.followUps, items, ChatAgentLocation.Editor, undefined, onFollowup));
-		}
-		this._onDidChangeHeight.fire();
-	}
-
-	/**
-	 * @deprecated use `setChatModel` instead
-	 */
-	updateSlashCommands(commands: IInlineChatSlashCommand[]) {
-
-	}
 
 	updateInfo(message: string): void {
 		this._elements.infoLabel.classList.toggle('hidden', !message);
@@ -594,7 +570,6 @@ export class InlineChatWidget {
 	reset() {
 		this._chatWidget.saveState();
 		this.updateChatMessage(undefined);
-		this.updateFollowUps(undefined);
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
