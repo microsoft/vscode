@@ -136,11 +136,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
-
 		if (
 			(!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) &&
 			(promptInputState.cursorIndex === 1 || promptInputState.value.substring(0, promptInputState.cursorIndex).match(/\s[^\s]$/))
 		) {
+			// TODO: Allow the user to configure when completions are triggered - this is equivalent to editor.quickSuggestions
 			// TODO: Debounce? Prevent this flooding the channel
 			this._onAcceptedCompletion.fire('\x1b[24~e');
 		}
@@ -229,16 +229,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		let replacementIndex = 0; //args.length === 0 ? 0 : parseInt(args[0]);
 		let replacementLength = this._promptInputModel.cursorIndex; //args.length === 0 ? 0 : parseInt(args[1]);
 
-		console.log({
-			replacementIndex,
-			replacementLength
-		});
-		// TODO: Add bell back?
-		// if (!args[3]) {
-		// 	this._onBell.fire();
-		// 	return;
-		// }
-
 		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
 		let completionList: IPwshCompletion[] | IPwshCompletion = args.length === 0 || payload.length === 0 ? [] : JSON.parse(payload);
 		if (!Array.isArray(completionList)) {
@@ -263,21 +253,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._leadingLineContent = completions[0]?.completion.label.slice(0, replacementLength) ?? '';
 		}
 
-		console.log({
-			replacementIndex,
-			replacementLength,
-			leadingLineContent: this._leadingLineContent
-		});
-
 		this._cursorIndexDelta = 0;
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
-		if (completions.length === 1) {
-			const insertText = completions[0].completion.label.substring(replacementLength);
-			if (insertText.length === 0) {
-				this._onBell.fire();
-				return;
-			}
-		}
 		this._handleCompletionModel(model);
 	}
 

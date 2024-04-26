@@ -210,54 +210,53 @@ function Send-Completions {
 	# Start completions sequence
 	$result = "$([char]0x1b)]633;Completions"
 
-	# Get completions
-	if ($completionPrefix.Length -gt 0) {
-		# If there is a space in the input, defer to TabExpansion2 as it's more complicated to
-		# determine valid completions
-		if ($completionPrefix.Contains(' ')) {
-			$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-			if ($null -ne $completions.CompletionMatches) {
-				$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-				$result += $completions.CompletionMatches | ConvertTo-Json -Compress
-			}
-		}
-		# If there is no space, get completions using CompletionCompleters as it gives us more
-		# control and works on the empty string
-		else {
-			# $completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-			# if ($null -ne $completions.CompletionMatches) {
-			# 	$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			# 	$result += $completions.CompletionMatches | ConvertTo-Json -Compress
-			# }
-			# Get and send completions, note that CompleteCommand isn't included here as it's expensive
-			$completions = $(
-				([System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix));
-				([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix));
-			)
-			if ($null -ne $completions) {
-				$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-				$result += $completions | ConvertTo-Json -Compress
-			} else {
-				$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
-			}
-		}
-	} else {
-		# TODO: Consolidate this case with the above
-		# TODO: Try use this approach after the last whitespace for everything so intellisense is always consistent
-
-		# Special case when the prefix is empty since TabExpansion2 doesn't handle it
-		if ($completionPrefix.Length -eq 0) {
-			# Get and send completions
-			$completions = $(
-				([System.Management.Automation.CompletionCompleters]::CompleteFilename(''));
-				([System.Management.Automation.CompletionCompleters]::CompleteVariable(''));
-			)
-			if ($null -ne $completions) {
-				$result += ";0;0;0;"
-				$result += $completions | ConvertTo-Json -Compress
-			}
+	# If there is a space in the input, defer to TabExpansion2 as it's more complicated to
+	# determine what type of completions to use
+	if ($completionPrefix.Contains(' ')) {
+		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+		if ($null -ne $completions.CompletionMatches) {
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += $completions.CompletionMatches | ConvertTo-Json -Compress
 		}
 	}
+	# If there is no space, get completions using CompletionCompleters as it gives us more
+	# control and works on the empty string
+	else {
+		# $completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+		# if ($null -ne $completions.CompletionMatches) {
+		# 	$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+		# 	$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+		# }
+		# Get and send completions, note that CompleteCommand isn't included here as it's expensive
+		$completions = $(
+			([System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix));
+			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix));
+		)
+		this
+		if ($null -ne $completions) {
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += $completions | ConvertTo-Json -Compress
+		} else {
+			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
+		}
+	}
+	# } else {
+	# 	# TODO: Consolidate this case with the above
+	# 	# TODO: Try use this approach after the last whitespace for everything so intellisense is always consistent
+
+	# 	# Special case when the prefix is empty since TabExpansion2 doesn't handle it
+	# 	if ($completionPrefix.Length -eq 0) {
+	# 		# Get and send completions
+	# 		$completions = $(
+	# 			([System.Management.Automation.CompletionCompleters]::CompleteFilename(''));
+	# 			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''));
+	# 		)
+	# 		if ($null -ne $completions) {
+	# 			$result += ";0;0;0;"
+	# 			$result += $completions | ConvertTo-Json -Compress
+	# 		}
+	# 	}
+	# }
 
 	# End completions sequence
 	$result += "`a"
