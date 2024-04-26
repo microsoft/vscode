@@ -172,9 +172,10 @@ function Set-MappedKeyHandlers {
 			Send-Completions
 		}
 
-		# TODO: When does this invalidate? Installing a new module could add new commands
-		# Commands are expensive to complete and send over, do this ones for the empty string so we
-		# don't need to do it each time the user requests.
+		# TODO: When does this invalidate? Installing a new module could add new commands. We could expose a command to update?
+		# Commands are expensive to complete and send over, do this once for the empty string so we
+		# don't need to do it each time the user requests. Additionally we also want to do filtering
+		# and ranking on the client side with the full list of results.
 		$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
 		$result += [System.Management.Automation.CompletionCompleters]::CompleteCommand('') | ConvertTo-Json -Compress
 		Write-Host -NoNewLine $result
