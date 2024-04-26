@@ -412,8 +412,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 						await Promises.settled(workingCopiesToRestore.map(async workingCopyToRestore => {
 
 							// From this moment on, only operate on the canonical resource
-							// to ensure we reduce the chance of opening the same resource
-							// with different resource forms (e.g. path casing on Windows)
+							// to fix a potential data loss issue:
+							// https://github.com/microsoft/vscode/issues/211374
 							const target = this.uriIdentityService.asCanonicalUri(workingCopyToRestore.target);
 
 							// Restore the working copy at the target. if we have previous dirty content, we pass it
