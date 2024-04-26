@@ -4,27 +4,27 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4f8b49bca02b0bfde6e46252c209396ba6c567f9",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/8624d0bdae950a70cdf4a1c3d19c7398ef851721",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
 		{
-			"begin": "(\\\\)iffalse",
+			"begin": "(?<=^\\s*)((\\\\)iffalse)",
 			"beginCaptures": {
-				"0": {
+				"1": {
 					"name": "keyword.control.tex"
 				},
-				"1": {
+				"2": {
 					"name": "punctuation.definition.keyword.tex"
 				}
 			},
 			"contentName": "comment.line.percentage.tex",
-			"end": "(\\\\)(else|fi)",
+			"end": "(?<=^\\s*)((\\\\)(?:else|fi))",
 			"endCaptures": {
-				"0": {
+				"1": {
 					"name": "keyword.control.tex"
 				},
-				"1": {
+				"2": {
 					"name": "punctuation.definition.keyword.tex"
 				}
 			},
@@ -108,7 +108,7 @@
 					"name": "punctuation.definition.function.tex"
 				}
 			},
-			"match": "(\\\\)(?:[\\p{Alphabetic}@]+|[,;])",
+			"match": "(\\\\)(?:[,;]|(?:[\\p{Alphabetic}@]+(?:(?:_[\\p{Alphabetic}@]+)*:[NncVvoxefTFpwD]*)?))",
 			"name": "support.function.general.tex"
 		},
 		{
@@ -174,8 +174,8 @@
 			]
 		},
 		"conditionals": {
-			"begin": "\\\\(if[a-z]*)",
-			"end": "\\\\fi",
+			"begin": "(?<=^\\s*)\\\\if[a-z]*",
+			"end": "(?<=^\\s*)\\\\fi",
 			"patterns": [
 				{
 					"include": "#comment"
