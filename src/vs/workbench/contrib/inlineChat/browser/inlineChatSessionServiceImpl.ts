@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { coalesceInPlace, isNonEmptyArray } from 'vs/base/common/arrays';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
@@ -16,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -24,11 +23,11 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
+import { IProgress } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { EditMode, IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, IInlineChatService, IInlineChatSession, IInlineChatSessionProvider, IInlineChatSlashCommand, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -37,181 +36,8 @@ import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSession
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { Codicon } from 'vs/base/common/codicons';
 import { isEqual } from 'vs/base/common/resources';
 
-class BridgeAgent implements IChatAgentImplementation {
-
-	constructor(
-		private readonly _data: IChatAgentData,
-		private readonly _sessions: ReadonlyMap<string, SessionData>,
-		private readonly _postLastResponse: (data: { id: string; response: ReplyResponse | ErrorResponse | EmptyResponse }) => void,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-	) { }
-
-
-	private _findSessionDataByRequest(request: IChatAgentRequest) {
-		let data: SessionData | undefined;
-		for (const candidate of this._sessions.values()) {
-			if (candidate.session.chatModel.sessionId === request.sessionId) {
-				data = candidate;
-				break;
-			}
-		}
-		return data;
-	}
-
-	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, _history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
-
-		if (token.isCancellationRequested) {
-			return {};
-		}
-
-		const data = this._findSessionDataByRequest(request);
-
-		if (!data) {
-			throw new Error('FAILED to find session');
-		}
-
-		const { session } = data;
-
-		if (!session.lastInput) {
-			throw new Error('FAILED to find last input');
-		}
-
-		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.values[0];
-		const inlineChatContext = typeof inlineChatContextValue?.value === 'string' && JSON.parse(inlineChatContextValue.value);
-
-		const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
-		const progressEdits: TextEdit[][] = [];
-
-		const inlineRequest: IInlineChatRequest = {
-			requestId: request.requestId,
-			prompt: request.message,
-			attempt: request.attempt ?? 0,
-			withIntentDetection: request.enableCommandDetection ?? true,
-			live: session.editMode !== EditMode.Preview,
-			previewDocument: session.textModelN.uri,
-			selection: inlineChatContext.selection,
-			wholeRange: inlineChatContext.wholeRange
-		};
-
-		const inlineProgress = new Progress<IInlineChatProgressItem>(data => {
-			// TODO@jrieken
-			// if (data.message) {
-			// 	progress({ kind: 'progressMessage', content: new MarkdownString(data.message) });
-			// }
-			// TODO@ulugbekna,jrieken should we only send data.slashCommand when having detected one?
-			if (data.slashCommand && !inlineRequest.prompt.startsWith('/')) {
-				const command = this._data.slashCommands.find(c => c.name === data.slashCommand);
-				progress({ kind: 'agentDetection', agentId: this._data.id, command });
-			}
-			if (data.markdownFragment) {
-				progress({ kind: 'markdownContent', content: new MarkdownString(data.markdownFragment) });
-			}
-			if (isNonEmptyArray(data.edits)) {
-				progressEdits.push(data.edits);
-				progress({ kind: 'textEdit', uri: session.textModelN.uri, edits: data.edits });
-			}
-		});
-
-		let result: IInlineChatResponse | undefined | null;
-		let response: ReplyResponse | ErrorResponse | EmptyResponse;
-
-		try {
-			result = await data.session.provider.provideResponse(session.session, inlineRequest, inlineProgress, token);
-
-			if (result) {
-				if (result.message) {
-					inlineProgress.report({ markdownFragment: result.message.value });
-				}
-				if (Array.isArray(result.edits)) {
-					inlineProgress.report({ edits: result.edits });
-				}
-
-				const markdownContents = result.message ?? new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-
-				const chatModelRequest = session.chatModel.getRequests().find(candidate => candidate.id === request.requestId);
-
-				response = this._instaService.createInstance(ReplyResponse, result, markdownContents, session.textModelN.uri, modelAltVersionIdNow, progressEdits, request.requestId, chatModelRequest?.response);
-
-			} else {
-				response = new EmptyResponse();
-			}
-
-		} catch (e) {
-			response = new ErrorResponse(e);
-		}
-
-		this._postLastResponse({ id: request.requestId, response });
-
-
-		return {
-			metadata: {
-				inlineChatResponse: result
-			}
-		};
-	}
-
-	async provideFollowups(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
-
-		if (!result.metadata?.inlineChatResponse) {
-			return [];
-		}
-
-		const data = this._findSessionDataByRequest(request);
-		if (!data) {
-			return [];
-		}
-
-		const inlineFollowups = await data.session.provider.provideFollowups?.(data.session.session, result.metadata?.inlineChatResponse, token);
-		if (!inlineFollowups) {
-			return [];
-		}
-
-		const chatFollowups = inlineFollowups.map(f => {
-			if (f.kind === 'reply') {
-				return {
-					kind: 'reply',
-					message: f.message,
-					agentId: request.agentId,
-					title: f.title,
-					tooltip: f.tooltip,
-				} satisfies IChatFollowup;
-			} else {
-				// TODO@jrieken update API
-				return undefined;
-			}
-		});
-
-		coalesceInPlace(chatFollowups);
-		return chatFollowups;
-	}
-
-	provideWelcomeMessage(location: ChatAgentLocation, token: CancellationToken): string[] {
-		// without this provideSampleQuestions is not called
-		return [];
-	}
-
-	async provideSampleQuestions(location: ChatAgentLocation, token: CancellationToken): Promise<IChatFollowup[]> {
-		// TODO@jrieken DEBT
-		// (hack) this function is called while creating the session. We need the timeout to make sure this._sessions is populated.
-		// (hack) we have no context/session id and therefore use the first session with an active editor
-		await new Promise(resolve => setTimeout(resolve, 10));
-
-		for (const [, data] of this._sessions) {
-			if (data.session.session.input && data.editor.hasWidgetFocus()) {
-				return [{
-					kind: 'reply',
-					agentId: _bridgeAgentId,
-					message: data.session.session.input,
-				}];
-			}
-		}
-		return [];
-	}
-}
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -311,75 +137,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			}
 		}));
 
-		// MARK: register fake chat agent
-		const addOrRemoveBridgeAgent = () => {
-			const that = this;
-			const agentData: IChatAgentData = {
-				id: _bridgeAgentId,
-				name: 'editor',
-				extensionId: nullExtensionDescription.identifier,
-				extensionPublisherDisplayName: '',
-				extensionDisplayName: '',
-				extensionPublisherId: '',
-				isDefault: true,
-				locations: [ChatAgentLocation.Editor],
-				get slashCommands(): IChatAgentCommand[] {
-					// HACK@jrieken
-					// find the active session and return its slash commands
-					let candidate: Session | undefined;
-					for (const data of that._sessions.values()) {
-						if (data.editor.hasWidgetFocus()) {
-							candidate = data.session;
-							break;
-						}
-					}
-					if (!candidate || !candidate.session.slashCommands) {
-						return [];
-					}
-					return candidate.session.slashCommands.map(c => {
-						return {
-							name: c.command,
-							description: c.detail ?? '',
-						} satisfies IChatAgentCommand;
-					});
-				},
-				defaultImplicitVariables: [_inlineChatContext],
-				metadata: {
-					isSticky: false,
-					themeIcon: Codicon.copilot,
-				},
-			};
-
-			let otherEditorAgent: IChatAgentData | undefined;
-			let myEditorAgent: IChatAgentData | undefined;
-
-			for (const candidate of this._chatAgentService.getActivatedAgents()) {
-				if (!myEditorAgent && candidate.id === agentData.id) {
-					myEditorAgent = candidate;
-				} else if (!otherEditorAgent && candidate.isDefault && candidate.locations.includes(ChatAgentLocation.Editor)) {
-					otherEditorAgent = candidate;
-				}
-			}
-
-			if (otherEditorAgent) {
-				bridgeStore.clear();
-				_logService.debug(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
-
-			} else if (!myEditorAgent) {
-				bridgeStore.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions, data => {
-					this._lastResponsesFromBridgeAgent.set(data.id, data.response);
-				}));
-				_logService.debug(`ADDED bridge agent "${agentData.id}"`);
-			}
-		};
-
-		this._store.add(this._chatAgentService.onDidChangeAgents(() => addOrRemoveBridgeAgent()));
-		const bridgeStore = this._store.add(new MutableDisposable());
-		addOrRemoveBridgeAgent();
-
-
 		// MARK: implicit variable for editor selection and (tracked) whole range
-
 		this._store.add(chatVariableService.registerVariable(
 			{ name: _inlineChatContext, description: '', hidden: true },
 			async (_message, _arg, model) => {
