@@ -39,7 +39,6 @@ import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import * as vscode from 'vscode';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
