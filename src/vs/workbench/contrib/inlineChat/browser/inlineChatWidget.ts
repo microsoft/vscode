@@ -383,11 +383,20 @@ export class InlineChatWidget {
 	}
 
 	get minHeight(): number {
-		// The chat widget is variable height and supports scrolling. It
-		// should be at least 100px high and at most the content height.
+		// The chat widget is variable height and supports scrolling. It should be
+		// at least "maxWidgetHeight" high and at most the content height.
+
+		let maxWidgetHeight = 100;
+		for (const item of this._chatWidget.viewModel?.getItems() ?? []) {
+			if (isResponseVM(item) && item.response.value.some(r => r.kind === 'textEditGroup' && !r.state?.applied)) {
+				maxWidgetHeight = 270;
+				break;
+			}
+		}
+
 		let value = this.contentHeight;
 		value -= this._chatWidget.contentHeight;
-		value += Math.min(100, this._chatWidget.contentHeight);
+		value += Math.min(maxWidgetHeight, this._chatWidget.contentHeight);
 		return value;
 	}
 
