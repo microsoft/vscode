@@ -21,7 +21,7 @@ import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/b
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from 'vs/base/common/uri';
 import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
-import { stripAnsiEscapeSequencesFromPrompt } from 'vs/base/common/ansi';
+import { removeAnsiEscapeCodesFromPrompt } from 'vs/base/common/strings';
 
 
 /**
@@ -383,7 +383,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 				switch (key) {
 					case 'ContinuationPrompt': {
-						this._updateContinuationPrompt(stripAnsiEscapeSequencesFromPrompt(value));
+						this._updateContinuationPrompt(removeAnsiEscapeCodesFromPrompt(value));
 						return true;
 					}
 					case 'Cwd': {
