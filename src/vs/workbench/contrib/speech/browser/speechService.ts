@@ -308,7 +308,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 					onSessionStoppedOrCanceled();
 					break;
 				case TextToSpeechStatus.Error:
-					this.logService.error(`Speech provider error in speech to text session: ${e.text}`);
+					this.logService.error(`Speech provider error in text to speech session: ${e.text}`);
 					sessionError = true;
 					break;
 			}
