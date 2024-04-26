@@ -591,12 +591,4 @@ export class AgentInlineChatProvider implements IInlineChatSessionProvider {
 			edits: workspaceEdit
 		};
 	}
-
-	// handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void {
-	// 	throw new Error('Method not implemented.');
-	// }
-
-	// provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IInlineChatFollowup[]> {
-	// 	throw new Error('Method not implemented.');
-	// }
 }
