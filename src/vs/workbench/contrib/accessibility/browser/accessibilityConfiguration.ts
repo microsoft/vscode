@@ -712,7 +712,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	.registerConfigurationMigrations([{
 		key: 'audioCues.volume',
 		migrateFn: (volume, accessor) => {
-			const debouncePositionChanges = accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('audioCues.debouncePositionChanges') || accessor('accessibility.signals.debouncePositionChanges');
+			const debouncePositionChanges = getDebouncePositionChangesFromConfig(accessor);
 			return [
 				['accessibility.signalOptions', { value: debouncePositionChanges !== undefined ? { volume, debouncePositionChanges } : { volume } }],
 				['audioCues.volume', { value: undefined }]
@@ -724,7 +724,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	.registerConfigurationMigrations([{
 		key: 'audioCues.debouncePositionChanges',
 		migrateFn: (debouncePositionChanges, accessor) => {
-			const volume = accessor('accessibility.signalOptions')?.volume || accessor('accessibility.signals.sounds.volume') || accessor('audioCues.volume');
+			const volume = getVolumeFromConfig(accessor);
 			return [
 				['accessibility.signalOptions', { value: volume !== undefined ? { volume, debouncePositionChanges } : { debouncePositionChanges } }],
 				['audioCues.debouncePositionChanges', { value: undefined }]
@@ -736,7 +736,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	.registerConfigurationMigrations([{
 		key: 'accessibility.signals.sounds.volume',
 		migrateFn: (volume, accessor) => {
-			const debouncePositionChanges = accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('audioCues.debouncePositionChanges') || accessor('accessibility.signals.debouncePositionChanges');
+			const debouncePositionChanges = getDebouncePositionChangesFromConfig(accessor);
 			return [
 				['accessibility.signalOptions', { value: debouncePositionChanges !== undefined ? { volume, debouncePositionChanges } : { volume } }],
 				['accessibility.signals.sounds.volume', { value: undefined }]
@@ -748,7 +748,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	.registerConfigurationMigrations([{
 		key: 'accessibility.signals.debouncePositionChanges',
 		migrateFn: (debouncePositionChanges, accessor) => {
-			const volume = accessor('accessibility.signalOptions')?.volume || accessor('accessibility.signals.sounds.volume') || accessor('audioCues.volume');
+			const volume = getVolumeFromConfig(accessor);
 			return [
 				['accessibility.signalOptions', { value: volume !== undefined ? { volume, debouncePositionChanges } : { debouncePositionChanges } }],
 				['accessibility.signals.debouncePositionChanges', { value: undefined }]
@@ -756,6 +756,15 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		}
 	}]);
 
+function getVolumeFromConfig(accessor: (key: string) => any) {
+	const volume = accessor('accessibility.signalOptions')?.volume || accessor('accessibility.signals.sounds.volume') || accessor('audioCues.volume');
+	return volume;
+}
+
+function getDebouncePositionChangesFromConfig(accessor: (key: string) => any) {
+	const debouncePositionChanges = accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('accessibility.signals.debouncePositionChanges') || accessor('audioCues.debouncePositionChanges');
+	return debouncePositionChanges;
+}
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
