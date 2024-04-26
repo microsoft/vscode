@@ -237,8 +237,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				getWinSizeChars: true,
 			},
 		}));
-
-		this.setupXOFFXONHandling();
 		
 		this._updateSmoothScrolling();
 		this._core = (this.raw as any)._core as IXtermCore;
