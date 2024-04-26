@@ -26,6 +26,7 @@ import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIn
 
 const enum VSCodeOscPt {
 	Completions = 'Completions',
+	CompletionsPwshCommands = 'CompletionsPwshCommands',
 	CompletionsBash = 'CompletionsBash',
 	CompletionsBashFirstWord = 'CompletionsBashFirstWord'
 }
@@ -135,12 +136,23 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
+
+		if (
+			(!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) &&
+			(promptInputState.cursorIndex === 1 || promptInputState.value.substring(0, promptInputState.cursorIndex).match(/\s[^\s]$/))
+		) {
+			// TODO: Debounce? Prevent this flooding the channel
+			this._onAcceptedCompletion.fire('\x1b[24~e');
+		}
+
 		this._mostRecentPromptInputState = promptInputState;
+		// this._onAcceptedCompletion.fire('\x1b[24~e');
 		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || !this._initialPromptInputState) {
 			return;
 		}
 
 		this._currentPromptInputState = promptInputState;
+
 
 		// Hide the widget if the cursor moves to the left of the initial position as the
 		// completions are no longer valid
@@ -153,6 +165,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const inputBeforeCursor = this._currentPromptInputState.value.substring(0, this._currentPromptInputState.cursorIndex);
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
 
+			console.log('setLineContext', {
+				inputBeforeCursor,
+				cursorIndexDelta: this._cursorIndexDelta
+			});
 			this._suggestWidget.setLineContext(new LineContext(inputBeforeCursor, this._cursorIndexDelta));
 		}
 
@@ -191,6 +207,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			case VSCodeOscPt.Completions:
 				this._handleCompletionsSequence(this._terminal, data, command, args);
 				return true;
+			case VSCodeOscPt.CompletionsPwshCommands:
+				this._handleCompletionsPwshCommandsSequence(this._terminal, data, command, args);
 			case VSCodeOscPt.CompletionsBash:
 				this._handleCompletionsBashSequence(this._terminal, data, command, args);
 				return true;
@@ -204,18 +222,25 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _handleCompletionsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
 		// Nothing to handle if the terminal is not attached
-		if (!terminal.element || !this._enableWidget) {
+		if (!terminal.element || !this._enableWidget || !this._promptInputModel) {
 			return;
 		}
 
-		const replacementIndex = parseInt(args[0]);
-		const replacementLength = parseInt(args[1]);
-		if (!args[3]) {
-			this._onBell.fire();
-			return;
-		}
+		let replacementIndex = 0; //args.length === 0 ? 0 : parseInt(args[0]);
+		let replacementLength = this._promptInputModel.cursorIndex; //args.length === 0 ? 0 : parseInt(args[1]);
 
-		let completionList: IPwshCompletion[] | IPwshCompletion = JSON.parse(data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/));
+		console.log({
+			replacementIndex,
+			replacementLength
+		});
+		// TODO: Add bell back?
+		// if (!args[3]) {
+		// 	this._onBell.fire();
+		// 	return;
+		// }
+
+		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
+		let completionList: IPwshCompletion[] | IPwshCompletion = args.length === 0 || payload.length === 0 ? [] : JSON.parse(payload);
 		if (!Array.isArray(completionList)) {
 			completionList = [completionList];
 		}
@@ -227,7 +252,23 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			});
 		});
 
-		this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
+		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
+
+		// If there's no space it means this is a command, add cached commands list to completions
+		if (!this._leadingLineContent.trim().includes(' ')) {
+			completions.push(...this._cachedPwshCommands);
+		} else {
+			replacementIndex = parseInt(args[0]);
+			replacementLength = parseInt(args[1]);
+			this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
+		}
+
+		console.log({
+			replacementIndex,
+			replacementLength,
+			leadingLineContent: this._leadingLineContent
+		});
+
 		this._cursorIndexDelta = 0;
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
 		if (completions.length === 1) {
@@ -238,6 +279,28 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 		this._handleCompletionModel(model);
+	}
+
+	private _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
+	private _handleCompletionsPwshCommandsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
+		const type = args[0];
+		let completionList: IPwshCompletion[] | IPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
+		if (!Array.isArray(completionList)) {
+			completionList = [completionList];
+		}
+		const set = this._cachedPwshCommands;
+		set.clear();
+
+		const completions = completionList.map((e: any) => {
+			return new SimpleCompletionItem({
+				label: e.CompletionText,
+				icon: pwshTypeToIconMap[e.ResultType],
+				detail: e.ToolTip
+			});
+		});
+		for (const c of completions) {
+			set.add(c);
+		}
 	}
 
 	// TODO: These aren't persisted across reloads
@@ -384,14 +447,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}));
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.set(false)));
-			this._register(this._suggestWidget.onDidShow(() => {
-				this._initialPromptInputState = {
-					value: this._promptInputModel!.value,
-					cursorIndex: this._promptInputModel!.cursorIndex,
-					ghostTextIndex: this._promptInputModel!.ghostTextIndex
-				};
-				this._terminalSuggestWidgetVisibleContextKey.set(true);
-			}));
+			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
 		}
 		return this._suggestWidget;
 	}
