@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
+
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -47,9 +46,6 @@ const enum Constants {
 export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
 	private _serializeAddon?: SerializeAddonType;
-
-	private readonly _canvasAddon = this._register(new MutableDisposable<CanvasAddonType>());
-	private _pendingCanvasAddon?: CancelablePromise<void>;
 
 	private _element?: HTMLElement;
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
@@ -124,8 +120,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				// Trigger a render as the serialize addon is required to render
 				this._refresh();
 			});
-
-			this._syncGpuAccelerationState();
 		});
 	}
 
@@ -177,9 +171,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _setVisible(isVisible: boolean) {
 		if (isVisible) {
 			this._ensureElement();
-			// The GPU acceleration state may be changes at any time and there is no event to listen
-			// to currently.
-			this._syncGpuAccelerationState();
 		}
 		this._element?.classList.toggle(CssClasses.Visible, isVisible);
 	}
@@ -419,36 +410,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		this._stickyScrollOverlay.resize(this._xterm.raw.cols, this._stickyScrollOverlay.rows);
 		this._stickyScrollOverlay.options = this._getOptions();
-		this._syncGpuAccelerationState();
-	}
-
-	private _syncGpuAccelerationState() {
-		if (!this._stickyScrollOverlay) {
-			return;
-		}
-		const overlay = this._stickyScrollOverlay;
-
-		// The Webgl renderer isn't used here as there are a limited number of webgl contexts
-		// available within a given page. This is a single row that isn't rendered too often so the
-		// performance isn't as important
-		if (this._xterm.isGpuAccelerated) {
-			if (!this._canvasAddon.value && !this._pendingCanvasAddon) {
-				this._pendingCanvasAddon = createCancelablePromise(async token => {
-					const CanvasAddon = await this._getCanvasAddonConstructor();
-					if (!token.isCancellationRequested && !this._store.isDisposed) {
-						this._canvasAddon.value = new CanvasAddon();
-						if (this._canvasAddon.value) { // The MutableDisposable could be disposed
-							overlay.loadAddon(this._canvasAddon.value);
-						}
-					}
-					this._pendingCanvasAddon = undefined;
-				});
-			}
-		} else {
-			this._canvasAddon.clear();
-			this._pendingCanvasAddon?.cancel();
-			this._pendingCanvasAddon = undefined;
-		}
 	}
 
 	private _getOptions(): ITerminalOptions {
@@ -484,12 +445,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
-	}
-
-	@memoize
-	private async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
-		const m = await importAMDNodeModule<typeof import('@xterm/addon-canvas')>('@xterm/addon-canvas', 'lib/xterm-addon-canvas.js');
-		return m.CanvasAddon;
 	}
 
 	@memoize
