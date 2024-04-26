@@ -15,7 +15,7 @@ import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChat
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatProgress, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
-import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('VoiceChat', () => {
@@ -75,6 +75,7 @@ suite('VoiceChat', () => {
 
 		readonly hasSpeechProvider = true;
 		readonly hasActiveSpeechToTextSession = false;
+		readonly hasActiveTextToSpeechSession = false;
 		readonly hasActiveKeywordRecognition = false;
 
 		registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable { throw new Error('Method not implemented.'); }
@@ -84,6 +85,16 @@ suite('VoiceChat', () => {
 		async createSpeechToTextSession(token: CancellationToken): Promise<ISpeechToTextSession> {
 			return {
 				onDidChange: emitter.event
+			};
+		}
+
+		onDidStartTextToSpeechSession = Event.None;
+		onDidEndTextToSpeechSession = Event.None;
+
+		async createTextToSpeechSession(token: CancellationToken): Promise<ITextToSpeechSession> {
+			return {
+				onDidChange: Event.None,
+				synthesize: async () => { }
 			};
 		}
 

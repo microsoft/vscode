@@ -21,6 +21,7 @@ import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/b
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from 'vs/base/common/uri';
 import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
+import { removeAnsiEscapeCodesFromPrompt } from 'vs/base/common/strings';
 
 
 /**
@@ -382,12 +383,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 				switch (key) {
 					case 'ContinuationPrompt': {
-						// Exclude escape sequences and values between \[ and \]
-						const sanitizedValue = (value
-							.replace(/\x1b\[[0-9;]*m/g, '')
-							.replace(/\\\[.*?\\\]/g, '')
-						);
-						this._updateContinuationPrompt(sanitizedValue);
+						this._updateContinuationPrompt(removeAnsiEscapeCodesFromPrompt(value));
 						return true;
 					}
 					case 'Cwd': {
