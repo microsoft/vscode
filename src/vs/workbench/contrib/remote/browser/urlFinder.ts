@@ -7,7 +7,7 @@ import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/termin
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
-import { stripAnsiEscapeSequences } from 'vs/base/common/ansi';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 
 export class UrlFinder extends Disposable {
 	/**
@@ -99,7 +99,7 @@ export class UrlFinder extends Disposable {
 
 	private processData(data: string) {
 		// strip ANSI terminal codes
-		data = stripAnsiEscapeSequences(data);
+		data = removeAnsiEscapeCodes(data);
 		const urlMatches = data.match(UrlFinder.localUrlRegex) || [];
 		if (urlMatches && urlMatches.length > 0) {
 			urlMatches.forEach((match) => {
