@@ -260,7 +260,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		} else {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
-			this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
+			this._leadingLineContent = completions[0]?.completion.label.slice(0, replacementLength) ?? '';
 		}
 
 		console.log({
