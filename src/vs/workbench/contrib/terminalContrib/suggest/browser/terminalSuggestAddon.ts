@@ -136,13 +136,22 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
-		if (
-			(!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) &&
-			(promptInputState.cursorIndex === 1 || promptInputState.value.substring(0, promptInputState.cursorIndex).match(/\s[^\s]$/))
-		) {
-			// TODO: Allow the user to configure when completions are triggered - this is equivalent to editor.quickSuggestions
-			// TODO: Debounce? Prevent this flooding the channel
-			this._onAcceptedCompletion.fire('\x1b[24~e');
+		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
+			// If input has been added
+			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
+				// Quick suggestions
+				if (promptInputState.cursorIndex === 1 || promptInputState.value.substring(0, promptInputState.cursorIndex).match(/\s[^\s]$/)) {
+					// TODO: Allow the user to configure when completions are triggered - this is equivalent to editor.quickSuggestions
+					// TODO: Debounce? Prevent this flooding the channel
+					this._onAcceptedCompletion.fire('\x1b[24~e');
+				}
+
+				// Trigger characters
+				const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
+				if (lastChar?.match(/[\\\/\-]/)) {
+					this._onAcceptedCompletion.fire('\x1b[24~e');
+				}
+			}
 		}
 
 		this._mostRecentPromptInputState = promptInputState;

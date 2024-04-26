@@ -180,6 +180,18 @@ function Set-MappedKeyHandlers {
 		# 		Send-Completions
 		# 	}
 		# }
+		# Set-PSReadLineKeyHandler -Chord "\" -ScriptBlock {
+		# 	[Microsoft.PowerShell.PSConsoleReadLine]::Insert("\")
+		# 	if (!$Global:__VSCodeHaltCompletions) {
+		# 		Send-Completions
+		# 	}
+		# }
+		# Set-PSReadLineKeyHandler -Chord "/" -ScriptBlock {
+		# 	[Microsoft.PowerShell.PSConsoleReadLine]::Insert("/")
+		# 	if (!$Global:__VSCodeHaltCompletions) {
+		# 		Send-Completions
+		# 	}
+		# }
 
 		Set-PSReadLineKeyHandler -Chord 'F12,y' -ScriptBlock {
 			$Global:__VSCodeHaltCompletions = $true
@@ -232,7 +244,6 @@ function Send-Completions {
 			([System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix));
 			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix));
 		)
-		this
 		if ($null -ne $completions) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
 			$result += $completions | ConvertTo-Json -Compress
