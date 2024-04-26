@@ -8,7 +8,7 @@ import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPrope
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
-import { AccessibilityAlertSettingId, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -80,13 +80,6 @@ const baseVerbosityProperty: IConfigurationPropertySchema = {
 	type: 'boolean',
 	default: true,
 	tags: ['accessibility']
-};
-const markdownDeprecationMessage = localize('accessibility.announcement.deprecationMessage', "This setting is deprecated. Use the `signals` settings instead.");
-const baseAlertProperty: IConfigurationPropertySchema = {
-	type: 'boolean',
-	default: true,
-	tags: ['accessibility'],
-	markdownDeprecationMessage
 };
 
 export const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
@@ -188,99 +181,6 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.DiffEditorActive]: {
 			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
 			...baseVerbosityProperty
-		},
-		[AccessibilityAlertSettingId.Save]: {
-			'markdownDescription': localize('announcement.save', "Indicates when a file is saved. Also see {0}.", '`#audioCues.save#`'),
-			'enum': ['userGesture', 'always', 'never'],
-			'default': 'always',
-			'enumDescriptions': [
-				localize('announcement.save.userGesture', "Indicates when a file is saved via user gesture."),
-				localize('announcement.save.always', "Indicates whenever is a file is saved, including auto save."),
-				localize('announcement.save.never', "Never alerts.")
-			],
-			tags: ['accessibility'],
-			markdownDeprecationMessage
-		},
-		[AccessibilityAlertSettingId.Clear]: {
-			'markdownDescription': localize('announcement.clear', "Indicates when a feature is cleared (for example, the terminal, Debug Console, or Output channel). Also see {0}.", '`#audioCues.clear#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.Format]: {
-			'markdownDescription': localize('announcement.format', "Indicates when a file or notebook cell is formatted. Also see {0}.", '`#audioCues.format#`'),
-			'type': 'string',
-			'enum': ['userGesture', 'always', 'never'],
-			'default': 'always',
-			'enumDescriptions': [
-				localize('announcement.format.userGesture', "Indicates when a file is formatted via user gesture."),
-				localize('announcement.format.always', "Indicates whenever is a file is formatted, including auto save, on cell execution, and more."),
-				localize('announcement.format.never', "Never alerts.")
-			],
-			tags: ['accessibility'],
-			markdownDeprecationMessage
-		},
-		[AccessibilityAlertSettingId.Breakpoint]: {
-			'markdownDescription': localize('announcement.breakpoint', "Indicates when the debugger breaks. Also see {0}.", '`#audioCues.onDebugBreak#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.Error]: {
-			'markdownDescription': localize('announcement.error', "Indicates when the active line has an error. Also see {0}.", '`#audioCues.lineHasError#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.Warning]: {
-			'markdownDescription': localize('announcement.warning', "Indicates when the active line has a warning. Also see {0}.", '`#audioCues.lineHasWarning#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.FoldedArea]: {
-			'markdownDescription': localize('announcement.foldedArea', "Indicates when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.lineHasFoldedArea#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.TerminalQuickFix]: {
-			'markdownDescription': localize('announcement.terminalQuickFix', "Indicates when there is an available terminal quick fix. Also see {0}.", '`#audioCues.terminalQuickFix#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.TerminalBell]: {
-			'markdownDescription': localize('announcement.terminalBell', "Indicates when the terminal bell is activated."),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.TerminalCommandFailed]: {
-			'markdownDescription': localize('announcement.terminalCommandFailed', "Indicates when a terminal command fails (non-zero exit code). Also see {0}.", '`#audioCues.terminalCommandFailed#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.TaskFailed]: {
-			'markdownDescription': localize('announcement.taskFailed', "Indicates when a task fails (non-zero exit code). Also see {0}.", '`#audioCues.taskFailed#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.TaskCompleted]: {
-			'markdownDescription': localize('announcement.taskCompleted', "Indicates when a task completes successfully (zero exit code). Also see {0}.", '`#audioCues.taskCompleted#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.ChatRequestSent]: {
-			'markdownDescription': localize('announcement.chatRequestSent', "Indicates when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.Progress]: {
-			'markdownDescription': localize('announcement.progress', "Indicates when a chat response is pending. Also see {0}.", '`#audioCues.chatResponsePending#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.NoInlayHints]: {
-			'markdownDescription': localize('announcement.noInlayHints', "Indicates when there are no inlay hints. Also see {0}.", '`#audioCues.noInlayHints#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.LineHasBreakpoint]: {
-			'markdownDescription': localize('announcement.lineHasBreakpoint', "Indicates when on a line with a breakpoint. Also see {0}.", '`#audioCues.lineHasBreakpoint#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.NotebookCellCompleted]: {
-			'markdownDescription': localize('announcement.notebookCellCompleted', "Indicates when a notebook cell completes successfully. Also see {0}.", '`#audioCues.notebookCellCompleted#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.NotebookCellFailed]: {
-			'markdownDescription': localize('announcement.notebookCellFailed', "Indicates when a notebook cell fails. Also see {0}.", '`#audioCues.notebookCellFailed#`'),
-			...baseAlertProperty
-		},
-		[AccessibilityAlertSettingId.OnDebugBreak]: {
-			'markdownDescription': localize('announcement.onDebugBreak', "Indicates when the debugger breaks. Also see {0}.", '`#audioCues.onDebugBreak#`'),
-			...baseAlertProperty
 		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
@@ -645,9 +545,9 @@ const configuration: IConfigurationNode = {
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.signals.save.sound.userGesture', "Plays the audio cue when a user explicitly saves a file."),
-						localize('accessibility.signals.save.sound.always', "Plays the audio cue whenever a file is saved, including auto save."),
-						localize('accessibility.signals.save.sound.never', "Never plays the audio cue.")
+						localize('accessibility.signals.save.sound.userGesture', "Plays the sound when a user explicitly saves a file."),
+						localize('accessibility.signals.save.sound.always', "Plays the sound whenever a file is saved, including auto save."),
+						localize('accessibility.signals.save.sound.never', "Never plays the sound.")
 					],
 				},
 				'announcement': {
@@ -658,7 +558,7 @@ const configuration: IConfigurationNode = {
 					'enumDescriptions': [
 						localize('accessibility.signals.save.announcement.userGesture', "Announces when a user explicitly saves a file."),
 						localize('accessibility.signals.save.announcement.always', "Announces whenever a file is saved, including auto save."),
-						localize('accessibility.signals.save.announcement.never', "Never plays the audio cue.")
+						localize('accessibility.signals.save.announcement.never', "Never plays the announcement.")
 					],
 				},
 			},
@@ -679,9 +579,9 @@ const configuration: IConfigurationNode = {
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.signals.format.userGesture', "Plays the audio cue when a user explicitly formats a file."),
-						localize('accessibility.signals.format.always', "Plays the audio cue whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
-						localize('accessibility.signals.format.never', "Never plays the audio cue.")
+						localize('accessibility.signals.format.userGesture', "Plays the sound when a user explicitly formats a file."),
+						localize('accessibility.signals.format.always', "Plays the sound whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
+						localize('accessibility.signals.format.never', "Never plays the sound.")
 					],
 				},
 				'announcement': {
