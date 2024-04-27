@@ -227,6 +227,8 @@ export class Response implements IResponse {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
 				return '';
+			} else if (part.kind === 'progressMessage') {
+				return '';
 			} else {
 				return part.content.value;
 			}
