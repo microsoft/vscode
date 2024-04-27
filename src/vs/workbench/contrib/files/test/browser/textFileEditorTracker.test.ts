@@ -27,7 +27,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestMarkerService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 suite('Files - TextFileEditorTracker', () => {
@@ -72,7 +72,8 @@ suite('Files - TextFileEditorTracker', () => {
 			disposables.add(new UriIdentityService(fileService)),
 			fileService,
 			new TestMarkerService(),
-			new TestTextResourceConfigurationService(configurationService)
+			new TestTextResourceConfigurationService(configurationService),
+			disposables.add(new TestStorageService())
 		)));
 
 		const part = await createEditorPart(instantiationService, disposables);

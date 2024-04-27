@@ -26,6 +26,7 @@ import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workben
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -122,6 +123,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private static readonly DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
 	private static readonly DEFAULT_AUTO_SAVE_DELAY = 1000;
 
+	private static readonly AUTO_SAVE_TOGGLE_LAST_VAL_KEY = 'workbench.action.toggleAutoSave.lastValue';
+
 	private static readonly READONLY_MESSAGES = {
 		providerReadonly: { value: localize('providerReadonly', "Editor is read-only because the file system of the file is read-only."), isTrusted: true },
 		sessionReadonly: { value: localize({ key: 'sessionReadonly', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file was set read-only in this session. [Click here](command:{0}) to set writeable.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
@@ -165,7 +168,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
 		@IMarkerService private readonly markerService: IMarkerService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -434,13 +438,19 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	async toggleAutoSave(): Promise<void> {
-		const currentSetting = this.configurationService.getValue('files.autoSave');
+		const currentSetting = this.configurationService.getValue<string>('files.autoSave');
+
+		const lastValue = this.storageService.get(FilesConfigurationService.AUTO_SAVE_TOGGLE_LAST_VAL_KEY, StorageScope.APPLICATION, '');
 
 		let newAutoSaveValue: string;
 		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(setting => setting === currentSetting)) {
 			newAutoSaveValue = AutoSaveConfiguration.OFF;
+
+			if (lastValue !== currentSetting) {
+				this.storageService.store(FilesConfigurationService.AUTO_SAVE_TOGGLE_LAST_VAL_KEY, currentSetting, StorageScope.APPLICATION, StorageTarget.USER);
+			}
 		} else {
-			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
+			newAutoSaveValue = lastValue || AutoSaveConfiguration.AFTER_DELAY;
 		}
 
 		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
