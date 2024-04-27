@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
+import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
@@ -44,6 +45,7 @@ const enum RenderConstants {
 	SmoothScrollDuration = 125
 }
 
+let CanvasAddon: typeof CanvasAddonType;
 let ImageAddon: typeof ImageAddonType;
 let SearchAddon: typeof SearchAddonType;
 let SerializeAddon: typeof SerializeAddonType;
@@ -119,6 +121,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
+	private _canvasAddon?: CanvasAddonType;
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
@@ -133,7 +136,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
-	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
+	get isGpuAccelerated(): boolean { return !!(this._canvasAddon || this._webglAddon); }
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -156,7 +159,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 
 	get textureAtlas(): Promise<ImageBitmap> | undefined {
-		const canvas = this._webglAddon?.textureAtlas;
+		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
 		if (!canvas) {
 			return undefined;
 		}
@@ -237,7 +240,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				getWinSizeChars: true,
 			},
 		}));
-		
+
+		this._setupXOFFXONHandling();
+
 		this._updateSmoothScrolling();
 		this._core = (this.raw as any)._core as IXtermCore;
 
@@ -329,6 +334,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
 				this._enableWebglRenderer();
+			} else if (this._shouldLoadCanvas()) {
+				this._enableCanvasRenderer();
 			}
 		}
 
@@ -359,30 +366,43 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 
-	private setupXOFFXONHandling() {
+	// Setting up handling for XOFF and XON signals
+	private _setupXOFFXONHandling() {
 		this.raw.onData(data => {
 			if (data === '\x13') { // XOFF (Ctrl+S)
-				this.showPauseNotification();
+				this._showPauseNotification();
 			} else if (data === '\x11') { // XON (Ctrl+Q)
+				// Potential place for handling XON signal if needed
+			}
+		});
+	}
 
-			}
-		});
+	// Displays a pause notification with an option to resume
+	private _showPauseNotification() {
+		// Here, you would interact with your application's UI directly to show a notification
+		// This is a placeholder for your actual UI interaction method
+		this._displayNotification('The terminal is paused. Press Ctrl+Q to resume.', 'Resume');
 	}
-	
-	private showPauseNotification() {
-		// Show a notification with actions
-		vscode.window.showInformationMessage(
-			'The terminal is paused. Press Ctrl+Q to resume.',
-			'Resume'
-		).then(selection => {
-			if (selection === 'Resume') {
-				this.sendResumeSignal();
-			}
-		});
+
+	// Placeholder for a UI method to display notifications with actions
+	private _displayNotification(message: string, actionLabel: string) {
+		// Directly interface with your UI framework to show the message
+		// Implement action handling (here using 'Resume' as an action example)
+		console.log(`Notification: ${message} - Action: ${actionLabel}`);
+		// Simulate user selecting 'Resume'
+		this._handleUserAction('Resume');
 	}
-	
-	private sendResumeSignal() {
-		this.raw.write('\x11'); // XON (Ctrl+Q)
+
+	// Handling user actions from notifications
+	private _handleUserAction(selection: string) {
+		if (selection === 'Resume') {
+			this._sendResumeSignal();
+		}
+	}
+
+	// Sends a resume signal (XON) to the terminal
+	private _sendResumeSignal() {
+		this.raw.write('\x11'); // Send XON (Ctrl+Q) to resume terminal operations
 	}
 
 	private _setFocused(isFocused: boolean) {
@@ -427,6 +447,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._enableWebglRenderer();
 			} else {
 				this._disposeOfWebglRenderer();
+				if (this._shouldLoadCanvas()) {
+					this._enableCanvasRenderer();
+				} else {
+					this._disposeOfCanvasRenderer();
+				}
 			}
 		}
 	}
@@ -437,6 +462,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private _shouldLoadWebgl(): boolean {
 		return (this._terminalConfigurationService.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._terminalConfigurationService.config.gpuAcceleration === 'on';
+	}
+
+	private _shouldLoadCanvas(): boolean {
+		return this._terminalConfigurationService.config.gpuAcceleration === 'canvas';
 	}
 
 	forceRedraw() {
@@ -692,6 +721,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		const Addon = await this._getWebglAddonConstructor();
 		this._webglAddon = new Addon();
+		this._disposeOfCanvasRenderer();
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -717,10 +747,38 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._disposeOfWebglRenderer();
 	}
 
+	/**
+	 * @deprecated This will be removed in the future, see https://github.com/microsoft/vscode/issues/209276
+	 */
+	private async _enableCanvasRenderer(): Promise<void> {
+		if (!this.raw.element || this._canvasAddon) {
+			return;
+		}
+		const Addon = await this._getCanvasAddonConstructor();
+		this._canvasAddon = new Addon();
+		this._disposeOfWebglRenderer();
+		try {
+			this.raw.loadAddon(this._canvasAddon);
+			this._logService.trace('Canvas renderer was loaded');
+		} catch (e) {
+			this._logService.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
+			XtermTerminal._suggestedRendererType = 'dom';
+			this._disposeOfCanvasRenderer();
+		}
+		this._refreshImageAddon();
+	}
+
+	protected async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
+		if (!CanvasAddon) {
+			CanvasAddon = (await importAMDNodeModule<typeof import('@xterm/addon-canvas')>('@xterm/addon-canvas', 'lib/xterm-addon-canvas.js')).CanvasAddon;
+		}
+		return CanvasAddon;
+	}
+
 	@debounce(100)
 	private async _refreshImageAddon(): Promise<void> {
-		// Only allow the image addon when webgl is being used to avoid possible GPU issues
-		if (this._terminalConfigurationService.config.enableImages && this._webglAddon) {
+		// Only allow the image addon when a canvas is being used to avoid possible GPU issues
+		if (this._terminalConfigurationService.config.enableImages && (this._canvasAddon || this._webglAddon)) {
 			if (!this._imageAddon) {
 				const AddonCtor = await this._getImageAddonConstructor();
 				this._imageAddon = new AddonCtor();
@@ -769,6 +827,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			SerializeAddon = (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon;
 		}
 		return SerializeAddon;
+	}
+
+	private _disposeOfCanvasRenderer(): void {
+		try {
+			this._canvasAddon?.dispose();
+		} catch {
+			// ignore
+		}
+		this._canvasAddon = undefined;
+		this._refreshImageAddon();
 	}
 
 	private _disposeOfWebglRenderer(): void {
