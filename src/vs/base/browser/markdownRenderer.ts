@@ -589,7 +589,7 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 }
 
 function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens.Paragraph): marked.Token | undefined {
-	for (let i = 0; i < token.tokens.length; i++) {
+	for (let i = token.tokens.length - 1; i >= 0; i--) {
 		const subtoken = token.tokens[i];
 		if (subtoken.type === 'text') {
 			const lines = subtoken.raw.split('\n');
@@ -628,7 +628,7 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 			}
 
 			// Contains the start of link text, and no following tokens contain the link target
-			else if (lastLine.match(/(^|\s)\[\w/) && !token.tokens.slice(i + 1).some(t => hasStartOfLinkTargetAndNoLinkText(t.raw))) {
+			else if (lastLine.match(/(^|\s)\[\w*/)) {
 				return completeLinkText(token);
 			}
 		}
@@ -665,7 +665,21 @@ function hasStartOfLinkTargetAndNoLinkText(str: string): boolean {
 // 	return undefined;
 // }
 
+const maxIncompleteTokensFixRounds = 3;
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
+	for (let i = 0; i < maxIncompleteTokensFixRounds; i++) {
+		const newTokens = fillInIncompleteTokensOnce(tokens);
+		if (newTokens) {
+			tokens = newTokens;
+		} else {
+			break;
+		}
+	}
+
+	return tokens;
+}
+
+function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensList | null {
 	let i: number;
 	let newTokens: marked.Token[] | undefined;
 	for (i = 0; i < tokens.length; i++) {
@@ -710,7 +724,7 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 		return newTokensList as marked.TokensList;
 	}
 
-	return tokens;
+	return null;
 }
 
 function completeCodeBlock(tokens: marked.Token[], leader: string): marked.Token[] {

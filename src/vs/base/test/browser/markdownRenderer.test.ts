@@ -362,7 +362,9 @@ suite('MarkdownRenderer', () => {
 				const completeTableTokens = marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
-				ignoreRaw(newTokens, completeTableTokens);
+				if (newTokens) {
+					ignoreRaw(newTokens, completeTableTokens);
+				}
 				assert.deepStrictEqual(newTokens, completeTableTokens);
 			});
 
@@ -373,7 +375,9 @@ suite('MarkdownRenderer', () => {
 
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				ignoreRaw(newTokens, completeTableTokens);
+				if (newTokens) {
+					ignoreRaw(newTokens, completeTableTokens);
+				}
 				assert.deepStrictEqual(newTokens, completeTableTokens);
 			});
 
@@ -384,7 +388,9 @@ suite('MarkdownRenderer', () => {
 
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				ignoreRaw(newTokens, completeTableTokens);
+				if (newTokens) {
+					ignoreRaw(newTokens, completeTableTokens);
+				}
 				assert.deepStrictEqual(newTokens, completeTableTokens);
 			});
 
@@ -746,6 +752,33 @@ const y = 2;
 				const completeTokens = marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
+
+			test('link text with incomplete codespan', () => {
+				const incomplete = `text [\`codespan`;
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '`](about:blank)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('link text with incomplete stuff', () => {
+				const incomplete = `text [more text \`codespan\` text **bold`;
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '**](about:blank)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			// test('Looks like incomplete link target but isn\'t', () => {
+			// 	const complete = `text](`;
+			// 	const tokens = marked.lexer(complete);
+			// 	const newTokens = fillInIncompleteTokens(tokens);
+
+			// 	const completeTokens = marked.lexer(complete);
+			// 	assert.deepStrictEqual(newTokens, completeTokens);
+			// });
 
 			test.skip('incomplete link in list', () => {
 				const incomplete = '- [text';
