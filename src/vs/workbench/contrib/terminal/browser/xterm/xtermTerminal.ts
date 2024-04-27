@@ -376,26 +376,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		});
 	}
 
-	private _showPauseNotification() {
-		const actions = [{
-			label: 'Resume',
-			run: () => this._sendResumeSignal()
-		}];
-		this._notificationService.prompt(
-			2, // Corresponds to severity level (info in this case).
-			'The terminal is paused. Press Ctrl+Q to resume.',
-			actions,  // Actions array containing the resume action.
-			{
-				sticky: true,
-				neverShowAgain: { id: 'terminalPauseNotification', isSecondary: true }
-			}
-		);
-	}
+    private _showPauseNotification() {
+        this._sendResumeSignal();
+        this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
+		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
+    }
 
-	private _sendResumeSignal() {
-		this.raw.write('\x11'); // Send XON (Ctrl+Q) to resume terminal operations.
-	}
-
+    private _sendResumeSignal() {
+        this.raw.write('\x11'); // Send XON (Ctrl+Q) to resume terminal operations.
+    }
 
 	private _setFocused(isFocused: boolean) {
 		this._onDidChangeFocus.fire(isFocused);
