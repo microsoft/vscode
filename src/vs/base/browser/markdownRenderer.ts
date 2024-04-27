@@ -596,15 +596,27 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 			const lastLine = lines[lines.length - 1];
 			if (lastLine.includes('`')) {
 				return completeCodespan(token);
-			} else if (lastLine.includes('**')) {
+			}
+
+			else if (lastLine.includes('**')) {
 				return completeDoublestar(token);
-			} else if (lastLine.match(/\*\w/)) {
+			}
+
+			else if (lastLine.match(/\*\w/)) {
 				return completeStar(token);
-			} else if (lastLine.match(/(^|\s)__\w/)) {
+			}
+
+			else if (lastLine.match(/(^|\s)__\w/)) {
 				return completeDoubleUnderscore(token);
-			} else if (lastLine.match(/(^|\s)_\w/)) {
+			}
+
+			else if (lastLine.match(/(^|\s)_\w/)) {
 				return completeUnderscore(token);
-			} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+			}
+
+			// Text with start of link target.
+			// May not include the link text, eg if it contains other markdown constructs that are in other subtokens.
+			else if (hasLinkTextAndStartOfLinkTarget(lastLine) || hasStartOfLinkTargetAndNoLinkText(lastLine)) {
 				const nextTwoSubTokens = token.tokens.slice(i + 1);
 				if (nextTwoSubTokens[0]?.type === 'link' && nextTwoSubTokens[1]?.type === 'text' && nextTwoSubTokens[1].raw.match(/^ *"[^"]*$/)) {
 					// A markdown link can look like
@@ -613,9 +625,10 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 					return completeLinkTargetArg(token);
 				}
 				return completeLinkTarget(token);
-			} else if (hasStartOfLinkTarget(lastLine)) {
-				return completeLinkTarget(token);
-			} else if (lastLine.match(/(^|\s)\[\w/) && !token.tokens.slice(i + 1).some(t => hasStartOfLinkTarget(t.raw))) {
+			}
+
+			// Contains the start of link text, and no following tokens contain the link target
+			else if (lastLine.match(/(^|\s)\[\w/) && !token.tokens.slice(i + 1).some(t => hasStartOfLinkTargetAndNoLinkText(t.raw))) {
 				return completeLinkText(token);
 			}
 		}
@@ -624,7 +637,11 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 	return undefined;
 }
 
-function hasStartOfLinkTarget(str: string): boolean {
+function hasLinkTextAndStartOfLinkTarget(str: string): boolean {
+	return !!str.match(/(^|\s)\[.*\]\(\w*/);
+}
+
+function hasStartOfLinkTargetAndNoLinkText(str: string): boolean {
 	return !!str.match(/^[^\[]*\]\([^\)]*$/);
 }
 

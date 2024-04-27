@@ -720,21 +720,30 @@ const y = 2;
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test('incomplete link target with extra stuff and arg', () => {
+			test('incomplete link target with extra stuff and incomplete arg', () => {
 				const incomplete = '[before `text` after](http://microsoft.com "more text ';
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.lexer(incomplete + '")');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test('incomplete link target with arg', () => {
+			test('incomplete link target with incomplete arg', () => {
 				const incomplete = 'foo [text](http://microsoft.com "more text here ';
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.lexer(incomplete + '")');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with complete arg', () => {
+				const incomplete = 'foo [text](http://microsoft.com "more text here"';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
