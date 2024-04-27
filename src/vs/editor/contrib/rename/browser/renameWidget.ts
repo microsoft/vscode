@@ -6,6 +6,9 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -28,6 +31,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { NewSymbolName, NewSymbolNameTag, NewSymbolNameTriggerKind, ProviderResult } from 'vs/editor/common/languages';
+import * as nls from 'vs/nls';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -72,6 +76,8 @@ export type RenameWidgetStats = {
 	nRenameSuggestions: number;
 	source: NewNameSource;
 	timeBeforeFirstInputFieldEdit: number | undefined;
+	nRenameSuggestionsInvocations: number;
+	hadAutomaticRenameSuggestionsInvocation: boolean;
 };
 
 export type RenameWidgetResult = {
@@ -137,6 +143,10 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 	 */
 	private _timeBeforeFirstInputFieldEdit: number | undefined;
 
+	private _nRenameSuggestionsInvocations: number;
+
+	private _hadAutomaticRenameSuggestionsInvocation: boolean;
+
 	private _renameCandidateProvidersCts: CancellationTokenSource | undefined;
 	private _renameCts: CancellationTokenSource | undefined;
 
@@ -154,6 +164,10 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 
 		this._isEditingRenameCandidate = false;
+
+		this._nRenameSuggestionsInvocations = 0;
+
+		this._hadAutomaticRenameSuggestionsInvocation = false;
 
 		this._candidates = new Set();
 
@@ -241,6 +255,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		const border = theme.getColor(inputBorder);
 
 		this._inputWithButton.domNode.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
+		this._inputWithButton.input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
 		this._inputWithButton.domNode.style.borderWidth = border ? '1px' : '0px';
 		this._inputWithButton.domNode.style.borderStyle = border ? 'solid' : 'none';
 		this._inputWithButton.domNode.style.borderColor = border?.toString() ?? 'none';
@@ -365,6 +380,9 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		}
 	}
 
+	/**
+	 * @param requestRenameCandidates is `undefined` when there are no rename suggestion providers
+	 */
 	getInput(
 		where: IRange,
 		currentName: string,
@@ -378,6 +396,10 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		this._renameCts = cts;
 
 		const disposeOnDone = new DisposableStore();
+
+		this._nRenameSuggestionsInvocations = 0;
+
+		this._hadAutomaticRenameSuggestionsInvocation = false;
 
 		if (requestRenameCandidates === undefined) {
 			this._inputWithButton.button.style.display = 'none';
@@ -399,7 +421,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 				(e) => {
 					const keyEvent = new StandardKeyboardEvent(e);
 
-					if (keyEvent.equals(KeyCode.Enter)) {
+					if (keyEvent.equals(KeyCode.Enter) || keyEvent.equals(KeyCode.Space)) {
 						keyEvent.stopPropagation();
 						keyEvent.preventDefault();
 						this._requestRenameCandidates(currentName, true);
@@ -489,6 +511,8 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 					source,
 					nRenameSuggestions,
 					timeBeforeFirstInputFieldEdit: this._timeBeforeFirstInputFieldEdit,
+					nRenameSuggestionsInvocations: this._nRenameSuggestionsInvocations,
+					hadAutomaticRenameSuggestionsInvocation: this._hadAutomaticRenameSuggestionsInvocation,
 				}
 			});
 		};
@@ -520,17 +544,20 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			const triggerKind = isManuallyTriggered ? NewSymbolNameTriggerKind.Invoke : NewSymbolNameTriggerKind.Automatic;
 			const candidates = this._requestRenameCandidatesOnce(triggerKind, this._renameCandidateProvidersCts.token);
 
-			const window = dom.getActiveWindow();
-
-			let delayHandle: (() => void) | undefined;
-			if (isManuallyTriggered) {
-				this._inputWithButton.setStopButton();
-			} else {
-				const handle = window.setTimeout(() => this._inputWithButton.setStopButton(), 600);
-				delayHandle = () => window.clearTimeout(handle);
+			if (candidates.length === 0) {
+				this._inputWithButton.setSparkleButton();
+				return;
 			}
 
-			this._updateRenameCandidates(candidates, currentName, delayHandle, this._renameCts.token);
+			if (!isManuallyTriggered) {
+				this._hadAutomaticRenameSuggestionsInvocation = true;
+			}
+
+			this._nRenameSuggestionsInvocations += 1;
+
+			this._inputWithButton.setStopButton();
+
+			this._updateRenameCandidates(candidates, currentName, this._renameCts.token);
 		}
 	}
 
@@ -569,7 +596,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		}, 100);
 	}
 
-	private async _updateRenameCandidates(candidates: ProviderResult<NewSymbolName[]>[], currentName: string, cancelSetStopButton: (() => void) | undefined, token: CancellationToken) {
+	private async _updateRenameCandidates(candidates: ProviderResult<NewSymbolName[]>[], currentName: string, token: CancellationToken) {
 		const trace = (...args: any[]) => this._trace('_updateRenameCandidates', ...args);
 
 		trace('start');
@@ -588,11 +615,6 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 				: []
 		);
 		trace(`received updateRenameCandidates results - total (unfiltered) ${newNames.length} candidates.`);
-
-		if (newNames.length < 1) {
-			cancelSetStopButton?.();
-			return;
-		}
 
 		// deduplicate and filter out the current value
 
@@ -667,6 +689,7 @@ class RenameCandidateListView {
 		this._typicalHalfwidthCharacterWidth = opts.fontInfo.typicalHalfwidthCharacterWidth;
 
 		this._listContainer = document.createElement('div');
+		this._listContainer.className = 'rename-box rename-candidate-list-container';
 		parent.appendChild(this._listContainer);
 
 		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
@@ -877,6 +900,9 @@ class InputWithButton implements IDisposable {
 	private _domNode: HTMLDivElement | undefined;
 	private _inputNode: HTMLInputElement | undefined;
 	private _buttonNode: HTMLElement | undefined;
+	private _buttonHover: IUpdatableHover | undefined;
+	private _buttonGenHoverText: string | undefined;
+	private _buttonCancelHoverText: string | undefined;
 	private _sparkleIcon: HTMLElement | undefined;
 	private _stopIcon: HTMLElement | undefined;
 
@@ -903,17 +929,29 @@ class InputWithButton implements IDisposable {
 			this._domNode.appendChild(this._inputNode);
 
 			this._buttonNode = document.createElement('div');
-			this._buttonNode.style.display = 'flex';
-			this._buttonNode.style.alignItems = 'center';
-			this._buttonNode.style.padding = '3px';
-			this._buttonNode.style.backgroundColor = 'transparent';
-			this._buttonNode.style.border = 'none';
-			this._buttonNode.style.borderRadius = '5px';
+			this._buttonNode.className = 'rename-suggestions-button';
 			this._buttonNode.setAttribute('tabindex', '0');
+
+			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate new name suggestions");
+			this._buttonCancelHoverText = nls.localize('cancelRenameSuggestionsButton', "Cancel");
+			this._buttonHover = getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('element'), this._buttonNode, this._buttonGenHoverText);
+			this._disposables.add(this._buttonHover);
 
 			this._domNode.appendChild(this._buttonNode);
 
+			// notify if selection changes to cancel request to rename-suggestion providers
+
 			this._disposables.add(dom.addDisposableListener(this.input, dom.EventType.INPUT, () => this._onDidInputChange.fire()));
+			this._disposables.add(dom.addDisposableListener(this.input, dom.EventType.KEY_DOWN, (e) => {
+				const keyEvent = new StandardKeyboardEvent(e);
+				if (keyEvent.keyCode === KeyCode.LeftArrow || keyEvent.keyCode === KeyCode.RightArrow) {
+					this._onDidInputChange.fire();
+				}
+			}));
+			this._disposables.add(dom.addDisposableListener(this.input, dom.EventType.CLICK, () => this._onDidInputChange.fire()));
+
+			// focus "container" border instead of input box
+
 			this._disposables.add(dom.addDisposableListener(this.input, dom.EventType.FOCUS, () => {
 				this.domNode.style.outlineWidth = '1px';
 				this.domNode.style.outlineStyle = 'solid';
@@ -946,6 +984,8 @@ class InputWithButton implements IDisposable {
 		this._sparkleIcon ??= renderIcon(Codicon.sparkle);
 		dom.clearNode(this.button);
 		this.button.appendChild(this._sparkleIcon);
+		this.button.setAttribute('aria-label', 'Generating new name suggestions');
+		this._buttonHover?.update(this._buttonGenHoverText);
 		this.input.focus();
 	}
 
@@ -954,6 +994,8 @@ class InputWithButton implements IDisposable {
 		this._stopIcon ??= renderIcon(Codicon.primitiveSquare);
 		dom.clearNode(this.button);
 		this.button.appendChild(this._stopIcon);
+		this.button.setAttribute('aria-label', 'Cancel generating new name suggestions');
+		this._buttonHover?.update(this._buttonCancelHoverText);
 		this.input.focus();
 	}
 
@@ -973,6 +1015,7 @@ class RenameCandidateView {
 	constructor(parent: HTMLElement, fontInfo: FontInfo) {
 
 		this._domNode = document.createElement('div');
+		this._domNode.className = 'rename-box rename-candidate';
 		this._domNode.style.display = `flex`;
 		this._domNode.style.columnGap = `5px`;
 		this._domNode.style.alignItems = `center`;

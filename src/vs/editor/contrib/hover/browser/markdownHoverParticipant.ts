@@ -26,11 +26,10 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ClickAction, KeyDownAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { ClickAction, HoverPosition, KeyDownAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
@@ -186,6 +185,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._openerService,
 			this._keybindingService,
 			this._hoverService,
+			this._configurationService,
 			context.onContentsChanged
 		);
 		return this._renderedHoverParts;
@@ -221,6 +221,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 		private readonly _openerService: IOpenerService,
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _hoverService: IHoverService,
+		private readonly _configurationService: IConfigurationService,
 		private readonly _onFinishedRendering: () => void,
 	) {
 		super();
@@ -317,14 +318,15 @@ class MarkdownRenderedHoverParts extends Disposable {
 		const isActionIncrease = action === HoverVerbosityAction.Increase;
 		const actionElement = dom.append(container, $(ThemeIcon.asCSSSelector(isActionIncrease ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
 		actionElement.tabIndex = 0;
+		const hoverDelegate = new WorkbenchHoverDelegate('mouse', false, { target: container, position: { hoverPosition: HoverPosition.LEFT } }, this._configurationService, this._hoverService);
 		if (isActionIncrease) {
 			const kb = this._keybindingService.lookupKeybinding(INCREASE_HOVER_VERBOSITY_ACTION_ID);
-			store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), actionElement, kb ?
+			store.add(this._hoverService.setupUpdatableHover(hoverDelegate, actionElement, kb ?
 				nls.localize('increaseVerbosityWithKb', "Increase Verbosity ({0})", kb.getLabel()) :
 				nls.localize('increaseVerbosity', "Increase Verbosity")));
 		} else {
 			const kb = this._keybindingService.lookupKeybinding(DECREASE_HOVER_VERBOSITY_ACTION_ID);
-			store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), actionElement, kb ?
+			store.add(this._hoverService.setupUpdatableHover(hoverDelegate, actionElement, kb ?
 				nls.localize('decreaseVerbosityWithKb', "Decrease Verbosity ({0})", kb.getLabel()) :
 				nls.localize('decreaseVerbosity', "Decrease Verbosity")));
 		}

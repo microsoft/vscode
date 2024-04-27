@@ -671,7 +671,6 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
-							"@xterm/addon-canvas",
 							"@xterm/addon-image",
 							"@xterm/addon-search",
 							"@xterm/addon-serialize",

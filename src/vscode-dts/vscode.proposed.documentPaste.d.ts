@@ -21,7 +21,7 @@ declare module 'vscode' {
 		readonly value: string;
 
 		/**
-		 * Create a new kind by appending a more specific selector to the current kind.
+		 * Create a new kind by appending additional scopes to the current kind.
 		 *
 		 * Does not modify the current kind.
 		 */
@@ -30,12 +30,18 @@ declare module 'vscode' {
 		/**
 		 * Checks if this kind intersects `other`.
 		 *
+		 * The kind `"text.plain"` for example intersects `text`, `"text.plain"` and `"text.plain.list"`,
+		 * but not `"unicorn"`, or `"textUnicorn.plain"`.
+		 *
 		 * @param other Kind to check.
 		 */
 		intersects(other: DocumentDropOrPasteEditKind): boolean;
 
 		/**
 		 * Checks if `other` is a sub-kind of this `DocumentDropOrPasteEditKind`.
+		 *
+		 * The kind `"text.plain"` for example contains `"text.plain"` and `"text.plain.list"`,
+		 * but not `"text"` or `"unicorn.text.plain"`.
 		 *
 		 * @param other Kind to check.
 		 */
@@ -104,11 +110,14 @@ declare module 'vscode' {
 		 *
 		 * @param document Document being pasted into
 		 * @param ranges Range in the {@linkcode document} to paste into.
-		 * @param dataTransfer The {@link DataTransfer data transfer} associated with the paste. This object is only valid for the duration of the paste operation.
+		 * @param dataTransfer The {@link DataTransfer data transfer} associated with the paste. This object is only
+		 * valid for the duration of the paste operation.
 		 * @param context Additional context for the paste.
 		 * @param token A cancellation token.
 		 *
-		 * @return Set of potential {@link DocumentPasteEdit edits} that can apply the paste.
+		 * @return Set of potential {@link DocumentPasteEdit edits} that can apply the paste. Only a single returned
+		 * {@linkcode DocumentPasteEdit} is applied at a time. If multiple edits are returned from all providers, then
+		 * the first is automatically applied and a widget is shown that lets the user switch to the other edits.
 		 */
 		provideDocumentPasteEdits?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, context: DocumentPasteEditContext, token: CancellationToken): ProviderResult<T[]>;
 
@@ -195,7 +204,7 @@ declare module 'vscode' {
 		 * Use `text/uri-list` for resources dropped from the explorer or other tree views in the workbench.
 		 *
 		 * Use `files` to indicate that the provider should be invoked if any {@link DataTransferFile files} are present in the {@linkcode DataTransfer}.
-		 * Note that {@linkcode DataTransferFile} entries are only created when dropping content from outside the editor, such as
+		 * Note that {@linkcode DataTransferFile} entries are only created when pasting content from outside the editor, such as
 		 * from the operating system.
 		 */
 		readonly pasteMimeTypes?: readonly string[];

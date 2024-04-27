@@ -430,12 +430,7 @@ export class IncreaseHoverVerbosityLevel extends EditorAction {
 				comment: ['Label for action that will increase the hover verbosity level.']
 			}, "Increase Hover Verbosity Level"),
 			alias: 'Increase Hover Verbosity Level',
-			precondition: EditorContextKeys.hoverFocused,
-			kbOpts: {
-				kbExpr: EditorContextKeys.hoverFocused,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
-				weight: KeybindingWeight.EditorContrib
-			}
+			precondition: EditorContextKeys.hoverFocused
 		});
 	}
 
@@ -454,12 +449,7 @@ export class DecreaseHoverVerbosityLevel extends EditorAction {
 				comment: ['Label for action that will decrease the hover verbosity level.']
 			}, "Decrease Hover Verbosity Level"),
 			alias: 'Decrease Hover Verbosity Level',
-			precondition: EditorContextKeys.hoverFocused,
-			kbOpts: {
-				kbExpr: EditorContextKeys.hoverFocused,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
-				weight: KeybindingWeight.EditorContrib
-			}
+			precondition: EditorContextKeys.hoverFocused
 		});
 	}
 

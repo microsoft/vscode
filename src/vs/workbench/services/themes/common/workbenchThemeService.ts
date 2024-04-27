@@ -11,7 +11,6 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { isBoolean, isString } from 'vs/base/common/types';
 import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -43,8 +42,6 @@ export enum ThemeSettings {
 
 	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
-
-export const ENABLE_SYSTEM_COLOR_SCHEME_SETTING = !isLinux;
 
 export enum ThemeSettingDefaults {
 	COLOR_THEME_DARK = 'Default Dark Modern',
