@@ -19,7 +19,7 @@ import { localize2 } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { PosixShellType, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 
 class TerminalSuggestContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.suggest';
@@ -48,6 +48,10 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		// While pwsh is the only supported shell, disable completely when not pwsh
+		if (this._instance.shellType !== 'pwsh') {
+			return;
+		}
 		this._loadSuggestAddon(xterm.raw);
 		this.add(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._terminalSuggestWidgetContextKeys)) {

@@ -16,7 +16,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ISuggestController, ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 
@@ -99,7 +99,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
 	) {
 		super();
 
@@ -139,10 +140,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _requestCompletions(): void {
 		// TODO: Debounce? Prevent this flooding the channel
+		// if (this._terminal.
 		this._onAcceptedCompletion.fire('\x1b[24~e');
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
+		if (!this._terminalConfigurationService.config.shellIntegration?.suggestEnabled) {
+			return;
+		}
+
 		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 			// If input has been added
 			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
@@ -162,7 +168,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		this._mostRecentPromptInputState = promptInputState;
-		// this._onAcceptedCompletion.fire('\x1b[24~e');
 		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || !this._initialPromptInputState) {
 			return;
 		}
