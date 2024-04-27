@@ -581,10 +581,10 @@ tar-stream@^2.1.4:
     inherits "^2.0.3"
     readable-stream "^3.1.1"
 
-tas-client-umd@0.1.8:
-  version "0.1.8"
-  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.8.tgz#38bd32d49545417a0ea67fb618e646298e1b67cc"
-  integrity sha512-0jAAujLmjjGXf9PzrNpjOrr/6CTpSOp8jX80NOHK5nlOTWWpwaZ16EOyrPdHnm2bVfPHvT0/RAD0xyiQHGQvCQ==
+tas-client-umd@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.2.0.tgz#b71cc28f4c9b14f7b62f1ca4669886aa197e390c"
+  integrity sha512-oezN7mJVm5qZDVEby7OzxCLKUpUN5of0rY4dvOWaDF2JZBlGpd3BXceFN8B53qlTaIkVSzP65aAMT0Vc+/N25Q==
 
 to-regex-range@^5.0.1:
   version "5.0.1"
