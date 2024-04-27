@@ -366,44 +366,36 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 
-	// Setting up handling for XOFF and XON signals
 	private _setupXOFFXONHandling() {
 		this.raw.onData(data => {
 			if (data === '\x13') { // XOFF (Ctrl+S)
 				this._showPauseNotification();
 			} else if (data === '\x11') { // XON (Ctrl+Q)
-				// Potential place for handling XON signal if needed
+				// Handling when XON is received could be added here.
 			}
 		});
 	}
 
-	// Displays a pause notification with an option to resume
 	private _showPauseNotification() {
-		// Here, you would interact with your application's UI directly to show a notification
-		// This is a placeholder for your actual UI interaction method
-		this._displayNotification('The terminal is paused. Press Ctrl+Q to resume.', 'Resume');
+		const actions = [{
+			label: 'Resume',
+			run: () => this._sendResumeSignal()
+		}];
+		this._notificationService.prompt(
+			2, // Corresponds to severity level (info in this case).
+			'The terminal is paused. Press Ctrl+Q to resume.',
+			actions,  // Actions array containing the resume action.
+			{
+				sticky: true,
+				neverShowAgain: { id: 'terminalPauseNotification', isSecondary: true }
+			}
+		);
 	}
 
-	// Placeholder for a UI method to display notifications with actions
-	private _displayNotification(message: string, actionLabel: string) {
-		// Directly interface with your UI framework to show the message
-		// Implement action handling (here using 'Resume' as an action example)
-		console.log(`Notification: ${message} - Action: ${actionLabel}`);
-		// Simulate user selecting 'Resume'
-		this._handleUserAction('Resume');
-	}
-
-	// Handling user actions from notifications
-	private _handleUserAction(selection: string) {
-		if (selection === 'Resume') {
-			this._sendResumeSignal();
-		}
-	}
-
-	// Sends a resume signal (XON) to the terminal
 	private _sendResumeSignal() {
-		this.raw.write('\x11'); // Send XON (Ctrl+Q) to resume terminal operations
+		this.raw.write('\x11'); // Send XON (Ctrl+Q) to resume terminal operations.
 	}
+
 
 	private _setFocused(isFocused: boolean) {
 		this._onDidChangeFocus.fire(isFocused);
