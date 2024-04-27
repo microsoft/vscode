@@ -771,14 +771,14 @@ const y = 2;
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			// test('Looks like incomplete link target but isn\'t', () => {
-			// 	const complete = `text](`;
-			// 	const tokens = marked.lexer(complete);
-			// 	const newTokens = fillInIncompleteTokens(tokens);
+			test('Looks like incomplete link target but isn\'t', () => {
+				const complete = '**bold** `codespan` text](';
+				const tokens = marked.lexer(complete);
+				const newTokens = fillInIncompleteTokens(tokens);
 
-			// 	const completeTokens = marked.lexer(complete);
-			// 	assert.deepStrictEqual(newTokens, completeTokens);
-			// });
+				const completeTokens = marked.lexer(complete);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
 
 			test.skip('incomplete link in list', () => {
 				const incomplete = '- [text';

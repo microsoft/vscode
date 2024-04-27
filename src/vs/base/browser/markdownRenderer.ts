@@ -614,9 +614,12 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 				return completeUnderscore(token);
 			}
 
-			// Text with start of link target.
-			// May not include the link text, eg if it contains other markdown constructs that are in other subtokens.
-			else if (hasLinkTextAndStartOfLinkTarget(lastLine) || hasStartOfLinkTargetAndNoLinkText(lastLine)) {
+			// Text with start of link target
+			else if (
+				hasLinkTextAndStartOfLinkTarget(lastLine) ||
+				// This token doesn't have the link text, eg if it contains other markdown constructs that are in other subtokens.
+				// But some preceding token does have an unbalanced [ at least
+				hasStartOfLinkTargetAndNoLinkText(lastLine) && token.tokens.slice(0, i).some(t => t.type === 'text' && t.raw.match(/\[[^\]]*$/))) {
 				const nextTwoSubTokens = token.tokens.slice(i + 1);
 				if (nextTwoSubTokens[0]?.type === 'link' && nextTwoSubTokens[1]?.type === 'text' && nextTwoSubTokens[1].raw.match(/^ *"[^"]*$/)) {
 					// A markdown link can look like
