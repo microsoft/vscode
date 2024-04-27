@@ -48,10 +48,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		// While pwsh is the only supported shell, disable completely when not pwsh
-		if (this._instance.shellType !== 'pwsh') {
-			return;
-		}
 		this._loadSuggestAddon(xterm.raw);
 		this.add(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._terminalSuggestWidgetContextKeys)) {
