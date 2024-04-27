@@ -202,7 +202,9 @@ export interface ITerminalConfiguration {
 	shellIntegration?: {
 		enabled: boolean;
 		decorationsEnabled: boolean;
-		suggestEnabled: boolean;
+	};
+	suggest?: {
+		enabled: boolean;
 	};
 	enableImages: boolean;
 	smoothScrolling: boolean;
