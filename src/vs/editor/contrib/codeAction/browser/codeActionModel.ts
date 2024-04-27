@@ -334,6 +334,11 @@ export class CodeActionModel extends Disposable {
 				// Do not trigger state if current state is manual and incoming state is automatic
 				if (!isManualToAutoTransition) {
 					this.setState(newState);
+				} else {
+					// Reset the new state after getting code actions back.
+					setTimeout(() => {
+						this.setState(newState);
+					}, 500);
 				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });

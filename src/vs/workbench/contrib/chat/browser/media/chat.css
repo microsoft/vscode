@@ -101,7 +101,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
-	outline: 1px solid var(--vscode-chat-requestBorder)
+	outline: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .header .avatar.codicon-avatar {

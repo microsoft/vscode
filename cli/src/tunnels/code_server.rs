@@ -407,7 +407,8 @@ impl<'a> ServerBuilder<'a> {
 			&self.server_params.release.commit,
 		);
 
-		self.launcher_paths
+		let result = self
+			.launcher_paths
 			.server_cache
 			.create(name, |target_dir| async move {
 				let tmpdir =
@@ -460,7 +461,12 @@ impl<'a> ServerBuilder<'a> {
 
 				Ok(())
 			})
-			.await?;
+			.await;
+
+		if let Err(e) = result {
+			error!(self.logger, "Error installing server: {}", e);
+			return Err(e);
+		}
 
 		debug!(self.logger, "Server setup complete");
 
@@ -473,7 +479,7 @@ impl<'a> ServerBuilder<'a> {
 			.arg("--enable-remote-auto-shutdown")
 			.arg(format!("--port={}", port));
 
-		let child = self.spawn_server_process(cmd)?;
+		let child = self.spawn_server_process(cmd).await?;
 		let log_file = self.get_logfile()?;
 		let plog = self.logger.prefixed(&log::new_code_server_prefix());
 
@@ -547,7 +553,7 @@ impl<'a> ServerBuilder<'a> {
 			.arg("--enable-remote-auto-shutdown")
 			.arg(format!("--socket-path={}", socket.display()));
 
-		let child = self.spawn_server_process(cmd)?;
+		let child = self.spawn_server_process(cmd).await?;
 		let log_file = self.get_logfile()?;
 		let plog = self.logger.prefixed(&log::new_code_server_prefix());
 
@@ -588,13 +594,13 @@ impl<'a> ServerBuilder<'a> {
 		let mut cmd = self.get_base_command();
 		cmd.args(args);
 
-		let child = self.spawn_server_process(cmd)?;
+		let child = self.spawn_server_process(cmd).await?;
 		let plog = self.logger.prefixed(&log::new_code_server_prefix());
 
 		Ok(monitor_server::<M, R>(child, None, plog, true))
 	}
 
-	fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
+	async fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
 		info!(self.logger, "Starting server...");
 
 		debug!(self.logger, "Starting server with command... {:?}", cmd);
@@ -607,7 +613,12 @@ impl<'a> ServerBuilder<'a> {
 		// Partial fix: https://github.com/microsoft/vscode/pull/184621
 		#[cfg(target_os = "windows")]
 		let cmd = cmd.creation_flags(
-			winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+			winapi::um::winbase::CREATE_NO_WINDOW
+				| winapi::um::winbase::CREATE_NEW_PROCESS_GROUP
+				| get_should_use_breakaway_from_job()
+					.await
+					.then_some(winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB)
+					.unwrap_or_default(),
 		);
 
 		let child = cmd
@@ -865,4 +876,14 @@ pub async fn download_cli_into_cache(
 			Err(CodeError::CorruptDownload("cli directory is empty").into())
 		}
 	}
+}
+
+#[cfg(target_os = "windows")]
+async fn get_should_use_breakaway_from_job() -> bool {
+	let mut cmd = Command::new("cmd");
+	cmd.creation_flags(
+		winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+	);
+
+	cmd.args(["/C", "echo ok"]).output().await.is_ok()
 }

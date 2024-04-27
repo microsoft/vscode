@@ -561,7 +561,8 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 		if (target === OutlineTarget.QuickPick && showAllGotoSymbols) {
 			await outline.setFullSymbols(cancelToken);
 		} else if (target === OutlineTarget.OutlinePane && showAllOutlineSymbols) {
-			await outline.setFullSymbols(cancelToken);
+			// No need to wait for this, we want the outline to show up quickly.
+			void outline.setFullSymbols(cancelToken);
 		}
 
 		return outline;

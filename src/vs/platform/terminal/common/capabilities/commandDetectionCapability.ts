@@ -91,7 +91,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	) {
 		super();
 
-		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandFinished, this._logService));
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandExecuted, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {
@@ -402,6 +402,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.command = commandLine;
 		this._currentCommand.commandLineConfidence = 'high';
 		this._currentCommand.isTrusted = isTrusted;
+
+		if (isTrusted) {
+			this._promptInputModel.setConfidentCommandLine(commandLine);
+		}
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
@@ -551,7 +555,7 @@ class UnixPtyHeuristics extends Disposable {
 const enum AdjustCommandStartMarkerConstants {
 	MaxCheckLineCount = 10,
 	Interval = 20,
-	MaximumPollCount = 50,
+	MaximumPollCount = 10,
 }
 
 /**
@@ -732,7 +736,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 		if (scannedLineCount < AdjustCommandStartMarkerConstants.MaxCheckLineCount) {
 			this._tryAdjustCommandStartMarkerScannedLineCount = scannedLineCount;
-			if (this._tryAdjustCommandStartMarkerPollCount < AdjustCommandStartMarkerConstants.MaximumPollCount) {
+			if (++this._tryAdjustCommandStartMarkerPollCount < AdjustCommandStartMarkerConstants.MaximumPollCount) {
 				this._tryAdjustCommandStartMarkerScheduler?.schedule();
 			} else {
 				this._flushPendingHandleCommandStartTask();
@@ -946,7 +950,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 
 		// Bash Prompt
-		const bashPrompt = lineText.match(/^(?<prompt>.*\$)/)?.groups?.prompt;
+		const bashPrompt = lineText.match(/^(?<prompt>\$)/)?.groups?.prompt;
 		if (bashPrompt) {
 			const adjustedPrompt = this._adjustPrompt(bashPrompt, lineText, '$');
 			if (adjustedPrompt) {

@@ -3268,10 +3268,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return result[0].resource;
 				});
 			} else if (fileExists && (tasksExistInFile || content)) {
-				if (content) {
-					this._configurationService.updateValue('tasks', json.parse(content), target);
+				const statResource = stat?.resource;
+				if (content && statResource) {
+					this._configurationService.updateValue('tasks', json.parse(content), { resource: statResource }, target);
 				}
-				return stat?.resource;
+				return statResource;
 			}
 			return undefined;
 		}).then((resource) => {

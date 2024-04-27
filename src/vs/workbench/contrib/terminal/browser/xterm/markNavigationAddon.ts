@@ -309,9 +309,8 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			}
 			const startLine = command.marker.line - (command.getPromptRowCount() - 1);
 			const decorationCount = toLineIndex(command.endMarker) - startLine;
-			// Abort if the command is too long, this limitation can be lifted when
-			// xtermjs/xterm.js#4911 is handled.
-			if (decorationCount > 200) {
+			// Abort if the command is excessively long to avoid performance on hover/leave
+			if (decorationCount > 20000) {
 				return;
 			}
 			for (let i = 0; i < decorationCount; i++) {
