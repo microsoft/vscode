@@ -183,10 +183,6 @@ export interface ITerminalConfiguration {
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
 	unicodeVersion: '6' | '11';
-	localEchoLatencyThreshold: number;
-	localEchoExcludePrograms: ReadonlyArray<string>;
-	localEchoEnabled: 'auto' | 'on' | 'off';
-	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
 	tabs: {
 		enabled: boolean;
@@ -214,8 +210,6 @@ export interface ITerminalConfiguration {
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
 }
-
-export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
 export interface ITerminalFont {
 	fontFamily: string;

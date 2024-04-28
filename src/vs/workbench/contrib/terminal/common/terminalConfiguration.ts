@@ -5,7 +5,7 @@
 
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -18,6 +18,7 @@ import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, Con
 // they need to be declared at part of the rest of the terminal configuration
 import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -518,45 +519,6 @@ const terminalConfiguration: IConfigurationNode = {
 			default: '11',
 			description: localize('terminal.integrated.unicodeVersion', "Controls what version of Unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		},
-		[TerminalSettingId.LocalEchoLatencyThreshold]: {
-			description: localize('terminal.integrated.localEchoLatencyThreshold', "Length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
-			type: 'integer',
-			minimum: -1,
-			default: 30,
-		},
-		[TerminalSettingId.LocalEchoEnabled]: {
-			markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override {0}", '`#terminal.integrated.localEchoLatencyThreshold#`'),
-			type: 'string',
-			enum: ['on', 'off', 'auto'],
-			enumDescriptions: [
-				localize('terminal.integrated.localEchoEnabled.on', "Always enabled"),
-				localize('terminal.integrated.localEchoEnabled.off', "Always disabled"),
-				localize('terminal.integrated.localEchoEnabled.auto', "Enabled only for remote workspaces")
-			],
-			default: 'auto'
-		},
-		[TerminalSettingId.LocalEchoExcludePrograms]: {
-			description: localize('terminal.integrated.localEchoExcludePrograms', "Local echo will be disabled when any of these program names are found in the terminal title."),
-			type: 'array',
-			items: {
-				type: 'string',
-				uniqueItems: true
-			},
-			default: DEFAULT_LOCAL_ECHO_EXCLUDE,
-		},
-		[TerminalSettingId.LocalEchoStyle]: {
-			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
-			default: 'dim',
-			anyOf: [
-				{
-					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted', '#ff0000'],
-				},
-				{
-					type: 'string',
-					format: 'color-hex',
-				}
-			]
-		},
 		[TerminalSettingId.EnablePersistentSessions]: {
 			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions/history for the workspace across window reloads."),
 			type: 'boolean',
@@ -673,7 +635,8 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		...terminalAccessibilityConfiguration,
-		...terminalStickyScrollConfiguration
+		...terminalStickyScrollConfiguration,
+		...terminalTypeAheadConfiguration,
 	}
 };
 
