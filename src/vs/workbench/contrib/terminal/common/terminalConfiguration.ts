@@ -19,6 +19,7 @@ import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, Con
 import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -627,16 +628,10 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		[TerminalSettingId.MouseWheelZoom]: {
-			markdownDescription: isMacintosh
-				? localize('terminal.integrated.mouseWheelZoom.mac', "Zoom the font of the terminal when using mouse wheel and holding `Cmd`.")
-				: localize('terminal.integrated.mouseWheelZoom', "Zoom the font of the terminal when using mouse wheel and holding `Ctrl`."),
-			type: 'boolean',
-			default: false
-		},
 		...terminalAccessibilityConfiguration,
 		...terminalStickyScrollConfiguration,
 		...terminalTypeAheadConfiguration,
+		...terminalZoomConfiguration,
 	}
 };
 

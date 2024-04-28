@@ -481,9 +481,6 @@ export const enum TerminalCommandId {
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
-	FontZoomIn = 'workbench.action.terminal.fontZoomIn',
-	FontZoomOut = 'workbench.action.terminal.fontZoomOut',
-	FontZoomReset = 'workbench.action.terminal.fontZoomReset',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
