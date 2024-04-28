@@ -479,15 +479,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const additionalInput = currentPromptInputState.value.substring(initialPromptInputState.cursorIndex, currentPromptInputState.cursorIndex);
 
 		// Get the final completion on the right side of the cursor
-		const initialInput = initialPromptInputState.value.substring(0, initialPromptInputState.cursorIndex);
+		const initialInput = initialPromptInputState.value.substring(0, (this._leadingLineContent?.length ?? 0));
 		const lastSpaceIndex = initialInput.lastIndexOf(' ');
 		const completion = suggestion.item.completion;
 		const completionText = completion.completionText ?? completion.label;
-		const finalCompletionRightSide = completionText.substring(initialPromptInputState.cursorIndex - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+		const finalCompletionRightSide = completionText.substring((this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
 
 		// Get the final completion on the right side of the cursor if it differs from the initial
 		// propmt input state
-		let finalCompletionLeftSide = completionText.substring(0, initialPromptInputState.cursorIndex - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+		let finalCompletionLeftSide = completionText.substring(0, (this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
 		if (initialInput.endsWith(finalCompletionLeftSide)) {
 			finalCompletionLeftSide = '';
 		}
