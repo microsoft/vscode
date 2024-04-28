@@ -55,7 +55,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		return this._currentCommand;
 	}
 	get cwd(): string | undefined { return this._cwd; }
-	get promptTerminator(): string | undefined { return this._promptTerminator }
+	get promptTerminator(): string | undefined { return this._promptTerminator; }
 	private get _isInputting(): boolean {
 		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
 	}
