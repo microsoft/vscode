@@ -227,10 +227,14 @@ export class Response implements IResponse {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
 				return '';
+			} else if (part.kind === 'progressMessage') {
+				return '';
 			} else {
 				return part.content.value;
 			}
-		}).join('\n\n');
+		})
+			.filter(s => s.length > 0)
+			.join('\n\n');
 
 		if (!quiet) {
 			this._onDidChangeValue.fire();

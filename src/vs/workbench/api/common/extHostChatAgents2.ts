@@ -206,7 +206,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
-	private readonly _completionDisposables = this._register(new DisposableStore());
+	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
 	constructor(
 		mainContext: IMainContext,
@@ -374,9 +374,18 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return [];
 		}
 
+		let disposables = this._completionDisposables.get(handle);
+		if (disposables) {
+			// Clear any disposables from the last invocation of this completion provider
+			disposables.clear();
+		} else {
+			disposables = new DisposableStore();
+			this._completionDisposables.set(handle, disposables);
+		}
+
 		const items = await agent.invokeCompletionProvider(query, token);
 
-		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this.commands.converter, this._completionDisposables));
+		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this.commands.converter, disposables));
 	}
 
 	async $provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {

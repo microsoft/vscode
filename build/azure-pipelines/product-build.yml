@@ -181,6 +181,10 @@ extends:
           notificationAliases: ['monacotools@microsoft.com']
           validateToolOutput: None
           allTools: true
+      codeql:
+        compiled:
+          enabled: true
+        runSourceLanguagesInSourceAnalysis: true
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       eslint:
