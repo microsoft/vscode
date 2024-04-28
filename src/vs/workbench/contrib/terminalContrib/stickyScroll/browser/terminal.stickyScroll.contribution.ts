@@ -13,7 +13,7 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { TerminalStickyScrollContribution } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollContribution';
 import { TerminalStickyScrollSettingId } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration';
 
-// #region Contributions
+// #region Terminal Contributions
 
 registerTerminalContribution(TerminalStickyScrollContribution.ID, TerminalStickyScrollContribution, true);
 
