@@ -153,17 +153,23 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 			// If input has been added
 			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
+				let sent = false;
+
 				// Quick suggestions
-				if (promptInputState.cursorIndex === 1 || promptInputState.value.substring(0, promptInputState.cursorIndex).match(/\s[^\s]$/)) {
-					// TODO: Allow the user to configure terminal quickSuggestions
-					this._requestCompletions();
+				if (this._terminalConfigurationService.config.suggest?.quickSuggestions) {
+					if (promptInputState.cursorIndex === 1 || promptInputState.value.substring(0, promptInputState.cursorIndex).match(/\s[^\s]$/)) {
+						this._requestCompletions();
+						sent = true;
+					}
 				}
 
 				// Trigger characters
-				const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
-				if (lastChar?.match(/[\\\/\-]/)) {
-					// TODO: Allow the user to configure terminal suggestOnTriggerCharacters
-					this._requestCompletions();
+				if (this._terminalConfigurationService.config.suggest?.suggestOnTriggerCharacters && !sent) {
+					const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
+					if (lastChar?.match(/[\\\/\-]/)) {
+						this._requestCompletions();
+						sent = true;
+					}
 				}
 			}
 		}

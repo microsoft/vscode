@@ -697,6 +697,18 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false,
 			markdownDeprecationMessage: localize('suggest.enabled.deprecated', 'This setting is deprecated, please use `{0}` instead.', `\`#${TerminalSettingId.SuggestEnabled}#\``)
 		},
+		[TerminalSettingId.SuggestQuickSuggestions]: {
+			restricted: true,
+			markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSettingId.SuggestOnTriggerCharacters}#\``),
+			type: 'boolean',
+			default: true,
+		},
+		[TerminalSettingId.SuggestOnTriggerCharacters]: {
+			restricted: true,
+			markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
+			type: 'boolean',
+			default: true,
+		},
 	}
 };
 
