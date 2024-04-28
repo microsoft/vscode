@@ -14,6 +14,10 @@ import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/co
 import product from 'vs/platform/product/common/product';
 import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
 
+// Import configuration schemes from terminalContrib - this is an exception to the eslint rule since
+// they need to be declared at part of the rest of the terminal configuration
+import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
+
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
 	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. On Windows, this will only be displayed when shell integration is enabled."),
@@ -670,18 +674,6 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
-		[TerminalSettingId.StickyScrollEnabled]: {
-			markdownDescription: localize('terminal.integrated.stickyScroll.enabled', "Shows the current command at the top of the terminal."),
-			type: 'boolean',
-			default: product.quality !== 'stable'
-		},
-		[TerminalSettingId.StickyScrollMaxLineCount]: {
-			markdownDescription: localize('terminal.integrated.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show. Sticky scroll lines will never exceed 40% of the viewport regardless of this setting."),
-			type: 'number',
-			default: 5,
-			minimum: 1,
-			maximum: 10
-		},
 		[TerminalSettingId.MouseWheelZoom]: {
 			markdownDescription: isMacintosh
 				? localize('terminal.integrated.mouseWheelZoom.mac', "Zoom the font of the terminal when using mouse wheel and holding `Cmd`.")
@@ -689,6 +681,7 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		...terminalStickyScrollConfiguration
 	}
 };
 
