@@ -22,6 +22,7 @@ import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/comm
 // Import commands to skip shell from terminalContrib - this is an exception to the eslint rule
 // since they need to be included in the terminal module
 import { defaultTerminalAccessibilityCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalFindCommandToSkipShell } from 'vs/workbench/contrib/terminalContrib/find/common/terminal.find'; // eslint-disable-line local/code-import-patterns
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -390,8 +391,6 @@ export interface ISerializedTerminalInstanceContext {
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
-	FindNext = 'workbench.action.terminal.findNext',
-	FindPrevious = 'workbench.action.terminal.findPrevious',
 	Toggle = 'workbench.action.terminal.toggleTerminal',
 	Kill = 'workbench.action.terminal.kill',
 	KillViewOrEditor = 'workbench.action.terminal.killViewOrEditor',
@@ -467,8 +466,6 @@ export const enum TerminalCommandId {
 	Rename = 'workbench.action.terminal.rename',
 	RenameActiveTab = 'workbench.action.terminal.renameActiveTab',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',
-	FindFocus = 'workbench.action.terminal.focusFind',
-	FindHide = 'workbench.action.terminal.hideFind',
 	QuickOpenTerm = 'workbench.action.quickOpenTerm',
 	ScrollToPreviousCommand = 'workbench.action.terminal.scrollToPreviousCommand',
 	ScrollToNextCommand = 'workbench.action.terminal.scrollToNextCommand',
@@ -477,10 +474,6 @@ export const enum TerminalCommandId {
 	SelectToPreviousLine = 'workbench.action.terminal.selectToPreviousLine',
 	SelectToNextLine = 'workbench.action.terminal.selectToNextLine',
 	SendSequence = 'workbench.action.terminal.sendSequence',
-	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
-	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
-	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
-	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
@@ -515,14 +508,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,
-	TerminalCommandId.FindFocus,
-	TerminalCommandId.FindHide,
-	TerminalCommandId.FindNext,
-	TerminalCommandId.FindPrevious,
 	TerminalCommandId.GoToRecentDirectory,
-	TerminalCommandId.ToggleFindRegex,
-	TerminalCommandId.ToggleFindWholeWord,
-	TerminalCommandId.ToggleFindCaseSensitive,
 	TerminalCommandId.FocusNextPane,
 	TerminalCommandId.FocusNext,
 	TerminalCommandId.FocusPreviousPane,
@@ -655,7 +641,8 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.terminal.chat.runCommand',
 	'workbench.action.terminal.chat.insertCommand',
 	'workbench.action.terminal.chat.viewInChat',
-	...defaultTerminalAccessibilityCommandsToSkipShell
+	...defaultTerminalAccessibilityCommandsToSkipShell,
+	...defaultTerminalFindCommandToSkipShell,
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
