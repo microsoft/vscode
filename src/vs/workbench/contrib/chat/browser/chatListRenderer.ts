@@ -619,6 +619,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 								renderedWordCount: wordCountResult.actualWordCount,
 								lastRenderTime: Date.now(),
 								isFullyRendered: wordCountResult.isFullString,
+								originalMarkdown: part.content,
 							};
 							wordCountResults[index] = wordCountResult;
 						}
@@ -635,6 +636,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							renderedWordCount: wordCountResult.actualWordCount,
 							lastRenderTime: Date.now(),
 							isFullyRendered: wordCountResult.isFullString,
+							originalMarkdown: part.content,
 						};
 						wordCountResults[index] = wordCountResult;
 					} else if (!renderedPart.isFullyRendered && !wordCountResult) {
@@ -692,7 +694,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
 					else if (!hasRenderedOneMarkdownBlock && wordCountResults[index]) {
 						const { value } = wordCountResults[index];
-						result = this.renderMarkdown(new MarkdownString(value), element, templateData, true);
+						const part = partsToRender[index];
+						const originalMarkdown = 'originalMarkdown' in part ? part.originalMarkdown : undefined;
+						const markdownToRender = new MarkdownString(value, originalMarkdown);
+						result = this.renderMarkdown(markdownToRender, element, templateData, true);
 						hasRenderedOneMarkdownBlock = true;
 					}
 
