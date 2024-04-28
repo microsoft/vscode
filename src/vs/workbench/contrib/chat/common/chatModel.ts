@@ -232,7 +232,9 @@ export class Response implements IResponse {
 			} else {
 				return part.content.value;
 			}
-		}).join('\n\n');
+		})
+			.filter(s => s.length > 0)
+			.join('\n\n');
 
 		if (!quiet) {
 			this._onDidChangeValue.fire();

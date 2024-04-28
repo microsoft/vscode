@@ -115,6 +115,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
+				if (this._store.isDisposed) {
+					return;
+				}
 				this._serializeAddon = this._register(new SerializeAddon());
 				this._xterm.raw.loadAddon(this._serializeAddon);
 				// Trigger a render as the serialize addon is required to render

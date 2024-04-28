@@ -661,7 +661,6 @@
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p .codicon.codicon-check {
-	font-size: 14px;
 	color: var(--vscode-debugIcon-startForeground) !important;
 }
 
