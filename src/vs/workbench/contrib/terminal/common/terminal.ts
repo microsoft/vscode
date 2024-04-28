@@ -19,6 +19,10 @@ import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/commo
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
+// Import commands to skip shell from terminalContrib - this is an exception to the eslint rule
+// since they need to be included in the terminal module
+import { defaultTerminalAccessibilityCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminal.accessibility'; // eslint-disable-line local/code-import-patterns
+
 export const TERMINAL_VIEW_ID = 'terminal';
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
@@ -402,9 +406,6 @@ export const enum TerminalCommandId {
 	OpenFileLink = 'workbench.action.terminal.openFileLink',
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
-	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
-	AccessibleBufferGoToNextCommand = 'workbench.action.terminal.accessibleBufferGoToNextCommand',
-	AccessibleBufferGoToPreviousCommand = 'workbench.action.terminal.accessibleBufferGoToPreviousCommand',
 	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
 	CopyLastCommandAndLastCommandOutput = 'workbench.action.terminal.copyLastCommandAndLastCommandOutput',
@@ -454,11 +455,9 @@ export const enum TerminalCommandId {
 	ScrollDownLine = 'workbench.action.terminal.scrollDown',
 	ScrollDownPage = 'workbench.action.terminal.scrollDownPage',
 	ScrollToBottom = 'workbench.action.terminal.scrollToBottom',
-	ScrollToBottomAccessibleView = 'workbench.action.terminal.scrollToBottomAccessibleView',
 	ScrollUpLine = 'workbench.action.terminal.scrollUp',
 	ScrollUpPage = 'workbench.action.terminal.scrollUpPage',
 	ScrollToTop = 'workbench.action.terminal.scrollToTop',
-	ScrollToTopAccessibleView = 'workbench.action.terminal.scrollToTopAccessibleView',
 	Clear = 'workbench.action.terminal.clear',
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
@@ -577,7 +576,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.AcceptSelectedSuggestion,
 	TerminalCommandId.HideSuggestWidget,
 	TerminalCommandId.FocusHover,
-	TerminalCommandId.FocusAccessibleBuffer,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
@@ -663,6 +661,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.terminal.chat.runCommand',
 	'workbench.action.terminal.chat.insertCommand',
 	'workbench.action.terminal.chat.viewInChat',
+	...defaultTerminalAccessibilityCommandsToSkipShell
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {

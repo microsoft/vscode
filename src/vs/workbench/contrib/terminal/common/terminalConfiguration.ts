@@ -16,6 +16,7 @@ import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, Con
 
 // Import configuration schemes from terminalContrib - this is an exception to the eslint rule since
 // they need to be declared at part of the rest of the terminal configuration
+import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
 
 const terminalDescriptors = '\n- ' + [
@@ -664,16 +665,6 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		[TerminalSettingId.AccessibleViewPreserveCursorPosition]: {
-			markdownDescription: localize('terminal.integrated.accessibleViewPreserveCursorPosition', "Preserve the cursor position on reopen of the terminal's accessible view rather than setting it to the bottom of the buffer."),
-			type: 'boolean',
-			default: false
-		},
-		[TerminalSettingId.AccessibleViewFocusOnCommandExecution]: {
-			markdownDescription: localize('terminal.integrated.accessibleViewFocusOnCommandExecution', "Focus the terminal accessible view when a command is executed."),
-			type: 'boolean',
-			default: false
-		},
 		[TerminalSettingId.MouseWheelZoom]: {
 			markdownDescription: isMacintosh
 				? localize('terminal.integrated.mouseWheelZoom.mac', "Zoom the font of the terminal when using mouse wheel and holding `Cmd`.")
@@ -681,6 +672,7 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		...terminalAccessibilityConfiguration,
 		...terminalStickyScrollConfiguration
 	}
 };
