@@ -21,7 +21,7 @@ import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/comm
 
 // Import commands to skip shell from terminalContrib - this is an exception to the eslint rule
 // since they need to be included in the terminal module
-import { defaultTerminalAccessibilityCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminal.accessibility'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalAccessibilityCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility'; // eslint-disable-line local/code-import-patterns
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -501,12 +501,6 @@ export const enum TerminalCommandId {
 	FontZoomIn = 'workbench.action.terminal.fontZoomIn',
 	FontZoomOut = 'workbench.action.terminal.fontZoomOut',
 	FontZoomReset = 'workbench.action.terminal.fontZoomReset',
-
-	// Developer commands
-
-	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
-	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
-	RestartPtyHost = 'workbench.action.terminal.restartPtyHost',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
