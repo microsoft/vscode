@@ -139,7 +139,10 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		for (const pattern of this.patterns) {
 			let relevantPath: string;
 			if (root && !pattern.isAbsolutePath) {
-				relevantPath = relativePath = relativePath ?? getRelativePath(resourceDirname(root.uri), resource) ?? resource.path;
+				if (!relativePath) {
+					relativePath = getRelativePath(resourceDirname(root.uri), resource) ?? resource.path;
+				}
+				relevantPath = relativePath;
 			} else {
 				relevantPath = resource.path;
 			}
