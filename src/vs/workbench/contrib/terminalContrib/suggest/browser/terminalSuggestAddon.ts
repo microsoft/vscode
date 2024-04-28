@@ -145,7 +145,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
-		const enabled = this._terminalConfigurationService.config.suggest?.enabled || this._terminalConfigurationService.config.shellIntegration?.enabled;
+		const enabled = this._terminalConfigurationService.config.suggest?.enabled || this._terminalConfigurationService.config.shellIntegration?.suggestEnabled;
 		if (!enabled) {
 			return;
 		}
