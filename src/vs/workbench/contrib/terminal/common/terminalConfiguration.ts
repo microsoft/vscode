@@ -686,16 +686,16 @@ const terminalConfiguration: IConfigurationNode = {
 		// terminal.suggest.contribution
 		[TerminalSettingId.SuggestEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+			markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
 			type: 'boolean',
 			default: false,
 		},
 		[TerminalSettingId.SuggestEnabledLegacy]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+			markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
 			type: 'boolean',
 			default: false,
-			markdownDeprecationMessage: localize('suggestEnabled.deprecated', 'This is an experimental setting and may break the terminal! Use at your own risk.')
+			markdownDeprecationMessage: localize('suggest.enabled.deprecated', 'This setting is deprecated, please use `{0}` instead.', `\`#${TerminalSettingId.SuggestEnabled}#\``)
 		},
 	}
 };
