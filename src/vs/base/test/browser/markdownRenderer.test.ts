@@ -598,7 +598,7 @@ const y = 2;
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test.skip(`incomplete ${name} in list`, () => {
+			test(`incomplete ${name} in list`, () => {
 				const text = `- list item one\n- list item two and ${delimiter}text`;
 				const tokens = marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
@@ -607,6 +607,83 @@ const y = 2;
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		}
+
+		suite('list', () => {
+			test('list with complete codeblock', () => {
+				const list = `-
+	\`\`\`js
+	let x = 1;
+	\`\`\`
+- list item two
+`;
+				const tokens = marked.lexer(list);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test.skip('list with incomplete codeblock', () => {
+				const incomplete = `- list item one
+
+	\`\`\`js
+	let x = 1;`
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '\n	```');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with subitems', () => {
+				const list = `- hello
+	- sub item
+- text
+	newline for some reason
+`
+				const tokens = marked.lexer(list);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('list with stuff', () => {
+				const list = `- list item one \`codespan\` **bold** [link](http://microsoft.com) more text`;
+				const tokens = marked.lexer(list);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('list with incomplete link text', () => {
+				const incomplete = `- list item one
+- item two [link`
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete link target', () => {
+				const incomplete = `- list item one
+- item two [link](`
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete link with other stuff', () => {
+				const incomplete = `- list item one
+- item two [\`link`
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '\`](about:blank)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		});
 
 		suite('codespan', () => {
 			simpleMarkdownTestSuite('codespan', '`');
@@ -737,6 +814,15 @@ const y = 2;
 
 			test('incomplete link target with incomplete arg', () => {
 				const incomplete = 'foo [text](http://microsoft.com "more text here ';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '")');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with incomplete arg 2', () => {
+				const incomplete = '[text](command:_github.copilot.openRelativePath "arg';
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
