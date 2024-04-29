@@ -1599,13 +1599,34 @@ class TreeMenus implements IDisposable {
 		this.contextKeyService = service;
 	}
 
+	private filterNonUniversalActions(allowedActions: Set<string>, newActions: IAction[]) {
+		const allowedKeys = allowedActions.keys();
+		for (const key of allowedKeys) {
+			if (!newActions.some(action => action.id === key)) {
+				allowedActions.delete(key);
+			}
+		}
+	}
+
+	private buildMenu(allowedActions: Set<string>, initialActions: IAction[]) {
+		const result: IAction[] = [];
+		for (const action of initialActions) {
+			if (allowedActions.has(action.id)) {
+				result.push(action);
+			}
+		}
+		return result;
+	}
+
 	private getActions(menuId: MenuId, elements: ITreeItem[], listen?: DisposableStore): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
 
-		const allowedPrimary = new Map<string, IAction>();
-		const allowedSecondary = new Map<string, IAction>();
+		let initialPrimary: IAction[] = [];
+		let initialSecondary: IAction[] = [];
+		const allowedPrimary = new Set<string>();
+		const allowedSecondary = new Set<string>();
 		for (let i = 0; i < elements.length; i++) {
 			const element = elements[i];
 			const contextKeyService = this.contextKeyService.createOverlay([
@@ -1619,25 +1640,17 @@ class TreeMenus implements IDisposable {
 			const result = { primary, secondary, menu };
 			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
 			if (i === 0) {
+				initialPrimary = result.primary;
 				for (const action of result.primary) {
-					allowedPrimary.set(action.id, action);
+					allowedPrimary.add(action.id);
 				}
+				initialSecondary = result.secondary;
 				for (const action of result.secondary) {
-					allowedSecondary.set(action.id, action);
+					allowedSecondary.add(action.id);
 				}
 			} else {
-				const primaryKeys = allowedPrimary.keys();
-				for (const key of primaryKeys) {
-					if (!result.primary.some(action => action.id === key)) {
-						allowedPrimary.delete(key);
-					}
-				}
-				const secondaryKeys = allowedSecondary.keys();
-				for (const key of secondaryKeys) {
-					if (!result.secondary.some(action => action.id === key)) {
-						allowedSecondary.delete(key);
-					}
-				}
+				this.filterNonUniversalActions(allowedPrimary, result.primary);
+				this.filterNonUniversalActions(allowedSecondary, result.secondary);
 			}
 			if (listen && elements.length === 1) {
 				listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
@@ -1647,7 +1660,7 @@ class TreeMenus implements IDisposable {
 			}
 		}
 
-		return { primary: Array.from(allowedPrimary.values()), secondary: Array.from(allowedSecondary.values()) };
+		return { primary: this.buildMenu(allowedPrimary, initialPrimary), secondary: this.buildMenu(allowedSecondary, initialSecondary) };
 	}
 
 	dispose() {
