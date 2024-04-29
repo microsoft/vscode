@@ -128,6 +128,8 @@ export const enum TerminalSettingId {
 	// terminal.suggest.contribution
 	SuggestEnabled = 'terminal.integrated.suggest.enabled',
 	SuggestEnabledLegacy = 'terminal.integrated.shellIntegration.suggestEnabled',
+	SuggestQuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
+	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 
 	// Debug settings that are hidden from user
 
