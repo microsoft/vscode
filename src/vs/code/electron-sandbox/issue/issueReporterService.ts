@@ -294,7 +294,7 @@ export class IssueReporter extends Disposable {
 			// Resets placeholder
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (descriptionTextArea) {
-				descriptionTextArea.placeholder = 'Please enter a title.';
+				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
 			this.updatePreviewButtonState();
@@ -344,13 +344,13 @@ export class IssueReporter extends Disposable {
 
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (value === IssueSource.VSCode) {
-				descriptionTextArea.placeholder = 'E.g Workbench is missing problems panel';
+				descriptionTextArea.placeholder = localize('vscodePlaceholder', "E.g Workbench is missing problems panel");
 			} else if (value === IssueSource.Extension) {
-				descriptionTextArea.placeholder = 'E.g. Missing alt text on extension readme image';
+				descriptionTextArea.placeholder = localize('extensionPlaceholder', "E.g. Missing alt text on extension readme image");
 			} else if (value === IssueSource.Marketplace) {
-				descriptionTextArea.placeholder = 'E.g Cannot disable installed extension';
+				descriptionTextArea.placeholder = localize('marketplacePlaceholder', "E.g Cannot disable installed extension");
 			} else {
-				descriptionTextArea.placeholder = 'Please enter a title.';
+				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
 			let fileOnExtension, fileOnMarketplace = false;
