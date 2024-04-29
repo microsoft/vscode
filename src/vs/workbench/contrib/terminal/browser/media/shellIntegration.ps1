@@ -178,6 +178,7 @@ function Set-MappedKeyHandlers {
 		# and ranking on the client side with the full list of results.
 		$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
 		$result += [System.Management.Automation.CompletionCompleters]::CompleteCommand('') | ConvertTo-Json -Compress
+		$result += "`a"
 		Write-Host -NoNewLine $result
 	}
 }
@@ -193,7 +194,10 @@ function Send-Completions {
 
 	# If there is a space in the input, defer to TabExpansion2 as it's more complicated to
 	# determine what type of completions to use
-	if ($completionPrefix.Contains(' ')) {
+	# `[` is included here as namespace commands are not included in CompleteCommand(''),
+	# additionally for some reason CompleteVariable('[') causes the prompt to clear and reprint
+	# multiple times
+	if ($completionPrefix.Contains(' ') -or $completionPrefix.Contains('[')) {
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"

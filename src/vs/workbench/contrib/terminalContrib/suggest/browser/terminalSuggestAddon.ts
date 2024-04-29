@@ -140,20 +140,22 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _requestCompletions(): void {
 		// TODO: Debounce? Prevent this flooding the channel
-		// if (this._terminal.
 		this._onAcceptedCompletion.fire('\x1b[24~e');
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
-		if (!this._terminalConfigurationService.config.shellIntegration?.suggestEnabled) {
+		const enabled = this._terminalConfigurationService.config.suggest?.enabled || this._terminalConfigurationService.config.shellIntegration?.suggestEnabled;
+		if (!enabled) {
 			return;
 		}
 
 		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 			// If input has been added
 			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
+				const completionPrefix = promptInputState.value.substring(0, promptInputState.cursorIndex);
+
 				// Quick suggestions
-				if (promptInputState.cursorIndex === 1 || promptInputState.value.substring(0, promptInputState.cursorIndex).match(/\s[^\s]$/)) {
+				if (promptInputState.cursorIndex === 1 || completionPrefix.match(/([\s\[])[^\s]$/)) {
 					// TODO: Allow the user to configure terminal quickSuggestions
 					this._requestCompletions();
 				}
@@ -249,7 +251,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const completions = completionList.map((e: any) => {
 			return new SimpleCompletionItem({
-				label: e.CompletionText,
+				label: e.ListItemText,
+				completionText: e.CompletionText,
 				icon: pwshTypeToIconMap[e.ResultType],
 				detail: e.ToolTip
 			});
@@ -258,15 +261,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
 
 		// If there's no space it means this is a command, add cached commands list to completions
-		if (!this._leadingLineContent.trim().includes(' ')) {
-			completions.push(...this._cachedPwshCommands);
-		} else {
+		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
+		if (this._leadingLineContent.trim().includes(' ') || firstChar === '[') {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
 			this._leadingLineContent = completions[0]?.completion.label.slice(0, replacementLength) ?? '';
+		} else {
+			completions.push(...this._cachedPwshCommands);
 		}
+		this._cursorIndexDelta = replacementIndex;
 
-		this._cursorIndexDelta = 0;
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
 	}
@@ -284,7 +288,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const completions = completionList.map((e: any) => {
 			return new SimpleCompletionItem({
-				label: e.CompletionText,
+				label: e.ListItemText,
+				completionText: e.CompletionText,
 				icon: pwshTypeToIconMap[e.ResultType],
 				detail: e.ToolTip
 			});
@@ -474,13 +479,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const additionalInput = currentPromptInputState.value.substring(initialPromptInputState.cursorIndex, currentPromptInputState.cursorIndex);
 
 		// Get the final completion on the right side of the cursor
-		const initialInput = initialPromptInputState.value.substring(0, initialPromptInputState.cursorIndex);
+		const initialInput = initialPromptInputState.value.substring(0, (this._leadingLineContent?.length ?? 0));
 		const lastSpaceIndex = initialInput.lastIndexOf(' ');
-		const finalCompletionRightSide = suggestion.item.completion.label.substring(initialPromptInputState.cursorIndex - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+		const completion = suggestion.item.completion;
+		const completionText = completion.completionText ?? completion.label;
+		const finalCompletionRightSide = completionText.substring((this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
 
 		// Get the final completion on the right side of the cursor if it differs from the initial
 		// propmt input state
-		let finalCompletionLeftSide = suggestion.item.completion.label.substring(0, initialPromptInputState.cursorIndex - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+		let finalCompletionLeftSide = completionText.substring(0, (this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
 		if (initialInput.endsWith(finalCompletionLeftSide)) {
 			finalCompletionLeftSide = '';
 		}
