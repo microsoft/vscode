@@ -54,6 +54,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
 					type: 'boolean'
 				},
+				sampleRequest: {
+					description: localize('chatSampleRequest', "When the user clicks this participant in `/help`, this text will be submitted to the participant."),
+					type: 'string'
+				},
 				defaultImplicitVariables: {
 					markdownDescription: '**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default',
 					type: 'array',
@@ -83,7 +87,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								type: 'string'
 							},
 							sampleRequest: {
-								description: localize('chatCommandSampleRequest', "When the user clicks this command in `/help`, this text will be submitted to this participant."),
+								description: localize('chatCommandSampleRequest', "When the user clicks this command in `/help`, this text will be submitted to the participant."),
 								type: 'string'
 							},
 							isSticky: {
@@ -209,6 +213,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							description: providerDescriptor.description,
 							metadata: {
 								isSticky: providerDescriptor.isSticky,
+								sampleRequest: providerDescriptor.sampleRequest,
 							},
 							name: providerDescriptor.name,
 							isDefault: providerDescriptor.isDefault,
