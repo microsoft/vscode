@@ -13,6 +13,9 @@ const os = require('os');
  * A list of extension folders who have opted into tests, or configuration objects.
  * Edit me to add more!
  *
+ * @note When you _RUN_ these tests in the Test Explorer, they will run in Code - OSS.
+ * However, when you _DEBUG_ them in the Test Explorer, they will run in VS Code Insiders.
+ *
  * @type {Array<string | (Partial<import("@vscode/test-cli").TestConfiguration> & { label: string })>}
  */
 const extensions = [
@@ -44,6 +47,16 @@ const extensions = [
 	{
 		label: 'github-authentication',
 		workspaceFolder: path.join(os.tmpdir(), `msft-auth-${Math.floor(Math.random() * 100000)}`),
+		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'vscode-api-tests',
+		workspaceFolder: path.join(__dirname, 'extensions', 'vscode-api-tests', 'testWorkspace'),
+		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'vscode-api-tests',
+		workspaceFolder: path.join(__dirname, 'extensions', 'vscode-api-tests', 'testworkspace.code-workspace'),
 		mocha: { timeout: 60_000 }
 	}
 ];
