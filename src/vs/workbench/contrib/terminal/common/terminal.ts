@@ -207,6 +207,8 @@ export interface ITerminalConfiguration {
 	};
 	suggest?: {
 		enabled: boolean;
+		quickSuggestions: boolean;
+		suggestOnTriggerCharacters: boolean;
 	};
 	enableImages: boolean;
 	smoothScrolling: boolean;
