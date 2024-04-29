@@ -15,8 +15,12 @@ export const enum TerminalSuggestSettingId {
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 }
 
-export interface ITerminalSuggestConfiguration {
+export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
+export interface ITerminalSuggestConfiguration {
+	enabled: boolean;
+	quickSuggestions: boolean;
+	suggestOnTriggerCharacters: boolean;
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {

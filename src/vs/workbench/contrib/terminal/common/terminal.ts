@@ -207,11 +207,6 @@ export interface ITerminalConfiguration {
 		// TODO: Legacy - remove soon
 		suggestEnabled: boolean;
 	};
-	suggest?: {
-		enabled: boolean;
-		quickSuggestions: boolean;
-		suggestOnTriggerCharacters: boolean;
-	};
 	enableImages: boolean;
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;

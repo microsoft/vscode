@@ -25,6 +25,8 @@ import { TerminalCapability, type ITerminalCapabilityStore } from 'vs/platform/t
 import type { IPromptInputModel, IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 
 const enum VSCodeOscPt {
 	Completions = 'Completions',
@@ -110,6 +112,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
 	) {
@@ -155,7 +158,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
-		const enabled = this._terminalConfigurationService.config.suggest?.enabled || this._terminalConfigurationService.config.shellIntegration?.suggestEnabled;
+		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
+		const enabled = config.enabled || this._terminalConfigurationService.config.shellIntegration?.suggestEnabled;
 		if (!enabled) {
 			return;
 		}
@@ -166,7 +170,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				let sent = false;
 
 				// Quick suggestions
-				if (this._terminalConfigurationService.config.suggest?.quickSuggestions) {
+				if (config.quickSuggestions) {
 					const completionPrefix = promptInputState.value.substring(0, promptInputState.cursorIndex);
 					if (promptInputState.cursorIndex === 1 || completionPrefix.match(/([\s\[])[^\s]$/)) {
 						this._requestCompletions();
@@ -175,7 +179,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 
 				// Trigger characters
-				if (this._terminalConfigurationService.config.suggest?.suggestOnTriggerCharacters && !sent) {
+				if (config.suggestOnTriggerCharacters && !sent) {
 					const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
 					if (lastChar?.match(/[\\\/\-]/)) {
 						this._requestCompletions();
