@@ -13,7 +13,7 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { ActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
@@ -1599,23 +1599,44 @@ class TreeMenus implements IDisposable {
 		this.contextKeyService = service;
 	}
 
-	private filterNonUniversalActions(allowedActions: Set<string>, newActions: IAction[]) {
-		const allowedKeys = allowedActions.keys();
-		for (const key of allowedKeys) {
-			if (!newActions.some(action => action.id === key)) {
-				allowedActions.delete(key);
+	private filterNonUniversalActions(groups: Map<string, IAction>[], newActions: IAction[]) {
+		const newActionsSet: Set<string> = new Set(newActions.map(a => a.id));
+		for (const group of groups) {
+			const actions = group.keys();
+			for (const action of actions) {
+				if (!newActionsSet.has(action)) {
+					group.delete(action);
+				}
 			}
 		}
 	}
 
-	private buildMenu(allowedActions: Set<string>, initialActions: IAction[]) {
+	private buildMenu(groups: Map<string, IAction>[]): IAction[] {
 		const result: IAction[] = [];
-		for (const action of initialActions) {
-			if (allowedActions.has(action.id)) {
-				result.push(action);
+		for (const group of groups) {
+			if (group.size > 0) {
+				if (result.length) {
+					result.push(new Separator());
+				}
+				result.push(...group.values());
 			}
 		}
 		return result;
+	}
+
+	private createGroups(actions: IAction[]): Map<string, IAction>[] {
+		const groups: Map<string, IAction>[] = [];
+		let group: Map<string, IAction> = new Map();
+		for (const action of actions) {
+			if (action instanceof Separator) {
+				groups.push(group);
+				group = new Map();
+			} else {
+				group.set(action.id, action);
+			}
+		}
+		groups.push(group);
+		return groups;
 	}
 
 	private getActions(menuId: MenuId, elements: ITreeItem[], listen?: DisposableStore): { primary: IAction[]; secondary: IAction[] } {
@@ -1623,10 +1644,8 @@ class TreeMenus implements IDisposable {
 			return { primary: [], secondary: [] };
 		}
 
-		let initialPrimary: IAction[] = [];
-		let initialSecondary: IAction[] = [];
-		const allowedPrimary = new Set<string>();
-		const allowedSecondary = new Set<string>();
+		let primaryGroups: Map<string, IAction>[] = [];
+		let secondaryGroups: Map<string, IAction>[] = [];
 		for (let i = 0; i < elements.length; i++) {
 			const element = elements[i];
 			const contextKeyService = this.contextKeyService.createOverlay([
@@ -1640,17 +1659,11 @@ class TreeMenus implements IDisposable {
 			const result = { primary, secondary, menu };
 			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
 			if (i === 0) {
-				initialPrimary = result.primary;
-				for (const action of result.primary) {
-					allowedPrimary.add(action.id);
-				}
-				initialSecondary = result.secondary;
-				for (const action of result.secondary) {
-					allowedSecondary.add(action.id);
-				}
+				primaryGroups = this.createGroups(result.primary);
+				secondaryGroups = this.createGroups(result.secondary);
 			} else {
-				this.filterNonUniversalActions(allowedPrimary, result.primary);
-				this.filterNonUniversalActions(allowedSecondary, result.secondary);
+				this.filterNonUniversalActions(primaryGroups, result.primary);
+				this.filterNonUniversalActions(secondaryGroups, result.secondary);
 			}
 			if (listen && elements.length === 1) {
 				listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
@@ -1660,7 +1673,7 @@ class TreeMenus implements IDisposable {
 			}
 		}
 
-		return { primary: this.buildMenu(allowedPrimary, initialPrimary), secondary: this.buildMenu(allowedSecondary, initialSecondary) };
+		return { primary: this.buildMenu(primaryGroups), secondary: this.buildMenu(secondaryGroups) };
 	}
 
 	dispose() {
