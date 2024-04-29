@@ -498,3 +498,25 @@ export interface FindTextInFilesOptions {
 	 */
 	afterContext?: number;
 }
+
+/*
+ * Options for following search.exclude and files.exclude settings.
+ */
+export enum ExcludeSettingOptions {
+	none = 1,
+	filesExclude = 2,
+	searchAndFilesExclude = 3,
+}
+
+/*
+ * Which locations of .gitignore and .ignore files to follow when searching.
+*/
+export enum SearchIgnoreOptions {
+	none = 1,
+	localOnly = 2,
+	localAndFollowSettings = 3,
+	localAndParent = 4,
+	localAndGlobal = 5,
+	all = 6,
+	followSettings = 7,
+}

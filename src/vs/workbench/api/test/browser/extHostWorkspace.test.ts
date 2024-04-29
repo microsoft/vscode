@@ -12,7 +12,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
 import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from 'vs/workbench/api/common/extHost.protocol';
-import { RelativePattern, ExcludeSettingOptions, SearchIgnoreOptions } from 'vs/workbench/api/common/extHostTypes';
+import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { mock } from 'vs/base/test/common/mock';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
@@ -26,6 +26,7 @@ import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { nullExtensionDescription as extensionDescriptor } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ExcludeSettingOptions, SearchIgnoreOptions } from 'vs/workbench/services/search/common/searchExtTypes';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(

@@ -33,6 +33,7 @@ import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/s
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
+import { ExcludeSettingOptions, SearchIgnoreOptions } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -460,8 +461,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._findFilesImpl(include, undefined, {
 			exclude: excludeString,
 			maxResults,
-			excludeSettings: useFileExcludes ? vscode.ExcludeSettingOptions.filesExclude : vscode.ExcludeSettingOptions.none,
-			ignoreFilesToUse: vscode.SearchIgnoreOptions.none
+			excludeSettings: useFileExcludes ? ExcludeSettingOptions.filesExclude : ExcludeSettingOptions.none,
+			ignoreFilesToUse: SearchIgnoreOptions.none
 		}, token);
 	}
 
@@ -485,36 +486,36 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		if (options.excludeSettings) {
 			switch (options.ignoreFilesToUse) {
-				case vscode.SearchIgnoreOptions.none:
+				case SearchIgnoreOptions.none:
 					disregardLocalIgnoreFiles = true;
 					disregardParentIgnoreFiles = true;
 					disregardGlobalIgnoreFiles = true;
 					break;
-				case vscode.SearchIgnoreOptions.localOnly:
+				case SearchIgnoreOptions.localOnly:
 					disregardLocalIgnoreFiles = false;
 					disregardParentIgnoreFiles = true;
 					disregardGlobalIgnoreFiles = true;
 					break;
-				case vscode.SearchIgnoreOptions.localAndFollowSettings:
+				case SearchIgnoreOptions.localAndFollowSettings:
 					disregardLocalIgnoreFiles = false;
 					break;
-				case vscode.SearchIgnoreOptions.localAndParent:
+				case SearchIgnoreOptions.localAndParent:
 					disregardLocalIgnoreFiles = false;
 					disregardParentIgnoreFiles = false;
 					disregardGlobalIgnoreFiles = true;
 					break;
-				case vscode.SearchIgnoreOptions.localAndGlobal:
+				case SearchIgnoreOptions.localAndGlobal:
 					disregardLocalIgnoreFiles = false;
 					disregardParentIgnoreFiles = true;
 					disregardGlobalIgnoreFiles = false;
 					break;
-				case vscode.SearchIgnoreOptions.all:
+				case SearchIgnoreOptions.all:
 					disregardLocalIgnoreFiles = false;
 					disregardParentIgnoreFiles = false;
 					disregardGlobalIgnoreFiles = false;
 					break;
 				default:
-					// vscode.SearchIgnoreOptions.followSettings also follows this
+					// SearchIgnoreOptions.followSettings also follows this
 					break;
 			}
 		}
@@ -536,15 +537,15 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		if (options.excludeSettings) {
 			switch (options.excludeSettings) {
-				case vscode.ExcludeSettingOptions.none:
+				case ExcludeSettingOptions.none:
 					disregardExcludeSettings = true;
 					disregardSearchExcludeSettings = true;
 					break;
-				case vscode.ExcludeSettingOptions.filesExclude:
+				case ExcludeSettingOptions.filesExclude:
 					disregardSearchExcludeSettings = true;
 					break;
 				default:
-					// includes the case for vscode.ExcludeSettingOptions.searchAndFilesExclude
+					// includes the case for ExcludeSettingOptions.searchAndFilesExclude
 					break;
 			}
 		}
