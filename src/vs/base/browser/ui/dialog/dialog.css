@@ -62,13 +62,14 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container {
 	display: flex;
 	flex-direction: column;
-	overflow: hidden;
+	overflow: auto; /* show scrollbars if the message is too big */
 	text-overflow: ellipsis;
 	padding-left: 24px;
 	user-select: text;
 	-webkit-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
+	max-height: 70vh;
 }
 
 /** Dialog: Message */
@@ -88,8 +89,6 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
-	max-height: 70vh;
-	overflow: auto; /* show scrollbars if the message is too big */
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
