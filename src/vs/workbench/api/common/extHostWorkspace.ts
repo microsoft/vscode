@@ -484,7 +484,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		let disregardParentIgnoreFiles: boolean | undefined = undefined;
 		let disregardGlobalIgnoreFiles: boolean | undefined = undefined;
 
-		if (options.excludeSettings) {
+		if (options.ignoreFilesToUse) {
 			switch (options.ignoreFilesToUse) {
 				case SearchIgnoreOptions.none:
 					disregardLocalIgnoreFiles = true;
