@@ -1148,6 +1148,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)?.focus();
 				break;
 			}
+			case Parts.AUXILIARYBAR_PART: {
+				this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.focus();
+				break;
+			}
 			case Parts.ACTIVITYBAR_PART:
 				(this.getPart(Parts.SIDEBAR_PART) as SidebarPart).focusActivityBar();
 				break;

@@ -257,7 +257,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			this.onDidChangeActivityBarLocation();
 		}
 		if (this.shouldShowCompositeBar()) {
-			this.focusComositeBar();
+			this.focusCompositeBar();
 		} else {
 			if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 				this.layoutService.setPartHidden(false, Parts.ACTIVITYBAR_PART);
