@@ -50,8 +50,12 @@ export class TerminalIconPicker extends Disposable {
 		});
 	}
 
-	async pickIcons(): Promise<ThemeIcon | undefined> {
+	async pickIcons(eventSource?: 'inline-tab' | 'other'): Promise<ThemeIcon | undefined> {
 		const dimension = new Dimension(486, 260);
+		const target = eventSource === 'inline-tab' ?
+			getActiveDocument().getElementById('terminal') :
+			getActiveDocument().getElementById('workbench.parts.editor');
+		const position = eventSource === 'inline-tab' ? HoverPosition.LEFT : HoverPosition.BELOW;
 		return new Promise<ThemeIcon | undefined>(resolve => {
 			this._register(this._iconSelectBox.onDidSelect(e => {
 				resolve(e);
@@ -60,9 +64,9 @@ export class TerminalIconPicker extends Disposable {
 			this._iconSelectBox.clearInput();
 			const hoverWidget = this._hoverService.showHover({
 				content: this._iconSelectBox.domNode,
-				target: getActiveDocument().body,
+				target: target || getActiveDocument().body,
 				position: {
-					hoverPosition: HoverPosition.BELOW,
+					hoverPosition: position
 				},
 				persistence: {
 					sticky: true,
