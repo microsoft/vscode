@@ -1242,6 +1242,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
+		this._logService.debug('sending data (vscode)', text);
 		await this._processManager.write(text);
 		this._onDidInputData.fire(this);
 		this._onDidSendText.fire(text);
@@ -1452,6 +1453,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		});
+		if (this.isDisposed) {
+			return;
+		}
 		if (this.xterm?.shellIntegration) {
 			this.capabilities.add(this.xterm.shellIntegration.capabilities);
 		}

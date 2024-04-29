@@ -135,7 +135,7 @@ export interface ITerminalConfiguration {
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
+	gpuAcceleration: 'auto' | 'on' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
 	middleClickBehavior: 'default' | 'paste';
 	cursorBlinking: boolean;
@@ -202,6 +202,13 @@ export interface ITerminalConfiguration {
 	shellIntegration?: {
 		enabled: boolean;
 		decorationsEnabled: boolean;
+		// TODO: Legacy - remove soon
+		suggestEnabled: boolean;
+	};
+	suggest?: {
+		enabled: boolean;
+		quickSuggestions: boolean;
+		suggestOnTriggerCharacters: boolean;
 	};
 	enableImages: boolean;
 	smoothScrolling: boolean;

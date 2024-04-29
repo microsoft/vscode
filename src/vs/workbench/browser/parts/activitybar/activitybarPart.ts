@@ -617,6 +617,7 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:before {
 				content: "";
 				position: absolute;
+				display: block;
 				top: 8px;
 				left: 8px;
 				height: 32px;

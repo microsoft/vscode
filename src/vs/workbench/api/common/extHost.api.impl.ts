@@ -1698,6 +1698,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DebugThread: extHostTypes.DebugThread,
 			RelatedInformationType: extHostTypes.RelatedInformationType,
 			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
+			TextToSpeechStatus: extHostTypes.TextToSpeechStatus,
 			PartialAcceptTriggerKind: extHostTypes.PartialAcceptTriggerKind,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,

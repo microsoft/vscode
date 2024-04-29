@@ -76,6 +76,8 @@ export type RenameWidgetStats = {
 	nRenameSuggestions: number;
 	source: NewNameSource;
 	timeBeforeFirstInputFieldEdit: number | undefined;
+	nRenameSuggestionsInvocations: number;
+	hadAutomaticRenameSuggestionsInvocation: boolean;
 };
 
 export type RenameWidgetResult = {
@@ -141,6 +143,10 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 	 */
 	private _timeBeforeFirstInputFieldEdit: number | undefined;
 
+	private _nRenameSuggestionsInvocations: number;
+
+	private _hadAutomaticRenameSuggestionsInvocation: boolean;
+
 	private _renameCandidateProvidersCts: CancellationTokenSource | undefined;
 	private _renameCts: CancellationTokenSource | undefined;
 
@@ -158,6 +164,10 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 
 		this._isEditingRenameCandidate = false;
+
+		this._nRenameSuggestionsInvocations = 0;
+
+		this._hadAutomaticRenameSuggestionsInvocation = false;
 
 		this._candidates = new Set();
 
@@ -387,6 +397,10 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 
 		const disposeOnDone = new DisposableStore();
 
+		this._nRenameSuggestionsInvocations = 0;
+
+		this._hadAutomaticRenameSuggestionsInvocation = false;
+
 		if (requestRenameCandidates === undefined) {
 			this._inputWithButton.button.style.display = 'none';
 		} else {
@@ -497,6 +511,8 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 					source,
 					nRenameSuggestions,
 					timeBeforeFirstInputFieldEdit: this._timeBeforeFirstInputFieldEdit,
+					nRenameSuggestionsInvocations: this._nRenameSuggestionsInvocations,
+					hadAutomaticRenameSuggestionsInvocation: this._hadAutomaticRenameSuggestionsInvocation,
 				}
 			});
 		};
@@ -532,6 +548,12 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 				this._inputWithButton.setSparkleButton();
 				return;
 			}
+
+			if (!isManuallyTriggered) {
+				this._hadAutomaticRenameSuggestionsInvocation = true;
+			}
+
+			this._nRenameSuggestionsInvocations += 1;
 
 			this._inputWithButton.setStopButton();
 
