@@ -39,7 +39,7 @@ suite('Editor - Range decorations', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(ILanguageService, LanguageService);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));

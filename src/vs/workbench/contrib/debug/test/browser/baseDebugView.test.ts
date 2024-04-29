@@ -31,7 +31,7 @@ suite('Debug - Base Debug View', () => {
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});
 

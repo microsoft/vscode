@@ -32,7 +32,7 @@ import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay } from 'vs/platform/window/common/window';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from 'vs/platform/window/common/window';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -136,11 +136,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
-		// Update the window controls immediately based on cached values
+		// Update the window controls immediately based on cached or default values
 		if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
+			} else {
+				this.updateWindowControls({ height: DEFAULT_CUSTOM_TITLEBAR_HEIGHT });
 			}
 		}
 
