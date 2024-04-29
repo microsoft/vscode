@@ -60,7 +60,6 @@ function parseSessionOptions(args: readonly string[], serverMode: ts.LanguageSer
 
 let hasInitialized = false;
 const listener = async (e: any) => {
-	console.log('>>> received message: ' + Object.keys(e));
 	if (!hasInitialized) {
 		hasInitialized = true;
 		if ('args' in e.data) {
