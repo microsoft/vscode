@@ -20,6 +20,7 @@ import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/termina
 import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
+import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -623,35 +624,9 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		...terminalAccessibilityConfiguration,
 		...terminalStickyScrollConfiguration,
+		...terminalSuggestConfiguration,
 		...terminalTypeAheadConfiguration,
 		...terminalZoomConfiguration,
-
-		// terminal.suggest.contribution
-		[TerminalSettingId.SuggestEnabled]: {
-			restricted: true,
-			markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
-			type: 'boolean',
-			default: false,
-		},
-		[TerminalSettingId.SuggestEnabledLegacy]: {
-			restricted: true,
-			markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
-			type: 'boolean',
-			default: false,
-			markdownDeprecationMessage: localize('suggest.enabled.deprecated', 'This setting is deprecated, please use `{0}` instead.', `\`#${TerminalSettingId.SuggestEnabled}#\``)
-		},
-		[TerminalSettingId.SuggestQuickSuggestions]: {
-			restricted: true,
-			markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSettingId.SuggestOnTriggerCharacters}#\``),
-			type: 'boolean',
-			default: true,
-		},
-		[TerminalSettingId.SuggestOnTriggerCharacters]: {
-			restricted: true,
-			markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
-			type: 'boolean',
-			default: true,
-		},
 	}
 };
 

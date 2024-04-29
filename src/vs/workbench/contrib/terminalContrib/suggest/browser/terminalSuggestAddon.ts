@@ -16,7 +16,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ISuggestController, ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 
@@ -72,6 +72,15 @@ const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	13: Codicon.symbolKeyword
 };
 
+export interface ISuggestController {
+	selectPreviousSuggestion(): void;
+	selectPreviousPageSuggestion(): void;
+	selectNextSuggestion(): void;
+	selectNextPageSuggestion(): void;
+	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
+	hideSuggestWidget(): void;
+}
+
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -90,6 +99,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
+
+	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -140,7 +151,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _requestCompletions(): void {
 		// TODO: Debounce? Prevent this flooding the channel
-		this._onAcceptedCompletion.fire('\x1b[24~e');
+		this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {

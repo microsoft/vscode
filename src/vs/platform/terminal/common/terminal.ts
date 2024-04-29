@@ -116,12 +116,6 @@ export const enum TerminalSettingId {
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
 
-	// terminal.suggest.contribution
-	SuggestEnabled = 'terminal.integrated.suggest.enabled',
-	SuggestEnabledLegacy = 'terminal.integrated.shellIntegration.suggestEnabled',
-	SuggestQuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
-	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
-
 	// Debug settings that are hidden from user
 
 	/** Simulated latency applied to all calls made to the pty host */

@@ -23,6 +23,7 @@ import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/comm
 // since they need to be included in the terminal module
 import { defaultTerminalAccessibilityCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility'; // eslint-disable-line local/code-import-patterns
 import { defaultTerminalFindCommandToSkipShell } from 'vs/workbench/contrib/terminalContrib/find/common/terminal.find'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalSuggestCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest'; // eslint-disable-line local/code-import-patterns
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -477,12 +478,6 @@ export const enum TerminalCommandId {
 	MoveIntoNewWindow = 'workbench.action.terminal.moveIntoNewWindow',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
-	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',
-	SelectPrevPageSuggestion = 'workbench.action.terminal.selectPrevPageSuggestion',
-	SelectNextSuggestion = 'workbench.action.terminal.selectNextSuggestion',
-	SelectNextPageSuggestion = 'workbench.action.terminal.selectNextPageSuggestion',
-	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
-	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	StartVoice = 'workbench.action.terminal.startVoice',
@@ -542,12 +537,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.SplitInActiveWorkspace,
 	TerminalCommandId.Split,
 	TerminalCommandId.Toggle,
-	TerminalCommandId.SelectPrevSuggestion,
-	TerminalCommandId.SelectPrevPageSuggestion,
-	TerminalCommandId.SelectNextSuggestion,
-	TerminalCommandId.SelectNextPageSuggestion,
-	TerminalCommandId.AcceptSelectedSuggestion,
-	TerminalCommandId.HideSuggestWidget,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	'editor.action.toggleTabFocusMode',
@@ -636,6 +625,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.terminal.chat.viewInChat',
 	...defaultTerminalAccessibilityCommandsToSkipShell,
 	...defaultTerminalFindCommandToSkipShell,
+	...defaultTerminalSuggestCommandsToSkipShell,
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
