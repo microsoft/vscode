@@ -7,7 +7,7 @@ import { basename, extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
-import { isNonEmptyArray, flatten } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
@@ -52,7 +52,7 @@ export class ResourceMarkers {
 
 	get markers(): readonly Marker[] {
 		if (!this._cachedMarkers) {
-			this._cachedMarkers = flatten([...this._markersMap.values()]).sort(ResourceMarkers._compareMarkers);
+			this._cachedMarkers = [...this._markersMap.values()].flat().sort(ResourceMarkers._compareMarkers);
 		}
 		return this._cachedMarkers;
 	}

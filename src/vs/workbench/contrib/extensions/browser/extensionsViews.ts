@@ -31,7 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -978,12 +978,12 @@ export class ExtensionsListView extends ViewPane {
 			.map(extensionId => isString(extensionId) ? extensionId.toLowerCase() : extensionId);
 
 		return distinct(
-			flatten(await Promise.all([
+			(await Promise.all([
 				// Order is important
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
+			])).flat().filter(extensionId => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
 			), extensionId => extensionId.toLowerCase());
 	}
 
@@ -993,13 +993,13 @@ export class ExtensionsListView extends ViewPane {
 		const localExtensionIds = localExtensions.map(e => e.identifier.id.toLowerCase());
 
 		const allRecommendations = distinct(
-			flatten(await Promise.all([
+			(await Promise.all([
 				// Order is important
 				this.getWorkspaceRecommendations(),
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => {
+			])).flat().filter(extensionId => {
 				if (isString(extensionId)) {
 					return !localExtensionIds.includes(extensionId.toLowerCase());
 				}
