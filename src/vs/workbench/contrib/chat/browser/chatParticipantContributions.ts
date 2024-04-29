@@ -55,7 +55,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					type: 'boolean'
 				},
 				sampleRequest: {
-					description: localize('chatSampleRequest', "When the user clicks this participant in `/help`, this text will be submitted to this participant."),
+					description: localize('chatSampleRequest', "When the user clicks this participant in `/help`, this text will be submitted to the participant."),
 					type: 'string'
 				},
 				defaultImplicitVariables: {
