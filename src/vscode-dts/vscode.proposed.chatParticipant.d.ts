@@ -210,6 +210,11 @@ declare module 'vscode' {
 		} | ThemeIcon;
 
 		/**
+		 * When the user clicks this participant in `/help`, this text will be submitted to this participant.
+		 */
+		sampleRequest?: string;
+
+		/**
 		 * The handler for requests to this participant.
 		 */
 		requestHandler: ChatRequestHandler;
