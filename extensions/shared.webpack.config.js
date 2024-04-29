@@ -121,9 +121,14 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 			}
 		},
 		module: {
-			rules: [{
+			rules: [
+				{ 
+					test: /\.d\.ts$/,
+					type: 'asset/source'
+				},
+				{
 				test: /\.ts$/,
-				exclude: /node_modules/,
+				exclude: /node_modules|typings\/.*\.d\.ts$/, // Exclude node_modules and .d.ts files in the typings folder
 				use: [
 					{
 						// configure TypeScript loader:

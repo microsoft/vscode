@@ -49,7 +49,7 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 		const launchArgs = [
 			...args,
 			// Explicitly give TS Server its path so it can load local resources
-			'--executingFilePath', tsServerPath,
+						'--executingFilePath', tsServerPath,
 		];
 		if (_configuration.webTypeAcquisitionEnabled && supportsReadableByteStreams()) {
 			launchArgs.push('--experimentalTypeAcquisition');
