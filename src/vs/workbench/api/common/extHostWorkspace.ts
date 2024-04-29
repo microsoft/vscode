@@ -475,7 +475,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	private _parseIgnoreFileSettings(options: vscode.FindFiles2Options): {
-		disregardLocalIgnoreFiles: boolean | undefined;
+		disregardLocalIgnoreFiles: boolean | undefined; // in this case, undefined means to use the value from settings.
 		disregardParentIgnoreFiles: boolean | undefined;
 		disregardGlobalIgnoreFiles: boolean | undefined;
 	} {
@@ -518,6 +518,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					// SearchIgnoreOptions.followSettings also follows this
 					break;
 			}
+		} else {
+			// todo: remove once copilot chat moves off of deprecated options for ~1 month
+			disregardLocalIgnoreFiles = typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined;
+			disregardGlobalIgnoreFiles = typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined;
+			disregardParentIgnoreFiles = typeof options.useParentIgnoreFiles === 'boolean' ? !options.useParentIgnoreFiles : undefined;
 		}
 
 		return {
@@ -548,6 +553,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					// includes the case for ExcludeSettingOptions.searchAndFilesExclude
 					break;
 			}
+		} else {
+			// todo: remove once copilot chat moves off of deprecated options for ~1 month
+			disregardExcludeSettings = typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : false;
+			disregardSearchExcludeSettings = typeof options.useDefaultSearchExcludes === 'boolean' ? !options.useDefaultSearchExcludes : false;
 		}
 
 		return { disregardExcludeSettings, disregardSearchExcludeSettings };

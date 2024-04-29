@@ -42,6 +42,44 @@ declare module 'vscode' {
 		 * If `filePattern` is a {@link RelativePattern relative pattern}, then the fuzzy search will act on the `pattern` of the {@link RelativePattern RelativePattern}
 		 */
 		fuzzy?: boolean;
+
+		/**
+		 * Whether to use the values for files.exclude. Defaults to true.
+		 * @deprecated please use {@link FindFiles2Options.excludeSettings} instead.
+		 * */
+		useDefaultExcludes?: boolean;
+
+		/**
+		 * Whether to use the values for search.exclude. Defaults to true. Will not be followed if `useDefaultExcludes` is set to `false`.
+		 * @deprecated please use {@link FindFiles2Options.excludeSettings} instead.
+		 */
+		useDefaultSearchExcludes?: boolean;
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * Defaults to the value for `search.useIgnoreFiles` in settings.
+		 * For more info, see the setting listed above.
+		 * @deprecated please use {@link FindFiles2Options.ignoreFilesToUse} instead.
+		 */
+		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * Must set `useIgnoreFiles` to `true` to use this.
+		 * Defaults to the value for `search.useGlobalIgnoreFiles` in settings.
+		 * For more info, see the setting listed above.
+		 * @deprecated please use {@link FindFiles2Options.ignoreFilesToUse} instead.
+		 */
+		useGlobalIgnoreFiles?: boolean;
+
+		/**
+		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+		 * Must set `useIgnoreFiles` to `true` to use this.
+		 * Defaults to the value for `search.useParentIgnoreFiles` in settings.
+		 * For more info, see the setting listed above.
+		 * @deprecated please use {@link FindFiles2Options.ignoreFilesToUse} instead.
+		 */
+		useParentIgnoreFiles?: boolean;
 	}
 
 	/*
