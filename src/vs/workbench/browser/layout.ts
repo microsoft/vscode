@@ -1148,6 +1148,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)?.focus();
 				break;
 			}
+			case Parts.AUXILIARYBAR_PART: {
+				this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.focus();
+				break;
+			}
 			case Parts.ACTIVITYBAR_PART:
 				(this.getPart(Parts.SIDEBAR_PART) as SidebarPart).focusActivityBar();
 				break;
@@ -1673,7 +1677,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
-		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
@@ -2565,13 +2568,11 @@ class LayoutStateModel extends Disposable {
 	}
 
 	private updateStateFromLegacySettings(configurationChangeEvent: IConfigurationChangeEvent): void {
-		const isZenMode = this.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
-
-		if (configurationChangeEvent.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) && !isZenMode) {
+		if (configurationChangeEvent.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 			this.setRuntimeValueAndFire(LayoutStateKeys.ACTIVITYBAR_HIDDEN, this.isActivityBarHidden());
 		}
 
-		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE) && !isZenMode) {
+		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE)) {
 			this.setRuntimeValueAndFire(LayoutStateKeys.STATUSBAR_HIDDEN, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
 		}
 

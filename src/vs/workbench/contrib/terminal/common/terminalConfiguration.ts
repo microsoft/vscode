@@ -296,12 +296,11 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.GpuAcceleration]: {
 			type: 'string',
-			enum: ['auto', 'on', 'off', 'canvas'],
+			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
 				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
 				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
 				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal. The terminal will render much slower when GPU acceleration is off but it should reliably work on all systems."),
-				localize('terminal.integrated.gpuAcceleration.canvas', "Use the terminal's fallback canvas renderer which uses a 2d context instead of webgl which may perform better on some systems. Note that some features are limited in the canvas renderer like opaque selection.")
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
@@ -627,13 +626,6 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 100
 		},
-		[TerminalSettingId.ShellIntegrationSuggestEnabled]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
-			type: 'boolean',
-			default: false,
-			markdownDeprecationMessage: localize('suggestEnabled.deprecated', 'This is an experimental setting and may break the terminal! Use at your own risk.')
-		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
@@ -689,6 +681,33 @@ const terminalConfiguration: IConfigurationNode = {
 				: localize('terminal.integrated.mouseWheelZoom', "Zoom the font of the terminal when using mouse wheel and holding `Ctrl`."),
 			type: 'boolean',
 			default: false
+		},
+
+		// terminal.suggest.contribution
+		[TerminalSettingId.SuggestEnabled]: {
+			restricted: true,
+			markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+			type: 'boolean',
+			default: false,
+		},
+		[TerminalSettingId.SuggestEnabledLegacy]: {
+			restricted: true,
+			markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+			type: 'boolean',
+			default: false,
+			markdownDeprecationMessage: localize('suggest.enabled.deprecated', 'This setting is deprecated, please use `{0}` instead.', `\`#${TerminalSettingId.SuggestEnabled}#\``)
+		},
+		[TerminalSettingId.SuggestQuickSuggestions]: {
+			restricted: true,
+			markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSettingId.SuggestOnTriggerCharacters}#\``),
+			type: 'boolean',
+			default: true,
+		},
+		[TerminalSettingId.SuggestOnTriggerCharacters]: {
+			restricted: true,
+			markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
+			type: 'boolean',
+			default: true,
 		},
 	}
 };

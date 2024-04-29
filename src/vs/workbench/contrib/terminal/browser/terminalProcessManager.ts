@@ -285,7 +285,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
 							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-							suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
+							suggestEnabled: this._configurationService.getValue(TerminalSettingId.SuggestEnabled) || this._configurationService.getValue(TerminalSettingId.SuggestEnabledLegacy),
 							nonce: this.shellIntegrationNonce
 						},
 						windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,
@@ -485,7 +485,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const options: ITerminalProcessOptions = {
 			shellIntegration: {
 				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-				suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
+				suggestEnabled: this._configurationService.getValue(TerminalSettingId.SuggestEnabled) || this._configurationService.getValue(TerminalSettingId.SuggestEnabledLegacy),
 				nonce: this.shellIntegrationNonce
 			},
 			windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,

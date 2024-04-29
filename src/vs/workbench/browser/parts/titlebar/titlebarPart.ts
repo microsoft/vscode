@@ -8,7 +8,7 @@ import { localize, localize2 } from 'vs/nls';
 import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { getWCOBoundingRect, getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, hasCustomTitlebar, hasNativeTitlebar } from 'vs/platform/window/common/window';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -201,7 +201,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	get minimumHeight(): number {
 		const wcoEnabled = isWeb && isWCOEnabled();
-		let value = this.isCommandCenterVisible || wcoEnabled ? 35 : 30;
+		let value = this.isCommandCenterVisible || wcoEnabled ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 30;
 		if (wcoEnabled) {
 			value = Math.max(value, getWCOBoundingRect()?.height ?? 0);
 		}
