@@ -295,7 +295,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const renderDuration = stopWatch.elapsed();
 		if (renderDuration > 300) {
 			this.telemetryService.publicLog2<RenderMarkdownPerformanceEvent, RenderMarkdownPerformanceClassification>('parameterHints.parseMarkdown', {
-				renderDuration: stopWatch.elapsed()
+				renderDuration
 			});
 		}
 
