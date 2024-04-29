@@ -111,11 +111,16 @@ export const enum TerminalSettingId {
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
-	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
+
+	// terminal.suggest.contribution
+	SuggestEnabled = 'terminal.integrated.suggest.enabled',
+	SuggestEnabledLegacy = 'terminal.integrated.shellIntegration.suggestEnabled',
+	SuggestQuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
+	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 
 	// Debug settings that are hidden from user
 

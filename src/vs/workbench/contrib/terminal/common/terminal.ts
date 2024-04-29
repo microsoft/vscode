@@ -203,7 +203,13 @@ export interface ITerminalConfiguration {
 	shellIntegration?: {
 		enabled: boolean;
 		decorationsEnabled: boolean;
+		// TODO: Legacy - remove soon
 		suggestEnabled: boolean;
+	};
+	suggest?: {
+		enabled: boolean;
+		quickSuggestions: boolean;
+		suggestOnTriggerCharacters: boolean;
 	};
 	enableImages: boolean;
 	smoothScrolling: boolean;
