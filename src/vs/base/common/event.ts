@@ -1563,30 +1563,47 @@ export class DynamicListEventMultiplexer<TItem, TEventType> implements IDynamicL
  * // event will only be fired at this point
  * ```
  */
-export class EventBufferer {
+export class EventBufferer<T> {
 
-	private buffers: Function[][] = [];
+	private data: { buffers: Function[]; items: T[] }[] = [];
 
-	wrapEvent<T>(event: Event<T>): Event<T> {
+	wrapEvent<T>(event: Event<T>): Event<T>;
+	wrapEvent<T>(event: Event<T>, reduce: (last: T | undefined, event: T) => T): Event<T>;
+	wrapEvent<O>(event: Event<T>, reduce: (last: O | undefined, event: T) => O, initial: O): Event<O>;
+	wrapEvent<O>(event: Event<T>, reduce?: (last: T | O | undefined, event: T) => T | O, initial?: O): Event<O | T> {
 		return (listener, thisArgs?, disposables?) => {
 			return event(i => {
-				const buffer = this.buffers[this.buffers.length - 1];
-
-				if (buffer) {
-					buffer.push(() => listener.call(thisArgs, i));
+				const data = this.data[this.data.length - 1];
+				if (reduce) {
+					if (data) {
+						if (data.buffers.length === 0) {
+							if (initial) {
+								data.buffers.push(() => listener.call(thisArgs, data.items.reduce(reduce, initial)));
+							} else {
+								data.buffers.push(() => listener.call(thisArgs, data.items.reduce(reduce as (last: T | undefined, event: T) => T)));
+							}
+						}
+						data.items.push(i);
+					} else {
+						listener.call(thisArgs, reduce(initial, i));
+					}
 				} else {
-					listener.call(thisArgs, i);
+					if (data) {
+						data.buffers.push(() => listener.call(thisArgs, i));
+					} else {
+						listener.call(thisArgs, i);
+					}
 				}
 			}, undefined, disposables);
 		};
 	}
 
 	bufferEvents<R = void>(fn: () => R): R {
-		const buffer: Array<() => R> = [];
-		this.buffers.push(buffer);
+		const data = { buffers: new Array<Function>(), items: new Array<T>() };
+		this.data.push(data);
 		const r = fn();
-		this.buffers.pop();
-		buffer.forEach(flush => flush());
+		this.data.pop();
+		data.buffers.forEach(flush => flush());
 		return r;
 	}
 }
