@@ -6,9 +6,8 @@
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { Terminal } from '@xterm/xterm';
 
-import { fail, strictEqual } from 'assert';
+import { strictEqual } from 'assert';
 import { getActiveDocument } from 'vs/base/browser/dom';
-import { timeout } from 'vs/base/common/async';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService, type IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -22,16 +21,16 @@ import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/s
 import type { ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-import { events as windows11_pwsh_input_ls_complete_ls } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_input_ls_complete_ls';
-import { events as windows11_pwsh_getcontent_file } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_file';
 import { isWindows } from 'vs/base/common/platform';
+import { events as windows11_pwsh_getcontent_file } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_file';
+import { events as windows11_pwsh_input_ls_complete_ls } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_input_ls_complete_ls';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_file', events: windows11_pwsh_getcontent_file as any as RecordedSessionEvent[] }
 ];
 
-type RecordedSessionEvent = IRecordedSessionTerminalEvent | IRecordedSessionCommandEvent;
+type RecordedSessionEvent = IRecordedSessionTerminalEvent | IRecordedSessionCommandEvent | IRecordedSessionResizeEvent;
 
 interface IRecordedSessionTerminalEvent {
 	type: 'output' | 'input' | 'sendText' | 'promptInputChange';
@@ -41,6 +40,12 @@ interface IRecordedSessionTerminalEvent {
 interface IRecordedSessionCommandEvent {
 	type: 'command';
 	id: string;
+}
+
+interface IRecordedSessionResizeEvent {
+	type: 'resize';
+	cols: number;
+	rows: number;
 }
 
 suite.only('Terminal Contrib Suggest', () => {
@@ -92,13 +97,19 @@ suite.only('Terminal Contrib Suggest', () => {
 						event.type,
 						event.type === 'command'
 							? event.id
-							: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+/, '...')
+							: event.type === 'resize'
+								? `${event.cols}x${event.rows}`
+								: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
 					);
 					switch (event.type) {
+						case 'resize': {
+							xterm.resize(event.cols, event.rows);
+							break;
+						}
 						case 'output': {
 							await new Promise<void>(r => xterm.write(event.data, () => r()));
 							// HACK: On Windows if the output contains the command start sequence, allow time for the
-							//       prompt to get adjusted. Eventually we will be able to remove this, but right now
+							//       prompt to get adjusted. Eventually we should be able to remove this, but right now
 							//       a pause is required.
 							if (isWindows && event.data.includes('\x1b]633;B')) {
 								const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
@@ -120,6 +131,7 @@ suite.only('Terminal Contrib Suggest', () => {
 						case 'promptInputChange': {
 							const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
 							if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
+								console.log(promptInputModel.getCombinedString(), '!==', event.data);
 								await new Promise<void>(r => {
 									const d = promptInputModel.onDidChangeInput(() => {
 										if (promptInputModel.getCombinedString() === event.data) {

@@ -5,6 +5,11 @@
 /* eslint-disable */
 export const events = [
 	{
+		"type": "resize",
+		"cols": 120,
+		"rows": 30
+	},
+	{
 		"type": "output",
 		"data": "\u001b[?25l\u001b[2J\u001b[m\u001b[H\u001b]0;C:\\Program Files\\WindowsApps\\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\\pwsh.exe\u0007\u001b[?25h"
 	},

@@ -138,7 +138,16 @@ registerTerminalAction({
 				resolve();
 			};
 
+
 			const timer = store.add(new Delayer(5000));
+			store.add(Event.runAndSubscribe(instance.onDimensionsChanged, () => {
+				events.push({
+					type: 'resize',
+					cols: instance.cols,
+					rows: instance.rows
+				});
+				timer.trigger(endRecording);
+			}));
 			store.add(commandService.onWillExecuteCommand(e => {
 				events.push({
 					type: 'command',
