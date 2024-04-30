@@ -17,8 +17,9 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { asCssVariableName, chartsGreen, chartsRed, chartsYellow } from 'vs/platform/theme/common/colorRegistry';
-import { IExplorerFileContribution } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
+import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 import { ITestingCoverageBarThresholds, TestingConfigKeys, TestingDisplayedCoveragePercent, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { AbstractFileCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
@@ -224,6 +225,22 @@ const getOverallHoverText = (coverage: CoverageBarSource): IUpdatableHoverToolti
  */
 export class ExplorerTestCoverageBars extends ManagedTestCoverageBars implements IExplorerFileContribution {
 	private readonly resource = observableValue<URI | undefined>(this, undefined);
+	private static hasRegistered = false;
+	public static register() {
+		if (this.hasRegistered) {
+			return;
+		}
+
+		this.hasRegistered = true;
+		Registry.as<IExplorerFileContributionRegistry>(ExplorerExtensions.FileContributionRegistry).register({
+			create(insta, container) {
+				return insta.createInstance(
+					ExplorerTestCoverageBars,
+					{ compact: true, container }
+				);
+			},
+		});
+	}
 
 	constructor(
 		options: TestCoverageBarsOptions,
