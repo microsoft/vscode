@@ -161,6 +161,11 @@ class TerminalChatHintWidget extends Disposable {
 			});
 			this.commandService.executeCommand(TerminalChatCommandId.Start, { from: 'hint' });
 		};
+		this.toDispose.add(this.commandService.onDidExecuteCommand(e => {
+			if (e.commandId === TerminalChatCommandId.Start) {
+				this.dispose();
+			}
+		}));
 
 		const hintHandler: IContentActionHandler = {
 			disposables: this.toDispose,
