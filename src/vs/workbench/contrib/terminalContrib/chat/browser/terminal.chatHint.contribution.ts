@@ -239,7 +239,6 @@ class TerminalChatHintWidget extends Disposable {
 			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));
 
 			this.toDispose.add(dom.addDisposableListener(this.domNode, 'click', () => {
-				this._instance.focus();
 				this.domNode?.remove();
 				this.domNode = undefined;
 			}));
