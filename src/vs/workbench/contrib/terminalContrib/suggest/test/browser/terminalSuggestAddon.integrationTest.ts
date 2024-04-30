@@ -50,7 +50,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite.only('Terminal Contrib Suggest', () => {
+suite('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
@@ -89,76 +89,74 @@ suite.only('Terminal Contrib Suggest', () => {
 		xterm.loadAddon(suggestAddon);
 	});
 
-	suite('recordings', () => {
-		for (const testCase of recordedTestCases) {
-			test(testCase.name, async () => {
-				const suggestDataEvents: string[] = [];
-				store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
-				for (const event of testCase.events) {
-					// console.log(
-					// 	event.type,
-					// 	event.type === 'command'
-					// 		? event.id
-					// 		: event.type === 'resize'
-					// 			? `${event.cols}x${event.rows}`
-					// 			: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
-					// );
-					switch (event.type) {
-						case 'resize': {
-							xterm.resize(event.cols, event.rows);
-							break;
-						}
-						case 'output': {
-							await new Promise<void>(r => xterm.write(event.data, () => r()));
-							// HACK: On Windows if the output contains the command start sequence, allow time for the
-							//       prompt to get adjusted. Eventually we should be able to remove this, but right now
-							//       a pause is required.
-							if (isWindows && event.data.includes('\x1b]633;B')) {
-								const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-								if (commandDetection) {
-									await new Promise<void>(r => {
-										const d = commandDetection.onCommandStarted(() => {
-											d.dispose();
-											r();
-										});
-									});
-								}
-							}
-							break;
-						}
-						case 'input': {
-							xterm.input(event.data, true);
-							break;
-						}
-						case 'promptInputChange': {
-							const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
-							if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
-								console.log(promptInputModel.getCombinedString(), '!==', event.data);
+	for (const testCase of recordedTestCases) {
+		test(testCase.name, async () => {
+			const suggestDataEvents: string[] = [];
+			store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
+			for (const event of testCase.events) {
+				// console.log(
+				// 	event.type,
+				// 	event.type === 'command'
+				// 		? event.id
+				// 		: event.type === 'resize'
+				// 			? `${event.cols}x${event.rows}`
+				// 			: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
+				// );
+				switch (event.type) {
+					case 'resize': {
+						xterm.resize(event.cols, event.rows);
+						break;
+					}
+					case 'output': {
+						await new Promise<void>(r => xterm.write(event.data, () => r()));
+						// HACK: On Windows if the output contains the command start sequence, allow time for the
+						//       prompt to get adjusted. Eventually we should be able to remove this, but right now
+						//       a pause is required.
+						if (isWindows && event.data.includes('\x1b]633;B')) {
+							const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
+							if (commandDetection) {
 								await new Promise<void>(r => {
-									const d = promptInputModel.onDidChangeInput(() => {
-										if (promptInputModel.getCombinedString() === event.data) {
-											d.dispose();
-											r();
-										}
+									const d = commandDetection.onCommandStarted(() => {
+										d.dispose();
+										r();
 									});
 								});
 							}
-							break;
 						}
-						case 'sendText': {
-							strictEqual(suggestDataEvents.at(-1), event.data);
-							break;
+						break;
+					}
+					case 'input': {
+						xterm.input(event.data, true);
+						break;
+					}
+					case 'promptInputChange': {
+						const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
+						if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
+							console.log(promptInputModel.getCombinedString(), '!==', event.data);
+							await new Promise<void>(r => {
+								const d = promptInputModel.onDidChangeInput(() => {
+									if (promptInputModel.getCombinedString() === event.data) {
+										d.dispose();
+										r();
+									}
+								});
+							});
 						}
-						case 'command': {
-							switch (event.id) {
-								case TerminalSuggestCommandId.AcceptSelectedSuggestion:
-									suggestAddon.acceptSelectedSuggestion();
-									break;
-							}
+						break;
+					}
+					case 'sendText': {
+						strictEqual(suggestDataEvents.at(-1), event.data);
+						break;
+					}
+					case 'command': {
+						switch (event.id) {
+							case TerminalSuggestCommandId.AcceptSelectedSuggestion:
+								suggestAddon.acceptSelectedSuggestion();
+								break;
 						}
 					}
 				}
-			});
-		}
-	});
+			}
+		});
+	}
 });
