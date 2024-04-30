@@ -302,7 +302,7 @@ class CellOutputElement extends Disposable {
 		const toolbar = this._renderDisposableStore.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
 		}));
-		toolbar.context = <INotebookOutputActionContext>{
+		toolbar.context = {
 			ui: true,
 			cell: this.output.cellViewModel as ICellViewModel,
 			outputViewModel: this.output,
