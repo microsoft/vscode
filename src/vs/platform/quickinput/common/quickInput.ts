@@ -354,6 +354,48 @@ export enum ItemActivation {
 }
 
 /**
+ * Represents the focus options for a quick pick.
+ */
+export enum QuickPickFocus {
+	/**
+	 * Focus the first item in the list.
+	 */
+	First = 1,
+	/**
+	 * Focus the second item in the list.
+	 */
+	Second,
+	/**
+	 * Focus the last item in the list.
+	 */
+	Last,
+	/**
+	 * Focus the next item in the list.
+	 */
+	Next,
+	/**
+	 * Focus the previous item in the list.
+	 */
+	Previous,
+	/**
+	 * Focus the next page in the list.
+	 */
+	NextPage,
+	/**
+	 * Focus the previous page in the list.
+	 */
+	PreviousPage,
+	/**
+	 * Focus the first item under the next separator.
+	 */
+	NextSeparator,
+	/**
+	 * Focus the first item under the current separator.
+	 */
+	PreviousSeparator
+}
+
+/**
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
@@ -556,6 +598,12 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * The toggle buttons to be added to the input box.
 	 */
 	toggles: IQuickInputToggle[] | undefined;
+
+	/**
+	 * Focus a particular item in the list. Used internally for keyboard navigation.
+	 * @param focus The focus behavior.
+	 */
+	focus(focus: QuickPickFocus): void;
 }
 
 /**
@@ -814,4 +862,9 @@ export interface IQuickInputService {
 	 * Cancels quick input and closes it.
 	 */
 	cancel(): Promise<void>;
+
+	/**
+	 * The current quick pick that is visible. Undefined if none is open.
+	 */
+	currentQuickInput: IQuickInput | undefined;
 }
