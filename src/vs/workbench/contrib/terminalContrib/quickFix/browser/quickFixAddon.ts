@@ -36,8 +36,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
+const enum QuickFixDecorationSelector {
+	QuickFix = 'quick-fix'
+}
+
 const quickFixClasses = [
-	DecorationSelector.QuickFix,
+	QuickFixDecorationSelector.QuickFix,
 	DecorationSelector.Codicon,
 	DecorationSelector.CommandDecoration,
 	DecorationSelector.XtermDecoration
@@ -268,7 +272,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				height: rect.height
 			};
 
-			if (e.classList.contains(DecorationSelector.QuickFix)) {
+			if (e.classList.contains(QuickFixDecorationSelector.QuickFix)) {
 				if (this._currentRenderContext) {
 					this._currentRenderContext.anchor = anchor;
 				}

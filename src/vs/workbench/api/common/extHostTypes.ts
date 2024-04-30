@@ -4484,6 +4484,12 @@ export enum SpeechToTextStatus {
 	Error = 5
 }
 
+export enum TextToSpeechStatus {
+	Started = 1,
+	Stopped = 2,
+	Error = 3
+}
+
 export enum KeywordRecognitionStatus {
 	Recognized = 1,
 	Stopped = 2

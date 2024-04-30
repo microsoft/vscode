@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import * as dom from 'vs/base/browser/dom';
-import { DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { localize2 } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
-import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
+import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { localize2 } from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
+import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest';
+
+// #region Terminal Contributions
 
 class TerminalSuggestContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.suggest';
@@ -84,9 +87,12 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestContribution);
 
-// Actions
+// #endregion
+
+// #region Actions
+
 registerActiveInstanceAction({
-	id: TerminalCommandId.SelectPrevSuggestion,
+	id: TerminalSuggestCommandId.SelectPrevSuggestion,
 	title: localize2('workbench.action.terminal.selectPrevSuggestion', 'Select the Previous Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
@@ -99,7 +105,7 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalCommandId.SelectPrevPageSuggestion,
+	id: TerminalSuggestCommandId.SelectPrevPageSuggestion,
 	title: localize2('workbench.action.terminal.selectPrevPageSuggestion', 'Select the Previous Page Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
@@ -112,7 +118,7 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalCommandId.SelectNextSuggestion,
+	id: TerminalSuggestCommandId.SelectNextSuggestion,
 	title: localize2('workbench.action.terminal.selectNextSuggestion', 'Select the Next Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
@@ -125,7 +131,7 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalCommandId.SelectNextPageSuggestion,
+	id: TerminalSuggestCommandId.SelectNextPageSuggestion,
 	title: localize2('workbench.action.terminal.selectNextPageSuggestion', 'Select the Next Page Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
@@ -138,7 +144,7 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalCommandId.AcceptSelectedSuggestion,
+	id: TerminalSuggestCommandId.AcceptSelectedSuggestion,
 	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Accept Selected Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
@@ -152,7 +158,7 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalCommandId.HideSuggestWidget,
+	id: TerminalSuggestCommandId.HideSuggestWidget,
 	title: localize2('workbench.action.terminal.hideSuggestWidget', 'Hide Suggest Widget'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
@@ -163,3 +169,5 @@ registerActiveInstanceAction({
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget()
 });
+
+// #endregion

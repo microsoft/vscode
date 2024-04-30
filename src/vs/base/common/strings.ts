@@ -786,6 +786,14 @@ export function* forAnsiStringParts(str: string) {
 	}
 }
 
+/**
+ * Strips ANSI escape sequences from a string.
+ * @param str The dastringa stringo strip the ANSI escape sequences from.
+ *
+ * @example
+ * removeAnsiEscapeCodes('\u001b[31mHello, World!\u001b[0m');
+ * // 'Hello, World!'
+ */
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
 		str = str.replace(CSI_SEQUENCE, '');
@@ -793,6 +801,21 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 	return str;
 }
+
+const PROMPT_NON_PRINTABLE = /\\\[.*?\\\]/g;
+
+/**
+ * Strips ANSI escape sequences from a UNIX-style prompt string (eg. `$PS1`).
+ * @param str The string to strip the ANSI escape sequences from.
+ *
+ * @example
+ * removeAnsiEscapeCodesFromPrompt('\n\\[\u001b[01;34m\\]\\w\\[\u001b[00m\\]\n\\[\u001b[1;32m\\]> \\[\u001b[0m\\]');
+ * // '\n\\w\n> '
+ */
+export function removeAnsiEscapeCodesFromPrompt(str: string): string {
+	return removeAnsiEscapeCodes(str).replace(PROMPT_NON_PRINTABLE, '');
+}
+
 
 // -- UTF-8 BOM
 

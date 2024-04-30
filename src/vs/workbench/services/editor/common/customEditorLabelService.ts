@@ -139,7 +139,10 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		for (const pattern of this.patterns) {
 			let relevantPath: string;
 			if (root && !pattern.isAbsolutePath) {
-				relevantPath = relativePath ?? getRelativePath(resourceDirname(root.uri), resource) ?? resource.path;
+				if (!relativePath) {
+					relativePath = getRelativePath(resourceDirname(root.uri), resource) ?? resource.path;
+				}
+				relevantPath = relativePath;
 			} else {
 				relevantPath = resource.path;
 			}
@@ -186,7 +189,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		if (n < 0) {
 			nth = Math.abs(n) - 1;
 		} else {
-			nth = length - 1 - n - 1; // -1 for the filename, -1 for 0-based index
+			nth = length - n - 1;
 		}
 
 		const nthDir = pathFragments[nth];
