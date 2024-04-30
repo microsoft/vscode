@@ -136,7 +136,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _handleCommandStart(command: { marker: IMarker }) {
+		console.log('PromptInputModel#_handleCommandStart');
 		if (this._state === PromptInputState.Input) {
+			console.log('  exit');
 			return;
 		}
 
@@ -174,12 +176,15 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	@throttle(0)
 	private _sync() {
+		console.log('PromptInputModel._sync', this.getCombinedString());
 		if (this._state !== PromptInputState.Input) {
+			console.log(-1);
 			return;
 		}
 
 		const commandStartY = this._commandStartMarker?.line;
 		if (commandStartY === undefined) {
+			console.log(0);
 			return;
 		}
 
@@ -187,6 +192,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		let line = buffer.getLine(commandStartY);
 		const commandLine = line?.translateToString(true, this._commandStartX);
 		if (!line || commandLine === undefined) {
+			console.log(1);
 			this._logService.trace(`PromptInputModel#_sync: no line`);
 			return;
 		}
@@ -243,7 +249,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			this._logService.trace(`PromptInputModel#_sync: ${this.getCombinedString()}`);
 		}
 
+		console.log('  PromptInputModel result', this.getCombinedString());
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
+			console.log('  PromptInputModel fire!', this.getCombinedString());
 			this._value = value;
 			this._cursorIndex = cursorIndex;
 			this._ghostTextIndex = ghostTextIndex;
