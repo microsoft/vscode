@@ -288,6 +288,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 	constructor(
 		private _getEntries: () => OutlineEntry[],
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
@@ -299,7 +300,25 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		const result: IQuickPickOutlineElement<OutlineEntry>[] = [];
 		const { hasFileIcons } = this._themeService.getFileIconTheme();
 
-		for (const element of bucket) {
+		const showSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
+		for (let i = 0; i < bucket.length; i++) {
+			const element = bucket[i];
+			const nextElement = bucket[i + 1];
+
+			// this logic controls the following for code cells entries in quick pick:
+			if (element.cell.cellKind === CellKind.Code) {
+				// if we are showing all symbols, and
+				// 		- the next entry is a symbol, we DO NOT include the code cell entry (ie continue)
+				//		- the next entry is not a symbol, we DO include the code cell entry (ie push as normal in the loop)
+				if (showSymbols && element.level === NotebookOutlineConstants.NonHeaderOutlineLevel && (nextElement?.level > NotebookOutlineConstants.NonHeaderOutlineLevel)) {
+					continue;
+				}
+				// if we are not showing all symbols, skip all entries with level > NonHeaderOutlineLevel (ie 8+)
+				else if (!showSymbols && element.level > NotebookOutlineConstants.NonHeaderOutlineLevel) {
+					continue;
+				}
+			}
+
 			const useFileIcon = hasFileIcons && !element.symbolKind;
 			// todo@jrieken it is fishy that codicons cannot be used with iconClasses
 			// but file icons can...
