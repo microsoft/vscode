@@ -31,12 +31,13 @@ import { status } from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 const $ = dom.$;
 
 class TerminalChatHintContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chatHint';
 
-	private _widgetElement: HTMLElement | undefined;
+	private _hintWidget: HTMLElement | undefined;
 
 	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalChatHintContribution | null {
 		return instance.getContribution<TerminalChatHintContribution>(TerminalChatHintContribution.ID);
@@ -56,7 +57,7 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 		super();
 	}
 
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		if (this._terminalService.instances.length !== 1) {
 			// only show for the first terminal
 			return;
@@ -70,17 +71,19 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 				if (e.capability.type === TerminalCapability.CommandDetection) {
 					const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 					this._register(Event.once(capability!.promptInputModel.onDidStartInput)(() => this._addChatHint()));
+					if (!capability!.promptInputModel.value) {
+						this._addChatHint();
+					}
 				}
 			}));
 		}
 
-		if (!this._chatHint && ![...this._inlineChatService.getAllProvider()].length) {
-			this._register(Event.once(this._inlineChatService.onDidChangeProviders)(() => this._addChatHint()));
-		}
+		this._register(Event.once(this._inlineChatService.onDidChangeProviders)(() => this._addChatHint()));
 	}
 
 	private _addChatHint(): void {
-		if (!this._xterm || this._widgetElement || this._instance.capabilities.get(TerminalCapability.CommandDetection)?.hasInput) {
+		const instance = this._instance instanceof TerminalInstance ? this._instance : undefined;
+		if (!instance || !this._xterm || this._hintWidget || instance?.capabilities.get(TerminalCapability.CommandDetection)?.hasInput) {
 			return;
 		}
 
@@ -102,15 +105,18 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 
 		this._register(this._xterm.raw.onKey(() => this._chatHint?.dispose()));
 		this._chatHint?.onRender((e) => {
-			if (!this._widgetElement) {
-				const widget = this._instantiationService.createInstance(TerminalChatHintWidget, this._instance as ITerminalInstance);
-				this._widgetElement = widget.getDomNode();
-				if (!this._widgetElement) {
-					return;
+			if (!this._hintWidget && this._xterm?.isFocused && this._terminalService.instances.length === 1) {
+				const chatProviders = [...this._inlineChatService.getAllProvider()];
+				if (chatProviders?.length) {
+					const widget = this._instantiationService.createInstance(TerminalChatHintWidget, instance);
+					this._hintWidget = widget.getDomNode(chatProviders);
+					if (!this._hintWidget) {
+						return;
+					}
+					e.appendChild(this._hintWidget);
+					e.classList.add('terminal-chat-hint');
+					e.style.width = (this._xterm!.raw.cols - this._xterm!.raw.buffer.active.cursorX) / this._xterm!.raw.cols * 100 + '%';
 				}
-				e.appendChild(this._widgetElement);
-				e.classList.add('terminal-chat-hint');
-				e.style.width = (this._xterm!.raw.cols - this._xterm!.raw.buffer.active.cursorX) / this._xterm!.raw.cols * 100 + '%';
 			}
 		});
 	}
@@ -132,7 +138,6 @@ class TerminalChatHintWidget extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService
 	) {
@@ -171,7 +176,6 @@ class TerminalChatHintWidget extends Disposable {
 		const hintElement = $('terminal-chat-hint');
 		hintElement.style.display = 'block';
 
-		// TODO: why is this null if I use the terminal chat start command ID?
 		const keybindingHint = this.keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
 		const keybindingHintLabel = keybindingHint?.getLabel();
 
@@ -219,18 +223,14 @@ class TerminalChatHintWidget extends Disposable {
 	}
 
 
-	getDomNode(): HTMLElement | undefined {
+	getDomNode(providers: IInlineChatSessionProvider[]): HTMLElement {
 		if (!this.domNode) {
 			this.domNode = $('.terminal-chat-hint');
 			this.domNode!.style.width = 'max-content';
 			this.domNode!.style.paddingLeft = '4px';
 
-			const inlineChatProviders = [...this._inlineChatService.getAllProvider()];
-			if (!inlineChatProviders.length) {
-				return;
-			}
-			const { hintElement, ariaLabel } = this._getHintInlineChat(inlineChatProviders);
-			this.domNode!.append(hintElement);
+			const { hintElement, ariaLabel } = this._getHintInlineChat(providers);
+			this.domNode.append(hintElement);
 			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));
 
 			this.toDispose.add(dom.addDisposableListener(this.domNode, 'click', () => {
