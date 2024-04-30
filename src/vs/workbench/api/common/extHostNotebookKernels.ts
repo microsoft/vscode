@@ -433,6 +433,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (obj.controller.interruptHandler) {
 			// If we're interrupting all cells, we also need to cancel the notebook level execution.
 			const items = this._activeNotebookExecutions.get(document.uri);
+			this._activeNotebookExecutions.delete(document.uri);
 			if (handles.length && Array.isArray(items) && items.length) {
 				items.forEach(d => d.dispose());
 			}
