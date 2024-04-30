@@ -42,6 +42,10 @@ import { getActiveWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { shouldUseEnvironmentVariableCollection } from 'vs/platform/terminal/common/terminalEnvironment';
 
+// HACK: This file should not depend on terminalContrib
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalSuggestSettingId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
+
 const enum ProcessConstants {
 	/**
 	 * The amount of time to consider terminal errors to be related to the launch.
@@ -285,7 +289,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
 							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-							suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
+							suggestEnabled: this._configurationService.getValue(TerminalSuggestSettingId.Enabled) || this._configurationService.getValue(TerminalSuggestSettingId.EnabledLegacy),
 							nonce: this.shellIntegrationNonce
 						},
 						windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,
@@ -485,7 +489,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const options: ITerminalProcessOptions = {
 			shellIntegration: {
 				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-				suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
+				suggestEnabled: this._configurationService.getValue(TerminalSuggestSettingId.Enabled) || this._configurationService.getValue(TerminalSuggestSettingId.EnabledLegacy),
 				nonce: this.shellIntegrationNonce
 			},
 			windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,

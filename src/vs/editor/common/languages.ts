@@ -19,7 +19,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
-import { LanguageFilter } from 'vs/editor/common/languageSelector';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -1068,7 +1068,7 @@ export interface DocumentHighlightProvider {
  * A provider that can provide document highlights across multiple documents.
  */
 export interface MultiDocumentHighlightProvider {
-	selector: LanguageFilter;
+	readonly selector: LanguageSelector;
 
 	/**
 	 * Provide a Map of URI --> document highlights, like all occurrences of a variable or

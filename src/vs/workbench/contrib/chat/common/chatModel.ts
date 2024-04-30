@@ -227,10 +227,14 @@ export class Response implements IResponse {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
 				return '';
+			} else if (part.kind === 'progressMessage') {
+				return '';
 			} else {
 				return part.content.value;
 			}
-		}).join('\n\n');
+		})
+			.filter(s => s.length > 0)
+			.join('\n\n');
 
 		if (!quiet) {
 			this._onDidChangeValue.fire();
@@ -672,6 +676,16 @@ export class ChatModel extends Disposable implements IChatModel {
 				...(raw as any),
 				name: (raw as any).id,
 			};
+
+		// Fill in required fields that may be missing from old data
+		if (!('extensionPublisherId' in agent)) {
+			agent.extensionPublisherId = agent.extensionPublisher ?? '';
+		}
+
+		if (!('extensionDisplayName' in agent)) {
+			agent.extensionDisplayName = '';
+		}
+
 		return revive(agent);
 	}
 
@@ -847,7 +861,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent,
+					agent: r.response?.agent ? { ...r.response.agent } : undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences

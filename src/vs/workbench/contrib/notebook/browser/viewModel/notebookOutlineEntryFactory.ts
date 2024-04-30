@@ -45,7 +45,7 @@ function getMarkdownHeadersInCellFallbackToHtmlTags(fullContent: string) {
 export class NotebookOutlineEntryFactory {
 
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
-	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number, text: string }[] }>();
+	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number; text: string }[] }>();
 	constructor(
 		private readonly executionStateService: INotebookExecutionStateService
 	) { }

@@ -835,13 +835,14 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Side-by-side editors get special treatment: we try to distill the
 			// possibly untyped resource inputs from both sides to be able to
-			// offer these entries from the history to the user still.
+			// offer these entries from the history to the user still unless
+			// they are excluded.
 			else {
 				const resourceInputs: IResourceEditorInput[] = [];
 				const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
 				for (const sideInput of sideInputs) {
 					const candidateResourceInput = this.editorHelper.preferResourceEditorInput(sideInput);
-					if (isResourceEditorInput(candidateResourceInput)) {
+					if (isResourceEditorInput(candidateResourceInput) && this.includeInHistory(candidateResourceInput)) {
 						resourceInputs.push(candidateResourceInput);
 					}
 				}

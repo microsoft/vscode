@@ -556,6 +556,16 @@ async fn serve_with_csa(
 		match acquire_singleton(&paths.tunnel_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
+				if gateway_args.name.is_none()
+					|| !gateway_args.install_extension.is_empty()
+					|| gateway_args.tunnel.tunnel_id.is_some()
+				{
+					warning!(
+						log,
+						"Command-line options will not be applied until the existing tunnel exits."
+					);
+				}
+
 				let should_exit = start_singleton_client(SingletonClientArgs {
 					log: log.clone(),
 					shutdown: shutdown.clone(),
