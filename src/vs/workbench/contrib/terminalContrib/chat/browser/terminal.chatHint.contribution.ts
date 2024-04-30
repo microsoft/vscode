@@ -8,7 +8,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import type { Terminal as RawXtermTerminal, IDecoration } from '@xterm/xterm';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -30,12 +30,13 @@ import { IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/con
 import { status } from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 const $ = dom.$;
 
 class TerminalChatHintContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chatHint';
 
-	private _widget: TerminalChatHintWidget | undefined;
+	private _widgetElement: HTMLElement | undefined;
 
 	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalChatHintContribution | null {
 		return instance.getContribution<TerminalChatHintContribution>(TerminalChatHintContribution.ID);
@@ -49,21 +50,26 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 		processManager: ITerminalProcessManager | ITerminalProcessInfo,
 		widgetManager: TerminalWidgetManager,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		if (this._terminalService.instances.length !== 1) {
+			// only show for the first terminal
+			return;
+		}
 		this._xterm = xterm;
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (capability) {
-			this._register(Event.once(capability.onCommandStarted)(() => this._addChatHint()));
+			this._register(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
 		} else {
 			this._register(this._instance.capabilities.onDidAddCapability(e => {
 				if (e.capability.type === TerminalCapability.CommandDetection) {
 					const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-					this._register(Event.once(capability!.onCommandStarted)(() => this._addChatHint()));
+					this._register(Event.once(capability!.promptInputModel.onDidStartInput)(() => this._addChatHint()));
 				}
 			}));
 		}
@@ -74,33 +80,35 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 	}
 
 	private _addChatHint(): void {
-		if (!this._xterm || this._chatHint || this._instance.capabilities.get(TerminalCapability.CommandDetection)?.hasInput) {
+		if (!this._xterm || this._widgetElement || this._instance.capabilities.get(TerminalCapability.CommandDetection)?.hasInput) {
 			return;
 		}
 
-		const marker = this._xterm.raw.registerMarker();
-		if (!marker) {
-			return;
+		if (!this._chatHint) {
+			const marker = this._xterm.raw.registerMarker();
+			if (!marker) {
+				return;
+			}
+
+			if (this._xterm.raw.buffer.active.cursorX === 0) {
+				return;
+			}
+			this._register(marker);
+			this._chatHint = this._xterm.raw.registerDecoration({
+				marker,
+				x: this._xterm.raw.buffer.active.cursorX + 1
+			});
 		}
 
-		if (this._xterm.raw.buffer.active.cursorX === 0) {
-			return;
-		}
-		this._register(marker);
-		this._chatHint = this._xterm.raw.registerDecoration({
-			marker,
-			x: this._xterm.raw.buffer.active.cursorX + 1
-		});
-		// TODO use prompt input model
 		this._register(this._xterm.raw.onKey(() => this._chatHint?.dispose()));
 		this._chatHint?.onRender((e) => {
-			if (!this._widget) {
-				this._widget = this._instantiationService.createInstance(TerminalChatHintWidget, this._instance as ITerminalInstance);
-				const node = this._widget.getDomNode();
-				if (!node) {
+			if (!this._widgetElement) {
+				const widget = this._instantiationService.createInstance(TerminalChatHintWidget, this._instance as ITerminalInstance);
+				this._widgetElement = widget.getDomNode();
+				if (!this._widgetElement) {
 					return;
 				}
-				e.appendChild(node);
+				e.appendChild(this._widgetElement);
 				e.classList.add('terminal-chat-hint');
 				e.style.width = (this._xterm!.raw.cols - this._xterm!.raw.buffer.active.cursorX) / this._xterm!.raw.cols * 100 + '%';
 			}
@@ -139,7 +147,6 @@ class TerminalChatHintWidget extends Disposable {
 	private _getHintInlineChat(providers: IInlineChatSessionProvider[]) {
 		const providerName = (providers.length === 1 ? providers[0].label : undefined) ?? this.productService.nameShort;
 
-		const inlineChatId = 'inlineChat.start';
 		let ariaLabel = `Ask ${providerName} something or start typing to dismiss.`;
 
 		const handleClick = () => {
@@ -147,7 +154,7 @@ class TerminalChatHintWidget extends Disposable {
 				id: 'inlineChat.hintAction',
 				from: 'hint'
 			});
-			this.commandService.executeCommand(inlineChatId, { from: 'hint' });
+			this.commandService.executeCommand(TerminalChatCommandId.Start, { from: 'hint' });
 		};
 
 		const hintHandler: IContentActionHandler = {
@@ -164,24 +171,19 @@ class TerminalChatHintWidget extends Disposable {
 		const hintElement = $('terminal-chat-hint');
 		hintElement.style.display = 'block';
 
-		const keybindingHint = this.keybindingService.lookupKeybinding(inlineChatId);
+		// TODO: why is this null if I use the terminal chat start command ID?
+		const keybindingHint = this.keybindingService.lookupKeybinding('inlineChat.start');
 		const keybindingHintLabel = keybindingHint?.getLabel();
 
 		if (keybindingHint && keybindingHintLabel) {
 			const actionPart = localize('emptyHintText', 'Press {0} to ask {1} to do something. ', keybindingHintLabel, providerName);
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
-				// if (this.options.clickable) {
 				const hintPart = $('a', undefined, fragment);
 				hintPart.style.fontStyle = 'italic';
 				hintPart.style.cursor = 'pointer';
 				this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
 				return hintPart;
-				// } else {
-				// 	const hintPart = $('span', undefined, fragment);
-				// 	hintPart.style.fontStyle = 'italic';
-				// 	return hintPart;
-				// }
 			});
 
 			hintElement.appendChild(before);
@@ -191,10 +193,8 @@ class TerminalChatHintWidget extends Disposable {
 			label.element.style.width = 'min-content';
 			label.element.style.display = 'inline';
 
-			// if (this.options.clickable) {
-			// 	label.element.style.cursor = 'pointer';
-			// 	this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
-			// }
+			label.element.style.cursor = 'pointer';
+			this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
 
 			hintElement.appendChild(after);
 
@@ -235,9 +235,10 @@ class TerminalChatHintWidget extends Disposable {
 
 			this.toDispose.add(dom.addDisposableListener(this.domNode, 'click', () => {
 				this._instance.focus();
+				this.domNode?.remove();
+				this.domNode = undefined;
 			}));
 
-			// this.editor.applyFontInfo(this.domNode);
 		}
 
 		return this.domNode;
@@ -245,7 +246,7 @@ class TerminalChatHintWidget extends Disposable {
 
 
 	override dispose(): void {
-		// this.editor.removeContentWidget(this);
+		this.domNode?.remove();
 		super.dispose();
 	}
 }
