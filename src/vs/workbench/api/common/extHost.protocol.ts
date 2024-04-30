@@ -1598,7 +1598,8 @@ export interface MainThreadWindowShape extends IDisposable {
 export enum CandidatePortSource {
 	None = 0,
 	Process = 1,
-	Output = 2
+	Output = 2,
+	Hybrid = 3
 }
 
 export interface PortAttributesSelector {
