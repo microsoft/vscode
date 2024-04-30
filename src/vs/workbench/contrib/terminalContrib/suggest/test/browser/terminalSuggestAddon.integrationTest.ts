@@ -24,10 +24,12 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 import { isWindows } from 'vs/base/common/platform';
 import { events as windows11_pwsh_getcontent_file } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_file';
 import { events as windows11_pwsh_input_ls_complete_ls } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_input_ls_complete_ls';
+import { events as windows11_pwsh_namespace_completion } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_namespace_completion';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
+	{ name: 'windows11_pwsh_getcontent_file', events: windows11_pwsh_getcontent_file as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
-	{ name: 'windows11_pwsh_getcontent_file', events: windows11_pwsh_getcontent_file as any as RecordedSessionEvent[] }
+	{ name: 'windows11_pwsh_namespace_completion', events: windows11_pwsh_namespace_completion as any as RecordedSessionEvent[] }
 ];
 
 type RecordedSessionEvent = IRecordedSessionTerminalEvent | IRecordedSessionCommandEvent | IRecordedSessionResizeEvent;
@@ -93,14 +95,14 @@ suite.only('Terminal Contrib Suggest', () => {
 				const suggestDataEvents: string[] = [];
 				store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
 				for (const event of testCase.events) {
-					console.log(
-						event.type,
-						event.type === 'command'
-							? event.id
-							: event.type === 'resize'
-								? `${event.cols}x${event.rows}`
-								: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
-					);
+					// console.log(
+					// 	event.type,
+					// 	event.type === 'command'
+					// 		? event.id
+					// 		: event.type === 'resize'
+					// 			? `${event.cols}x${event.rows}`
+					// 			: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
+					// );
 					switch (event.type) {
 						case 'resize': {
 							xterm.resize(event.cols, event.rows);
