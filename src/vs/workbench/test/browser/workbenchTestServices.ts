@@ -914,6 +914,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
 	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
 	onDidActiveEditorChange: Event<IActiveEditorChangeEvent> = Event.None;
+	onDidChangeSelection: Event<EditorInput[]> = Event.None;
 
 	getEditors(_order?: EditorsOrder): readonly EditorInput[] { return []; }
 	findEditors(_resource: URI): readonly EditorInput[] { return []; }
@@ -927,6 +928,12 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isSticky(_editor: EditorInput): boolean { return false; }
 	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
+	selectEditor(editor: EditorInput): void { }
+	selectEditorsUntil(editor: EditorInput): void { }
+	unSelectEditor(editor: EditorInput): void { }
+	unSelectAllEditors(): void { }
+	isSelected(editor: EditorInput): boolean { return false; }
+	getSelectedEditors(): EditorInput[] { return []; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): boolean { return true; }
 	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): boolean { return true; }

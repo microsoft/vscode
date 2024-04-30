@@ -249,6 +249,8 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
+	readonly onDidChangeSelection: Event<EditorInput[]>;
+
 	readonly groupsView: IEditorGroupsView;
 
 	/**

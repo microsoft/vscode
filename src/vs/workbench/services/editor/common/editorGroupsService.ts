@@ -767,6 +767,13 @@ export interface IEditorGroup {
 	 */
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
 
+	selectEditor(editor: EditorInput): void;
+	selectEditorsUntil(editor: EditorInput): void;
+	unSelectEditor(editor: EditorInput): void;
+	unSelectAllEditors(): void;
+	isSelected(editor: EditorInput): boolean;
+	getSelectedEditors(): EditorInput[];
+
 	/**
 	 * Find out if a certain editor is included in the group.
 	 *

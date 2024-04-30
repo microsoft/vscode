@@ -656,36 +656,42 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 	}
 }
 
-export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, context?: IEditorCommandsContext): void {
-	let sourceGroup: IEditorGroup | undefined;
-	if (context && typeof context.groupId === 'number') {
-		sourceGroup = editorGroupService.getGroup(context.groupId);
-	} else {
-		sourceGroup = editorGroupService.activeGroup;
-	}
+export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, contexts?: (IEditorCommandsContext | undefined)[]): void {
+	let newGroup: IEditorGroup | undefined;
 
-	if (!sourceGroup) {
-		return;
-	}
+	for (const context of contexts ?? [undefined]) {
+		let sourceGroup: IEditorGroup | undefined;
+		if (context && typeof context.groupId === 'number') {
+			sourceGroup = editorGroupService.getGroup(context.groupId);
+		} else {
+			sourceGroup = editorGroupService.activeGroup;
+		}
 
-	// Add group
-	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
+		if (!sourceGroup) {
+			return;
+		}
 
-	// Split editor (if it can be split)
-	let editorToCopy: EditorInput | undefined;
-	if (context && typeof context.editorIndex === 'number') {
-		editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
-	} else {
-		editorToCopy = sourceGroup.activeEditor ?? undefined;
-	}
+		// Add group
+		if (!newGroup) {
+			newGroup = editorGroupService.addGroup(sourceGroup, direction);
+		}
 
-	// Copy the editor to the new group, else create an empty group
-	if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
-		sourceGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: context?.preserveFocus });
+		// Split editor (if it can be split)
+		let editorToCopy: EditorInput | undefined;
+		if (context && typeof context.editorIndex === 'number') {
+			editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
+		} else {
+			editorToCopy = sourceGroup.activeEditor ?? undefined;
+		}
+
+		// Copy the editor to the new group, else create an empty group
+		if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
+			sourceGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: context?.preserveFocus });
+		}
 	}
 
 	// Focus
-	newGroup.focus();
+	newGroup?.focus();
 }
 
 function registerSplitEditorCommands() {
@@ -696,7 +702,8 @@ function registerSplitEditorCommands() {
 		{ id: SPLIT_EDITOR_RIGHT, direction: GroupDirection.RIGHT }
 	].forEach(({ id, direction }) => {
 		CommandsRegistry.registerCommand(id, function (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
-			splitEditor(accessor.get(IEditorGroupsService), direction, getCommandsContext(resourceOrContext, context));
+			const { editors } = getEditorsContext(accessor, resourceOrContext, context);
+			splitEditor(accessor.get(IEditorGroupsService), direction, editors);
 		});
 	});
 }
@@ -1273,11 +1280,8 @@ function registerOtherEditorCommands(): void {
 		when: ActiveEditorStickyContext.toNegated(),
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.Enter),
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
-
-			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
-			if (group && editor) {
-				return group.stickEditor(editor);
+			for (const { editor, group } of getEditorsFromContext(accessor, resourceOrContext, context)) {
+				group.stickEditor(editor);
 			}
 		}
 	});
@@ -1315,11 +1319,8 @@ function registerOtherEditorCommands(): void {
 		when: ActiveEditorStickyContext,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.Enter),
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
-
-			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
-			if (group && editor) {
-				return group.unstickEditor(editor);
+			for (const { editor, group } of getEditorsFromContext(accessor, resourceOrContext, context)) {
+				group.unstickEditor(editor);
 			}
 		}
 	});
@@ -1365,6 +1366,24 @@ function getEditorsContext(accessor: ServicesAccessor, resourceOrContext?: URI |
 		editors: editorContext,
 		groups: distinct(editorContext.map(context => context.groupId)).map(groupId => editorGroupService.getGroup(groupId))
 	};
+}
+
+export function getEditorsFromContext(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): { editor: EditorInput; group: IEditorGroup }[] {
+	const { editors, groups } = getEditorsContext(accessor, resourceOrContext, context);
+
+	const editorsAndGroup = editors.map(e => {
+		if (e.editorIndex === undefined) {
+			return undefined;
+		}
+		const group = groups.find(group => group && group.id === e.groupId);
+		const editor = group?.getEditorByIndex(e.editorIndex);
+		if (!editor || !group) {
+			return undefined;
+		}
+		return { editor: editor, group: group };
+	});
+
+	return editorsAndGroup.filter(group => !!group);
 }
 
 export function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
@@ -1430,6 +1449,25 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 			}
 
 			return [focus];
+		}
+	}
+	// Check editors selected in the group (tabs)
+	else {
+		const group = editorContext ? editorGroupService.getGroup(editorContext.groupId) : editorGroupService.activeGroup;
+		if (group) {
+			const selectedEditors: EditorInput[] = [];
+			// If context provides an editor index, use it
+			if (editorContext && editorContext.editorIndex !== undefined) {
+				const editor = group?.getEditorByIndex(editorContext.editorIndex);
+				if (editor && group.isSelected(editor)) {
+					selectedEditors.push(...group.getSelectedEditors());
+				}
+			} else {
+				selectedEditors.push(...group.getSelectedEditors());
+			}
+			if (selectedEditors.length > 1) {
+				return selectedEditors.map(se => ({ groupId: group.id, editorIndex: group.getIndexOfEditor(se) }));
+			}
 		}
 	}
 

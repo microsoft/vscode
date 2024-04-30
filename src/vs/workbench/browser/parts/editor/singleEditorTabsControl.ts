@@ -191,6 +191,10 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.redraw();
 	}
 
+	setEditorSelections(editor: EditorInput[], selected: boolean): void { }
+
+	clearEditorSelections(): void { }
+
 	updateEditorLabel(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}

@@ -307,6 +307,7 @@ class DropOverlay extends Themable {
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 			if (Array.isArray(data)) {
+				const draggedEditors = data;
 				const draggedEditor = data[0].identifier;
 
 				const sourceGroup = this.editorGroupService.getGroup(draggedEditor.groupId);
@@ -328,16 +329,20 @@ class DropOverlay extends Themable {
 							return;
 						}
 
-						// Open in target group
-						const options = fillActiveEditorViewState(sourceGroup, draggedEditor.editor, {
-							pinned: true,										// always pin dropped editor
-							sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
-						});
+						const editors = draggedEditors.map(de => (
+							{
+								editor: de.identifier.editor,
+								options: fillActiveEditorViewState(sourceGroup, de.identifier.editor, {
+									pinned: true,										// always pin dropped editor
+									sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
+								})
+							}
+						));
 
 						if (!copyEditor) {
-							sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
+							sourceGroup.moveEditors(editors, targetGroup);
 						} else {
-							sourceGroup.copyEditor(draggedEditor.editor, targetGroup, options);
+							sourceGroup.copyEditors(editors, targetGroup);
 						}
 					}
 

@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
-import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, MultipleEditorsSelectedContext, TwoEditorsSelectedContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
@@ -108,6 +108,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly _onWillOpenEditor = this._register(new Emitter<IEditorWillOpenEvent>());
 	readonly onWillOpenEditor = this._onWillOpenEditor.event;
+
+	private readonly _onDidChangeSelection = this._register(new Emitter<EditorInput[]>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	//#endregion
 
@@ -252,6 +255,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
 		const groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
+		const multipleEditorsSelectedContext = MultipleEditorsSelectedContext.bindTo(this.contextKeyService);
+		const twoEditorsSelectedContext = TwoEditorsSelectedContext.bindTo(this.contextKeyService);
 
 		const groupActiveEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.scopedContextKeyService);
 		const groupActiveEditorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.scopedContextKeyService);
@@ -318,6 +323,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		};
 
 		this._register(this.onDidModelChange(e => updateGroupContextKeys(e)));
+		this._register(this.onDidChangeSelection(selectedEditor => {
+			multipleEditorsSelectedContext.set(selectedEditor.length > 1);
+			twoEditorsSelectedContext.set(selectedEditor.length === 2);
+		}));
 
 		// Track the active editor and update context key that reflects
 		// the dirty state of this editor
@@ -894,6 +903,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('active', isActive);
 		this.element.classList.toggle('inactive', !isActive);
 
+		if (!isActive) {
+			this.unSelectAllEditors();
+		}
+
 		// Update title control
 		this.titleControl.setActive(isActive);
 
@@ -955,6 +968,107 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
 		return this.model.isActive(editor);
 	}
+
+	private selectedEditors: EditorInput[] = [];
+	private selectedEditorAnchors: EditorInput[] = [];
+	selectEditor(editor: EditorInput): void {
+		const addedSelection = this.doSelectEditor(editor);
+		if (!addedSelection) {
+			return;
+		}
+		this.selectedEditorAnchors.push(editor);
+		this._onDidChangeSelection.fire(this.selectedEditors);
+		this.titleControl.setEditorSelections([editor], true);
+	}
+
+	private doSelectEditor(editor: EditorInput): boolean {
+		if (this.selectedEditors.includes(editor)) {
+			return false;
+		}
+
+		const editorIndex = this.model.indexOf(editor);
+		if (editorIndex === -1) {
+			throw new Error('Editor not found in group');
+		}
+
+		for (let i = 0; i < this.selectedEditors.length; i++) {
+			const currentSelectedEditorIndex = this.model.indexOf(this.selectedEditors[i]);
+			if (currentSelectedEditorIndex > editorIndex) {
+				this.selectedEditors.splice(i, 0, editor);
+				return true;
+			}
+		}
+
+		this.selectedEditors.push(editor);
+		this._onDidChangeSelection.fire(this.selectedEditors);
+		return true;
+	}
+
+	selectEditorsUntil(editor: EditorInput): void {
+		const editorIndex = this.model.indexOf(editor);
+		if (editorIndex === -1) {
+			throw new Error('Editor not found in group');
+		}
+
+		const hadAnchor = this.selectedEditorAnchors.length > 0;
+		const anchorEditor = hadAnchor ? this.selectedEditorAnchors[this.selectedEditorAnchors.length - 1] : this.activeEditor;
+		if (!anchorEditor) {
+			return;
+		}
+
+		const anchorIndex = this.model.indexOf(anchorEditor);
+
+		// Unselect editors on other side of anchor
+		let currentIndex = anchorIndex;
+		while (hadAnchor && currentIndex >= 0 && currentIndex <= this.model.count - 1) {
+			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
+
+			const currentEditor = this.model.getEditorByIndex(currentIndex);
+			if (!currentEditor || !this.isSelected(currentEditor)) {
+				break;
+			}
+
+			this.unSelectEditor(currentEditor);
+		}
+
+		// Select editors between anchor and target
+		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
+		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
+
+		const selectedEditors = this.model.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
+		selectedEditors.forEach(editor => this.doSelectEditor(editor));
+		this.titleControl.setEditorSelections(selectedEditors, true);
+
+		// Create an anchor if we did not have one before
+		if (!hadAnchor) {
+			this.selectedEditorAnchors.push(anchorEditor);
+		}
+
+		this._onDidChangeSelection.fire(this.selectedEditors);
+	}
+
+	unSelectEditor(editor: EditorInput): void {
+		this.selectedEditors = this.selectedEditors.filter(selectedEditor => selectedEditor !== editor);
+		this.selectedEditorAnchors = this.selectedEditorAnchors.filter(selectedEditor => selectedEditor !== editor);
+		this._onDidChangeSelection.fire(this.selectedEditors);
+		this.titleControl.setEditorSelections([editor], false);
+	}
+
+	unSelectAllEditors(): void {
+		this.selectedEditors = [];
+		this.selectedEditorAnchors = [];
+		this._onDidChangeSelection.fire(this.selectedEditors);
+		this.titleControl.clearEditorSelections();
+	}
+
+	isSelected(editor: EditorInput): boolean {
+		return this.selectedEditors.includes(editor);
+	}
+
+	getSelectedEditors(): EditorInput[] {
+		return [...this.selectedEditors];
+	}
+
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
 		return this.model.contains(candidate, options);
@@ -1090,6 +1204,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!editor || editor.isDisposed()) {
 			return;
 		}
+
+		this.unSelectAllEditors();
 
 		// Fire the event letting everyone know we are about to open an editor
 		this._onWillOpenEditor.fire({ editor, groupId: this.id });
@@ -1307,6 +1423,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			target.titleControl.openEditors(Array.from(movedEditors));
 			this.titleControl.closeEditors(Array.from(movedEditors));
 		}
+
+		target.unSelectAllEditors();
+		this.unSelectAllEditors();
 
 		return !moveFailed;
 	}
