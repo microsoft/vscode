@@ -6,6 +6,6 @@
 .monaco-workbench .pane-body.integrated-terminal .contentWidgets .terminal-chat-hint {
 	color: var(--vscode-input-placeholderForeground);
 }
-.monaco-workbench .pane-body.integrated-terminal .contentWidgets .terminal-chat-hint a {
+.monaco-workbench .pane-body.integrated-terminal .terminal-chat-hint a {
 	color: var(--vscode-textLink-foreground)
 }

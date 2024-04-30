@@ -172,7 +172,7 @@ class TerminalChatHintWidget extends Disposable {
 		hintElement.style.display = 'block';
 
 		// TODO: why is this null if I use the terminal chat start command ID?
-		const keybindingHint = this.keybindingService.lookupKeybinding('inlineChat.start');
+		const keybindingHint = this.keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
 		const keybindingHintLabel = keybindingHint?.getLabel();
 
 		if (keybindingHint && keybindingHintLabel) {
@@ -221,7 +221,7 @@ class TerminalChatHintWidget extends Disposable {
 
 	getDomNode(): HTMLElement | undefined {
 		if (!this.domNode) {
-			this.domNode = $('.empty-editor-hint');
+			this.domNode = $('.terminal-chat-hint');
 			this.domNode!.style.width = 'max-content';
 			this.domNode!.style.paddingLeft = '4px';
 
