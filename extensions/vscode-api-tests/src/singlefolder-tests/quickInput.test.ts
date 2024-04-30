@@ -253,7 +253,6 @@ suite('vscode API - quick input', function () {
 function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void, record = false) {
 	const quickPick = window.createQuickPick();
 	let eventIndex = -1;
-	quickPick.ignoreFocusOut = true;
 	quickPick.onDidChangeActive(items => {
 		if (record) {
 			console.log(`active: [${items.map(item => item.label).join(', ')}]`);
