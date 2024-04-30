@@ -934,14 +934,6 @@ class WindowsPtyHeuristics extends Disposable {
 			return;
 		}
 
-		// Dynamic prompt detection
-		if (this._capability.promptTerminator && lineText.trim().endsWith(this._capability.promptTerminator)) {
-			const adjustedPrompt = this._adjustPrompt(lineText, lineText, this._capability.promptTerminator);
-			if (adjustedPrompt) {
-				return adjustedPrompt;
-			}
-		}
-
 		// PowerShell
 		const pwshPrompt = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/)?.groups?.prompt;
 		if (pwshPrompt) {
@@ -979,6 +971,14 @@ class WindowsPtyHeuristics extends Disposable {
 				prompt: pythonPrompt,
 				likelySingleLine: true
 			};
+		}
+
+		// Dynamic prompt detection
+		if (this._capability.promptTerminator && lineText.trim().endsWith(this._capability.promptTerminator)) {
+			const adjustedPrompt = this._adjustPrompt(lineText, lineText, this._capability.promptTerminator);
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
 		}
 
 		// Command Prompt

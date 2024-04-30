@@ -399,11 +399,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Prompt': {
-						const sanitizedValue = (value
-							.replace(/\\+x1b\[[0-9;]*m/g, '')
-							.replace(/\x1b\[[0-9;]*m/g, '')
-							.replace(/\\\[.*?\\\]/g, '')
-						);
+						// Remove escape sequences from the user's prompt
+						const sanitizedValue = value.replace(/\x1b\[[0-9;]*m/g, '');
 						this._updatePromptTerminator(sanitizedValue);
 						return true;
 					}
@@ -435,7 +432,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal) {
 			return;
 		}
-		const promptTerminator = prompt?.trim()?.split('\n').pop()?.trim().split(' ').pop();
+		const lastPromptLine = prompt.substring(prompt.lastIndexOf('\n')).trim();
+		const promptTerminator = lastPromptLine.substring(lastPromptLine.lastIndexOf(' ')).trim();
 		if (promptTerminator) {
 			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator);
 		}
