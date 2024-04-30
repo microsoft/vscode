@@ -50,7 +50,7 @@ export class NotebookCellOutlineProvider {
 	}
 
 	private readonly _outlineEntryFactory: NotebookOutlineEntryFactory;
-	private readonly delayedOutlineRecompute: Delayer<void>;;
+	private readonly delayedOutlineRecompute: Delayer<void>;
 	constructor(
 		private readonly _editor: INotebookEditor,
 		private readonly _target: OutlineTarget,
@@ -65,7 +65,7 @@ export class NotebookCellOutlineProvider {
 		const delayerRecomputeActive = this._disposables.add(new Delayer(200));
 		this._disposables.add(_editor.onDidChangeSelection(() => {
 			delayerRecomputeActive.trigger(() => this._recomputeActive());
-		}, this))
+		}, this));
 
 		// .3s of a delay is sufficient, 100-200s is too quick and will unnecessarily block the ui thread.
 		// Given we're only updating the outline when the user types, we can afford to wait a bit.
@@ -115,10 +115,10 @@ export class NotebookCellOutlineProvider {
 			if (!this._entries.length) {
 				this._recomputeState();
 			}
-		}
+		};
 		this._disposables.add(this._editor.onDidChangeModel(monitorModelChanges));
 		monitorModelChanges();
-		this._recomputeState()
+		this._recomputeState();
 	}
 
 	dispose(): void {

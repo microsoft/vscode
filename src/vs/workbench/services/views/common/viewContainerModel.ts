@@ -156,7 +156,7 @@ class ViewDescriptorsState extends Disposable {
 						changedStates.push({ id, visible: !storedState.isHidden });
 					}
 				} else {
-					const workspaceViewState = <IStoredWorkspaceViewState | undefined>storedWorkspaceViewsStates[id];
+					const workspaceViewState: IStoredWorkspaceViewState | undefined = storedWorkspaceViewsStates[id];
 					this.set(id, {
 						active: false,
 						visibleGlobal: !storedState.isHidden,
@@ -256,7 +256,7 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private parseStoredGlobalState(value: string): { state: Map<string, IStoredGlobalViewState>; hasDuplicates: boolean } {
-		const storedValue = <Array<string | IStoredGlobalViewState>>JSON.parse(value);
+		const storedValue: Array<string | IStoredGlobalViewState> = JSON.parse(value);
 		let hasDuplicates = false;
 		const state = storedValue.reduce((result, storedState) => {
 			if (typeof storedState === 'string' /* migration */) {

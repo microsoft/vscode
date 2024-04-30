@@ -89,6 +89,10 @@ import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalSt
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
 import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/terminalIconPicker';
 
+// HACK: This file should not depend on terminalContrib
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
+
 const enum Constants {
 	/**
 	 * The maximum amount of milliseconds to wait for a container before starting to create the
@@ -702,7 +706,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue('task.reconnection') === true); }
 
 	public static getXtermConstructor(keybindingService: IKeybindingService, contextKeyService: IContextKeyService) {
-		const keybinding = keybindingService.lookupKeybinding(TerminalCommandId.FocusAccessibleBuffer, contextKeyService);
+		const keybinding = keybindingService.lookupKeybinding(TerminalAccessibilityCommandId.FocusAccessibleBuffer, contextKeyService);
 		if (xtermConstructor) {
 			return xtermConstructor;
 		}

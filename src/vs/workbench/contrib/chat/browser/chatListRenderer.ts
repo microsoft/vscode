@@ -1258,8 +1258,8 @@ class TreePool extends Disposable {
 		const container = $('.interactive-response-progress-tree');
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const tree = <WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData>>this.instantiationService.createInstance(
-			WorkbenchCompressibleAsyncDataTree,
+		const tree = this.instantiationService.createInstance(
+			WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData>,
 			'ChatListRenderer',
 			container,
 			new ChatListTreeDelegate(),
@@ -1318,8 +1318,8 @@ class ContentReferencesListPool extends Disposable {
 		const container = $('.chat-used-context-list');
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const list = <WorkbenchList<IChatContentReference>>this.instantiationService.createInstance(
-			WorkbenchList,
+		const list = this.instantiationService.createInstance(
+			WorkbenchList<IChatContentReference>,
 			'ChatListRenderer',
 			container,
 			new ContentReferencesListDelegate(),
