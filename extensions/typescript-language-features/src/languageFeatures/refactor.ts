@@ -585,6 +585,13 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				}
 			}
 
+			// Don't include move actions if not a range or selection.
+			if (rangeOrSelection.isEmpty && vscode.CodeActionTriggerKind.Automatic) { // returns true if start === end.
+				if (action.kind?.value === Move_NewFile.kind.value || action.kind?.value === Move_File.kind.value) {
+					return undefined;
+				}
+			}
+
 			return action;
 		})));
 
