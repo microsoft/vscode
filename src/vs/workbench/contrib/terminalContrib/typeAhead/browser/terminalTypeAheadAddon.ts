@@ -12,8 +12,9 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { XtermAttributes, IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IBeforeProcessDataEvent, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from '@xterm/xterm';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration';
 
 const enum VT {
 	Esc = '\x1b',
@@ -1134,7 +1135,7 @@ class TypeAheadStyle implements IDisposable {
 	undo!: string;
 	private _csiHandler?: IDisposable;
 
-	constructor(value: ITerminalConfiguration['localEchoStyle'], private readonly _terminal: Terminal) {
+	constructor(value: ITerminalTypeAheadConfiguration['localEchoStyle'], private readonly _terminal: Terminal) {
 		this.onUpdate(value);
 	}
 
@@ -1240,7 +1241,7 @@ class TypeAheadStyle implements IDisposable {
 	/**
 	 * Updates the current typeahead style.
 	 */
-	onUpdate(style: ITerminalConfiguration['localEchoStyle']) {
+	onUpdate(style: ITerminalTypeAheadConfiguration['localEchoStyle']) {
 		const { applyArgs, undoArgs } = this._getArgs(style);
 		this._applyArgs = applyArgs;
 		this._undoArgs = this._originalUndoArgs = undoArgs;
@@ -1248,7 +1249,7 @@ class TypeAheadStyle implements IDisposable {
 		this.undo = TypeAheadStyle._compileArgs(this._undoArgs);
 	}
 
-	private _getArgs(style: ITerminalConfiguration['localEchoStyle']) {
+	private _getArgs(style: ITerminalTypeAheadConfiguration['localEchoStyle']) {
 		switch (style) {
 			case 'bold':
 				return { applyArgs: [1], undoArgs: [22] };
@@ -1289,8 +1290,8 @@ export const enum CharPredictState {
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private _typeaheadStyle?: TypeAheadStyle;
-	private _typeaheadThreshold = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoLatencyThreshold;
-	private _excludeProgramRe = compileExcludeRegexp(this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoExcludePrograms);
+	private _typeaheadThreshold = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoLatencyThreshold;
+	private _excludeProgramRe = compileExcludeRegexp(this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoExcludePrograms);
 	protected _lastRow?: { y: number; startingX: number; endingX: number; charState: CharPredictState };
 	protected _timeline?: PredictionTimeline;
 	private _terminalTitle = '';
@@ -1311,7 +1312,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	activate(terminal: Terminal): void {
-		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoStyle, terminal));
+		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoStyle, terminal));
 		const timeline = this._timeline = new PredictionTimeline(terminal, this._typeaheadStyle);
 		const stats = this.stats = this._register(new PredictionStats(this._timeline));
 
@@ -1328,9 +1329,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
-				style.onUpdate(this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoStyle);
-				this._typeaheadThreshold = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoLatencyThreshold;
-				this._excludeProgramRe = compileExcludeRegexp(this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoExcludePrograms);
+				style.onUpdate(this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoStyle);
+				this._typeaheadThreshold = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoLatencyThreshold;
+				this._excludeProgramRe = compileExcludeRegexp(this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoExcludePrograms);
 				this._reevaluatePredictorState(stats, timeline);
 			}
 		}));

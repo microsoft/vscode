@@ -20,14 +20,15 @@ import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXter
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import type { Terminal } from '@xterm/xterm';
 import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry, type IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { TerminalDeveloperCommandId } from 'vs/workbench/contrib/terminalContrib/developer/common/terminal.developer';
 
 registerTerminalAction({
-	id: TerminalCommandId.ShowTextureAtlas,
+	id: TerminalDeveloperCommandId.ShowTextureAtlas,
 	title: localize2('workbench.action.terminal.showTextureAtlas', 'Show Terminal Texture Atlas'),
 	category: Categories.Developer,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen),
@@ -59,7 +60,7 @@ registerTerminalAction({
 });
 
 registerTerminalAction({
-	id: TerminalCommandId.WriteDataToTerminal,
+	id: TerminalDeveloperCommandId.WriteDataToTerminal,
 	title: localize2('workbench.action.terminal.writeDataToTerminal', 'Write Data to Terminal'),
 	category: Categories.Developer,
 	run: async (c, accessor) => {
@@ -95,7 +96,7 @@ registerTerminalAction({
 
 
 registerTerminalAction({
-	id: TerminalCommandId.RestartPtyHost,
+	id: TerminalDeveloperCommandId.RestartPtyHost,
 	title: localize2('workbench.action.terminal.restartPtyHost', 'Restart Pty Host'),
 	category: Categories.Developer,
 	run: async (c, accessor) => {
