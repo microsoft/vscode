@@ -232,7 +232,6 @@ suite('ExtensionRecommendationsService Test', () => {
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
-			isWorkspaceExtensionsSupported() { return false; },
 		});
 		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,

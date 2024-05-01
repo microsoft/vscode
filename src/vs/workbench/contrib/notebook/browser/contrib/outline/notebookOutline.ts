@@ -12,7 +12,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable, type IReference } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
@@ -50,6 +50,8 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { IOutlinePane } from 'vs/workbench/contrib/outline/browser/outline';
 import { Codicon } from 'vs/base/common/codicons';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NotebookOutlineConstants } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { INotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
 
 class NotebookOutlineTemplate {
 
@@ -160,7 +162,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			const scopedContextKeyService = template.elementDisposables.add(this._contextKeyService.createScoped(template.container));
 			NotebookOutlineContext.CellKind.bindTo(scopedContextKeyService).set(isCodeCell ? CellKind.Code : CellKind.Markup);
 			NotebookOutlineContext.CellHasChildren.bindTo(scopedContextKeyService).set(length > 0);
-			NotebookOutlineContext.CellHasHeader.bindTo(scopedContextKeyService).set(node.element.level !== 7);
+			NotebookOutlineContext.CellHasHeader.bindTo(scopedContextKeyService).set(node.element.level !== NotebookOutlineConstants.NonHeaderOutlineLevel);
 			NotebookOutlineContext.OutlineElementTarget.bindTo(scopedContextKeyService).set(this._target);
 			this.setupFolding(isCodeCell, nbViewModel, scopedContextKeyService, template, nbCell);
 
@@ -286,6 +288,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 	constructor(
 		private _getEntries: () => OutlineEntry[],
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
@@ -297,7 +300,24 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		const result: IQuickPickOutlineElement<OutlineEntry>[] = [];
 		const { hasFileIcons } = this._themeService.getFileIconTheme();
 
-		for (const element of bucket) {
+		const showSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
+		const isSymbol = (element: OutlineEntry) => !!element.symbolKind;
+		const isCodeCell = (element: OutlineEntry) => (element.cell.cellKind === CellKind.Code && element.level === NotebookOutlineConstants.NonHeaderOutlineLevel); // code cell entries are exactly level 7 by this constant
+		for (let i = 0; i < bucket.length; i++) {
+			const element = bucket[i];
+			const nextElement = bucket[i + 1]; // can be undefined
+
+			if (!showSymbols
+				&& isSymbol(element)) {
+				continue;
+			}
+
+			if (showSymbols
+				&& isCodeCell(element)
+				&& nextElement && isSymbol(nextElement)) {
+				continue;
+			}
+
 			const useFileIcon = hasFileIcons && !element.symbolKind;
 			// todo@jrieken it is fishy that codicons cannot be used with iconClasses
 			// but file icons can...
@@ -336,7 +356,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
 	get entries(): OutlineEntry[] {
-		return this._outlineProvider?.entries ?? [];
+		return this._outlineProviderReference?.object?.entries ?? [];
 	}
 
 	private readonly _entriesDisposables = new DisposableStore();
@@ -346,10 +366,10 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly outlineKind = 'notebookCells';
 
 	get activeElement(): OutlineEntry | undefined {
-		return this._outlineProvider?.activeElement;
+		return this._outlineProviderReference?.object?.activeElement;
 	}
 
-	private _outlineProvider: NotebookCellOutlineProvider | undefined;
+	private _outlineProviderReference: IReference<NotebookCellOutlineProvider> | undefined;
 	private readonly _localDisposables = new DisposableStore();
 
 	constructor(
@@ -362,14 +382,14 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const installSelectionListener = () => {
 			const notebookEditor = _editor.getControl();
 			if (!notebookEditor?.hasModel()) {
-				this._outlineProvider?.dispose();
-				this._outlineProvider = undefined;
+				this._outlineProviderReference?.dispose();
+				this._outlineProviderReference = undefined;
 				this._localDisposables.clear();
 			} else {
-				this._outlineProvider?.dispose();
+				this._outlineProviderReference?.dispose();
 				this._localDisposables.clear();
-				this._outlineProvider = instantiationService.createInstance(NotebookCellOutlineProvider, notebookEditor, _target);
-				this._localDisposables.add(this._outlineProvider.onDidChange(e => {
+				this._outlineProviderReference = instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineProviderFactory).getOrCreate(notebookEditor, _target));
+				this._localDisposables.add(this._outlineProviderReference.object.onDidChange(e => {
 					this._onDidChange.fire(e);
 				}));
 			}
@@ -410,7 +430,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 					return result;
 				}
 			},
-			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, () => (this._outlineProvider?.entries ?? [])),
+			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, () => (this._outlineProviderReference?.object?.entries ?? [])),
 			treeDataSource,
 			delegate,
 			renderers,
@@ -424,18 +444,18 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const showCodeCellSymbols = configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
 		const showMarkdownHeadersOnly = configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
 
-		for (const entry of parent instanceof NotebookCellOutline ? (this._outlineProvider?.entries ?? []) : parent.children) {
+		for (const entry of parent instanceof NotebookCellOutline ? (this._outlineProviderReference?.object?.entries ?? []) : parent.children) {
 			if (entry.cell.cellKind === CellKind.Markup) {
 				if (!showMarkdownHeadersOnly) {
 					yield entry;
-				} else if (entry.level < 7) {
+				} else if (entry.level < NotebookOutlineConstants.NonHeaderOutlineLevel) {
 					yield entry;
 				}
 
 			} else if (showCodeCells && entry.cell.cellKind === CellKind.Code) {
 				if (showCodeCellSymbols) {
 					yield entry;
-				} else if (entry.level === 7) {
+				} else if (entry.level === NotebookOutlineConstants.NonHeaderOutlineLevel) {
 					yield entry;
 				}
 			}
@@ -443,14 +463,14 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	async setFullSymbols(cancelToken: CancellationToken) {
-		await this._outlineProvider?.setFullSymbols(cancelToken);
+		await this._outlineProviderReference?.object?.setFullSymbols(cancelToken);
 	}
 
 	get uri(): URI | undefined {
-		return this._outlineProvider?.uri;
+		return this._outlineProviderReference?.object?.uri;
 	}
 	get isEmpty(): boolean {
-		return this._outlineProvider?.isEmpty ?? true;
+		return this._outlineProviderReference?.object?.isEmpty ?? true;
 	}
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		await this._editorService.openEditor({
@@ -529,7 +549,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this._onDidChange.dispose();
 		this._dispoables.dispose();
 		this._entriesDisposables.dispose();
-		this._outlineProvider?.dispose();
+		this._outlineProviderReference?.dispose();
 		this._localDisposables.dispose();
 	}
 }
@@ -559,7 +579,8 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 		if (target === OutlineTarget.QuickPick && showAllGotoSymbols) {
 			await outline.setFullSymbols(cancelToken);
 		} else if (target === OutlineTarget.OutlinePane && showAllOutlineSymbols) {
-			await outline.setFullSymbols(cancelToken);
+			// No need to wait for this, we want the outline to show up quickly.
+			void outline.setFullSymbols(cancelToken);
 		}
 
 		return outline;

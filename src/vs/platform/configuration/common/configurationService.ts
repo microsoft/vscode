@@ -11,6 +11,7 @@ import { JSONPath, ParseError, parse } from 'vs/base/common/json';
 import { applyEdits, setProperty } from 'vs/base/common/jsonEdit';
 import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { equals } from 'vs/base/common/objects';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
@@ -42,13 +43,24 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		private readonly settingsResource: URI,
 		fileService: IFileService,
 		policyService: IPolicyService,
-		logService: ILogService,
+		private readonly logService: ILogService,
 	) {
 		super();
-		this.defaultConfiguration = this._register(new DefaultConfiguration());
+		this.defaultConfiguration = this._register(new DefaultConfiguration(logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
-		this.userConfiguration = this._register(new UserSettings(this.settingsResource, {}, extUriBiasedIgnorePathCase, fileService));
-		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel(), new ConfigurationModel());
+		this.userConfiguration = this._register(new UserSettings(this.settingsResource, {}, extUriBiasedIgnorePathCase, fileService, logService));
+		this.configuration = new Configuration(
+			this.defaultConfiguration.configurationModel,
+			this.policyConfiguration.configurationModel,
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			logService
+		);
 		this.configurationEditing = new ConfigurationEditing(settingsResource, fileService, this);
 
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
@@ -59,7 +71,18 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 	async initialize(): Promise<void> {
 		const [defaultModel, policyModel, userModel] = await Promise.all([this.defaultConfiguration.initialize(), this.policyConfiguration.initialize(), this.userConfiguration.loadConfiguration()]);
-		this.configuration = new Configuration(defaultModel, policyModel, new ConfigurationModel(), userModel);
+		this.configuration = new Configuration(
+			defaultModel,
+			policyModel,
+			ConfigurationModel.createEmptyModel(this.logService),
+			userModel,
+			ConfigurationModel.createEmptyModel(this.logService),
+			ConfigurationModel.createEmptyModel(this.logService),
+			new ResourceMap<ConfigurationModel>(),
+			ConfigurationModel.createEmptyModel(this.logService),
+			new ResourceMap<ConfigurationModel>(),
+			this.logService
+		);
 	}
 
 	getConfigurationData(): IConfigurationData {
@@ -157,7 +180,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	private trigger(configurationChange: IConfigurationChange, previous: IConfigurationData, source: ConfigurationTarget): void {
-		const event = new ConfigurationChangeEvent(configurationChange, { data: previous }, this.configuration);
+		const event = new ConfigurationChangeEvent(configurationChange, { data: previous }, this.configuration, undefined, this.logService);
 		event.source = source;
 		this._onDidChangeConfiguration.fire(event);
 	}

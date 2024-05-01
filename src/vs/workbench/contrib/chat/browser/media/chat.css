@@ -101,7 +101,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
-	outline: 1px solid var(--vscode-chat-requestBorder)
+	outline: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .header .avatar.codicon-avatar {
@@ -410,6 +410,17 @@
 	padding-inline-start: unset;
 }
 
+.chat-warning .chat-warning-codicon {
+	margin-left: 3px;
+	display: flex;
+	align-items: start;
+	gap: 6px;
+}
+
+.interactive-item-container .value .chat-warning .rendered-markdown p {
+	margin: 0;
+}
+
 .interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: start;
@@ -420,8 +431,16 @@
 	margin-bottom: 0px;
 }
 
+.chat-warning .chat-warning-codicon .codicon {
+	margin-top: 2px;
+}
+
 .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
+}
+
+.chat-warning .chat-warning-codicon .codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .interactive-response .interactive-response-error-details .codicon-error {
@@ -596,6 +615,7 @@
 }
 
 .interactive-response-progress-tree,
+.interactive-item-container .chat-warning,
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
@@ -647,10 +667,11 @@
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
 	display: flex;
 	gap: 5px;
 	align-items: center;
-	opacity: 0.7;
 	margin-bottom: 4px;
 }
 
@@ -660,13 +681,18 @@
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p .codicon.codicon-check {
-	font-size: 14px;
 	color: var(--vscode-debugIcon-startForeground) !important;
 }
 
 .interactive-item-container .chat-command-button {
 	display: flex;
 	margin-bottom: 16px;
+}
+
+.interactive-item-container .chat-warning {
+	display: flex;
+	flex-direction: row;
+	gap: 6px;
 }
 
 .interactive-item-container .chat-command-button .monaco-button {

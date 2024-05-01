@@ -3,13 +3,13 @@
   requesterAvatarIconUri: undefined,
   responderUsername: "test",
   responderAvatarIconUri: undefined,
+  initialLocation: "panel",
   welcomeMessage: undefined,
   requests: [
     {
       message: {
         parts: [
           {
-            kind: "agent",
             range: {
               start: 0,
               endExclusive: 28
@@ -21,14 +21,23 @@
               endColumn: 29
             },
             agent: {
-              id: "ChatProviderWithUsedContext",
               name: "ChatProviderWithUsedContext",
-              description: undefined,
+              id: "ChatProviderWithUsedContext",
+              extensionId: {
+                value: "nullExtensionDescription",
+                _lower: "nullextensiondescription"
+              },
+              extensionPublisherId: "",
+              extensionPublisherDisplayName: "",
+              extensionDisplayName: "",
+              locations: [ "panel" ],
               metadata: {
                 requester: { name: "test" },
                 fullName: "test"
-              }
-            }
+              },
+              slashCommands: [  ]
+            },
+            kind: "agent"
           },
           {
             range: {
@@ -54,20 +63,21 @@
       isCanceled: false,
       vote: undefined,
       agent: {
-        id: "ChatProviderWithUsedContext",
         name: "ChatProviderWithUsedContext",
-        description: undefined,
+        id: "ChatProviderWithUsedContext",
         extensionId: {
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionPublisherId: "",
+        extensionPublisherDisplayName: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
         metadata: {
           requester: { name: "test" },
           fullName: "test"
         },
-        slashCommands: [  ],
-        locations: [ "panel" ],
-        isDefault: undefined
+        slashCommands: [  ]
       },
       slashCommand: undefined,
       usedContext: {
@@ -97,6 +107,5 @@
       },
       contentReferences: [  ]
     }
-  ],
-  providerId: "testProvider"
+  ]
 }

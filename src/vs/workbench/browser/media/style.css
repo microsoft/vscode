@@ -196,7 +196,8 @@ body.web {
 }
 
 .monaco-workbench .select-container:after {
-	content: "\eab4";
+	content: var(--vscode-icon-chevron-down-content);
+	font-family: var(--vscode-icon-chevron-down-font-family);
 	font-family: codicon;
 	font-size: 16px;
 	width: 16px;

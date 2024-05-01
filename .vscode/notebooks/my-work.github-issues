@@ -82,7 +82,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode is:open assignee:@me label:triage-needed\n"
+    "value": "$REPOS is:open assignee:@me label:triage-needed\n"
   },
   {
     "kind": 1,

@@ -21,7 +21,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IFileWorkingCopyModelConfiguration } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IFileWorkingCopyModelConfiguration, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
@@ -218,28 +218,28 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			}
 		}));
 
-		if (_notebookModel.uri.scheme === Schemas.vscodeRemote) {
+		const saveWithReducedCommunication = this._configurationService.getValue(NotebookSetting.remoteSaving);
+
+		if (saveWithReducedCommunication || _notebookModel.uri.scheme === Schemas.vscodeRemote) {
 			this.configuration = {
-				// Intentionally pick a larger delay for triggering backups when
-				// we are connected to a remote. This saves us repeated roundtrips
-				// to the remote server when the content changes because the
-				// remote hosts the extension of the notebook with the contents truth
+				// Intentionally pick a larger delay for triggering backups to allow auto-save
+				// to complete first on the optimized save path
 				backupDelay: 10000
 			};
+		}
 
-			// Override save behavior to avoid transferring the buffer across the wire 3 times
-			if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
-				this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
-					const serializer = await this.getNotebookSerializer();
+		// Override save behavior to avoid transferring the buffer across the wire 3 times
+		if (saveWithReducedCommunication) {
+			this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
+				const serializer = await this.getNotebookSerializer();
 
-					if (token.isCancellationRequested) {
-						throw new CancellationError();
-					}
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 
-					const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
-					return stat;
-				};
-			}
+				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
+				return stat;
+			};
 		}
 	}
 
@@ -252,7 +252,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		return this._notebookModel;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+	async snapshot(context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
 		const serializer = await this.getNotebookSerializer();
 
 		const data: NotebookData = {
@@ -260,6 +260,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			cells: [],
 		};
 
+		let outputSize = 0;
 		for (const cell of this._notebookModel.cells) {
 			const cellData: ICellDto2 = {
 				cellKind: cell.cellKind,
@@ -269,6 +270,18 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				outputs: [],
 				internalMetadata: cell.internalMetadata
 			};
+
+			const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
+			if (context === SnapshotContext.Backup && outputSizeLimit > 0) {
+				cell.outputs.forEach(output => {
+					output.outputs.forEach(item => {
+						outputSize += item.data.byteLength;
+					});
+				});
+				if (outputSize > outputSizeLimit) {
+					throw new Error('Notebook too large to backup');
+				}
+			}
 
 			cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
 			cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);

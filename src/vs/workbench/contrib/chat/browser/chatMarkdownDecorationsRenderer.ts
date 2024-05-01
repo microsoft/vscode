@@ -5,22 +5,32 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/languages';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { contentRefUrl } from '../common/annotations';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const variableRefUrl = 'http://_vscodedecoration_';
+const agentRefUrl = 'http://_chatagent_';
 
 export class ChatMarkdownDecorationsRenderer {
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
@@ -28,6 +38,14 @@ export class ChatMarkdownDecorationsRenderer {
 		for (const part of parsedRequest.parts) {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
+			} else if (part instanceof ChatRequestAgentPart) {
+				let text = part.text;
+				const isDupe = this.chatAgentService.getAgentsByName(part.agent.name).length > 1;
+				if (isDupe) {
+					text += ` (${part.agent.extensionPublisherDisplayName})`;
+				}
+
+				result += `[${text}](${agentRefUrl}?${encodeURIComponent(part.agent.id)})`;
 			} else {
 				const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
 					|| undefined;
@@ -35,18 +53,25 @@ export class ChatMarkdownDecorationsRenderer {
 					part instanceof ChatRequestAgentPart ? part.agent.id :
 						'';
 
-				result += `[${part.text}](${variableRefUrl}?${title})`;
+				const text = part.text;
+				result += `[${text}](${variableRefUrl}?${title})`;
 			}
 		}
 
 		return result;
 	}
 
-	walkTreeAndAnnotateReferenceLinks(element: HTMLElement): void {
+	walkTreeAndAnnotateReferenceLinks(element: HTMLElement): IDisposable {
+		const store = new DisposableStore();
 		element.querySelectorAll('a').forEach(a => {
 			const href = a.getAttribute('data-href');
 			if (href) {
-				if (href.startsWith(variableRefUrl)) {
+				if (href.startsWith(agentRefUrl)) {
+					const title = decodeURIComponent(href.slice(agentRefUrl.length + 1));
+					a.parentElement!.replaceChild(
+						this.renderAgentWidget(a.textContent!, title, store),
+						a);
+				} else if (href.startsWith(variableRefUrl)) {
 					const title = decodeURIComponent(href.slice(variableRefUrl.length + 1));
 					a.parentElement!.replaceChild(
 						this.renderResourceWidget(a.textContent!, title),
@@ -58,6 +83,19 @@ export class ChatMarkdownDecorationsRenderer {
 				}
 			}
 		});
+
+		return store;
+	}
+
+	private renderAgentWidget(name: string, id: string, store: DisposableStore): HTMLElement {
+		const container = dom.$('span.chat-resource-widget', undefined, dom.$('span', undefined, name));
+
+		store.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, () => {
+			const hover = store.add(this.instantiationService.createInstance(ChatAgentHover));
+			hover.setAgent(id);
+			return hover.domNode;
+		}));
+		return container;
 	}
 
 	private renderFileWidget(href: string, a: HTMLAnchorElement): void {

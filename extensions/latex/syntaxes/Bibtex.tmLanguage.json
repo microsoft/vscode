@@ -4,18 +4,18 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/36411b38cf4ed18e02050249e2162b1316488686",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/c787db94a56bd93131ce0938046063320a02cc73",
 	"name": "BibTeX",
 	"scopeName": "text.bibtex",
 	"comment": "Grammar based on description from https://github.com/aclements/biblib\n",
 	"patterns": [
 		{
-			"match": "@(?i:comment)(?=[\\s{(])",
 			"captures": {
 				"0": {
 					"name": "punctuation.definition.comment.bibtex"
 				}
 			},
+			"match": "@(?i:comment)(?=[\\s{(])",
 			"name": "comment.block.at-sign.bibtex"
 		},
 		{
@@ -235,18 +235,18 @@
 					"include": "#string_var"
 				},
 				{
-					"name": "keyword.operator.bibtex",
-					"match": "#"
+					"match": "#",
+					"name": "keyword.operator.bibtex"
 				}
 			]
 		},
 		"integer": {
-			"match": "\\s*(\\d+)\\s*",
 			"captures": {
 				"1": {
 					"name": "constant.numeric.bibtex"
 				}
-			}
+			},
+			"match": "\\s*(\\d+)\\s*"
 		},
 		"nested_braces": {
 			"begin": "\\{",
@@ -266,14 +266,6 @@
 					"include": "#nested_braces"
 				}
 			]
-		},
-		"string_var": {
-			"match": "[a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*",
-			"captures": {
-				"0": {
-					"name": "support.variable.bibtex"
-				}
-			}
 		},
 		"string_content": {
 			"patterns": [
@@ -316,6 +308,14 @@
 					]
 				}
 			]
+		},
+		"string_var": {
+			"captures": {
+				"0": {
+					"name": "support.variable.bibtex"
+				}
+			},
+			"match": "[a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*"
 		}
 	}
 }

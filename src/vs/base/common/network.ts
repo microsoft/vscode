@@ -74,6 +74,8 @@ export namespace Schemas {
 
 	/** Scheme used for code blocks in chat. */
 	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
+	/** Scheme used for LHS of code compare (aka diff) blocks in chat. */
+	export const vscodeChatCodeCompreBlock = 'vscode-chat-code-compare-block';
 	/** Scheme used for the chat input editor. */
 	export const vscodeChatSesssion = 'vscode-chat-editor';
 
@@ -112,6 +114,11 @@ export namespace Schemas {
 	 * Scheme used for the Source Control commit input's text document
 	 */
 	export const vscodeSourceControl = 'vscode-scm';
+
+	/**
+	 * Scheme used for input box for creating comments.
+	 */
+	export const commentsInput = 'comment';
 
 	/**
 	 * Scheme used for special rendering of settings in the release notes

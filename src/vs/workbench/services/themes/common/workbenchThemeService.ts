@@ -10,6 +10,7 @@ import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from 'v
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isBoolean, isString } from 'vs/base/common/types';
 import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -37,7 +38,9 @@ export enum ThemeSettings {
 	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
 	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
-	DETECT_HC = 'window.autoDetectHighContrast'
+	DETECT_HC = 'window.autoDetectHighContrast',
+
+	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
 
 export enum ThemeSettingDefaults {
@@ -57,12 +60,18 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'activityBar.background': '#181818',
 	'statusBar.background': '#181818',
 	'statusBar.noFolderBackground': '#1f1f1f',
+	'titleBar.border': '#2B2B2B',
+	'titleBar.inactiveBackground': '#ff0000',
+	'titleBar.inactiveForeground': '#9D9D9D'
 };
 
 export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
 	'activityBar.background': '#f8f8f8',
 	'statusBar.background': '#f8f8f8',
-	'statusBar.noFolderBackground': '#f8f8f8'
+	'statusBar.noFolderBackground': '#f8f8f8',
+	'titleBar.border': '#E5E5E5',
+	'titleBar.inactiveBackground': '#F8F8F8',
+	'titleBar.inactiveForeground': '#8B949E',
 };
 
 export interface IWorkbenchTheme {
@@ -103,6 +112,7 @@ export interface IWorkbenchThemeService extends IThemeService {
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 
 	hasUpdatedDefaultThemes(): boolean;
+	getPreferredColorScheme(): ColorScheme | undefined;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;

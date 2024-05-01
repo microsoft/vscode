@@ -358,7 +358,7 @@ CommandsRegistry.registerCommand({
 				const extension = extensionsWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id, uuid: version }));
 				if (extension?.enablementState === EnablementState.DisabledByExtensionKind) {
 					const [gallery] = await extensionGalleryService.getExtensions([{ id, preRelease: options?.installPreReleaseVersion }], CancellationToken.None);
-					if (gallery) {
+					if (!gallery) {
 						throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 					}
 					await extensionManagementService.installFromGallery(gallery, {

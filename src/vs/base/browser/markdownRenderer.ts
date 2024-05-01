@@ -35,6 +35,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRendererSync?: (languageId: string, value: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
+	readonly disallowRemoteImages?: boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -262,7 +263,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const htmlParser = new DOMParser();
 	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string, 'text/html');
 
-	markdownHtmlDoc.body.querySelectorAll('img')
+	markdownHtmlDoc.body.querySelectorAll('img, audio, video, source')
 		.forEach(img => {
 			const src = img.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
 			if (src) {
@@ -273,7 +274,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 					}
 				} catch (err) { }
 
-				img.src = _href(href, true);
+				img.setAttribute('src', _href(href, true));
+
+				if (options.disallowRemoteImages) {
+					const uriScheme = URI.parse(href).scheme;
+					if (uriScheme !== Schemas.file && uriScheme !== Schemas.data) {
+						img.replaceWith(DOM.$('', undefined, img.outerHTML));
+					}
+				}
 			}
 		});
 
@@ -580,34 +588,62 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 	return mergedTokenText;
 }
 
-function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens.Paragraph): marked.Token | undefined {
-	for (let i = 0; i < token.tokens.length; i++) {
+function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Paragraph): marked.Token | undefined {
+	if (!token.tokens) {
+		return undefined;
+	}
+
+	for (let i = token.tokens.length - 1; i >= 0; i--) {
 		const subtoken = token.tokens[i];
 		if (subtoken.type === 'text') {
 			const lines = subtoken.raw.split('\n');
 			const lastLine = lines[lines.length - 1];
 			if (lastLine.includes('`')) {
 				return completeCodespan(token);
-			} else if (lastLine.includes('**')) {
+			}
+
+			else if (lastLine.includes('**')) {
 				return completeDoublestar(token);
-			} else if (lastLine.match(/\*\w/)) {
+			}
+
+			else if (lastLine.match(/\*\w/)) {
 				return completeStar(token);
-			} else if (lastLine.match(/(^|\s)__\w/)) {
+			}
+
+			else if (lastLine.match(/(^|\s)__\w/)) {
 				return completeDoubleUnderscore(token);
-			} else if (lastLine.match(/(^|\s)_\w/)) {
+			}
+
+			else if (lastLine.match(/(^|\s)_\w/)) {
 				return completeUnderscore(token);
-			} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+			}
+
+			else if (
+				// Text with start of link target
+				hasLinkTextAndStartOfLinkTarget(lastLine) ||
+				// This token doesn't have the link text, eg if it contains other markdown constructs that are in other subtokens.
+				// But some preceding token does have an unbalanced [ at least
+				hasStartOfLinkTargetAndNoLinkText(lastLine) && token.tokens.slice(0, i).some(t => t.type === 'text' && t.raw.match(/\[[^\]]*$/))
+			) {
 				const nextTwoSubTokens = token.tokens.slice(i + 1);
-				if (nextTwoSubTokens[0]?.type === 'link' && nextTwoSubTokens[1]?.type === 'text' && nextTwoSubTokens[1].raw.match(/^ *"[^"]*$/)) {
-					// A markdown link can look like
-					// [link text](https://microsoft.com "more text")
-					// Where "more text" is a title for the link or an argument to a vscode command link
+
+				// A markdown link can look like
+				// [link text](https://microsoft.com "more text")
+				// Where "more text" is a title for the link or an argument to a vscode command link
+				if (
+					// If the link was parsed as a link, then look for a link token and a text token with a quote
+					nextTwoSubTokens[0]?.type === 'link' && nextTwoSubTokens[1]?.type === 'text' && nextTwoSubTokens[1].raw.match(/^ *"[^"]*$/) ||
+					// And if the link was not parsed as a link (eg command link), just look for a single quote in this token
+					lastLine.match(/^[^"]* +"[^"]*$/)
+				) {
+
 					return completeLinkTargetArg(token);
 				}
 				return completeLinkTarget(token);
-			} else if (hasStartOfLinkTarget(lastLine)) {
-				return completeLinkTarget(token);
-			} else if (lastLine.match(/(^|\s)\[\w/) && !token.tokens.slice(i + 1).some(t => hasStartOfLinkTarget(t.raw))) {
+			}
+
+			// Contains the start of link text, and no following tokens contain the link target
+			else if (lastLine.match(/(^|\s)\[\w*/)) {
 				return completeLinkText(token);
 			}
 		}
@@ -616,31 +652,90 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 	return undefined;
 }
 
-function hasStartOfLinkTarget(str: string): boolean {
+function hasLinkTextAndStartOfLinkTarget(str: string): boolean {
+	return !!str.match(/(^|\s)\[.*\]\(\w*/);
+}
+
+function hasStartOfLinkTargetAndNoLinkText(str: string): boolean {
 	return !!str.match(/^[^\[]*\]\([^\)]*$/);
 }
 
-// function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List | undefined {
-// 	// Patch up this one list item
-// 	const lastItem = token.items[token.items.length - 1];
+function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List | undefined {
+	// Patch up this one list item
+	const lastListItem = list.items[list.items.length - 1];
+	const lastListSubToken = lastListItem.tokens ? lastListItem.tokens[lastListItem.tokens.length - 1] : undefined;
 
-// 	const newList = completeSingleLinePattern(lastItem);
-// 	if (!newList || newList.type !== 'list') {
-// 		// Nothing to fix, or not a pattern we were expecting
-// 		return;
-// 	}
+	/*
+	Example list token structures:
 
-// 	// Re-parse the whole list with the last item replaced
-// 	const completeList = marked.lexer(mergeRawTokenText(token.items.slice(0, token.items.length - 1)) + newList.items[0].raw);
-// 	if (completeList.length === 1 && completeList[0].type === 'list') {
-// 		return completeList[0];
-// 	}
+	list
+		list_item
+			text
+				text
+				codespan
+				link
+		list_item
+			text
+			code // Complete indented codeblock
+		list_item
+			text
+			space
+			text
+				text // Incomplete indented codeblock
+		list_item
+			text
+			list // Nested list
+				list_item
+					text
+						text
 
-// 	// Not a pattern we were expecting
-// 	return undefined;
-// }
+	Contrast with paragraph:
+	paragraph
+		text
+		codespan
+	*/
 
+	let newToken: marked.Token | undefined;
+	if (lastListSubToken?.type === 'text' && !('inRawBlock' in lastListItem)) { // Why does Tag have a type of 'text'
+		newToken = completeSingleLinePattern(lastListSubToken as marked.Tokens.Text);
+	}
+
+	if (!newToken || newToken.type !== 'paragraph') { // 'text' item inside the list item turns into paragraph
+		// Nothing to fix, or not a pattern we were expecting
+		return;
+	}
+
+	const previousListItemsText = mergeRawTokenText(list.items.slice(0, -1));
+
+	// Grabbing the `- ` off the list item because I can't find a better way to do this
+	const newListItemText = lastListItem.raw.slice(0, 2) +
+		mergeRawTokenText(lastListItem.tokens.slice(0, -1)) +
+		newToken.raw;
+
+	const newList = marked.lexer(previousListItemsText + newListItemText)[0] as marked.Tokens.List;
+	if (newList.type !== 'list') {
+		// Something went wrong
+		return;
+	}
+
+	return newList;
+}
+
+const maxIncompleteTokensFixRounds = 3;
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
+	for (let i = 0; i < maxIncompleteTokensFixRounds; i++) {
+		const newTokens = fillInIncompleteTokensOnce(tokens);
+		if (newTokens) {
+			tokens = newTokens;
+		} else {
+			break;
+		}
+	}
+
+	return tokens;
+}
+
+function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensList | null {
 	let i: number;
 	let newTokens: marked.Token[] | undefined;
 	for (i = 0; i < tokens.length; i++) {
@@ -658,13 +753,13 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 			break;
 		}
 
-		// if (i === tokens.length - 1 && token.type === 'list') {
-		// 	const newListToken = completeListItemPattern(token);
-		// 	if (newListToken) {
-		// 		newTokens = [newListToken];
-		// 		break;
-		// 	}
-		// }
+		if (i === tokens.length - 1 && token.type === 'list') {
+			const newListToken = completeListItemPattern(token);
+			if (newListToken) {
+				newTokens = [newListToken];
+				break;
+			}
+		}
 
 		if (i === tokens.length - 1 && token.type === 'paragraph') {
 			// Only operates on a single token, because any newline that follows this should break these patterns
@@ -685,7 +780,7 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 		return newTokensList as marked.TokensList;
 	}
 
-	return tokens;
+	return null;
 }
 
 function completeCodeBlock(tokens: marked.Token[], leader: string): marked.Token[] {
@@ -714,7 +809,7 @@ function completeLinkTargetArg(tokens: marked.Token): marked.Token {
 }
 
 function completeLinkText(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, '](about:blank)');
+	return completeWithString(tokens, '](https://microsoft.com)');
 }
 
 function completeDoublestar(tokens: marked.Token): marked.Token {

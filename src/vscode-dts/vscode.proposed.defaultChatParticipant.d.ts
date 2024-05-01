@@ -8,8 +8,8 @@ declare module 'vscode' {
 	export type ChatWelcomeMessageContent = string | MarkdownString;
 
 	export interface ChatWelcomeMessageProvider {
-		provideWelcomeMessage(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatFollowup[]>;
+		provideWelcomeMessage(location: ChatLocation, token: CancellationToken): ProviderResult<ChatWelcomeMessageContent[]>;
+		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
 	export interface ChatRequesterInformation {

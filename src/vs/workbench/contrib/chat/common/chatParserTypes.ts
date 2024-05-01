@@ -81,23 +81,6 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	get promptText(): string {
 		return '';
 	}
-
-	/**
-	 * Don't stringify all the agent methods, just data.
-	 */
-	toJSON(): any {
-		return {
-			kind: this.kind,
-			range: this.range,
-			editorRange: this.editorRange,
-			agent: {
-				id: this.agent.id,
-				name: this.agent.name,
-				description: this.agent.description,
-				metadata: this.agent.metadata
-			}
-		};
-	}
 }
 
 /**

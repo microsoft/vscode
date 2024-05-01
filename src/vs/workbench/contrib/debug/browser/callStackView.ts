@@ -280,9 +280,7 @@ export class CallStackView extends ViewPane {
 				}
 			},
 			expandOnlyOnTwistieClick: true,
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 
 		this.tree.setInput(this.debugService.getModel());

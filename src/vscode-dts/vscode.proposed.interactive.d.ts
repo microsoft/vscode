@@ -110,25 +110,9 @@ declare module 'vscode' {
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
-	export interface InteractiveSession {
-	}
-
-	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
-		prepareSession(token: CancellationToken): ProviderResult<S>;
-	}
-
-	export interface InteractiveSessionDynamicRequest {
-		/**
-		 * The message that will be displayed in the UI
-		 */
-		message: string;
-	}
-
 	export namespace interactive {
 		// current version of the proposal.
 		export const _version: 1 | number;
-
-		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider, metadata?: InteractiveEditorSessionProviderMetadata): Disposable;
 

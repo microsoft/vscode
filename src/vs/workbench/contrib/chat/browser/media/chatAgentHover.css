@@ -1,0 +1,64 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-agent-hover {
+	line-height: unset;
+	padding: 6px 0px;
+}
+
+.chat-agent-hover-header {
+	display: flex;
+	gap: 5px;
+}
+
+.chat-agent-hover-icon img,
+.chat-agent-hover-icon .codicon {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	outline: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.monaco-hover .markdown-hover .hover-contents .chat-agent-hover-icon .codicon {
+	font-size: 23px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.chat-agent-hover-publisher {
+	display: flex;
+	gap: 4px;
+}
+
+.monaco-hover .chat-agent-hover .chat-agent-hover-publisher .codicon.codicon-extensions-verified-publisher {
+	color: var(--vscode-extensionIcon-verifiedForeground);
+}
+
+.chat-agent-hover-header .chat-agent-hover-name {
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.chat-agent-hover-extension {
+	display: flex;
+	gap: 6px;
+}
+
+.chat-agent-hover-separator {
+	opacity: 0.7;
+}
+
+.chat-agent-hover-description,
+.chat-agent-hover-marketplace-button .monaco-text-button {
+	font-size: 13px;
+}
+
+.chat-agent-hover .chat-agent-hover-marketplace-button .monaco-text-button {
+	display: unset;
+	padding: unset;
+	border: unset;
+	line-height: unset;
+}

@@ -11,8 +11,7 @@
   },
   "enabledApiProposals": [
     "documentPaste",
-    "diffContentOptions",
-    "dropMetadata"
+    "diffContentOptions"
   ],
   "activationEvents": [
     "onNotebook:jupyter-notebook",

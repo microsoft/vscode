@@ -50,7 +50,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 
-		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, `inlineChatDefaultModel/editorContentWidgetPlaceholder`, undefined));
+		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
 
 		const scopedInstaService = instaService.createChild(
 			new ServiceCollection([
@@ -68,6 +68,7 @@ export class InlineChatContentWidget implements IContentWidget {
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
 				renderStyle: 'compact',
 				renderInputOnTop: true,
+				renderFollowups: true,
 				supportsFileReferences: false,
 				menus: {
 					telemetrySource: 'inlineChat-content'
@@ -131,9 +132,9 @@ export class InlineChatContentWidget implements IContentWidget {
 	beforeRender(): IDimension | null {
 
 		const maxHeight = this._widget.input.inputEditor.getOption(EditorOption.lineHeight) * 5;
-		const inputEditorHeight = this._widget.inputEditor.getContentHeight();
+		const inputEditorHeight = this._widget.contentHeight;
 
-		this._widget.inputEditor.layout(new dom.Dimension(360, Math.min(maxHeight, inputEditorHeight)));
+		this._widget.layout(Math.min(maxHeight, inputEditorHeight), 360);
 
 		// const actualHeight = this._widget.inputPartHeight;
 		// return new dom.Dimension(width, actualHeight);
@@ -193,9 +194,11 @@ export class InlineChatContentWidget implements IContentWidget {
 	}
 
 	private _updateMessage(message: string) {
-		this._messageContainer.classList.toggle('hidden', !message);
-		const renderedMessage = renderLabelWithIcons(message);
-		dom.reset(this._messageContainer, ...renderedMessage);
+		if (message) {
+			const renderedMessage = renderLabelWithIcons(message);
+			dom.reset(this._messageContainer, ...renderedMessage);
+		}
+		this._messageContainer.style.display = message ? 'inherit' : 'none';
 		this._editor.layoutContentWidget(this);
 	}
 }

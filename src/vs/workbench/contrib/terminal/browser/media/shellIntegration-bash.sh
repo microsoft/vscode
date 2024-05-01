@@ -117,11 +117,15 @@ __vsc_escape_value() {
 	for (( i=0; i < "${#str}"; ++i )); do
 		byte="${str:$i:1}"
 
-		# Escape backslashes and semi-colons
+		# Escape backslashes, semi-colons, escapes, and newlines
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
+		elif [ "$byte" = $'\n' ]; then
+			token="\x0a"
+		elif [ "$byte" = $'\e' ]; then
+			token="\\x1b"
 		else
 			token="$byte"
 		fi
@@ -135,6 +139,9 @@ __vsc_escape_value() {
 # Send the IsWindows property if the environment looks like Windows
 if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
 	builtin printf '\e]633;P;IsWindows=True\a'
+	__vsc_is_windows=1
+else
+	__vsc_is_windows=0
 fi
 
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
@@ -157,6 +164,17 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
+# Report continuation prompt
+builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+
+__vsc_report_prompt() {
+	# Expand the original PS1 similarly to how bash would normally
+	# See https://stackoverflow.com/a/37137981 for technique
+	__vsc_prompt=${__vsc_original_PS1@P}
+	__vsc_prompt="$(builtin printf "%s" "${__vsc_prompt//[$'\001'$'\002']}")"
+	builtin printf "\e]633;P;Prompt=%s\a" "$(__vsc_escape_value "${__vsc_prompt}")"
+}
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -166,12 +184,17 @@ __vsc_prompt_end() {
 }
 
 __vsc_update_cwd() {
-	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$PWD")"
+	if [ "$__vsc_is_windows" = "1" ]; then
+		__vsc_cwd="$(cygpath -m "$PWD")"
+	else
+		__vsc_cwd="$PWD"
+	fi
+	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
 __vsc_command_output_start() {
-	builtin printf '\e]633;C\a'
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
+	builtin printf '\e]633;C\a'
 }
 
 __vsc_continuation_start() {
@@ -216,6 +239,7 @@ __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
 	__vsc_update_prompt
+	__vsc_report_prompt
 	__vsc_first_prompt=1
 }
 

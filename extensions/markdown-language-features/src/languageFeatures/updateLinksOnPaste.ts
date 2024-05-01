@@ -9,7 +9,7 @@ import { Mime } from '../util/mimes';
 
 class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider {
 
-	public static readonly kind = vscode.DocumentPasteEditKind.Empty.append('text', 'markdown', 'updateLinks');
+	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('text', 'markdown', 'updateLinks');
 
 	public static readonly metadataMime = 'vnd.vscode.markdown.updateLinksMetadata';
 

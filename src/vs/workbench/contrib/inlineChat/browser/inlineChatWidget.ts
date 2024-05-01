@@ -93,7 +93,6 @@ export interface IInlineChatWidgetConstructionOptions {
 export interface IInlineChatMessage {
 	message: IMarkdownString;
 	requestId: string;
-	providerId: string;
 }
 
 export interface IInlineChatMessageAppender {
@@ -174,6 +173,7 @@ export class InlineChatWidget {
 				defaultElementHeight: 32,
 				renderStyle: 'compact',
 				renderInputOnTop: true,
+				renderFollowups: true,
 				supportsFileReferences: true,
 				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
 				rendererOptions: options.rendererOptions,
@@ -302,9 +302,9 @@ export class InlineChatWidget {
 
 		// LEGACY - default chat model
 		// this is only here for as long as we offer updateChatMessage
-		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, `inlineChatDefaultModel/${location}`, undefined));
+		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
 		this._defaultChatModel.startInitialize();
-		this._defaultChatModel.initialize({ id: 1 }, undefined);
+		this._defaultChatModel.initialize(undefined);
 		this.setChatModel(this._defaultChatModel);
 	}
 
@@ -383,11 +383,20 @@ export class InlineChatWidget {
 	}
 
 	get minHeight(): number {
-		// The chat widget is variable height and supports scrolling. It
-		// should be at least 100px high and at most the content height.
+		// The chat widget is variable height and supports scrolling. It should be
+		// at least "maxWidgetHeight" high and at most the content height.
+
+		let maxWidgetHeight = 100;
+		for (const item of this._chatWidget.viewModel?.getItems() ?? []) {
+			if (isResponseVM(item) && item.response.value.some(r => r.kind === 'textEditGroup' && !r.state?.applied)) {
+				maxWidgetHeight = 270;
+				break;
+			}
+		}
+
 		let value = this.contentHeight;
 		value -= this._chatWidget.contentHeight;
-		value += Math.min(100, this._chatWidget.contentHeight);
+		value += Math.min(maxWidgetHeight, this._chatWidget.contentHeight);
 		return value;
 	}
 
@@ -457,7 +466,11 @@ export class InlineChatWidget {
 		if (!isNonEmptyArray(requests)) {
 			return undefined;
 		}
-		return tail(requests).response?.response.asString();
+		return tail(requests)?.response?.response.asString();
+	}
+
+	get usesDefaultChatModel(): boolean {
+		return this.getChatModel() === this._defaultChatModel;
 	}
 
 	getChatModel(): IChatModel {
@@ -499,7 +512,7 @@ export class InlineChatWidget {
 			return;
 		}
 
-		const chatRequest = model.addRequest({ parts: [], text: '' }, { variables: [] });
+		const chatRequest = model.addRequest({ parts: [], text: '' }, { variables: [] }, 0);
 		model.acceptResponseProgress(chatRequest, {
 			kind: 'markdownContent',
 			content: message.message
