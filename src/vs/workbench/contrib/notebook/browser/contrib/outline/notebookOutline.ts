@@ -301,22 +301,21 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		const { hasFileIcons } = this._themeService.getFileIconTheme();
 
 		const showSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
+		const isSymbol = (element: OutlineEntry) => !!element.symbolKind;
+		const isCodeCell = (element: OutlineEntry) => (element.cell.cellKind === CellKind.Code && element.level === NotebookOutlineConstants.NonHeaderOutlineLevel); // code cell entries are exactly level 7 by this constant
 		for (let i = 0; i < bucket.length; i++) {
 			const element = bucket[i];
-			const nextElement = bucket[i + 1];
+			const nextElement = bucket[i + 1]; // can be undefined
 
-			// this logic controls the following for code cells entries in quick pick:
-			if (element.cell.cellKind === CellKind.Code) {
-				// if we are showing all symbols, and
-				// 		- the next entry is a symbol, we DO NOT include the code cell entry (ie continue)
-				//		- the next entry is not a symbol, we DO include the code cell entry (ie push as normal in the loop)
-				if (showSymbols && element.level === NotebookOutlineConstants.NonHeaderOutlineLevel && (nextElement?.level > NotebookOutlineConstants.NonHeaderOutlineLevel)) {
-					continue;
-				}
-				// if we are not showing all symbols, skip all entries with level > NonHeaderOutlineLevel (ie 8+)
-				else if (!showSymbols && element.level > NotebookOutlineConstants.NonHeaderOutlineLevel) {
-					continue;
-				}
+			if (!showSymbols
+				&& isSymbol(element)) {
+				continue;
+			}
+
+			if (showSymbols
+				&& isCodeCell(element)
+				&& nextElement && isSymbol(nextElement)) {
+				continue;
 			}
 
 			const useFileIcon = hasFileIcons && !element.symbolKind;
