@@ -67,7 +67,7 @@ import { ChatAgentLocation, IChatAgentMetadata, IChatAgentNameService } from 'vs
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatWarningMessage, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -511,7 +511,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'command' ? this.renderCommandButton(element, data)
 							: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
-								: undefined;
+								: data.kind === 'warning' ? this.renderWarning(element, data)
+									: undefined;
+
 			if (result) {
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
@@ -916,6 +918,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.dispose();
 			},
 			element: container
+		};
+	}
+
+	private renderWarning(element: ChatTreeItem, chatWarning: IChatWarningMessage): IMarkdownRenderResult | undefined {
+		const container = $('.chat-warning');
+		container.appendChild($('.chat-warning-codicon', undefined, renderIcon(Codicon.warning)));
+		const markdownContent = this.renderer.render(chatWarning.content);
+		container.appendChild(markdownContent.element);
+		return {
+			element: container,
+			dispose() { markdownContent.dispose(); }
 		};
 	}
 
