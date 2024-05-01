@@ -15,21 +15,21 @@ on: workflow_dispatch
 jobs:
   windows:
     name: Windows
-    runs-on: windows-2022
+    runs-on: windows-latest
     timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v2
         with:
           node-version-file: .nvmrc
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v2
         with:
-          python-version: "2.x"
+          python-version: "3.x"
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
