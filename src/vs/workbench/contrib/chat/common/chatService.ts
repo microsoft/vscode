@@ -106,6 +106,11 @@ export interface IChatProgressMessage {
 	kind: 'progressMessage';
 }
 
+export interface IChatWarningMessage {
+	content: IMarkdownString;
+	kind: 'warning';
+}
+
 export interface IChatAgentVulnerabilityDetails {
 	title: string;
 	description: string;
@@ -138,6 +143,7 @@ export type IChatProgress =
 	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatCommandButton
+	| IChatWarningMessage
 	| IChatTextEdit;
 
 export interface IChatFollowup {
