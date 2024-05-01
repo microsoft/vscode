@@ -2595,7 +2595,7 @@ export namespace ChatAgentRequest {
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
-			variables: request.variables.variables.map(ChatAgentResolvedVariable.to),
+			variables: request.variables.variables.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 		};
 	}
@@ -2612,12 +2612,17 @@ export namespace ChatLocation {
 	}
 }
 
-export namespace ChatAgentResolvedVariable {
-	export function to(request: IChatRequestVariableEntry): vscode.ChatResolvedVariable {
+export namespace ChatAgentValueReference {
+	export function to(request: IChatRequestVariableEntry): vscode.ChatValueReference {
+		const value = request.values[0]?.value;
+		if (!value) {
+			throw new Error('Invalid value reference');
+		}
+
 		return {
 			name: request.name,
-			range: request.range && [request.range.start, request.range.endExclusive],
-			values: request.values.map(ChatVariable.to)
+			range: (request.range && [request.range.start, request.range.endExclusive])!, // TODO
+			value: isUriComponents(value) ? URI.revive(value) : value,
 		};
 	}
 }

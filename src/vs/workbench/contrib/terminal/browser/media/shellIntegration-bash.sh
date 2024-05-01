@@ -117,13 +117,15 @@ __vsc_escape_value() {
 	for (( i=0; i < "${#str}"; ++i )); do
 		byte="${str:$i:1}"
 
-		# Escape backslashes, semi-colons and newlines
+		# Escape backslashes, semi-colons, escapes, and newlines
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
 		elif [ "$byte" = $'\n' ]; then
 			token="\x0a"
+		elif [ "$byte" = $'\e' ]; then
+			token="\\x1b"
 		else
 			token="$byte"
 		fi
@@ -164,6 +166,14 @@ unset VSCODE_NONCE
 
 # Report continuation prompt
 builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+
+__vsc_report_prompt() {
+	# Expand the original PS1 similarly to how bash would normally
+	# See https://stackoverflow.com/a/37137981 for technique
+	__vsc_prompt=${__vsc_original_PS1@P}
+	__vsc_prompt="$(builtin printf "%s" "${__vsc_prompt//[$'\001'$'\002']}")"
+	builtin printf "\e]633;P;Prompt=%s\a" "$(__vsc_escape_value "${__vsc_prompt}")"
+}
 
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
@@ -229,6 +239,7 @@ __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
 	__vsc_update_prompt
+	__vsc_report_prompt
 	__vsc_first_prompt=1
 }
 
