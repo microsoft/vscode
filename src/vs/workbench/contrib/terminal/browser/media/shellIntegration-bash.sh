@@ -170,7 +170,12 @@ builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/
 __vsc_report_prompt() {
 	# Expand the original PS1 similarly to how bash would normally
 	# See https://stackoverflow.com/a/37137981 for technique
-	__vsc_prompt=${__vsc_original_PS1}
+	if ((BASH_VERSINFO[0] >= 4)); then
+		__vsc_prompt=${__vsc_original_PS1@P}
+	else
+		__vsc_prompt=${__vsc_original_PS1}
+	fi
+
 	__vsc_prompt="$(builtin printf "%s" "${__vsc_prompt//[$'\001'$'\002']}")"
 	builtin printf "\e]633;P;Prompt=%s\a" "$(__vsc_escape_value "${__vsc_prompt}")"
 }
