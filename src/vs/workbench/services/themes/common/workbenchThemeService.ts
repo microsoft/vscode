@@ -77,19 +77,37 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'textLink.foreground': '#4daafc',
 	'titleBar.activeBackground': '#181818',
 	'titleBar.activeForeground': '#cccccc',
-	'titleBar.border': '#2B2B2B',
+	'titleBar.border': '#2b2b2b',
 	'titleBar.inactiveBackground': '#1f1f1f',
-	'titleBar.inactiveForeground': '#9D9D9D',
+	'titleBar.inactiveForeground': '#9d9d9d',
 	'welcomePage.tileBackground': '#2b2b2b'
 };
 
 export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
+	'activityBar.activeBorder': '#005FB8',
 	'activityBar.background': '#f8f8f8',
+	'activityBar.border': '#e5e5e5',
+	'activityBar.foreground': '#1f1f1f',
+	'activityBar.inactiveForeground': '#616161',
+	'editorGroup.border': '#e5e5e5',
+	'editorGroupHeader.tabsBackground': '#f8f8f8',
+	'editorGroupHeader.tabsBorder': '#e5e5e5',
 	'statusBar.background': '#f8f8f8',
+	'statusBar.border': '#e5e5e5',
+	'statusBar.foreground': '#3b3b3b',
 	'statusBar.noFolderBackground': '#f8f8f8',
+	'tab.activeBackground': '#ffffff',
+	'tab.activeBorder': '#f8f8f8',
+	'tab.activeBorderTop': '#005fb8',
+	'tab.activeForeground': '#3b3b3b',
+	'tab.border': '#e5e5e5',
+	'textLink.foreground': '#005fb8',
+	'titleBar.activeBackground': '#f8f8f8',
+	'titleBar.activeForeground': '#1e1e1e',
 	'titleBar.border': '#E5E5E5',
-	'titleBar.inactiveBackground': '#F8F8F8',
-	'titleBar.inactiveForeground': '#8B949E',
+	'titleBar.inactiveBackground': '#f8f8f8',
+	'titleBar.inactiveForeground': '#8b949e',
+	'welcomePage.tileBackground': '#f3f3f3'
 };
 
 export interface IWorkbenchTheme {
