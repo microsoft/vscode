@@ -215,7 +215,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
 			case ActivityBarPosition.HIDDEN: return CompositeBarPosition.TITLE;
-			case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TITLE;
+			case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TOP;
 			default: return CompositeBarPosition.TITLE;
 		}
 	}
