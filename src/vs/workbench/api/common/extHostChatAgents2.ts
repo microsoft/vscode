@@ -123,6 +123,13 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				warning(value) {
+					throwIfDone(this.progress);
+					const part = new extHostTypes.ChatResponseWarningPart(value);
+					const dto = typeConvert.ChatResponseWarningPart.from(part);
+					_report(dto);
+					return this;
+				},
 				reference(value, iconPath) {
 					throwIfDone(this.reference);
 

@@ -39,7 +39,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/edit
 import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTextEdit, IChatTreeData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
@@ -2460,6 +2460,18 @@ export namespace ChatResponseProgressPart {
 	}
 	export function to(part: Dto<IChatProgressMessage>): vscode.ChatResponseProgressPart {
 		return new types.ChatResponseProgressPart(part.content.value);
+	}
+}
+
+export namespace ChatResponseWarningPart {
+	export function from(part: vscode.ChatResponseWarningPart): Dto<IChatWarningMessage> {
+		return {
+			kind: 'warning',
+			content: MarkdownString.from(part.value)
+		};
+	}
+	export function to(part: Dto<IChatWarningMessage>): vscode.ChatResponseWarningPart {
+		return new types.ChatResponseWarningPart(part.content.value);
 	}
 }
 
