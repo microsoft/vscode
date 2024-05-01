@@ -460,7 +460,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	public terminateAll(): Promise<ITaskTerminateResponse[]> {
 		const promises: Promise<ITaskTerminateResponse>[] = [];
 		for (const [key, terminalData] of Object.entries(this._activeTasks)) {
-			const terminal = terminalData.terminal;
+			const terminal = terminalData?.terminal;
 			if (terminal) {
 				promises.push(new Promise<ITaskTerminateResponse>((resolve, reject) => {
 					const onExit = terminal.onExit(() => {

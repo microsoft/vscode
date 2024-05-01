@@ -11,7 +11,6 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { isBoolean, isString } from 'vs/base/common/types';
 import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -44,8 +43,6 @@ export enum ThemeSettings {
 	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
 
-export const ENABLE_SYSTEM_COLOR_SCHEME_SETTING = !isLinux;
-
 export enum ThemeSettingDefaults {
 	COLOR_THEME_DARK = 'Default Dark Modern',
 	COLOR_THEME_LIGHT = 'Default Light Modern',
@@ -63,12 +60,18 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'activityBar.background': '#181818',
 	'statusBar.background': '#181818',
 	'statusBar.noFolderBackground': '#1f1f1f',
+	'titleBar.border': '#2B2B2B',
+	'titleBar.inactiveBackground': '#ff0000',
+	'titleBar.inactiveForeground': '#9D9D9D'
 };
 
 export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
 	'activityBar.background': '#f8f8f8',
 	'statusBar.background': '#f8f8f8',
-	'statusBar.noFolderBackground': '#f8f8f8'
+	'statusBar.noFolderBackground': '#f8f8f8',
+	'titleBar.border': '#E5E5E5',
+	'titleBar.inactiveBackground': '#F8F8F8',
+	'titleBar.inactiveForeground': '#8B949E',
 };
 
 export interface IWorkbenchTheme {

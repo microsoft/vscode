@@ -231,7 +231,17 @@ class RenameController implements IEditorContribution {
 
 		const newSymbolNamesProviders = this._languageFeaturesService.newSymbolNamesProvider.all(model);
 
-		const requestRenameSuggestions = (triggerKind: NewSymbolNameTriggerKind, cts: CancellationToken) => newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, triggerKind, cts));
+		const resolvedNewSymbolnamesProviders = await Promise.all(newSymbolNamesProviders.map(async p => [p, await p.supportsAutomaticNewSymbolNamesTriggerKind ?? false] as const));
+
+		const requestRenameSuggestions = (triggerKind: NewSymbolNameTriggerKind, cts: CancellationToken) => {
+			let providers = resolvedNewSymbolnamesProviders.slice();
+
+			if (triggerKind === NewSymbolNameTriggerKind.Automatic) {
+				providers = providers.filter(([_, supportsAutomatic]) => supportsAutomatic);
+			}
+
+			return providers.map(([p,]) => p.provideNewSymbolNames(model, loc.range, triggerKind, cts));
+		};
 
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
@@ -349,6 +359,10 @@ class RenameController implements IEditorContribution {
 				timeBeforeFirstInputFieldEdit?: number;
 				/** provided only if kind = 'accepted' */
 				wantsPreview?: boolean;
+				/** provided only if kind = 'accepted' */
+				nRenameSuggestionsInvocations?: number;
+				/** provided only if kind = 'accepted' */
+				hadAutomaticRenameSuggestionsInvocation?: boolean;
 			};
 
 		type RenameInvokedClassification = {
@@ -363,6 +377,8 @@ class RenameController implements IEditorContribution {
 			nRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename suggestions user has got' };
 			timeBeforeFirstInputFieldEdit?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Milliseconds before user edits the input field for the first time' };
 			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.' };
+			nRenameSuggestionsInvocations?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of times rename suggestions were invoked' };
+			hadAutomaticRenameSuggestionsInvocation?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether rename suggestions were invoked automatically' };
 		};
 
 		const value: RenameInvokedEvent =
@@ -381,6 +397,8 @@ class RenameController implements IEditorContribution {
 					nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
 					timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
 					wantsPreview: inputFieldResult.wantsPreview,
+					nRenameSuggestionsInvocations: inputFieldResult.stats.nRenameSuggestionsInvocations,
+					hadAutomaticRenameSuggestionsInvocation: inputFieldResult.stats.hadAutomaticRenameSuggestionsInvocation,
 				};
 
 		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);

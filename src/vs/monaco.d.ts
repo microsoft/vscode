@@ -7395,7 +7395,7 @@ declare namespace monaco.languages {
 	 * A provider that can provide document highlights across multiple documents.
 	 */
 	export interface MultiDocumentHighlightProvider {
-		selector: LanguageFilter;
+		readonly selector: LanguageSelector;
 		/**
 		 * Provide a Map of Uri --> document highlights, like all occurrences of a variable or
 		 * all exit-points of a function.
@@ -7903,6 +7903,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface NewSymbolNamesProvider {
+		supportsAutomaticNewSymbolNamesTriggerKind?: Promise<boolean | undefined>;
 		provideNewSymbolNames(model: editor.ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): ProviderResult<NewSymbolName[]>;
 	}
 

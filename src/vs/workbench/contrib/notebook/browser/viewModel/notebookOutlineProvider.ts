@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IActiveNotebookEditor, ICellViewModel, INotebookEditor, type INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IActiveNotebookEditor, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellsChangeType, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
@@ -29,6 +29,10 @@ export class NotebookCellOutlineProvider {
 	private _uri: URI | undefined;
 	private _entries: OutlineEntry[] = [];
 	get entries(): OutlineEntry[] {
+		if (this.delayedOutlineRecompute.isTriggered()) {
+			this.delayedOutlineRecompute.cancel();
+			this._recomputeState();
+		}
 		return this._entries;
 	}
 
@@ -38,11 +42,15 @@ export class NotebookCellOutlineProvider {
 	readonly outlineKind = 'notebookCells';
 
 	get activeElement(): OutlineEntry | undefined {
+		if (this.delayedOutlineRecompute.isTriggered()) {
+			this.delayedOutlineRecompute.cancel();
+			this._recomputeState();
+		}
 		return this._activeEntry;
 	}
 
 	private readonly _outlineEntryFactory: NotebookOutlineEntryFactory;
-	private readonly delayRecomputeActive: () => void;
+	private readonly delayedOutlineRecompute: Delayer<void>;
 	constructor(
 		private readonly _editor: INotebookEditor,
 		private readonly _target: OutlineTarget,
@@ -53,29 +61,19 @@ export class NotebookCellOutlineProvider {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService);
-		const delayerRecomputeActive = this._disposables.add(new Delayer(10));
-		this.delayRecomputeActive = () => delayerRecomputeActive.trigger(() => this._recomputeActive());
 
-		this._disposables.add(Event.debounce<void, void>(
-			_editor.onDidChangeSelection,
-			(last, _current) => last,
-			200
-		)(() => {
-			this.delayRecomputeActive();
-		}, this))
-		this._disposables.add(Event.debounce<INotebookViewCellsUpdateEvent, INotebookViewCellsUpdateEvent>(
-			_editor.onDidChangeViewCells,
-			(last, _current) => last ?? _current,
-			200
-		)(() => {
-			this.delayRecomputeActive();
-		}, this)
-		);
+		const delayerRecomputeActive = this._disposables.add(new Delayer(200));
+		this._disposables.add(_editor.onDidChangeSelection(() => {
+			delayerRecomputeActive.trigger(() => this._recomputeActive());
+		}, this));
 
 		// .3s of a delay is sufficient, 100-200s is too quick and will unnecessarily block the ui thread.
 		// Given we're only updating the outline when the user types, we can afford to wait a bit.
-		const delayer = this._disposables.add(new Delayer<void>(300));
-		const delayedRecompute = () => delayer.trigger(() => this._recomputeState());
+		this.delayedOutlineRecompute = this._disposables.add(new Delayer<void>(300));
+		const delayedRecompute = () => {
+			delayerRecomputeActive.cancel(); // Active is always recomputed after a recomputing the outline state.
+			this.delayedOutlineRecompute.trigger(() => this._recomputeState());
+		};
 
 		this._disposables.add(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(NotebookSetting.outlineShowMarkdownHeadersOnly) ||
@@ -106,7 +104,10 @@ export class NotebookCellOutlineProvider {
 				return;
 			}
 			disposable.add(this._editor.textModel.onDidChangeContent(contentChanges => {
-				if (contentChanges.rawEvents.some(c => c.kind === NotebookCellsChangeType.ChangeCellContent)) {
+				if (contentChanges.rawEvents.some(c => c.kind === NotebookCellsChangeType.ChangeCellContent ||
+					c.kind === NotebookCellsChangeType.ChangeCellInternalMetadata ||
+					c.kind === NotebookCellsChangeType.Move ||
+					c.kind === NotebookCellsChangeType.ModelChange)) {
 					delayedRecompute();
 				}
 			}));
@@ -114,10 +115,10 @@ export class NotebookCellOutlineProvider {
 			if (!this._entries.length) {
 				this._recomputeState();
 			}
-		}
+		};
 		this._disposables.add(this._editor.onDidChangeModel(monitorModelChanges));
 		monitorModelChanges();
-		this._recomputeState()
+		this._recomputeState();
 	}
 
 	dispose(): void {
@@ -259,7 +260,10 @@ export class NotebookCellOutlineProvider {
 			}
 		}));
 
-		this.delayRecomputeActive();
+		const { changeEventTriggered } = this._recomputeActive();
+		if (!changeEventTriggered) {
+			this._onDidChange.fire({});
+		}
 	}
 
 	private _recomputeActive(): { changeEventTriggered: boolean } {

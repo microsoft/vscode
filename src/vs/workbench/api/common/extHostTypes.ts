@@ -4362,6 +4362,17 @@ export class ChatResponseProgressPart {
 	}
 }
 
+export class ChatResponseWarningPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
@@ -4391,7 +4402,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly variables: vscode.ChatResolvedVariable[],
+		readonly variables: vscode.ChatValueReference[],
 		readonly participant: string,
 	) { }
 }
@@ -4482,6 +4493,12 @@ export enum SpeechToTextStatus {
 	Recognized = 3,
 	Stopped = 4,
 	Error = 5
+}
+
+export enum TextToSpeechStatus {
+	Started = 1,
+	Stopped = 2,
+	Error = 3
 }
 
 export enum KeywordRecognitionStatus {
