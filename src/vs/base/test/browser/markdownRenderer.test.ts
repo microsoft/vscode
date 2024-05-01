@@ -626,7 +626,7 @@ const y = 2;
 				const incomplete = `- list item one
 
 	\`\`\`js
-	let x = 1;`
+	let x = 1;`;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -639,7 +639,7 @@ const y = 2;
 	- sub item
 - text
 	newline for some reason
-`
+`;
 				const tokens = marked.lexer(list);
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -656,7 +656,7 @@ const y = 2;
 
 			test('list with incomplete link text', () => {
 				const incomplete = `- list item one
-- item two [link`
+- item two [link`;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -666,7 +666,7 @@ const y = 2;
 
 			test('list with incomplete link target', () => {
 				const incomplete = `- list item one
-- item two [link](`
+- item two [link](`;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -676,7 +676,7 @@ const y = 2;
 
 			test('list with incomplete link with other stuff', () => {
 				const incomplete = `- list item one
-- item two [\`link`
+- item two [\`link`;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 

@@ -1314,7 +1314,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 		}
 
-		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
+		templateData.actionBar.context = { $treeViewId: this.treeViewId, $treeItemHandle: node.handle } satisfies TreeViewItemHandleArg;
 
 		const menuActions = this.menus.getResourceActions([node], templateData.elementDisposable);
 		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
