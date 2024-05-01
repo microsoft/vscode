@@ -198,6 +198,7 @@ export default class FileConfigurationManager extends Disposable {
 			displayPartsForJSDoc: true,
 			disableLineTextInReferences: true,
 			interactiveInlayHints: true,
+			includeCompletionsForModuleExports: config.get<boolean>('suggest.autoImports'),
 			...getInlayHintsPreferences(config),
 		};
 
