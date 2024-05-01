@@ -26,6 +26,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { Range } from 'vs/editor/common/core/range';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { INotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/common/notebookCellDiagnosticsService';
 
 //#region Move/Copy cells
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
@@ -601,7 +602,8 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		if (context.cell instanceof CodeCellViewModel) {
-			const error = context.cell.cellDiagnostics.ErrorDetails;
+			const cellErrors = accessor.get(INotebookCellDiagnosticsService);
+			const error = cellErrors.getCellExecutionError(context.cell.uri);
 			if (error?.location) {
 				const location = Range.lift({
 					startLineNumber: error.location.startLineNumber + 1,

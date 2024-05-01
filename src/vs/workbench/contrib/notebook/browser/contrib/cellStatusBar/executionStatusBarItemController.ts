@@ -22,6 +22,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/common/notebookCellDiagnosticsService';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -361,17 +362,18 @@ class DiagnosticCellStatusBarItem extends Disposable {
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly cell: CodeCellViewModel,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotebookCellDiagnosticsService private readonly cellDiagnostics: INotebookCellDiagnosticsService
 	) {
 		super();
 		this._update();
-		this._register(this.cell.cellDiagnostics.onDidDiagnosticsChange(() => this._update()));
+		this._register(this.cellDiagnostics.onDidDiagnosticsChange(() => this._update()));
 	}
 
 	private async _update() {
 		let item: INotebookCellStatusBarItem | undefined;
 
-		if (!!this.cell.cellDiagnostics.ErrorDetails) {
+		if (!!this.cellDiagnostics.getCellExecutionError(this.cell.uri)) {
 			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
 			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
 

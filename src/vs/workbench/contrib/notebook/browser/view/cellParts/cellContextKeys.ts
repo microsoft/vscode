@@ -12,6 +12,7 @@ import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/bro
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { INotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/common/notebookCellDiagnosticsService';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -57,7 +58,8 @@ export class CellContextKeyManager extends Disposable {
 		private readonly notebookEditor: INotebookEditorDelegate,
 		private element: ICellViewModel | undefined,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookCellDiagnosticsService private readonly _notebookCellDiagnosticsService: INotebookCellDiagnosticsService,
 	) {
 		super();
 
@@ -101,7 +103,7 @@ export class CellContextKeyManager extends Disposable {
 
 		if (element instanceof CodeCellViewModel) {
 			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
-			this.elementDisposables.add(element.cellDiagnostics.onDidDiagnosticsChange(() => this.updateForDiagnostics()));
+			this.elementDisposables.add(this._notebookCellDiagnosticsService.onDidDiagnosticsChange(() => this.updateForDiagnostics()));
 		}
 
 		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
@@ -248,7 +250,7 @@ export class CellContextKeyManager extends Disposable {
 
 	private updateForDiagnostics() {
 		if (this.element instanceof CodeCellViewModel) {
-			this.cellHasErrorDiagnostics.set(!!this.element.cellDiagnostics.ErrorDetails);
+			this.cellHasErrorDiagnostics.set(!!this._notebookCellDiagnosticsService.getCellExecutionError(this.element.uri));
 		}
 	}
 }
