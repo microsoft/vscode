@@ -2979,7 +2979,15 @@ export class SCMViewPane extends ViewPane {
 	private createTree(container: HTMLElement, viewState?: IAsyncDataTreeViewState): void {
 		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => { this.tree.updateElementHeight(input, height); });
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => {
+			try {
+				// Attempt to update the input element height. There is an
+				// edge case where the input has already been disposed and
+				// updating the height would fail.
+				this.tree.updateElementHeight(input, height);
+			}
+			catch { }
+		});
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
