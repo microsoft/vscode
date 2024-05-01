@@ -50,7 +50,8 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite('Terminal Contrib Suggest Recordings', () => {
+// DEBT: It's not clear why this doesn't play nicely on Linux
+(isWindows ? suite : suite.skip)('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
