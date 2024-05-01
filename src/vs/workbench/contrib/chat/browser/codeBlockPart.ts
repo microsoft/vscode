@@ -791,7 +791,7 @@ export class DefaultChatTextEditor {
 				continue;
 			}
 			const model = candidate.getModel();
-			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompreBlock) {
+			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
 				diffEditor = candidate;
 				break;
 			}
