@@ -132,7 +132,6 @@ suite('Terminal Contrib Suggest Recordings', () => {
 					case 'promptInputChange': {
 						const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
 						if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
-							console.log(promptInputModel.getCombinedString(), '!==', event.data);
 							await new Promise<void>(r => {
 								const d = promptInputModel.onDidChangeInput(() => {
 									if (promptInputModel.getCombinedString() === event.data) {
