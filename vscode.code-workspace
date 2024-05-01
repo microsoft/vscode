@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"name": "vscode",
+			"path": "."
+		}
+	],
+	"settings": {
+		"vscode-corda.isCordaProject": false
+	}
+}

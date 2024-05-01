@@ -1,0 +1,304 @@
+make all --print-data-base --no-builtin-variables --no-builtin-rules --question
+# GNU Make 3.81
+# Copyright (C) 2006  Free Software Foundation, Inc.
+# This is free software; see the source for copying conditions.
+# There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE.
+
+# This program built for i386-apple-darwin11.3.0
+
+# Make data base, printed on Wed May  1 14:01:12 2024
+
+# Variables
+
+# automatic
+<D = $(patsubst %/,%,$(dir $<))
+# automatic
+?F = $(notdir $?)
+# environment
+NODE_TLS_REJECT_UNAUTHORIZED = 0
+# environment
+VSCODE_CRASH_REPORTER_PROCESS_TYPE = extensionHost
+# environment
+TEAMSFX_DEPLOY_MANIFEST = true
+# automatic
+?D = $(patsubst %/,%,$(dir $?))
+# automatic
+@D = $(patsubst %/,%,$(dir $@))
+# automatic
+@F = $(notdir $@)
+# makefile
+CURDIR := /Users/babynong/vscode
+# makefile
+SHELL = /bin/sh
+# environment
+VSCODE_NLS_CONFIG = {"locale":"en","osLocale":"en-th","availableLanguages":{},"_languagePackSupport":true}
+# environment
+_ = /usr/bin/make
+# environment
+WALLABY_PRODUCTION = true
+# makefile
+MAKEFILE_LIST := 
+# environment
+PERL_MM_OPT = INSTALL_BASE=/Users/babynong/perl5
+# environment
+__CFBundleIdentifier = com.microsoft.VSCode
+# environment
+INFOPATH = /opt/homebrew/share/info:
+# environment
+TEAMSFX_AAD_MANIFEST = true
+# environment
+VSCODE_CWD = /
+# environment
+PATH = /Users/babynong/Library/Application Support/cloud-code/installer/google-cloud-sdk/bin:/Users/babynong/perl5/bin:/Users/babynong/.console-ninja/.bin:/Users/babynong/google-cloud-sdk/bin:/Users/babynong/.vscode-dotnet-sdk/.dotnet:/Users/babynong/micromamba/bin:/Users/babynong/micromamba/condabin:/Users/babynong/.yarn/bin:/Users/babynong/.config/yarn/global/node_modules/.bin:/Users/babynong/.bun/bin:/Users/babynong/.vscode-dotnet-sdk/.dotnet:/Users/babynong/.local/bin:/Users/babynong/Library/Python/3.12/bin:/usr/local/bin:/usr/local/Cellar/pyenv-virtualenv/1.2.3/shims:/Users/babynong/.pyenv/shims:/Users/babynong/.pyenv/bin:/Library/Frameworks/Python.framework/Versions/3.6/bin:/usr/local/bin:/opt/local/bin:/opt/local/sbin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/usr/local/MacGPG2/bin:/usr/local/share/dotnet:~/.dotnet/tools:/usr/local/go/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Users/babynong/.cargo/bin:/Users/babynong/Library/Python/3.12/bin:/Users/babynong/.local/bin:/Users/babynong/google-cloud-sdk/bin
+# environment
+__TELEMETRY_CLIENT_ID = 2532ea2a-8c3d-4332-a3ae-ed101fcb678b
+# default
+.INCLUDE_DIRS = /usr/local/include
+# environment
+LOG_LEVEL = 1
+# environment
+LaunchInstanceID = B95028B9-18A3-4575-BFD5-E12C8D8B4E1D
+# environment
+ELECTRON_RUN_AS_NODE = 1
+# environment
+PYENV_ROOT = /Users/babynong/.pyenv
+# default
+.FEATURES := target-specific order-only second-expansion else-if archives jobserver check-symlink
+# environment
+CLOUDSDK_METRICS_ENVIRONMENT = cloudcode.vscode
+# environment
+SSH_AUTH_SOCK = /private/tmp/com.apple.launchd.T2B7hKilMy/Listeners
+# automatic
+%F = $(notdir $%)
+# environment
+CONDA_EXE = /Users/babynong/micromamba/bin/conda
+# default
+MAKEFILES := 
+# environment
+CLOUDSDK_METRICS_ENVIRONMENT_VERSION = 2.9.0
+# environment
+PWD = /Users/babynong/vscode
+# environment
+DOTNET_ROOT = /Users/babynong/.dotnet
+# environment
+HOMEBREW_CELLAR = /opt/homebrew/Cellar
+# environment
+ORIGINAL_XDG_CURRENT_DESKTOP = undefined
+# environment
+MANPATH = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:/opt/local/share/man:/opt/homebrew/share/man::
+# environment
+VSCODE_AMD_ENTRYPOINT = vs/workbench/api/node/extensionHostProcess
+# environment
+HOME = /Users/babynong
+# environment
+PERL_MB_OPT = --install_base "/Users/babynong/perl5"
+# environment
+PERL_LOCAL_LIB_ROOT = /Users/babynong/perl5
+# default
+MAKEFILEPATH := /Applications/Xcode.app/Contents/Developer/Makefiles
+# environment
+PERL5LIB = /Users/babynong/perl5/lib/perl5
+# environment
+VSCODE_CODE_CACHE_PATH = /Users/babynong/Library/Application Support/Code/CachedData/e170252f762678dec6ca2cc69aba1570769a5d39
+# environment
+LOGNAME = babynong
+# environment
+APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = 1
+# environment
+CONDA_PROMPT_MODIFIER = (base) 
+# environment
+NVM_CD_FLAGS = -q
+# environment
+VSCODE_HANDLES_UNCAUGHT_ERRORS = true
+# automatic
+^D = $(patsubst %/,%,$(dir $^))
+# environment
+CONDA_DEFAULT_ENV = base
+# environment
+XPC_FLAGS = 0x0
+# default
+MAKE = $(MAKE_COMMAND)
+# default
+MAKECMDGOALS := all
+# environment
+SHLVL = 1
+# default
+MAKE_VERSION := 3.81
+# environment
+USER = babynong
+# makefile
+.DEFAULT_GOAL := 
+# environment
+MAMBA_EXE = /Users/babynong/.micromamba/bin/micromamba
+# environment
+CommonPropertyBagWithConfigPath = /var/folders/lx/2m0qflns5b1ggcv7jdtdk9s40000gn/T/csdevkit/128127b5604b1714546663322.json
+# environment
+BOT_NOTIFICATION_ENABLED = true
+# automatic
+%D = $(patsubst %/,%,$(dir $%))
+# environment
+CONDA_SHLVL = 1
+# default
+MAKE_COMMAND := /Applications/Xcode.app/Contents/Developer/usr/bin/make
+# default
+.VARIABLES := 
+# environment
+TMPDIR = /var/folders/lx/2m0qflns5b1ggcv7jdtdk9s40000gn/T/
+# automatic
+*F = $(notdir $*)
+# environment
+VSCODE_IPC_HOOK = /Users/babynong/Library/Application Support/Code/1.88-main.sock
+# environment
+MallocNanoZone = 0
+# environment
+TEAMSFX_BICEP_ENV_CHECKER_ENABLE = false
+# makefile
+MAKEFLAGS = Rrqp
+# environment
+MFLAGS = -Rrqp
+# automatic
+*D = $(patsubst %/,%,$(dir $*))
+# environment
+NVM_DIR = /Users/babynong/.nvm
+# environment
+XPC_SERVICE_NAME = application.com.microsoft.VSCode.118666483.118666489
+# environment
+HOMEBREW_PREFIX = /opt/homebrew
+# automatic
++D = $(patsubst %/,%,$(dir $+))
+# environment
+VSCODE_L10N_BUNDLE_LOCATION = 
+# automatic
++F = $(notdir $+)
+# environment
+HOMEBREW_REPOSITORY = /opt/homebrew
+# environment
+__CF_USER_TEXT_ENCODING = 0x1F5:0:0
+# environment
+COMMAND_MODE = unix2003
+# environment
+MAMBA_ROOT_PREFIX = /Users/babynong/micromamba
+# environment
+CommonPropertyBagPath = /var/folders/lx/2m0qflns5b1ggcv7jdtdk9s40000gn/T/csdevkit/e7142a92.json
+# automatic
+<F = $(notdir $<)
+# environment
+LC_ALL = C
+# environment
+XML_CATALOG_FILES = file:///Users/babynong/micromamba/etc/xml/catalog file:///etc/xml/catalog
+# environment
+CONDA_PYTHON_EXE = /Users/babynong/micromamba/bin/python
+# environment
+TEAMSFX_API_CONNECT_ENABLE = true
+# environment
+SECURITYSESSIONID = 186a3
+# automatic
+^F = $(notdir $^)
+# default
+SUFFIXES := 
+# environment
+PYENV_VIRTUALENV_INIT = 1
+# environment
+DEVELOP_COPILOT_PLUGIN = false
+# environment
+BUN_INSTALL = /Users/babynong/.bun
+# environment
+TEAMSFX_M365_APP = true
+# environment
+MAKELEVEL := 0
+# environment
+CONDA_PREFIX = /Users/babynong/micromamba
+# environment
+VSCODE_PID = 479
+# environment
+LANG = C
+# variable set hash-table stats:
+# Load=101/1024=10%, Rehash=0, Collisions=7/122=6%
+
+# Pattern-specific Variable Values
+
+# No pattern-specific variable values.
+
+# Directories
+
+# . (device 16777233, inode 111140354): 44 files, no impossibilities.
+
+# 44 files, no impossibilities in 1 directories.
+
+# Implicit Rules
+
+# No implicit rules.
+
+# Files
+
+# Not a target:
+all:
+#  Command-line target.
+#  Implicit rule search has been done.
+#  File does not exist.
+#  File has not been updated.
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/0=0%
+
+# Not a target:
+.SUFFIXES:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+Makefile:
+#  A default, MAKEFILES, or -include/sinclude makefile.
+#  Implicit rule search has been done.
+#  File does not exist.
+#  File has been updated.
+#  Failed to be updated.
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/0=0%
+
+# Not a target:
+makefile:
+ 
+make: *** No rule to make target `all'.  Stop.
+
+#  A default, MAKEFILES, or -include/sinclude makefile.
+#  Implicit rule search has been done.
+#  File does not exist.
+#  File has been updated.
+#  Failed to be updated.
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/0=0%
+
+# Not a target:
+.DEFAULT:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+GNUmakefile:
+#  A default, MAKEFILES, or -include/sinclude makefile.
+#  Implicit rule search has been done.
+#  File does not exist.
+#  File has been updated.
+#  Failed to be updated.
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/0=0%
+
+# files hash-table stats:
+# Load=6/1024=1%, Rehash=0, Collisions=0/17=0%
+# VPATH Search Paths
+
+# No `vpath' search paths.
+
+# No general (`VPATH' variable) search path.
+
+# # of strings in strcache: 0
+# # of strcache buffers: 0
+# strcache size: total = 0 / max = 0 / min = 4096 / avg = 0
+# strcache free: total = 0 / max = 0 / min = 4096 / avg = 0
+
+# Finished Make data base on Wed May  1 14:01:12 2024
+
+ 
