@@ -87,10 +87,8 @@ export class NotebookOutlineEntryFactory {
 				// Gathering symbols from the model is an async operation, but this provider is syncronous.
 				// So symbols need to be precached before this function is called to get the full list.
 				if (cachedEntries) {
-					// push code cell that is a parent of cached symbols if we are targeting the outlinePane
-					if (target === OutlineTarget.OutlinePane) {
-						entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-					}
+					// push code cell entry that is a parent of cached symbols, always necessary. filtering done elsewhere.
+					entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 					cachedEntries.forEach((cached) => {
 						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.range, cached.kind));
 					});

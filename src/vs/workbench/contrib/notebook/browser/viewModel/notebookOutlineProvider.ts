@@ -260,7 +260,10 @@ export class NotebookCellOutlineProvider {
 			}
 		}));
 
-		this._recomputeActive();
+		const { changeEventTriggered } = this._recomputeActive();
+		if (!changeEventTriggered) {
+			this._onDidChange.fire({});
+		}
 	}
 
 	private _recomputeActive(): { changeEventTriggered: boolean } {
