@@ -84,10 +84,10 @@ if (isMacintosh) {
 	registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.previousSeparator', KeyMod.Alt + KeyMod.CtrlCmd + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator), { withCtrlMod: true });
 } else {
 	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.nextSeparatorWithQuickAccessFallback', KeyMod.Alt + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator, QuickPickFocus.Next), nextSeparatorFallbackDesc);
-	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.nextSeparator', KeyMod.WinCtrl + KeyMod.Alt + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator));
+	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.nextSeparator', KeyMod.CtrlCmd + KeyMod.Alt + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator));
 
 	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.previousSeparatorWithQuickAccessFallback', KeyMod.Alt + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator, QuickPickFocus.Previous), prevSeparatorFallbackDesc);
-	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.previousSeparator', KeyMod.WinCtrl + KeyMod.Alt + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator));
+	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.previousSeparator', KeyMod.CtrlCmd + KeyMod.Alt + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator));
 }
 
 //#endregion
