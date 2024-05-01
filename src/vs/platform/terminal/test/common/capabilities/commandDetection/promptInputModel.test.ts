@@ -285,6 +285,26 @@ suite('PromptInputModel', () => {
 			await assertPromptInput(` |  `);
 		});
 
+		// TODO: This doesn't work correctly but it doesn't matter too much as it only happens when
+		// there is a lot of whitespace at the end of a prompt input
+		test.skip('track whitespace when ConPTY deletes whitespace unexpectedly', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			xterm.input('ls', true);
+			await writePromise('ls');
+			await assertPromptInput(`ls|`);
+
+			xterm.input(' '.repeat(4), true);
+			await writePromise(' '.repeat(4));
+			await assertPromptInput(`ls    |`);
+
+			xterm.input(' ', true);
+			await writePromise('\x1b[4D\x1b[5X\x1b[5C'); // Cursor left x(N-1), delete xN, cursor right xN
+			await assertPromptInput(`ls     |`);
+		});
+
 		test('track whitespace beyond cursor', async () => {
 			await writePromise('$ ');
 			fireCommandStart();
