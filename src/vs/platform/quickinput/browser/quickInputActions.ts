@@ -30,11 +30,12 @@ function registerQuickInputCommandAndKeybindingRules(baseId: string, primary: nu
 	if (options.withAltMod) {
 		registerQuickInputCommandAndKeybindingRule(getName(), KeyMod.Alt + primary, handler, getDesc([KeyCode.Alt]));
 	}
+	const ctrlKeyMod = isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd;
 	if (options.withCtrlMod) {
-		registerQuickInputCommandAndKeybindingRule(getName(), KeyMod.WinCtrl + primary, handler, getDesc([KeyCode.Ctrl]));
+		registerQuickInputCommandAndKeybindingRule(getName(), ctrlKeyMod + primary, handler, getDesc([KeyCode.Ctrl]));
 	}
 	if (options.withAltMod && options.withCtrlMod) {
-		registerQuickInputCommandAndKeybindingRule(getName(), KeyMod.Alt + KeyMod.WinCtrl + primary, handler, getDesc([KeyCode.Alt, KeyCode.Ctrl]));
+		registerQuickInputCommandAndKeybindingRule(getName(), KeyMod.Alt + ctrlKeyMod + primary, handler, getDesc([KeyCode.Alt, KeyCode.Ctrl]));
 	}
 	if (options.withCmdMod && isMacintosh) {
 		registerQuickInputCommandAndKeybindingRule(getName(), KeyMod.CtrlCmd + primary, handler, getDesc([KeyCode.Meta]));
