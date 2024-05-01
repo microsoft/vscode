@@ -410,7 +410,7 @@
 	padding-inline-start: unset;
 }
 
-.chat-warning .interactive-warning {
+.chat-warning .chat-warning-codicon {
 	margin-left: 3px;
 	display: flex;
 	align-items: start;
@@ -431,7 +431,7 @@
 	margin-bottom: 0px;
 }
 
-.chat-warning .interactive-warning .codicon {
+.chat-warning .chat-warning-codicon .codicon {
 	margin-top: 2px;
 }
 
@@ -439,7 +439,7 @@
 	margin-top: 1px;
 }
 
-.chat-warning .interactive-warning .codicon-warning {
+.chat-warning .chat-warning-codicon .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 

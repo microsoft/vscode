@@ -923,11 +923,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderWarning(element: ChatTreeItem, chatWarning: IChatWarningMessage): IMarkdownRenderResult | undefined {
 		const container = $('.chat-warning');
-		container.appendChild($('.interactive-warning', undefined, renderIcon(Codicon.warning)));
-		container.appendChild(this.renderer.render(chatWarning.content).element);
+		container.appendChild($('.chat-warning-codicon', undefined, renderIcon(Codicon.warning)));
+		const markdownContent = this.renderer.render(chatWarning.content);
+		container.appendChild(markdownContent.element);
 		return {
 			element: container,
-			dispose() { }
+			dispose() { markdownContent.dispose(); }
 		};
 	}
 
