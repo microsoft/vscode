@@ -1520,24 +1520,6 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerTerminalAction({
-		id: TerminalCommandId.ToggleStickyScroll,
-		title: localize2('workbench.action.terminal.toggleStickyScroll', 'Toggle Sticky Scroll'),
-		toggled: {
-			condition: ContextKeyExpr.equals('config.terminal.integrated.stickyScroll.enabled', true),
-			title: localize('stickyScroll', "Sticky Scroll"),
-			mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
-		},
-		run: (c, accessor) => {
-			const configurationService = accessor.get(IConfigurationService);
-			const newValue = !configurationService.getValue(TerminalSettingId.StickyScrollEnabled);
-			return configurationService.updateValue(TerminalSettingId.StickyScrollEnabled, newValue);
-		},
-		menu: [
-			{ id: MenuId.TerminalStickyScrollContext }
-		]
-	});
-
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerActiveXtermAction({

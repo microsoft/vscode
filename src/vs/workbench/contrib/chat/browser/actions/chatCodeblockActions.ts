@@ -370,7 +370,7 @@ export function registerChatCodeBlockActions() {
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
 
-			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
+			editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({

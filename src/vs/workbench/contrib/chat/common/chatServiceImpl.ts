@@ -250,7 +250,7 @@ export class ChatService extends Disposable implements IChatService {
 				throw new Error('Expected array');
 			}
 
-			const sessions = arrayOfSessions.reduce((acc, session) => {
+			const sessions = arrayOfSessions.reduce<ISerializableChatsData>((acc, session) => {
 				// Revive serialized markdown strings in response data
 				for (const request of session.requests) {
 					if (Array.isArray(request.response)) {
@@ -267,7 +267,7 @@ export class ChatService extends Disposable implements IChatService {
 
 				acc[session.sessionId] = session;
 				return acc;
-			}, {} as ISerializableChatsData);
+			}, {});
 			return sessions;
 		} catch (err) {
 			this.error('deserializeChats', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);

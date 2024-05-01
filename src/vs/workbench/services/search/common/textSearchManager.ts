@@ -223,7 +223,7 @@ export class TextSearchManager {
 }
 
 function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
-	return <TextSearchQuery>{
+	return {
 		isCaseSensitive: patternInfo.isCaseSensitive || false,
 		isRegExp: patternInfo.isRegExp || false,
 		isWordMatch: patternInfo.isWordMatch || false,
@@ -283,7 +283,7 @@ export class TextSearchResultsCollector {
 function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
 	if (extensionResultIsMatch(data)) {
-		return <ITextSearchMatch>{
+		return {
 			preview: {
 				matches: mapArrayOrNot(data.preview.matches, m => ({
 					startLineNumber: m.start.line,
@@ -299,12 +299,12 @@ function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchRes
 				endLineNumber: r.end.line,
 				endColumn: r.end.character
 			}))
-		};
+		} satisfies ITextSearchMatch;
 	} else {
-		return <ITextSearchContext>{
+		return {
 			text: data.text,
 			lineNumber: data.lineNumber
-		};
+		} satisfies ITextSearchContext;
 	}
 }
 

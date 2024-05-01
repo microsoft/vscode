@@ -90,15 +90,14 @@ export function escapeRegExpCharacters(value: string): string {
 }
 
 /**
- * Counts how often `character` occurs inside `value`.
+ * Counts how often `substr` occurs inside `value`.
  */
-export function count(value: string, character: string): number {
+export function count(value: string, substr: string): number {
 	let result = 0;
-	const ch = character.charCodeAt(0);
-	for (let i = value.length - 1; i >= 0; i--) {
-		if (value.charCodeAt(i) === ch) {
-			result++;
-		}
+	let index = value.indexOf(substr);
+	while (index !== -1) {
+		result++;
+		index = value.indexOf(substr, index + substr.length);
 	}
 	return result;
 }
