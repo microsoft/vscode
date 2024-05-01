@@ -335,8 +335,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
 		if (this.tree && this._visible) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
-				.map(item => {
-					return <ITreeElement<ChatTreeItem>>{
+				.map((item): ITreeElement<ChatTreeItem> => {
+					return {
 						element: item,
 						collapsed: false,
 						collapsible: false
