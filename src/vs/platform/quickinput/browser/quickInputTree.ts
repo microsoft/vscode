@@ -825,6 +825,14 @@ export class QuickInputTree extends Disposable {
 		this._sortByLabel = value;
 	}
 
+	private _shouldLoop = true;
+	get shouldLoop() {
+		return this._shouldLoop;
+	}
+	set shouldLoop(value: boolean) {
+		this._shouldLoop = value;
+	}
+
 	//#endregion
 
 	//#region register listeners
@@ -853,22 +861,6 @@ export class QuickInputTree extends Disposable {
 						this._tree.setFocus(this._itemElements);
 					}
 					break;
-				// When we hit the top of the tree, we fire the onLeave event.
-				case KeyCode.UpArrow: {
-					const focus1 = this._tree.getFocus();
-					if (focus1.length === 1 && focus1[0] === this._itemElements[0]) {
-						this._onLeave.fire();
-					}
-					break;
-				}
-				// When we hit the bottom of the tree, we fire the onLeave event.
-				case KeyCode.DownArrow: {
-					const focus2 = this._tree.getFocus();
-					if (focus2.length === 1 && focus2[0] === this._itemElements[this._itemElements.length - 1]) {
-						this._onLeave.fire();
-					}
-					break;
-				}
 			}
 
 			this._onKeyDown.fire(event);
@@ -1213,17 +1205,24 @@ export class QuickInputTree extends Disposable {
 				this._tree.scrollTop = this._tree.scrollHeight;
 				this._tree.setFocus([this._itemElements[this._itemElements.length - 1]]);
 				break;
-			case QuickPickFocus.Next:
-				this._tree.focusNext(undefined, true, undefined, (e) => {
+			case QuickPickFocus.Next: {
+				const prevFocus = this._tree.getFocus();
+				this._tree.focusNext(undefined, this._shouldLoop, undefined, (e) => {
 					if (!(e.element instanceof QuickPickItemElement)) {
 						return false;
 					}
 					this._tree.reveal(e.element);
 					return true;
 				});
+				const currentFocus = this._tree.getFocus();
+				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[this._itemElements.length - 1]) {
+					this._onLeave.fire();
+				}
 				break;
-			case QuickPickFocus.Previous:
-				this._tree.focusPrevious(undefined, true, undefined, (e) => {
+			}
+			case QuickPickFocus.Previous: {
+				const prevFocus = this._tree.getFocus();
+				this._tree.focusPrevious(undefined, this._shouldLoop, undefined, (e) => {
 					if (!(e.element instanceof QuickPickItemElement)) {
 						return false;
 					}
@@ -1236,7 +1235,12 @@ export class QuickInputTree extends Disposable {
 					}
 					return true;
 				});
+				const currentFocus = this._tree.getFocus();
+				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[0]) {
+					this._onLeave.fire();
+				}
 				break;
+			}
 			case QuickPickFocus.NextPage:
 				this._tree.focusNextPage(undefined, (e) => {
 					if (!(e.element instanceof QuickPickItemElement)) {
