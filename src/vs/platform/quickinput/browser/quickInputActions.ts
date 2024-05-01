@@ -66,28 +66,28 @@ function focusHandler(focus: QuickPickFocus, focusOnQuickNatigate?: QuickPickFoc
 	};
 }
 
-registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.pageNext', KeyCode.PageDown, focusHandler(QuickPickFocus.NextPage), { withAltMod: true, withCtrlMod: true, withCmdMod: true });
-registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.pagePrevious', KeyCode.PageUp, focusHandler(QuickPickFocus.PreviousPage), { withAltMod: true, withCtrlMod: true, withCmdMod: true });
-registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.first', KeyCode.Home, focusHandler(QuickPickFocus.First), { withAltMod: true, withCtrlMod: true, withCmdMod: true });
-registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.last', KeyCode.End, focusHandler(QuickPickFocus.Last), { withAltMod: true, withCtrlMod: true, withCmdMod: true });
+registerQuickInputCommandAndKeybindingRules('quickInput.pageNext', KeyCode.PageDown, focusHandler(QuickPickFocus.NextPage), { withAltMod: true, withCtrlMod: true, withCmdMod: true });
+registerQuickInputCommandAndKeybindingRules('quickInput.pagePrevious', KeyCode.PageUp, focusHandler(QuickPickFocus.PreviousPage), { withAltMod: true, withCtrlMod: true, withCmdMod: true });
+registerQuickInputCommandAndKeybindingRules('quickInput.first', KeyCode.Home, focusHandler(QuickPickFocus.First), { withAltMod: true, withCtrlMod: true, withCmdMod: true });
+registerQuickInputCommandAndKeybindingRules('quickInput.last', KeyCode.End, focusHandler(QuickPickFocus.Last), { withAltMod: true, withCtrlMod: true, withCmdMod: true });
 
-registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.next', KeyCode.DownArrow, focusHandler(QuickPickFocus.Next), { withCtrlMod: true });
-registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.previous', KeyCode.UpArrow, focusHandler(QuickPickFocus.Previous), { withCtrlMod: true });
+registerQuickInputCommandAndKeybindingRules('quickInput.next', KeyCode.DownArrow, focusHandler(QuickPickFocus.Next), { withCtrlMod: true });
+registerQuickInputCommandAndKeybindingRules('quickInput.previous', KeyCode.UpArrow, focusHandler(QuickPickFocus.Previous), { withCtrlMod: true });
 
-const nextSeparatorFallbackDesc = localize('workbench.action.quickInput.nextSeparatorWithQuickAccessFallback', "Navigates to the next separator but only if we are not in quick access mode.");
-const prevSeparatorFallbackDesc = localize('workbench.action.quickInput.previousSeparatorWithQuickAccessFallback', "Navigates to the previous separator but only if we are not in quick access mode.");
+const nextSeparatorFallbackDesc = localize('quickInput.nextSeparatorWithQuickAccessFallback', "Navigates to the next separator but only if we are not in quick access mode.");
+const prevSeparatorFallbackDesc = localize('quickInput.previousSeparatorWithQuickAccessFallback', "Navigates to the previous separator but only if we are not in quick access mode.");
 if (isMacintosh) {
-	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.nextSeparatorWithQuickAccessFallback', KeyMod.CtrlCmd + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator, QuickPickFocus.Next), nextSeparatorFallbackDesc);
-	registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.nextSeparator', KeyMod.Alt + KeyMod.CtrlCmd + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator), { withCtrlMod: true });
+	registerQuickInputCommandAndKeybindingRule('quickInput.nextSeparatorWithQuickAccessFallback', KeyMod.CtrlCmd + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator, QuickPickFocus.Next), nextSeparatorFallbackDesc);
+	registerQuickInputCommandAndKeybindingRules('quickInput.nextSeparator', KeyMod.Alt + KeyMod.CtrlCmd + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator), { withCtrlMod: true });
 
-	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.previousSeparatorWithQuickAccessFallback', KeyMod.CtrlCmd + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator, QuickPickFocus.Previous), prevSeparatorFallbackDesc);
-	registerQuickInputCommandAndKeybindingRules('workbench.action.quickInput.previousSeparator', KeyMod.Alt + KeyMod.CtrlCmd + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator), { withCtrlMod: true });
+	registerQuickInputCommandAndKeybindingRule('quickInput.previousSeparatorWithQuickAccessFallback', KeyMod.CtrlCmd + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator, QuickPickFocus.Previous), prevSeparatorFallbackDesc);
+	registerQuickInputCommandAndKeybindingRules('quickInput.previousSeparator', KeyMod.Alt + KeyMod.CtrlCmd + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator), { withCtrlMod: true });
 } else {
-	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.nextSeparatorWithQuickAccessFallback', KeyMod.Alt + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator, QuickPickFocus.Next), nextSeparatorFallbackDesc);
-	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.nextSeparator', KeyMod.CtrlCmd + KeyMod.Alt + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator));
+	registerQuickInputCommandAndKeybindingRule('quickInput.nextSeparatorWithQuickAccessFallback', KeyMod.Alt + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator, QuickPickFocus.Next), nextSeparatorFallbackDesc);
+	registerQuickInputCommandAndKeybindingRule('quickInput.nextSeparator', KeyMod.CtrlCmd + KeyMod.Alt + KeyCode.DownArrow, focusHandler(QuickPickFocus.NextSeparator));
 
-	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.previousSeparatorWithQuickAccessFallback', KeyMod.Alt + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator, QuickPickFocus.Previous), prevSeparatorFallbackDesc);
-	registerQuickInputCommandAndKeybindingRule('workbench.action.quickInput.previousSeparator', KeyMod.CtrlCmd + KeyMod.Alt + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator));
+	registerQuickInputCommandAndKeybindingRule('quickInput.previousSeparatorWithQuickAccessFallback', KeyMod.Alt + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator, QuickPickFocus.Previous), prevSeparatorFallbackDesc);
+	registerQuickInputCommandAndKeybindingRule('quickInput.previousSeparator', KeyMod.CtrlCmd + KeyMod.Alt + KeyCode.UpArrow, focusHandler(QuickPickFocus.PreviousSeparator));
 }
 
 //#endregion
