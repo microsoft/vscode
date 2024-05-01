@@ -1407,6 +1407,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	constructor(
 		private labels: ResourceLabels,
+		@IThemeService private readonly themeService: IThemeService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) { }
 
@@ -1416,9 +1417,19 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		return { templateDisposables, label };
 	}
 
+
+	private getReferenceIcon(data: IChatContentReference): URI | ThemeIcon | undefined {
+		if (ThemeIcon.isThemeIcon(data.iconPath)) {
+			return data.iconPath;
+		} else {
+			return this.themeService.getColorTheme().type === ColorScheme.DARK && data.iconPath?.dark ? data.iconPath?.dark :
+				data.iconPath?.light;
+		}
+	}
+
 	renderElement(data: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		const reference = data.reference;
-		const icon = data.iconPath;
+		const icon = this.getReferenceIcon(data);
 		templateData.label.element.style.display = 'flex';
 		if ('variableName' in reference) {
 			if (reference.value) {
