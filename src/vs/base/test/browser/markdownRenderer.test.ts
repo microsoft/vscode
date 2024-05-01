@@ -660,7 +660,7 @@ const y = 2;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				const completeTokens = marked.lexer(incomplete + '](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
@@ -680,7 +680,7 @@ const y = 2;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '\`](about:blank)');
+				const completeTokens = marked.lexer(incomplete + '\`](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -772,7 +772,7 @@ const y = 2;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				const completeTokens = marked.lexer(incomplete + '](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
@@ -844,7 +844,7 @@ const y = 2;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '`](about:blank)');
+				const completeTokens = marked.lexer(incomplete + '`](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
@@ -853,7 +853,7 @@ const y = 2;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '**](about:blank)');
+				const completeTokens = marked.lexer(incomplete + '**](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
@@ -871,7 +871,7 @@ const y = 2;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				const completeTokens = marked.lexer(incomplete + '](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
