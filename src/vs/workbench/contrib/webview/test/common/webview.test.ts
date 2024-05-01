@@ -8,6 +8,8 @@ import { decodeAuthority } from 'vs/workbench/contrib/webview/common/webview';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('WebView', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('decodeAuthority', () => {
 		const encodedAuthority = 'https%3A%2F%2Fexample.com';
 		const expectedDecodedAuthority = 'https://example.com';
@@ -18,10 +20,6 @@ suite('WebView', () => {
 	});
 
 	test('decodeAuthority should throw an error for invalid input', () => {
-		const invalidInput = 'not a valid input';
-
-		assert.throws(() => decodeAuthority(invalidInput));
+		assert.rejects(async () => await decodeAuthority('not a valid input'));
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 });
