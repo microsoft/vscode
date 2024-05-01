@@ -288,6 +288,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 	constructor(
 		private _getEntries: () => OutlineEntry[],
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
@@ -299,7 +300,24 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		const result: IQuickPickOutlineElement<OutlineEntry>[] = [];
 		const { hasFileIcons } = this._themeService.getFileIconTheme();
 
-		for (const element of bucket) {
+		const showSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
+		const isSymbol = (element: OutlineEntry) => !!element.symbolKind;
+		const isCodeCell = (element: OutlineEntry) => (element.cell.cellKind === CellKind.Code && element.level === NotebookOutlineConstants.NonHeaderOutlineLevel); // code cell entries are exactly level 7 by this constant
+		for (let i = 0; i < bucket.length; i++) {
+			const element = bucket[i];
+			const nextElement = bucket[i + 1]; // can be undefined
+
+			if (!showSymbols
+				&& isSymbol(element)) {
+				continue;
+			}
+
+			if (showSymbols
+				&& isCodeCell(element)
+				&& nextElement && isSymbol(nextElement)) {
+				continue;
+			}
+
 			const useFileIcon = hasFileIcons && !element.symbolKind;
 			// todo@jrieken it is fishy that codicons cannot be used with iconClasses
 			// but file icons can...
