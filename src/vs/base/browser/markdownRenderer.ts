@@ -809,7 +809,7 @@ function completeLinkTargetArg(tokens: marked.Token): marked.Token {
 }
 
 function completeLinkText(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, '](about:blank)');
+	return completeWithString(tokens, '](https://microsoft.com)');
 }
 
 function completeDoublestar(tokens: marked.Token): marked.Token {
