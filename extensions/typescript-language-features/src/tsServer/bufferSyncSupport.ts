@@ -371,7 +371,7 @@ class GetErrRequest {
 	}
 
 	private areRegionDiagnosticsEnabled() {
-		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v550);
+		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v560);
 	}
 
 	public cancel(): any {
