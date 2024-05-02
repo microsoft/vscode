@@ -255,7 +255,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "get-co|[ntent       ]"
+		"data": "get-co|[ntent]"
 	},
 	{
 		"type": "input",
@@ -267,7 +267,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "get-con|[tent       ]"
+		"data": "get-con|[tent]"
 	},
 	{
 		"type": "output",
@@ -315,7 +315,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "Get-Content .|[\\.yarnrc ]"
+		"data": "Get-Content .|[\\.yarnrc]"
 	},
 	{
 		"type": "sendText",
@@ -431,7 +431,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "Get-Content .\\|[.yarnrc ]"
+		"data": "Get-Content .\\|[.yarnrc]"
 	},
 	{
 		"type": "output",
