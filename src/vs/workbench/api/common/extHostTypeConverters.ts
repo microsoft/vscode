@@ -2506,7 +2506,9 @@ export namespace ChatResponseTextEditPart {
 
 export namespace ChatResponseReferencePart {
 	export function from(part: vscode.ChatResponseReferencePart): Dto<IChatContentReference> {
-		const iconPath = ThemeIcon.isThemeIcon(part.iconPath) ? part.iconPath : undefined;
+		const iconPath = ThemeIcon.isThemeIcon(part.iconPath) ? part.iconPath
+			: (part.iconPath && 'light' in part.iconPath && 'dark' in part.iconPath && URI.isUri(part.iconPath.light) && URI.isUri(part.iconPath.dark) ? { light: URI.revive(part.iconPath.light), dark: URI.revive(part.iconPath.dark) }
+				: undefined);
 		if ('variableName' in part.value) {
 			return {
 				kind: 'reference',
