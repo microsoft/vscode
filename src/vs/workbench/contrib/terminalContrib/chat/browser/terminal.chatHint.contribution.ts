@@ -104,7 +104,7 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 			});
 		}
 
-		this._register(this._xterm.raw.onKey(() => this._chatHint?.dispose()));
+		this._register(this._xterm.raw.onCursorMove(() => this._chatHint?.dispose()));
 		this._chatHint?.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalService.instances.length === 1) {
 				const chatProviders = [...this._inlineChatService.getAllProvider()];
