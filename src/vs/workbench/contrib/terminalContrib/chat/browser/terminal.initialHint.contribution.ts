@@ -2,21 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import type { Terminal as RawXtermTerminal, IDecoration } from '@xterm/xterm';
+import type { Terminal as RawXtermTerminal, IDecoration, ITerminalAddon } from '@xterm/xterm';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { OS } from 'vs/base/common/platform';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
@@ -26,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatService, IInlineChatSessionProvider, InlineChatProviderChangeEvent } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,8 +32,44 @@ import 'vs/css!./media/terminalInitialHint';
 
 const $ = dom.$;
 
+class TerminalInitialHintAddon extends Disposable implements ITerminalAddon {
+	private readonly _onDidRequestCreateHint = this._register(new Emitter<void>());
+	get onDidRequestCreateHint(): Event<void> { return this._onDidRequestCreateHint.event; }
+	private readonly _disposables = this._register(new MutableDisposable<DisposableStore>());
+
+	constructor(private readonly _capabilities: ITerminalCapabilityStore,
+		private readonly _onDidChangeProviders: Event<InlineChatProviderChangeEvent>) {
+		super();
+		this._disposables.value = this._register(new DisposableStore());
+	}
+	activate(terminal: RawXtermTerminal): void {
+		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (capability) {
+			this._disposables.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._onDidRequestCreateHint.fire()));
+		} else {
+			this._register(this._capabilities.onDidAddCapability(e => {
+				if (e.id === TerminalCapability.CommandDetection) {
+					const capability = e.capability;
+					this._disposables.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._onDidRequestCreateHint.fire()));
+					if (!capability.promptInputModel.value) {
+						this._onDidRequestCreateHint.fire();
+					}
+				}
+			}));
+		}
+
+		this._disposables.value?.add(Event.once(this._onDidChangeProviders)(() => this._onDidRequestCreateHint.fire()));
+	}
+	override dispose(): void {
+		this._disposables.clear();
+		super.dispose();
+	}
+}
+
 export class TerminalInitialHintContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.initialHint';
+
+	private _addon: TerminalInitialHintAddon | undefined;
 
 	private _hintWidget: HTMLElement | undefined;
 
@@ -46,10 +77,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		return instance.getContribution<TerminalInitialHintContribution>(TerminalInitialHintContribution.ID);
 	}
 	private _decoration: IDecoration | undefined;
-	get decoration(): IDecoration | undefined { return this._decoration; }
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
-
-	private readonly _showHintDisposableStore = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'capabilities'> | IDetachedTerminalInstance,
@@ -60,7 +88,6 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
-		this._showHintDisposableStore.value = this._register(new DisposableStore());
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -69,25 +96,12 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			return;
 		}
 		this._xterm = xterm;
-		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-		if (capability) {
-			this._showHintDisposableStore.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addHint()));
-		} else {
-			this._register(this._instance.capabilities.onDidAddCapability(e => {
-				if (e.id === TerminalCapability.CommandDetection) {
-					const capability = e.capability;
-					this._showHintDisposableStore.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addHint()));
-					if (!capability.promptInputModel.value) {
-						this._addHint();
-					}
-				}
-			}));
-		}
-
-		this._showHintDisposableStore.value?.add(Event.once(this._inlineChatService.onDidChangeProviders)(() => this._addHint()));
+		this._addon = this._register(this._instantiationService.createInstance(TerminalInitialHintAddon, this._instance.capabilities, this._inlineChatService.onDidChangeProviders));
+		this._xterm.raw.loadAddon(this._addon);
+		this._register(this._addon.onDidRequestCreateHint(() => this._createHint()));
 	}
 
-	private _addHint(): void {
+	private _createHint(): void {
 		const instance = this._instance instanceof TerminalInstance ? this._instance : undefined;
 		if (!instance || !this._xterm || this._hintWidget || instance?.capabilities.get(TerminalCapability.CommandDetection)?.hasInput) {
 			return;
@@ -111,14 +125,14 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 
 		this._register(this._xterm.raw.onKey(() => {
 			this._decoration?.dispose();
-			this._showHintDisposableStore.clear();
+			this._addon?.dispose();
 		}));
 		this._decoration?.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalService.instances.length === 1) {
 				const chatProviders = [...this._inlineChatService.getAllProvider()];
 				if (chatProviders?.length) {
-					const widget = this._instantiationService.createInstance(TerminalInitialHintWidget, instance);
-					this._showHintDisposableStore.clear();
+					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
+					this._addon?.dispose();
 					this._hintWidget = widget.getDomNode(chatProviders);
 					if (!this._hintWidget) {
 						return;
@@ -251,7 +265,6 @@ class TerminalInitialHintWidget extends Disposable {
 		return { ariaLabel, hintHandler, hintElement };
 	}
 
-
 	getDomNode(providers: IInlineChatSessionProvider[]): HTMLElement {
 		if (!this.domNode) {
 			this.domNode = $('.terminal-initial-hint');
@@ -270,7 +283,6 @@ class TerminalInitialHintWidget extends Disposable {
 
 		return this.domNode;
 	}
-
 
 	override dispose(): void {
 		this.domNode?.remove();
