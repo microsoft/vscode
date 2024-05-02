@@ -21,7 +21,6 @@ import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/s
 import type { ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-import { isWindows } from 'vs/base/common/platform';
 import { events as windows11_pwsh_getcontent_delete_ghost } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_delete_ghost';
 import { events as windows11_pwsh_getcontent_file } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_file';
 import { events as windows11_pwsh_input_ls_complete_ls } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_input_ls_complete_ls';
@@ -52,8 +51,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-// DEBT: It's not clear why this doesn't play nicely on Linux
-(isWindows ? suite : suite.skip)('Terminal Contrib Suggest Recordings', () => {
+suite('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
@@ -113,10 +111,8 @@ interface IRecordedSessionResizeEvent {
 					}
 					case 'output': {
 						await new Promise<void>(r => xterm.write(event.data, () => r()));
-						// HACK: On Windows if the output contains the command start sequence, allow time for the
-						//       prompt to get adjusted. Eventually we should be able to remove this, but right now
-						//       a pause is required.
-						if (isWindows && event.data.includes('\x1b]633;B')) {
+						// If the output contains the command start sequence, allow time for the prompt to get adjusted.
+						if (event.data.includes('\x1b]633;B')) {
 							const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
 							if (commandDetection) {
 								await new Promise<void>(r => {
