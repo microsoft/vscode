@@ -202,8 +202,8 @@ export class SearchService extends Disposable implements ISearchService {
 			return {
 				limitHit: completes[0] && completes[0].limitHit,
 				stats: completes[0].stats,
-				messages: arrays.coalesce(arrays.flatten(completes.map(i => i.messages))).filter(arrays.uniqueFilter(message => message.type + message.text + message.trusted)),
-				results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
+				messages: arrays.coalesce(completes.flatMap(i => i.messages)).filter(arrays.uniqueFilter(message => message.type + message.text + message.trusted)),
+				results: completes.flatMap((c: ISearchComplete) => c.results)
 			};
 		})();
 

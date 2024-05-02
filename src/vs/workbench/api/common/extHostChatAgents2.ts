@@ -123,6 +123,13 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				warning(value) {
+					throwIfDone(this.progress);
+					const part = new extHostTypes.ChatResponseWarningPart(value);
+					const dto = typeConvert.ChatResponseWarningPart.from(part);
+					_report(dto);
+					return this;
+				},
 				reference(value, iconPath) {
 					throwIfDone(this.reference);
 
@@ -206,7 +213,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
-	private readonly _completionDisposables = this._register(new DisposableStore());
+	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
 	constructor(
 		mainContext: IMainContext,
@@ -294,7 +301,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), h.request.agentId));
+			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentValueReference.to), h.request.agentId));
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this.commands.converter)));
@@ -374,9 +381,18 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return [];
 		}
 
+		let disposables = this._completionDisposables.get(handle);
+		if (disposables) {
+			// Clear any disposables from the last invocation of this completion provider
+			disposables.clear();
+		} else {
+			disposables = new DisposableStore();
+			this._completionDisposables.set(handle, disposables);
+		}
+
 		const items = await agent.invokeCompletionProvider(query, token);
 
-		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this.commands.converter, this._completionDisposables));
+		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this.commands.converter, disposables));
 	}
 
 	async $provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {

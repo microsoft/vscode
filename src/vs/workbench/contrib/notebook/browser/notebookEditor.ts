@@ -480,6 +480,8 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 			notebookStatsLoaded = stopWatch.elapsed();
 		}
 
+		this.logService.trace(`[NotebookEditor] open notebook perf ${notebook?.uri.toString() ?? ''} - extensionActivation: ${extensionActivationTimespan}, inputLoad: ${inputLoadingTimespan}, webviewComm: ${webviewCommLoadingTimespan}, customMarkdown: ${customMarkdownLoadingTimespan}, editorLoad: ${editorLoadingTimespan}`);
+
 		this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
 			scheme: input.resource.scheme,
 			ext: extname(input.resource),

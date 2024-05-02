@@ -30,12 +30,12 @@ declare module 'vscode' {
 		readonly command?: string;
 
 		/**
-		 * The variables that were referenced in this message.
-		 * TODO@API ensure that this will be compatible with future changes to chat variables.
+		 * The variables that were used in this message.
+		 * TODO@API rename to `references`?
 		 */
-		readonly variables: ChatResolvedVariable[];
+		readonly variables: ChatValueReference[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: string);
+		private constructor(prompt: string, command: string | undefined, variables: ChatValueReference[], participant: string);
 	}
 
 	/**
@@ -234,15 +234,10 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	/**
-	 * A resolved variable value is a name-value pair as well as the range in the prompt where a variable was used.
-	 */
-	export interface ChatResolvedVariable {
+	export interface ChatValueReference {
 		/**
-		 * The name of the variable.
-		 *
-		 * *Note* that the name doesn't include the leading `#`-character,
-		 * e.g `selection` for `#selection`.
+		 * The name of the reference.
+		 * TODO@API How to handle name conflicts? Need id vs name?
 		 */
 		readonly name: string;
 
@@ -252,13 +247,12 @@ declare module 'vscode' {
 		 * *Note* that the indices take the leading `#`-character into account which means they can
 		 * used to modify the prompt as-is.
 		 */
-		readonly range?: [start: number, end: number];
+		readonly range: [start: number, end: number];
 
-		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
 		/**
-		 * The values of the variable. Can be an empty array if the variable doesn't currently have a value.
+		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
 		 */
-		readonly values: ChatVariableValue[];
+		readonly value: string | Uri | Location | unknown;
 	}
 
 	export interface ChatRequest {
@@ -287,7 +281,7 @@ declare module 'vscode' {
 		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		readonly variables: readonly ChatResolvedVariable[];
+		readonly variables: readonly ChatValueReference[];
 	}
 
 	/**
@@ -358,6 +352,15 @@ declare module 'vscode' {
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon): ChatResponseStream;
 
 		/**
+		 * Push a warning to this stream. Short-hand for
+		 * `push(new ChatResponseWarningPart(message))`.
+		 *
+		 * @param message A warning message
+		 * @returns This stream.
+		 */
+		warning(message: string | MarkdownString): ChatResponseStream;
+
+		/**
 		 * Pushes a part to this stream.
 		 *
 		 * @param part A response part, rendered or metadata
@@ -407,11 +410,16 @@ declare module 'vscode' {
 		constructor(value: Command);
 	}
 
+	export class ChatResponseWarningPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
 	/**
 	 * Represents the different chat response types.
 	 */
 	export type ChatResponsePart = ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
-		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart | ChatResponseWarningPart;
 
 
 	export namespace chat {
@@ -423,31 +431,5 @@ declare module 'vscode' {
 		 * @returns A new chat participant
 		 */
 		export function createChatParticipant(id: string, handler: ChatRequestHandler): ChatParticipant;
-	}
-
-	/**
-	 * The detail level of this chat variable value.
-	 */
-	export enum ChatVariableLevel {
-		Short = 1,
-		Medium = 2,
-		Full = 3
-	}
-
-	export interface ChatVariableValue {
-		/**
-		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
-		 */
-		level: ChatVariableLevel;
-
-		/**
-		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
-		 */
-		value: string | Uri;
-
-		/**
-		 * A description of this value, which could be provided to the LLM as a hint.
-		 */
-		description?: string;
 	}
 }

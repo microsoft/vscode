@@ -128,10 +128,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		// a default chat model (unless configured) and feedback is reported against that one. This
 		// code forwards the feedback to an actual registered provider
 		this._register(this._chatService.onDidPerformUserAction(e => {
-			if (e.action.kind === 'bug') {
-				this.acceptFeedback(undefined);
-			} else if (e.action.kind === 'vote') {
-				this.acceptFeedback(e.action.direction === InteractiveSessionVoteDirection.Up);
+			// only forward feedback from the inline chat widget default model
+			if (
+				this._chatWidget?.rawValue?.inlineChatWidget.usesDefaultChatModel
+				&& e.sessionId === this._chatWidget?.rawValue?.inlineChatWidget.getChatModel().sessionId
+			) {
+				if (e.action.kind === 'bug') {
+					this.acceptFeedback(undefined);
+				} else if (e.action.kind === 'vote') {
+					this.acceptFeedback(e.action.direction === InteractiveSessionVoteDirection.Up);
+				}
 			}
 		}));
 	}
@@ -363,13 +369,28 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!widget || !request?.response) {
 			return;
 		}
+		const message: IChatProgress[] = [];
+		for (const item of request.response.response.value) {
+			if (item.kind === 'textEditGroup') {
+				for (const group of item.edits) {
+					message.push({
+						kind: 'textEdit',
+						edits: group,
+						uri: item.uri
+					});
+				}
+			} else {
+				message.push(item);
+			}
+		}
+
 		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
 			// DEBT: Add hardcoded agent name until its removed
 			`@${this._terminalAgentName} ${request.message.text}`,
 			request.variableData,
 			request.attempt,
 			{
-				message: request.response!.response.value,
+				message,
 				result: request.response!.result,
 				followups: request.response!.followups
 			});

@@ -55,6 +55,7 @@ import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable'
 import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -209,9 +210,15 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 		parent.classList.add('markers-panel');
 		this._register(dom.addDisposableListener(parent, 'keydown', e => {
-			if (this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
-				this.focusFilter();
+			const event = new StandardKeyboardEvent(e);
+			if (!this.keybindingService.mightProducePrintableCharacter(event)) {
+				return;
 			}
+			const result = this.keybindingService.softDispatch(event, event.target);
+			if (result.kind === ResultKind.MoreChordsNeeded || result.kind === ResultKind.KbFound) {
+				return;
+			}
+			this.focusFilter();
 		}));
 
 		const panelContainer = dom.append(parent, dom.$('.markers-panel-container'));
