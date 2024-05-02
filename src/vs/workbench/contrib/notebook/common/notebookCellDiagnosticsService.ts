@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { Event } from 'vs/base/common/event';
 
-export const INotebookCellDiagnosticsService = createDecorator<INotebookCellDiagnosticsService>('INotebookCellDiagnosticsService');
+export const INotebookCellDiagnosticsService = createDecorator<INotebookCellDiagnosticsService>('notebookCellDiagnosticsService');
 
 export interface INotebookCellDiagnosticsService {
 	readonly _serviceBrand: undefined;

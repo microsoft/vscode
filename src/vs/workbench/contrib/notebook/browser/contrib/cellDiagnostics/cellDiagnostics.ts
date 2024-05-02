@@ -13,11 +13,12 @@ import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/
 import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { INotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/common/notebookCellDiagnosticsService';
+import { Iterable } from 'vs/base/common/iterator';
 
 
 export class CellDiagnostics extends Disposable implements INotebookEditorContribution {
 
-	static ID: string = 'workbench.notebook.cellDiagnostics.contributed';
+	static ID: string = 'workbench.notebook.cellDiagnostics';
 
 	private enabled = false;
 	private listening = false;
@@ -47,10 +48,10 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 
 	private updateEnabled() {
 		const settingEnabled = this.configurationService.getValue(NotebookSetting.cellFailureDiagnostics);
-		if (this.enabled && (!settingEnabled)) {// TODO: BRING THIS BACK BEFORE CHECK-IN || Iterable.isEmpty(this.inlineChatService.getAllProvider()))) {} || Iterable.isEmpty(this.inlineChatService.getAllProvider()))) {
+		if (this.enabled && (!settingEnabled || Iterable.isEmpty(this.inlineChatService.getAllProvider()))) {
 			this.enabled = false;
 			this.clearAll();
-		} else if (!this.enabled && settingEnabled) {// TODO: BRING THIS BACK BEFORE CHECK-IN || Iterable.isEmpty(this.inlineChatService.getAllProvider()))) {} && !Iterable.isEmpty(this.inlineChatService.getAllProvider())) {
+		} else if (!this.enabled && settingEnabled && !Iterable.isEmpty(this.inlineChatService.getAllProvider())) {
 			this.enabled = true;
 			if (!this.listening) {
 				this.listening = true;
