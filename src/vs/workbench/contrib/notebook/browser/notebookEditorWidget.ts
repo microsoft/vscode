@@ -374,6 +374,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				|| e.outputWordWrap
 				|| e.outputScrolling
 				|| e.outputLinkifyFilePaths
+				|| e.minimalError
 			) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();

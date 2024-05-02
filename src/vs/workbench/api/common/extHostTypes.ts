@@ -3180,6 +3180,11 @@ export enum NewSymbolNameTag {
 	AIGenerated = 1
 }
 
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
 export class NewSymbolName implements vscode.NewSymbolName {
 	readonly newSymbolName: string;
 	readonly tags?: readonly vscode.NewSymbolNameTag[] | undefined;
@@ -4018,12 +4023,13 @@ export enum TestRunProfileKind {
 }
 
 @es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest {
+export class TestRunRequest implements vscode.TestRunRequest2 {
 	constructor(
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
 		public readonly continuous = false,
+		public readonly preserveFocus = true,
 	) { }
 }
 
@@ -4356,6 +4362,17 @@ export class ChatResponseProgressPart {
 	}
 }
 
+export class ChatResponseWarningPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
@@ -4365,8 +4382,10 @@ export class ChatResponseCommandButtonPart {
 
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }) {
+	iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
 		this.value = value;
+		this.iconPath = iconPath;
 	}
 }
 
@@ -4383,7 +4402,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly variables: vscode.ChatResolvedVariable[],
+		readonly variables: vscode.ChatValueReference[],
 		readonly participant: string,
 	) { }
 }
@@ -4443,6 +4462,10 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
 	}
 
+	static Blocked(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.Blocked.name);
+	}
+
 	readonly code: string;
 
 	constructor(message?: string, code?: string, cause?: Error) {
@@ -4474,6 +4497,12 @@ export enum SpeechToTextStatus {
 	Recognized = 3,
 	Stopped = 4,
 	Error = 5
+}
+
+export enum TextToSpeechStatus {
+	Started = 1,
+	Stopped = 2,
+	Error = 3
 }
 
 export enum KeywordRecognitionStatus {

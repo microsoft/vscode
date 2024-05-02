@@ -35,7 +35,11 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TextEdit } from 'vs/editor/common/languages';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { Schemas } from 'vs/base/common/network';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DefaultChatTextEditor } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { isEqual } from 'vs/base/common/resources';
 
 export interface IEditObserver {
@@ -67,44 +71,55 @@ export abstract class EditModeStrategy {
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
 		protected readonly _zone: InlineChatZoneWidget,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) { }
 
 	dispose(): void {
 		this._store.dispose();
 	}
 
-	async apply(): Promise<void> {
+	protected async _doApplyChanges(ignoreLocal: boolean): Promise<void> {
 
-		if (this._session.lastExchange?.response instanceof ReplyResponse) {
-			const { untitledTextModel } = this._session.lastExchange.response;
-			if (untitledTextModel && !untitledTextModel.isDisposed()) {
+		const untitledModels: IUntitledTextEditorModel[] = [];
 
-				await untitledTextModel.resolve();
-				if (!untitledTextModel.textEditorModel) {
-					return;
+		const editor = this._instaService.createInstance(DefaultChatTextEditor);
+
+
+		for (const request of this._session.chatModel.getRequests()) {
+
+			if (!request.response?.response) {
+				continue;
+			}
+
+			for (const item of request.response.response.value) {
+				if (item.kind !== 'textEditGroup') {
+					continue;
+				}
+				if (ignoreLocal && isEqual(item.uri, this._session.textModelN.uri)) {
+					continue;
 				}
 
-				// TODO@jrieken
-				// apply changes only when not dirty. This is very proper and needs to
-				// fixed in the future
-				if (!untitledTextModel.isDirty()) {
-					const allEdits: TextEdit[] = [];
-					for (const request of this._session.chatModel.getRequests()) {
-						for (const item of request.response?.response.value ?? []) {
-							if (item.kind === 'textEdit' && isEqual(item.uri, untitledTextModel.resource)) {
-								allEdits.push(...item.edits);
-							}
-						}
+				await editor.apply(request.response, item);
+
+				if (item.uri.scheme === Schemas.untitled) {
+					const untitled = this._textFileService.untitled.get(item.uri);
+					if (untitled) {
+						untitledModels.push(untitled);
 					}
-					untitledTextModel.textEditorModel.pushStackElement();
-					untitledTextModel.textEditorModel.pushEditOperations(null, allEdits.map(TextEdit.asEditOperation), () => null);
-					untitledTextModel.textEditorModel.pushStackElement();
 				}
+			}
+		}
 
-				await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
+		for (const untitledModel of untitledModels) {
+			if (!untitledModel.isDisposed()) {
+				await untitledModel.resolve();
+				await untitledModel.save({ reason: SaveReason.EXPLICIT });
 			}
 		}
 	}
+
+	abstract apply(): Promise<void>;
 
 	cancel() {
 		return this._session.hunkData.discardAll();
@@ -177,8 +192,10 @@ export class PreviewStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITextFileService textFileService: ITextFileService,
+		@IInstantiationService instaService: IInstantiationService
 	) {
-		super(session, editor, zone);
+		super(session, editor, zone, textFileService, instaService);
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 
@@ -196,26 +213,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async apply() {
-
-		// apply all edits from all responses
-		const textModel = this._editor.getModel();
-		if (textModel?.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
-
-			const allEdits: TextEdit[] = [];
-			for (const request of this._session.chatModel.getRequests()) {
-				for (const item of request.response?.response.value ?? []) {
-					if (item.kind === 'textEdit' && isEqual(item.uri, textModel.uri)) {
-						allEdits.push(...item.edits);
-					}
-				}
-			}
-
-			textModel.pushStackElement();
-			textModel.pushEditOperations(null, allEdits.map(TextEdit.asEditOperation), () => null);
-			textModel.pushStackElement();
-		}
-
-		await super.apply();
+		await super._doApplyChanges(false);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
@@ -303,8 +301,10 @@ export class LiveStrategy extends EditModeStrategy {
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@ITextFileService textFileService: ITextFileService,
+		@IInstantiationService instaService: IInstantiationService
 	) {
-		super(session, editor, zone);
+		super(session, editor, zone, textFileService, instaService);
 		this._ctxCurrentChangeHasDiff = CTX_INLINE_CHAT_CHANGE_HAS_DIFF.bindTo(contextKeyService);
 		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
@@ -334,7 +334,7 @@ export class LiveStrategy extends EditModeStrategy {
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
-		await super.apply();
+		await super._doApplyChanges(true);
 	}
 
 	override cancel() {

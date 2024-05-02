@@ -30,6 +30,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
+	private _promptTerminator: string | undefined;
 	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
@@ -54,6 +55,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		return this._currentCommand;
 	}
 	get cwd(): string | undefined { return this._cwd; }
+	get promptTerminator(): string | undefined { return this._promptTerminator; }
 	private get _isInputting(): boolean {
 		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
 	}
@@ -154,7 +156,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		};
 		this._register(this._terminal.onResize(e => this._handleResize(e)));
 		this._register(this._terminal.onCursorMove(() => this._handleCursorMove()));
-		this._register(this._terminal.onData(() => this._handleInput()));
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
@@ -206,10 +207,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	setCwd(value: string) {
 		this._cwd = value;
-	}
-
-	setPromptHeight(value: number) {
-		this._currentCommand.promptHeight = value;
 	}
 
 	setIsWindowsPty(value: boolean) {
@@ -283,10 +280,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		return undefined;
-	}
-
-	private _handleInput(): void {
-		this._ptyHeuristics.value.handleInput();
 	}
 
 	handlePromptStart(options?: IHandleCommandOptions): void {
@@ -461,6 +454,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._onCommandFinished.fire(newCommand);
 		}
 	}
+
+	setPromptTerminator(promptTerminator: string) {
+		this._logService.debug('CommandDetectionCapability#setPromptTerminator', promptTerminator);
+		this._promptTerminator = promptTerminator;
+	}
 }
 
 /**
@@ -507,8 +505,6 @@ class UnixPtyHeuristics extends Disposable {
 			return false;
 		}));
 	}
-
-	handleInput() { }
 
 	handleCommandStart(options?: IHandleCommandOptions) {
 		this._hooks.commitCommandFinished();
@@ -663,28 +659,6 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 	}
 
-	/**
-	 * Attempt to adjust the command start marker when input is handled for the first time.
-	 */
-	handleInput() {
-		const currentY = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
-
-		const hasWrappingInPrompt = Array.from({ length: (this._capability.currentCommand.promptHeight ?? 0) + 1 }, (_, i) => currentY - i).find(y => this._terminal.buffer.active.getLine(y)?.isWrapped) !== undefined;
-		const hasActiveCommand = this._capability.currentCommand.commandStartX !== undefined && this._capability.currentCommand.commandExecutedX === undefined;
-		const hasAdjusted = this._capability.currentCommand.isAdjusted === true || this._capability.currentCommand.isInputAdjusted === true;
-
-		if (!hasActiveCommand || hasAdjusted || hasWrappingInPrompt) {
-			return;
-		}
-		this._capability.currentCommand.isInputAdjusted = true;
-		this._logService.debug('CommandDetectionCapability#handleInput attempting start marker adjustment');
-
-		this._tryAdjustCommandStartMarkerScannedLineCount = 0;
-		this._tryAdjustCommandStartMarkerPollCount = 0;
-		this._tryAdjustCommandStartMarkerScheduler = new RunOnceScheduler(() => this._tryAdjustCommandStartMarker(this._terminal.registerMarker(0)!), AdjustCommandStartMarkerConstants.Interval);
-		this._tryAdjustCommandStartMarkerScheduler.schedule();
-	}
-
 	handleCommandStart() {
 		this._capability.currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
@@ -746,24 +720,21 @@ class WindowsPtyHeuristics extends Disposable {
 				if (prompt) {
 					const adjustedPrompt = typeof prompt === 'string' ? prompt : prompt.prompt;
 					this._capability.currentCommand.commandStartMarker = this._terminal.registerMarker(0)!;
-
-					// Adjust the prompt start marker to the command start marker
-					this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
-					this._capability.currentCommand.promptStartMarker?.dispose();
-					this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker, -((this._capability.currentCommand.promptHeight ?? 1) - 1));
-
-					// Adjust the last command if it's not in the same position as the following
-					// prompt start marker
-					const lastCommand = this._capability.commands.at(-1);
-					if (lastCommand && this._capability.currentCommand.commandStartMarker.line !== lastCommand.endMarker?.line) {
-						lastCommand.endMarker?.dispose();
-						lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker, -((this._capability.currentCommand.promptHeight ?? 1) - 1));
+					if (typeof prompt === 'object' && prompt.likelySingleLine) {
+						this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
+						this._capability.currentCommand.promptStartMarker?.dispose();
+						this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
+						// Adjust the last command if it's not in the same position as the following
+						// prompt start marker
+						const lastCommand = this._capability.commands.at(-1);
+						if (lastCommand && this._capability.currentCommand.commandStartMarker.line !== lastCommand.endMarker?.line) {
+							lastCommand.endMarker?.dispose();
+							lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
+						}
 					}
-
 					// use the regex to set the position as it's possible input has occurred
 					this._capability.currentCommand.commandStartX = adjustedPrompt.length;
 					this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted commandStart', `${start.line} -> ${this._capability.currentCommand.commandStartMarker.line}:${this._capability.currentCommand.commandStartX}`);
-					this._capability.currentCommand.isAdjusted = true;
 					this._flushPendingHandleCommandStartTask();
 					return;
 				}
@@ -958,7 +929,6 @@ class WindowsPtyHeuristics extends Disposable {
 		if (!line) {
 			return;
 		}
-		// TODO: fine tune prompt regex to accomodate for unique configurations.
 		const lineText = line.translateToString(true);
 		if (!lineText) {
 			return;
@@ -1001,6 +971,14 @@ class WindowsPtyHeuristics extends Disposable {
 				prompt: pythonPrompt,
 				likelySingleLine: true
 			};
+		}
+
+		// Dynamic prompt detection
+		if (this._capability.promptTerminator && lineText.trim().endsWith(this._capability.promptTerminator)) {
+			const adjustedPrompt = this._adjustPrompt(lineText, lineText, this._capability.promptTerminator);
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
 		}
 
 		// Command Prompt
@@ -1085,7 +1063,5 @@ function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number
 }
 
 function cloneMarker(xterm: Terminal, marker: IXtermMarker, offset: number = 0): IXtermMarker | undefined {
-	const cursorY = xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
-	const cursorYOffset = marker.line - cursorY + offset;
-	return xterm.registerMarker((cursorY + cursorYOffset) < 0 ? -cursorY : cursorYOffset);
+	return xterm.registerMarker(marker.line - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY) + offset);
 }

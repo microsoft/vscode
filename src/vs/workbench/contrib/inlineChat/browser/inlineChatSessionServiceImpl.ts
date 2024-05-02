@@ -229,6 +229,7 @@ export class InlineChatError extends Error {
 
 const _bridgeAgentId = 'brigde.editor';
 const _inlineChatContext = '_inlineChatContext';
+const _inlineChatDocument = '_inlineChatDocument';
 
 class InlineChatContext {
 
@@ -317,8 +318,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				id: _bridgeAgentId,
 				name: 'editor',
 				extensionId: nullExtensionDescription.identifier,
-				extensionPublisher: '',
+				extensionPublisherDisplayName: '',
 				extensionDisplayName: '',
+				extensionPublisherId: '',
 				isDefault: true,
 				locations: [ChatAgentLocation.Editor],
 				get slashCommands(): IChatAgentCommand[] {
@@ -387,6 +389,17 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							level: 'full',
 							value: JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange))
 						}];
+					}
+				}
+				return undefined;
+			}
+		));
+		this._store.add(chatVariableService.registerVariable(
+			{ name: _inlineChatDocument, description: '', hidden: true },
+			async (_message, _arg, model) => {
+				for (const [, data] of this._sessions) {
+					if (data.session.chatModel === model) {
+						return [{ level: 'full', value: data.session.textModelN.uri }];
 					}
 				}
 				return undefined;
@@ -504,13 +517,15 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 						for (const item of response.response.value) {
 							if (item.kind === 'markdownContent') {
 								markdownContent.value += item.content.value;
-							} else if (item.kind === 'textEdit') {
-								for (const edit of item.edits) {
-									raw.edits.edits.push({
-										resource: item.uri,
-										textEdit: edit,
-										versionId: undefined
-									});
+							} else if (item.kind === 'textEditGroup') {
+								for (const group of item.edits) {
+									for (const edit of group) {
+										raw.edits.edits.push({
+											resource: item.uri,
+											textEdit: edit,
+											versionId: undefined
+										});
+									}
 								}
 							}
 						}
@@ -525,10 +540,17 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							e.request.id,
 							e.request.response
 						);
+
 					}
 				}
 
 				session.addExchange(new SessionExchange(session.lastInput!, inlineResponse));
+
+				if (inlineResponse instanceof ReplyResponse && inlineResponse.untitledTextModel) {
+					this._textModelService.createModelReference(inlineResponse.untitledTextModel.resource).then(ref => {
+						store.add(ref);
+					});
+				}
 			});
 		}));
 

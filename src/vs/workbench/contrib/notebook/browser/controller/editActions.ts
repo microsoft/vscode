@@ -450,7 +450,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 				return;
 			}
 
-			const item = <ILanguagePickInput>{
+			const item: ILanguagePickInput = {
 				label: languageName,
 				iconClasses: getIconClasses(modelService, languageService, this.getFakeResource(languageName, languageService)),
 				description,

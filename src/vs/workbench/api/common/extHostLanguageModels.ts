@@ -161,9 +161,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			auth
 		});
 
+		const responseReceivedListener = provider.onDidReceiveLanguageModelResponse2?.(({ extensionId, participant, tokenCount }) => {
+			this._proxy.$whenLanguageModelChatRequestMade(identifier, new ExtensionIdentifier(extensionId), participant, tokenCount);
+		});
+
 		return toDisposable(() => {
 			this._languageModels.delete(handle);
 			this._proxy.$unregisterProvider(handle);
+			responseReceivedListener?.dispose();
 		});
 	}
 
@@ -298,6 +303,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		await barrier.wait();
 
 		if (error) {
+			if (error.name === LanguageModelError.name) {
+				throw error;
+			}
+
 			throw new LanguageModelError(
 				`Language model '${languageModelId}' errored, check cause for more details`,
 				'Unknown',
