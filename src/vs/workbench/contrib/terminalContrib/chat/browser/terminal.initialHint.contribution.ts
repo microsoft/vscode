@@ -27,8 +27,8 @@ import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import 'vs/css!./media/terminalInitialHint';
+import { TerminalInitialHintSettingId } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';
 
 const $ = dom.$;
 
@@ -185,7 +185,7 @@ class TerminalInitialHintWidget extends Disposable {
 			}
 		}));
 		this.toDispose.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.InitialHint) && !this.configurationService.getValue(TerminalSettingId.InitialHint)) {
+			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled) && !this.configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
 				this.dispose();
 			}
 		}));
