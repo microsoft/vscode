@@ -294,7 +294,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.editor-selected.tab-border-top > .tab-border-top-container{
-	background-color: orange;
+	background-color: var(--vscode-tab-selectedBorderTop);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
