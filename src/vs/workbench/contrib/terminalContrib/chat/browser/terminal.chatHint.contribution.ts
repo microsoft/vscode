@@ -155,7 +155,7 @@ class TerminalChatHintWidget extends Disposable {
 			}
 		}));
 		this.toDispose.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ChatHint) && !this.configurationService.getValue(TerminalSettingId.ChatHint)) {
+			if (e.affectsConfiguration(TerminalSettingId.InitialHint) && !this.configurationService.getValue(TerminalSettingId.InitialHint)) {
 				this.dispose();
 			}
 		}));
