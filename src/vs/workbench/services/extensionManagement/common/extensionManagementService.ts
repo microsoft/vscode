@@ -39,6 +39,10 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
+function isResourceExtension(extension: any): extension is IResourceExtension {
+	return extension && !!(extension as IResourceExtension).manifest;
+}
+
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
@@ -315,7 +319,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject('No Servers');
 	}
 
-	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
+	async canInstall(extension: IGalleryExtension | IResourceExtension): Promise<boolean> {
+		if (isResourceExtension(extension)) {
+			return this.canInstallResourceExtension(extension);
+		}
+		return this.canInstallGalleryExtension(extension);
+	}
+
+	private async canInstallGalleryExtension(gallery: IGalleryExtension): Promise<boolean> {
 		if (this.extensionManagementServerService.localExtensionManagementServer
 			&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery)) {
 			return true;
@@ -332,6 +343,19 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (this.extensionManagementServerService.webExtensionManagementServer
 			&& await this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.canInstall(gallery)
 			&& this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
+			return true;
+		}
+		return false;
+	}
+
+	private canInstallResourceExtension(extension: IResourceExtension): boolean {
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			return true;
+		}
+		if (this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.canExecuteOnWorkspace(extension.manifest)) {
+			return true;
+		}
+		if (this.extensionManagementServerService.webExtensionManagementServer && this.extensionManifestPropertiesService.canExecuteOnWeb(extension.manifest)) {
 			return true;
 		}
 		return false;
@@ -427,6 +451,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	async installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
+		if (!this.canInstallResourceExtension(extension)) {
+			throw new Error('This extension cannot be installed in the current workspace.');
+		}
 		if (!installOptions.isWorkspaceScoped) {
 			return this.installFromLocation(extension.location);
 		}
