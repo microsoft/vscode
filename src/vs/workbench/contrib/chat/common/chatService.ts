@@ -75,7 +75,7 @@ export interface IChatContentVariableReference {
 
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference;
-	iconPath?: ThemeIcon;
+	iconPath?: ThemeIcon | { light: URI; dark: URI };
 	kind: 'reference';
 }
 
@@ -104,6 +104,11 @@ export interface IChatTreeData {
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
+}
+
+export interface IChatWarningMessage {
+	content: IMarkdownString;
+	kind: 'warning';
 }
 
 export interface IChatAgentVulnerabilityDetails {
@@ -138,6 +143,7 @@ export type IChatProgress =
 	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatCommandButton
+	| IChatWarningMessage
 	| IChatTextEdit;
 
 export interface IChatFollowup {

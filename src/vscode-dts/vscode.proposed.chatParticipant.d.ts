@@ -349,7 +349,16 @@ declare module 'vscode' {
 		 * @param iconPath Icon for the reference shown in UI
 		 * @returns This stream.
 		 */
-		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon): ChatResponseStream;
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
+
+		/**
+		 * Push a warning to this stream. Short-hand for
+		 * `push(new ChatResponseWarningPart(message))`.
+		 *
+		 * @param message A warning message
+		 * @returns This stream.
+		 */
+		warning(message: string | MarkdownString): ChatResponseStream;
 
 		/**
 		 * Pushes a part to this stream.
@@ -392,8 +401,8 @@ declare module 'vscode' {
 
 	export class ChatResponseReferencePart {
 		value: Uri | Location | { variableName: string; value?: Uri | Location };
-		iconPath?: ThemeIcon;
-		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon);
+		iconPath?: ThemeIcon | { light: Uri; dark: Uri };
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon | { light: Uri; dark: Uri });
 	}
 
 	export class ChatResponseCommandButtonPart {
@@ -401,11 +410,16 @@ declare module 'vscode' {
 		constructor(value: Command);
 	}
 
+	export class ChatResponseWarningPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
 	/**
 	 * Represents the different chat response types.
 	 */
 	export type ChatResponsePart = ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
-		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart | ChatResponseWarningPart;
 
 
 	export namespace chat {

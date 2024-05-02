@@ -52,6 +52,11 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+
+	.monaco-list.horizontal-scrolling & {
+		width: auto;
+		overflow: visible;
+	}
 }
 
 .test-output-peek-tree .test-peek-item .name .codicon,
