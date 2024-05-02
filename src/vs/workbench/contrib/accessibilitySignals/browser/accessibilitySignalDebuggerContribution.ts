@@ -63,6 +63,5 @@ export class AccessibilitySignalLineDebuggerContribution
 				this.accessibilitySignalService.playSignal(AccessibilitySignal.onDebugBreak);
 			}
 		});
-
 	}
 }

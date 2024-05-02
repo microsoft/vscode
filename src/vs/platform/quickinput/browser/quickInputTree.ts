@@ -318,7 +318,7 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 		}
 
 		return {
-			value: element.checked,
+			get value() { return element.checked; },
 			onDidChange: e => element.onChecked(() => e()),
 		};
 	}
@@ -741,17 +741,6 @@ export class QuickInputTree extends Disposable {
 				indent: 0,
 				horizontalScrolling: false,
 				allowNonCollapsibleParents: true,
-				identityProvider: {
-					getId: element => {
-						// always prefer item over separator because if item is defined, it must be the main item type
-						// always prefer a defined id if one was specified and use label as a fallback
-						return element.item?.id
-							?? element.item?.label
-							?? element.separator?.id
-							?? element.separator?.label
-							?? '';
-					},
-				},
 				alwaysConsumeMouseWheel: true
 			}
 		));

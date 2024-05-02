@@ -11,12 +11,11 @@ import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ILanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
 import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
-import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -31,7 +30,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ILanguageModelsService private readonly _chatProviderService: ILanguageModelsService,
-		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@ILanguageModelStatsService private readonly _languageModelStatsService: ILanguageModelStatsService,
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
@@ -60,18 +59,14 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				} finally {
 					this._pendingProgress.delete(requestId);
 				}
-			}
+			},
+			provideTokenCount: (str, token) => {
+				return this._proxy.$provideTokenLength(handle, str, token);
+			},
 		}));
 		if (metadata.auth) {
 			dipsosables.add(this._registerAuthenticationProvider(metadata.extension, metadata.auth));
 		}
-		dipsosables.add(Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-			id: `lm-${identifier}`,
-			label: localize('languageModels', "Language Model ({0})", `${identifier}`),
-			access: {
-				canToggle: false,
-			},
-		}));
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
@@ -81,6 +76,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	$unregisterProvider(handle: number): void {
 		this._providerRegistrations.deleteAndDispose(handle);
+	}
+
+	$whenLanguageModelChatRequestMade(identifier: string, extensionId: ExtensionIdentifier, participant?: string | undefined, tokenCount?: number | undefined): void {
+		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
 	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined> {
@@ -101,8 +100,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
-		await this._extensionFeaturesManagementService.getAccess(extension, `lm-${providerId}`);
-
 		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
 
 		const task = this._chatProviderService.makeLanguageModelChatRequest(providerId, extension, messages, options, new Progress(value => {
@@ -117,6 +114,11 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		});
 
 		return task;
+	}
+
+
+	$countTokens(provider: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
+		return this._chatProviderService.computeTokenLength(provider, value, token);
 	}
 
 	private _registerAuthenticationProvider(extension: ExtensionIdentifier, auth: { providerLabel: string; accountLabel?: string | undefined }): IDisposable {

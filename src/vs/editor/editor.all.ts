@@ -31,7 +31,7 @@ import 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
 import 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import 'vs/editor/contrib/gotoError/browser/gotoError';
-import 'vs/editor/contrib/hover/browser/hover';
+import 'vs/editor/contrib/hover/browser/hoverContribution';
 import 'vs/editor/contrib/indentation/browser/indentation';
 import 'vs/editor/contrib/inlayHints/browser/inlayHintsContribution';
 import 'vs/editor/contrib/inPlaceReplace/browser/inPlaceReplace';

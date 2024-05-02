@@ -14,12 +14,13 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { isEqual } from 'vs/base/common/resources';
 import { StableEditorBottomScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -33,7 +34,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 });
 
@@ -63,9 +65,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			},
 			rendererOptions: {
 				renderTextEditsAsSummary: (uri) => {
+					// render edits as summary only when using Live mode and when
+					// dealing with the current file in the editor
 					return isEqual(uri, editor.getModel()?.uri)
-						// && !"true"
-						;
+						&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
 				},
 			}
 		});

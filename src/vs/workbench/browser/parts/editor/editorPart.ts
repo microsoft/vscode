@@ -6,7 +6,7 @@
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement } from 'vs/base/browser/dom';
-import { Event, Emitter, Relay } from 'vs/base/common/event';
+import { Event, Emitter, Relay, PauseableEmitter } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -117,7 +117,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly _onDidAddGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidAddGroup = this._onDidAddGroup.event;
 
-	private readonly _onDidRemoveGroup = this._register(new Emitter<IEditorGroupView>());
+	private readonly _onDidRemoveGroup = this._register(new PauseableEmitter<IEditorGroupView>());
 	readonly onDidRemoveGroup = this._onDidRemoveGroup.event;
 
 	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
@@ -867,7 +867,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return copiedGroupView;
 	}
 
-	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView {
+	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
 
@@ -885,10 +885,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 
 		// Move/Copy editors over into target
+		let result = true;
 		if (options?.mode === MergeGroupMode.COPY_EDITORS) {
 			sourceView.copyEditors(editors, targetView);
 		} else {
-			sourceView.moveEditors(editors, targetView);
+			result = sourceView.moveEditors(editors, targetView);
 		}
 
 		// Remove source if the view is now empty and not already removed
@@ -896,21 +897,25 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			this.removeGroup(sourceView, true);
 		}
 
-		return targetView;
+		return result;
 	}
 
-	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): boolean {
 		const targetView = this.assertGroupView(target);
 
+		let result = true;
 		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (group === targetView) {
 				continue; // keep target
 			}
 
-			this.mergeGroup(group, targetView);
+			const merged = this.mergeGroup(group, targetView);
+			if (!merged) {
+				result = false;
+			}
 		}
 
-		return targetView;
+		return result;
 	}
 
 	protected assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
@@ -1337,24 +1342,58 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		};
 	}
 
-	async applyState(state: IEditorPartUIState): Promise<boolean> {
-
-		// Close all opened editors and dispose groups
-		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			const closed = await group.closeAllEditors();
-			if (!closed) {
-				return false;
-			}
+	applyState(state: IEditorPartUIState | 'empty'): Promise<void> {
+		if (state === 'empty') {
+			return this.doApplyEmptyState();
+		} else {
+			return this.doApplyState(state);
 		}
-		this.disposeGroups();
+	}
+
+	private async doApplyState(state: IEditorPartUIState): Promise<void> {
+		const groups = await this.doPrepareApplyState();
+		const resumeEvents = this.disposeGroups(true /* suspress events for the duration of applying state */);
 
 		// MRU
 		this.mostRecentActiveGroups = state.mostRecentActiveGroups;
 
 		// Grid Widget
-		this.doApplyGridState(state.serializedGrid, state.activeGroup);
+		try {
+			this.doApplyGridState(state.serializedGrid, state.activeGroup);
+		} finally {
+			resumeEvents();
+		}
 
-		return true;
+		// Restore editors that were not closed before and are now opened now
+		await this.activeGroup.openEditors(
+			groups
+				.flatMap(group => group.editors)
+				.filter(editor => this.editorPartsView.groups.every(groupView => !groupView.contains(editor)))
+				.map(editor => ({
+					editor, options: { pinned: true, preserveFocus: true, inactive: true }
+				}))
+		);
+	}
+
+	private async doApplyEmptyState(): Promise<void> {
+		await this.doPrepareApplyState();
+
+		this.mergeAllGroups(this.activeGroup);
+	}
+
+	private async doPrepareApplyState(): Promise<IEditorGroupView[]> {
+
+		// Before disposing groups, try to close as many editors as
+		// possible, but skip over those that would trigger a dialog
+		// (for example when being dirty). This is to be able to later
+		// restore these editors after state has been applied.
+
+		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+		for (const group of groups) {
+			await group.closeAllEditors({ excludeConfirming: true });
+		}
+
+		return groups;
 	}
 
 	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
@@ -1396,7 +1435,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		};
 	}
 
-	private disposeGroups(): void {
+	private disposeGroups(): void;
+	private disposeGroups(surpressEvents: boolean): Function;
+	private disposeGroups(surpressEvents?: boolean): Function | void {
+		if (surpressEvents) {
+			this._onDidRemoveGroup.pause();
+		}
+
 		for (const group of this.groups) {
 			group.dispose();
 
@@ -1405,6 +1450,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		this.groupViews.clear();
 		this.mostRecentActiveGroups = [];
+
+		if (surpressEvents) {
+			return () => this._onDidRemoveGroup.resume();
+		}
 	}
 
 	override dispose(): void {

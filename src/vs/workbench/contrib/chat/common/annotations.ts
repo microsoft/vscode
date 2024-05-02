@@ -6,7 +6,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChatProgressRenderableResponseContent, IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, canMergeMarkdownStrings } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatAgentMarkdownContentWithVulnerability, IChatAgentVulnerabilityDetails, IChatContentInlineReference, IChatMarkdownContent } from 'vs/workbench/contrib/chat/common/chatService';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
@@ -20,16 +20,17 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 			const printUri = URI.parse(contentRefUrl).with({ fragment: JSON.stringify(location) });
 			const markdownText = `[${item.name || basename(location.uri)}](${printUri.toString()})`;
 			if (previousItem?.kind === 'markdownContent') {
-				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
+				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText), kind: 'markdownContent' };
 			} else {
 				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
 			}
-		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent') {
-			result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
+		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && canMergeMarkdownStrings(previousItem.content, item.content)) {
+			result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value), kind: 'markdownContent' };
 		} else if (item.kind === 'markdownVuln') {
 			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
 			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
 			if (previousItem?.kind === 'markdownContent') {
+				// Since this is inside a codeblock, it needs to be merged into the previous markdown content.
 				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
 			} else {
 				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
@@ -101,4 +102,3 @@ export function extractVulnerabilitiesFromText(text: string): { newText: string;
 
 	return { newText, vulnerabilities };
 }
-

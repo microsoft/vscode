@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Action } from 'vs/base/common/actions';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -13,9 +14,10 @@ import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -145,7 +147,9 @@ export class ChatService extends Disposable implements IChatService {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -212,6 +216,7 @@ export class ChatService extends Disposable implements IChatService {
 				newFile: !!action.action.newFile
 			});
 		} else if (action.action.kind === 'command') {
+			// TODO not currently called
 			const command = CommandsRegistry.getCommand(action.action.commandButton.command.id);
 			const commandId = command ? action.action.commandButton.command.id : 'INVALID';
 			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
@@ -245,7 +250,7 @@ export class ChatService extends Disposable implements IChatService {
 				throw new Error('Expected array');
 			}
 
-			const sessions = arrayOfSessions.reduce((acc, session) => {
+			const sessions = arrayOfSessions.reduce<ISerializableChatsData>((acc, session) => {
 				// Revive serialized markdown strings in response data
 				for (const request of session.requests) {
 					if (Array.isArray(request.response)) {
@@ -262,7 +267,7 @@ export class ChatService extends Disposable implements IChatService {
 
 				acc[session.sessionId] = session;
 				return acc;
-			}, {} as ISerializableChatsData);
+			}, {});
 			return sessions;
 		} catch (err) {
 			this.error('deserializeChats', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
@@ -348,6 +353,17 @@ export class ChatService extends Disposable implements IChatService {
 			const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
 			if (!defaultAgent) {
 				// Should have been registered during activation above!
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('chatFailErrorMessage', "Chat failed to load. Please ensure that the GitHub Copilot Chat extension is up to date."),
+					actions: {
+						primary: [
+							new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
+								return this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', ['GitHub.copilot-chat']);
+							})
+						]
+					}
+				});
 				throw new ErrorNoTelemetry('No default agent registered');
 			}
 			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(model.initialLocation, token) ?? undefined;
@@ -406,7 +422,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const location = options?.location ?? ChatAgentLocation.Panel;
+		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
 		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
@@ -483,8 +499,8 @@ export class ChatService extends Disposable implements IChatService {
 
 				gotProgress = true;
 
-				if (progress.kind === 'content' || progress.kind === 'markdownContent') {
-					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
+				if (progress.kind === 'markdownContent') {
+					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.value.length} chars`);
 				} else {
 					this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);
 				}
@@ -639,7 +655,8 @@ export class ChatService extends Disposable implements IChatService {
 			message;
 		const request = model.addRequest(parsedRequest, variableData || { variables: [] }, attempt ?? 0);
 		if (typeof response.message === 'string') {
-			model.acceptResponseProgress(request, { content: response.message, kind: 'content' });
+			// TODO is this possible?
+			model.acceptResponseProgress(request, { content: new MarkdownString(response.message), kind: 'markdownContent' });
 		} else {
 			for (const part of response.message) {
 				model.acceptResponseProgress(request, part, true);

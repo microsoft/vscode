@@ -7,8 +7,8 @@
  * Replace with "microphone" icon.
  */
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
-	content: "\ec1c";
-	font-family: 'codicon';
+	content: var(--vscode-icon-mic-filled-content);
+	font-family: var(--vscode-icon-mic-filled-font-family);
 }
 
 /*
@@ -22,6 +22,6 @@
  * Replace with "stop" icon when reduced motion is enabled.
  */
 .monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
-	content: "\ead7";
-	font-family: 'codicon';
+	content: var(--vscode-icon-debug-stop-content);
+	font-family: var(--vscode-icon-debug-stop-font-family);
 }

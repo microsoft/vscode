@@ -805,7 +805,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.find',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchListSupportsFind),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyF,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,
 	secondary: [KeyCode.F3],
 	handler: (accessor) => {
 		const widget = accessor.get(IListService).lastFocusedList;

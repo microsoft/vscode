@@ -2154,7 +2154,7 @@ export class SearchModel extends Disposable {
 			const resolvedNotebookResults = await notebookResult.completeData;
 			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
-			const resolvedResult = <ISearchComplete>{
+			const resolvedResult: ISearchComplete = {
 				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
 				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
 				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,

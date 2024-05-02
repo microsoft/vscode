@@ -11,7 +11,7 @@ import { dirname, join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { FileChangeFilter, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
@@ -846,5 +846,21 @@ export class TestParcelWatcher extends ParcelWatcher {
 		assert.strictEqual(watcher.isSuspended(requests[1]), true);
 		assert.strictEqual(watcher.isSuspended(requests[2]), 'polling');
 		assert.strictEqual(watcher.isSuspended(requests[3]), false);
+	});
+
+	test('event type filter', async function () {
+		const request = { path: testDir, excludes: [], recursive: true, filter: FileChangeFilter.ADDED | FileChangeFilter.DELETED, correlationId: 1 };
+		await watcher.watch([request]);
+
+		// Change file
+		const filePath = join(testDir, 'lorem-newfile.txt');
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, undefined, 1);
+		await Promises.writeFile(filePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, 1);
+		await Promises.unlink(filePath);
+		await changeFuture;
 	});
 });

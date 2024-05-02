@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
+import { createCancelablePromise, firstParallel, timeout } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -127,6 +127,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			} else {
 				if (terminal.state.isInteractedWith) {
 					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
+					await timeout(200); // mirroring https://github.com/microsoft/vscode/blob/c67ccc70ece5f472ec25464d3eeb874cfccee9f1/src/vs/workbench/contrib/terminal/browser/terminalInstance.ts#L852-L857
 				}
 
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {

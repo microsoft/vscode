@@ -17,6 +17,8 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -85,25 +87,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return;
 		}
 
-		const newLanguageId = this._languageService.getLanguageIdByLanguageName(newLanguage);
 
-		if (newLanguageId === null) {
-			return;
-		}
-
-		if (this._textModel) {
-			const languageId = this._languageService.createById(newLanguageId);
-			this._textModel.setLanguage(languageId.languageId);
-		}
-
-		if (this._language === newLanguage) {
-			return;
-		}
-
-		this._language = newLanguage;
-		this._hash = null;
-		this._onDidChangeLanguage.fire(newLanguage);
-		this._onDidChangeContent.fire('language');
+		this._hasLanguageSetExplicitly = true;
+		this._setLanguageInternal(newLanguage);
 	}
 
 	public get mime(): string | undefined {
@@ -138,6 +124,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			if (!this._textModel) {
 				this._onDidChangeContent.fire('content');
 			}
+			this.autoDetectLanguage();
 		}));
 
 		return this._textBuffer;
@@ -195,6 +182,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			this.language = newLanguage;
 		}
 	}
+	private static readonly AUTO_DETECT_LANGUAGE_THROTTLE_DELAY = 600;
+	private readonly autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(NotebookCellTextModel.AUTO_DETECT_LANGUAGE_THROTTLE_DELAY));
+	private _autoLanguageDetectionEnabled: boolean = false;
+	private _hasLanguageSetExplicitly: boolean = false;
+	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
 
 	constructor(
 		readonly uri: URI,
@@ -208,12 +200,65 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		internalMetadata: NotebookCellInternalMetadata | undefined,
 		public readonly collapseState: NotebookCellCollapseState | undefined,
 		public readonly transientOptions: TransientOptions,
-		private readonly _languageService: ILanguageService
+		private readonly _languageService: ILanguageService,
+		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined
 	) {
 		super();
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
 		this._metadata = metadata ?? {};
 		this._internalMetadata = internalMetadata ?? {};
+	}
+
+	enableAutoLanguageDetection() {
+		this._autoLanguageDetectionEnabled = true;
+		this.autoDetectLanguage();
+	}
+
+	async autoDetectLanguage(): Promise<void> {
+		if (this._autoLanguageDetectionEnabled) {
+			this.autoDetectLanguageThrottler.trigger(() => this._doAutoDetectLanguage());
+		}
+	}
+
+	private async _doAutoDetectLanguage(): Promise<void> {
+		if (this.hasLanguageSetExplicitly) {
+			return;
+		}
+
+		const newLanguage = await this._languageDetectionService?.detectLanguage(this.uri);
+		if (!newLanguage) {
+			return;
+		}
+
+		if (this._textModel
+			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdByLanguageName(newLanguage)
+			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdByLanguageName(this.language)) {
+			return;
+		}
+
+		this._setLanguageInternal(newLanguage);
+	}
+
+	private _setLanguageInternal(newLanguage: string) {
+		const newLanguageId = this._languageService.getLanguageIdByLanguageName(newLanguage);
+
+		if (newLanguageId === null) {
+			return;
+		}
+
+		if (this._textModel) {
+			const languageId = this._languageService.createById(newLanguageId);
+			this._textModel.setLanguage(languageId.languageId);
+		}
+
+		if (this._language === newLanguage) {
+			return;
+		}
+
+		this._language = newLanguage;
+		this._hash = null;
+		this._onDidChangeLanguage.fire(newLanguage);
+		this._onDidChangeContent.fire('language');
 	}
 
 	resetTextBuffer(textBuffer: model.ITextBuffer) {

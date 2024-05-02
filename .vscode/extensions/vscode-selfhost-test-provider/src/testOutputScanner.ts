@@ -111,11 +111,13 @@ export class TestOutputScanner implements vscode.Disposable {
 		}
 	}
 
-	protected readonly processData = (data: string) => {
+	protected readonly processData = (data: string | Buffer) => {
 		if (this.args) {
 			this.outputEventEmitter.fire(`./scripts/test ${this.args.join(' ')}`);
 			this.args = undefined;
 		}
+
+		data = data.toString();
 
 		try {
 			const parsed = JSON.parse(data.trim()) as unknown;

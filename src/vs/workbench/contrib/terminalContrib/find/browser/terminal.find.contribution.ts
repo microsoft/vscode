@@ -16,10 +16,14 @@ import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IT
 import { registerActiveInstanceAction, registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminalContrib/find/browser/terminalFindWidget';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { TerminalFindCommandId } from 'vs/workbench/contrib/terminalContrib/find/common/terminal.find';
+import 'vs/css!./media/terminalFind';
+
+// #region Terminal Contributions
 
 class TerminalFindContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.find';
@@ -97,8 +101,12 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 }
 registerTerminalContribution(TerminalFindContribution.ID, TerminalFindContribution, true);
 
+// #endregion
+
+// #region Actions
+
 registerActiveXtermAction({
-	id: TerminalCommandId.FindFocus,
+	id: TerminalFindCommandId.FindFocus,
 	title: localize2('workbench.action.terminal.focusFind', 'Focus Find'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyF,
@@ -113,7 +121,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.FindHide,
+	id: TerminalFindCommandId.FindHide,
 	title: localize2('workbench.action.terminal.hideFind', 'Hide Find'),
 	keybinding: {
 		primary: KeyCode.Escape,
@@ -129,12 +137,12 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ToggleFindRegex,
+	id: TerminalFindCommandId.ToggleFindRegex,
 	title: localize2('workbench.action.terminal.toggleFindRegex', 'Toggle Find Using Regex'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyR,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -146,12 +154,12 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ToggleFindWholeWord,
+	id: TerminalFindCommandId.ToggleFindWholeWord,
 	title: localize2('workbench.action.terminal.toggleFindWholeWord', 'Toggle Find Using Whole Word'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyW,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -163,12 +171,12 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ToggleFindCaseSensitive,
+	id: TerminalFindCommandId.ToggleFindCaseSensitive,
 	title: localize2('workbench.action.terminal.toggleFindCaseSensitive', 'Toggle Find Using Case Sensitive'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyC,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -180,7 +188,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.FindNext,
+	id: TerminalFindCommandId.FindNext,
 	title: localize2('workbench.action.terminal.findNext', 'Find Next'),
 	keybinding: [
 		{
@@ -207,7 +215,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.FindPrevious,
+	id: TerminalFindCommandId.FindPrevious,
 	title: localize2('workbench.action.terminal.findPrevious', 'Find Previous'),
 	keybinding: [
 		{
@@ -235,7 +243,7 @@ registerActiveXtermAction({
 
 // Global workspace file search
 registerActiveInstanceAction({
-	id: TerminalCommandId.SearchWorkspace,
+	id: TerminalFindCommandId.SearchWorkspace,
 	title: localize2('workbench.action.terminal.searchWorkspace', 'Search Workspace'),
 	keybinding: [
 		{
@@ -246,3 +254,5 @@ registerActiveInstanceAction({
 	],
 	run: (activeInstance, c, accessor) => findInFilesCommand(accessor, { query: activeInstance.selection })
 });
+
+// #endregion

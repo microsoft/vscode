@@ -538,6 +538,21 @@ suite('Strings', () => {
 		}
 	});
 
+	test('removeAnsiEscapeCodesFromPrompt', () => {
+		assert.strictEqual(strings.removeAnsiEscapeCodesFromPrompt('\u001b[31m$ \u001b[0m'), '$ ');
+		assert.strictEqual(strings.removeAnsiEscapeCodesFromPrompt('\n\\[\u001b[01;34m\\]\\w\\[\u001b[00m\\]\n\\[\u001b[1;32m\\]> \\[\u001b[0m\\]'), '\n\\w\n> ');
+	});
+
+	test('count', () => {
+		assert.strictEqual(strings.count('hello world', 'o'), 2);
+		assert.strictEqual(strings.count('hello world', 'l'), 3);
+		assert.strictEqual(strings.count('hello world', 'z'), 0);
+		assert.strictEqual(strings.count('hello world', 'hello'), 1);
+		assert.strictEqual(strings.count('hello world', 'world'), 1);
+		assert.strictEqual(strings.count('hello world', 'hello world'), 1);
+		assert.strictEqual(strings.count('hello world', 'foo'), 0);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
 

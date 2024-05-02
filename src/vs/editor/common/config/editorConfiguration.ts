@@ -7,12 +7,17 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export interface IEditorConfiguration extends IDisposable {
 	/**
 	 * Is this a simple widget (not a real code editor)?
 	 */
 	readonly isSimpleWidget: boolean;
+	/**
+	 * The context menu id for the editor.
+	 */
+	readonly contextMenuId: MenuId;
 	/**
 	 * Computed editor options.
 	 */

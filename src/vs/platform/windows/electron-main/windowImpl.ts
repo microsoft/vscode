@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebContents } from 'electron';
+import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebContents, Event as ElectronEvent } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -32,7 +32,7 @@ import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay } from 'vs/platform/window/common/window';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from 'vs/platform/window/common/window';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -136,11 +136,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
-		// Update the window controls immediately based on cached values
+		// Update the window controls immediately based on cached or default values
 		if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
+			} else {
+				this.updateWindowControls({ height: DEFAULT_CUSTOM_TITLEBAR_HEIGHT });
 			}
 		}
 
@@ -682,21 +684,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private registerListeners(): void {
 
 		// Window error conditions to handle
-		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, { ...details }));
-		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
+		this._register(Event.fromNodeEventEmitter(this._win, 'unresponsive')(() => this.onWindowError(WindowError.UNRESPONSIVE)));
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
 
 		// Prevent windows/iframes from blocking the unload
 		// through DOM events. We have our own logic for
 		// unloading a window that should not be confused
 		// with the DOM way.
 		// (https://github.com/microsoft/vscode/issues/122736)
-		this._win.webContents.on('will-prevent-unload', event => {
-			event.preventDefault();
-		});
+		this._register(Event.fromNodeEventEmitter<ElectronEvent>(this._win.webContents, 'will-prevent-unload')(event => event.preventDefault()));
 
 		// Remember that we loaded
-		this._win.webContents.on('did-finish-load', () => {
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-finish-load')(() => {
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
@@ -704,7 +704,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				this.pendingLoadConfig = undefined;
 			}
-		});
+		}));
 
 		// Window (Un)Maximize
 		this._register(this.onDidMaximize(() => {

@@ -135,7 +135,7 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 	}
 }
 
-class CommentsMenus implements IDisposable {
+export class CommentsMenus implements IDisposable {
 	private contextKeyService: IContextKeyService | undefined;
 
 	constructor(

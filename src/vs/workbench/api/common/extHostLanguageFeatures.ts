@@ -32,7 +32,7 @@ import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
+import { CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
@@ -255,17 +255,33 @@ class TypeDefinitionAdapter {
 
 class HoverAdapter {
 
+	private _hoverCounter: number = 0;
+	private _hoverMap: Map<number, vscode.Hover> = new Map<number, vscode.Hover>();
+
+	private static HOVER_MAP_MAX_SIZE = 10;
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	async provideHover(resource: URI, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
+	async provideHover(resource: URI, position: IPosition, context: languages.HoverContext<{ id: number }> | undefined, token: CancellationToken): Promise<extHostProtocol.HoverWithId | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		const value = await this._provider.provideHover(doc, pos, token);
+		let value: vscode.Hover | null | undefined;
+		if (context && context.verbosityRequest) {
+			const previousHoverId = context.verbosityRequest.previousHover.id;
+			const previousHover = this._hoverMap.get(previousHoverId);
+			if (!previousHover) {
+				throw new Error(`Hover with id ${previousHoverId} not found`);
+			}
+			const hoverContext: vscode.HoverContext = { action: context.verbosityRequest.action, previousHover };
+			value = await this._provider.provideHover(doc, pos, token, hoverContext);
+		} else {
+			value = await this._provider.provideHover(doc, pos, token);
+		}
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
@@ -275,7 +291,24 @@ class HoverAdapter {
 		if (!value.range) {
 			value.range = new Range(pos, pos);
 		}
-		return typeConvert.Hover.from(value);
+		const convertedHover: languages.Hover = typeConvert.Hover.from(value);
+		const id = this._hoverCounter;
+		// Check if hover map has more than 10 elements and if yes, remove oldest from the map
+		if (this._hoverMap.size === HoverAdapter.HOVER_MAP_MAX_SIZE) {
+			const minimumId = Math.min(...this._hoverMap.keys());
+			this._hoverMap.delete(minimumId);
+		}
+		this._hoverMap.set(id, value);
+		this._hoverCounter += 1;
+		const hover: extHostProtocol.HoverWithId = {
+			...convertedHover,
+			id
+		};
+		return hover;
+	}
+
+	releaseHover(id: number): void {
+		this._hoverMap.delete(id);
 	}
 }
 
@@ -759,7 +792,7 @@ class RenameAdapter {
 		private readonly _logService: ILogService
 	) { }
 
-	async provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+	async provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto & languages.Rejection | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
@@ -774,7 +807,7 @@ class RenameAdapter {
 		} catch (err) {
 			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
-				return <extHostProtocol.IWorkspaceEditDto>{ rejectReason, edits: undefined! };
+				return { rejectReason, edits: undefined! };
 			} else {
 				// generic error
 				return Promise.reject<extHostProtocol.IWorkspaceEditDto>(err);
@@ -816,7 +849,7 @@ class RenameAdapter {
 		} catch (err) {
 			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
-				return <languages.RenameLocation & languages.Rejection>{ rejectReason, range: undefined!, text: undefined! };
+				return { rejectReason, range: undefined!, text: undefined! };
 			} else {
 				return Promise.reject<any>(err);
 			}
@@ -836,19 +869,29 @@ class RenameAdapter {
 
 class NewSymbolNamesAdapter {
 
+	private static languageTriggerKindToVSCodeTriggerKind: Record<languages.NewSymbolNameTriggerKind, vscode.NewSymbolNameTriggerKind> = {
+		[languages.NewSymbolNameTriggerKind.Invoke]: NewSymbolNameTriggerKind.Invoke,
+		[languages.NewSymbolNameTriggerKind.Automatic]: NewSymbolNameTriggerKind.Automatic,
+	};
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.NewSymbolNamesProvider,
 		private readonly _logService: ILogService
 	) { }
 
-	async provideNewSymbolNames(resource: URI, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
+	async supportsAutomaticNewSymbolNamesTriggerKind() {
+		return this._provider.supportsAutomaticTriggerKind;
+	}
+
+	async provideNewSymbolNames(resource: URI, range: IRange, triggerKind: languages.NewSymbolNameTriggerKind, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Range.to(range);
 
 		try {
-			const value = await this._provider.provideNewSymbolNames(doc, pos, token);
+			const kind = NewSymbolNamesAdapter.languageTriggerKindToVSCodeTriggerKind[triggerKind];
+			const value = await this._provider.provideNewSymbolNames(doc, pos, kind, token);
 			if (!value) {
 				return undefined;
 			}
@@ -2246,8 +2289,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
-		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token), undefined, token);
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext<{ id: number }> | undefined, token: CancellationToken,): Promise<extHostProtocol.HoverWithId | undefined> {
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, context, token), undefined, token);
+	}
+
+	$releaseHover(handle: number, id: number): void {
+		this._withAdapter(handle, HoverAdapter, adapter => Promise.resolve(adapter.releaseHover(id)), undefined, undefined);
 	}
 
 	// --- debug hover
@@ -2446,8 +2493,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
-		return this._withAdapter(handle, NewSymbolNamesAdapter, adapter => adapter.provideNewSymbolNames(URI.revive(resource), range, token), undefined, token);
+	$supportsAutomaticNewSymbolNamesTriggerKind(handle: number): Promise<boolean | undefined> {
+		return this._withAdapter(
+			handle,
+			NewSymbolNamesAdapter,
+			adapter => adapter.supportsAutomaticNewSymbolNamesTriggerKind(),
+			false,
+			undefined
+		);
+	}
+
+	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, triggerKind: languages.NewSymbolNameTriggerKind, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
+		return this._withAdapter(handle, NewSymbolNamesAdapter, adapter => adapter.provideNewSymbolNames(URI.revive(resource), range, triggerKind, token), undefined, token);
 	}
 
 	//#region semantic coloring
