@@ -254,6 +254,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_LIGHT_THEME)
 				|| e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)
 				|| e.affectsConfiguration(ThemeSettings.DETECT_HC)
+				|| e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME)
 			) {
 				this.restoreColorTheme();
 			}

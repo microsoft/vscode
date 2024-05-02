@@ -38,19 +38,31 @@ export function computeStats(
 	lines.push(`- I/O Handles Impact:     total: ${recursiveRequestsStatus.polling + nonRecursiveRequestsStatus.polling + recursiveWatcherStatus.active + nonRecursiveWatcherStatus.active}`);
 
 	lines.push(`\n[Recursive Requests (${allRecursiveRequests.length}, suspended: ${recursiveRequestsStatus.suspended}, polling: ${recursiveRequestsStatus.polling})]:`);
+	const recursiveRequestLines: string[] = [];
 	for (const request of [nonSuspendedRecursiveRequests, suspendedPollingRecursiveRequests, suspendedNonPollingRecursiveRequests].flat()) {
-		fillRequestStats(lines, request, recursiveWatcher);
+		fillRequestStats(recursiveRequestLines, request, recursiveWatcher);
 	}
+	lines.push(...alignTextColumns(recursiveRequestLines));
 
-	fillRecursiveWatcherStats(lines, recursiveWatcher);
+	const recursiveWatcheLines: string[] = [];
+	fillRecursiveWatcherStats(recursiveWatcheLines, recursiveWatcher);
+	lines.push(...alignTextColumns(recursiveWatcheLines));
 
 	lines.push(`\n[Non-Recursive Requests (${allNonRecursiveRequests.length}, suspended: ${nonRecursiveRequestsStatus.suspended}, polling: ${nonRecursiveRequestsStatus.polling})]:`);
+	const nonRecursiveRequestLines: string[] = [];
 	for (const request of [nonSuspendedNonRecursiveRequests, suspendedPollingNonRecursiveRequests, suspendedNonPollingNonRecursiveRequests].flat()) {
-		fillRequestStats(lines, request, nonRecursiveWatcher);
+		fillRequestStats(nonRecursiveRequestLines, request, nonRecursiveWatcher);
 	}
+	lines.push(...alignTextColumns(nonRecursiveRequestLines));
 
-	fillNonRecursiveWatcherStats(lines, nonRecursiveWatcher);
+	const nonRecursiveWatcheLines: string[] = [];
+	fillNonRecursiveWatcherStats(nonRecursiveWatcheLines, nonRecursiveWatcher);
+	lines.push(...alignTextColumns(nonRecursiveWatcheLines));
 
+	return `\n\n[File Watcher] request stats:\n\n${lines.join('\n')}\n\n`;
+}
+
+function alignTextColumns(lines: string[]) {
 	let maxLength = 0;
 	for (const line of lines) {
 		maxLength = Math.max(maxLength, line.split('\t')[0].length);
@@ -65,7 +77,7 @@ export function computeStats(
 		}
 	}
 
-	return `\n\n[File Watcher] request stats:\n\n${lines.join('\n')}\n\n`;
+	return lines;
 }
 
 function computeRequestStatus(requests: IUniversalWatchRequest[], watcher: ParcelWatcher | NodeJSWatcher): { suspended: number; polling: number } {

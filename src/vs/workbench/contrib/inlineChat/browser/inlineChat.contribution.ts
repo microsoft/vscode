@@ -48,7 +48,6 @@ registerAction2(InlineChatActions.FocusInlineChat);
 registerAction2(InlineChatActions.ViewInChatAction);
 
 registerAction2(InlineChatActions.ToggleDiffForChange);
-registerAction2(InlineChatActions.ReportIssueForBugCommand);
 registerAction2(InlineChatActions.AcceptChanges);
 
 registerAction2(InlineChatActions.CopyRecordings);

@@ -57,27 +57,29 @@ export function structuralEquals<T>(a: T, b: T): boolean {
 		return true;
 	}
 
-	if (Object.getPrototypeOf(a) === Object.prototype && Object.getPrototypeOf(b) === Object.prototype) {
-		const aObj = a as Record<string, unknown>;
-		const bObj = b as Record<string, unknown>;
-		const keysA = Object.keys(aObj);
-		const keysB = Object.keys(bObj);
-		const keysBSet = new Set(keysB);
+	if (a && typeof a === 'object' && b && typeof b === 'object') {
+		if (Object.getPrototypeOf(a) === Object.prototype && Object.getPrototypeOf(b) === Object.prototype) {
+			const aObj = a as Record<string, unknown>;
+			const bObj = b as Record<string, unknown>;
+			const keysA = Object.keys(aObj);
+			const keysB = Object.keys(bObj);
+			const keysBSet = new Set(keysB);
 
-		if (keysA.length !== keysB.length) {
-			return false;
-		}
-
-		for (const key of keysA) {
-			if (!keysBSet.has(key)) {
+			if (keysA.length !== keysB.length) {
 				return false;
 			}
-			if (!structuralEquals(aObj[key], bObj[key])) {
-				return false;
-			}
-		}
 
-		return true;
+			for (const key of keysA) {
+				if (!keysBSet.has(key)) {
+					return false;
+				}
+				if (!structuralEquals(aObj[key], bObj[key])) {
+					return false;
+				}
+			}
+
+			return true;
+		}
 	}
 
 	return false;

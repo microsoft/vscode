@@ -43,6 +43,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	override get snap(): boolean { return true; }
 
 	readonly priority: LayoutPriority = LayoutPriority.Low;
 
@@ -61,7 +62,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return Math.max(width, 300);
 	}
 
-	private readonly acitivityBarPart: ActivitybarPart;
+	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this));
 
 	//#endregion
 
@@ -103,7 +104,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
-		this.acitivityBarPart = this._register(instantiationService.createInstance(ActivitybarPart, this));
 		this.rememberActivityBarVisiblePosition();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
@@ -115,7 +115,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	private onDidChangeActivityBarLocation(): void {
-		this.acitivityBarPart.hide();
+		this.activityBarPart.hide();
 
 		this.updateCompositeBar();
 
@@ -125,7 +125,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}
 
 		if (this.shouldShowActivityBar()) {
-			this.acitivityBarPart.show();
+			this.activityBarPart.show();
 		}
 
 		this.rememberActivityBarVisiblePosition();
@@ -134,7 +134,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		// Part container
 		const container = assertIsDefined(this.getContainer());
 
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
@@ -212,6 +211,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		if (this.shouldShowCompositeBar()) {
 			return false;
 		}
+
 		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.HIDDEN;
 	}
 
@@ -243,25 +243,28 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	override getPinnedPaneCompositeIds(): string[] {
-		return this.shouldShowCompositeBar() ? super.getPinnedPaneCompositeIds() : this.acitivityBarPart.getPinnedPaneCompositeIds();
+		return this.shouldShowCompositeBar() ? super.getPinnedPaneCompositeIds() : this.activityBarPart.getPinnedPaneCompositeIds();
 	}
 
 	override getVisiblePaneCompositeIds(): string[] {
-		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.acitivityBarPart.getVisiblePaneCompositeIds();
+		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.activityBarPart.getVisiblePaneCompositeIds();
 	}
 
 	async focusActivityBar(): Promise<void> {
 		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN) {
 			await this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, this.getRememberedActivityBarVisiblePosition());
+
 			this.onDidChangeActivityBarLocation();
 		}
+
 		if (this.shouldShowCompositeBar()) {
-			this.focusComositeBar();
+			this.focusCompositeBar();
 		} else {
 			if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 				this.layoutService.setPartHidden(false, Parts.ACTIVITYBAR_PART);
 			}
-			this.acitivityBarPart.show(true);
+
+			this.activityBarPart.show(true);
 		}
 	}
 

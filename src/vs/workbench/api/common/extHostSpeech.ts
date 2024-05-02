@@ -17,6 +17,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 
 	private readonly providers = new Map<number, vscode.SpeechProvider>();
 	private readonly sessions = new Map<number, CancellationTokenSource>();
+	private readonly synthesizers = new Map<number, vscode.TextToSpeechSession>();
 
 	constructor(
 		mainContext: IMainContext
@@ -50,6 +51,46 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 	async $cancelSpeechToTextSession(session: number): Promise<void> {
 		this.sessions.get(session)?.dispose(true);
 		this.sessions.delete(session);
+	}
+
+	async $createTextToSpeechSession(handle: number, session: number): Promise<void> {
+		const provider = this.providers.get(handle);
+		if (!provider) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+
+		const cts = new CancellationTokenSource();
+		this.sessions.set(session, cts);
+
+		const textToSpeech = disposables.add(provider.provideTextToSpeechSession(cts.token));
+		this.synthesizers.set(session, textToSpeech);
+
+		disposables.add(textToSpeech.onDidChange(e => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			this.proxy.$emitTextToSpeechEvent(session, e);
+		}));
+
+		disposables.add(cts.token.onCancellationRequested(() => disposables.dispose()));
+	}
+
+	async $synthesizeSpeech(session: number, text: string): Promise<void> {
+		const synthesizer = this.synthesizers.get(session);
+		if (!synthesizer) {
+			return;
+		}
+
+		synthesizer.synthesize(text);
+	}
+
+	async $cancelTextToSpeechSession(session: number): Promise<void> {
+		this.sessions.get(session)?.dispose(true);
+		this.sessions.delete(session);
+		this.synthesizers.delete(session);
 	}
 
 	async $createKeywordRecognitionSession(handle: number, session: number): Promise<void> {

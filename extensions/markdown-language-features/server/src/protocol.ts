@@ -8,7 +8,7 @@ import type * as lsp from 'vscode-languageserver-types';
 import type * as md from 'vscode-markdown-languageservice';
 
 //#region From server
-export const parse = new RequestType<{ uri: string }, md.Token[], any>('markdown/parse');
+export const parse = new RequestType<{ uri: string; text?: string }, md.Token[], any>('markdown/parse');
 
 export const fs_readFile = new RequestType<{ uri: string }, number[], any>('markdown/fs/readFile');
 export const fs_readDirectory = new RequestType<{ uri: string }, [string, { isDirectory: boolean }][], any>('markdown/fs/readDirectory');

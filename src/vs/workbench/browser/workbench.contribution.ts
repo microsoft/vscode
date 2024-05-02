@@ -97,7 +97,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					let customEditorLabelDescription = localize('workbench.editor.label.patterns', "Controls the rendering of the editor label. Each __Item__ is a pattern that matches a file path. Both relative and absolute file paths are supported. In case multiple patterns match, the longest matching path will be picked. Each __Value__ is the template for the rendered editor when the __Item__ matches. Variables are substituted based on the context:");
 					customEditorLabelDescription += '\n- ' + [
 						localize('workbench.editor.label.dirname', "`${dirname}`: name of the folder in which the file is located (e.g. `root/folder/file.txt -> folder`)."),
-						localize('workbench.editor.label.nthdirname', "`${dirname(N)}`: name of the nth parent folder in which the file is located (e.g. `N=1: root/folder/file.txt -> root`)."),
+						localize('workbench.editor.label.nthdirname', "`${dirname(N)}`: name of the nth parent folder in which the file is located (e.g. `N=1: root/folder/file.txt -> root`). Folders can be picked from the start of the path by using negative numbers (e.g. `N=-1: root/folder/file.txt -> root`). If the __Item__ is an absolute pattern path, the first folder (`N=-1`) refers to the first folder in the absoulte path, otherwise it corresponds to the workspace folder."),
 						localize('workbench.editor.label.filename', "`${filename}`: name of the file without the file extension (e.g. `root/folder/file.txt -> file`)."),
 						localize('workbench.editor.label.extname', "`${extname}`: the file extension (e.g. `root/folder/file.txt -> txt`)."),
 					].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations

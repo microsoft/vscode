@@ -184,28 +184,35 @@ function renderError(
 		return disposableStore;
 	}
 
+	const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
+
 	if (err.stack) {
+		const minimalError = ctx.settings.minimalError && !!headerMessage?.length;
 		outputElement.classList.add('traceback');
 
-		const stackTrace = formatStackTrace(err.stack);
+		const { formattedStack, errorLocation } = formatStackTrace(err.stack);
 
-		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-		const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml, linkifyFilePaths: ctx.settings.linkifyFilePaths };
+		const outputScrolling = !minimalError && scrollingEnabled(outputInfo, ctx.settings);
+		const lineLimit = minimalError ? 1000 : ctx.settings.lineLimit;
+		const outputOptions = { linesLimit: lineLimit, scrollable: outputScrolling, trustHtml, linkifyFilePaths: false };
 
-		const content = createOutputContent(outputInfo.id, stackTrace ?? '', outputOptions);
-		const contentParent = document.createElement('div');
-		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		const content = createOutputContent(outputInfo.id, formattedStack, outputOptions);
+		const stackTraceElement = document.createElement('div');
+		stackTraceElement.appendChild(content);
+		stackTraceElement.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
+			stackTraceElement.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
-		contentParent.classList.toggle('scrollable', outputScrolling);
 
-		contentParent.appendChild(content);
-		outputElement.appendChild(contentParent);
-		initializeScroll(contentParent, disposableStore);
+		if (minimalError) {
+			createMinimalError(errorLocation, headerMessage, stackTraceElement, outputElement);
+		} else {
+			stackTraceElement.classList.toggle('scrollable', outputScrolling);
+			outputElement.appendChild(stackTraceElement);
+			initializeScroll(stackTraceElement, disposableStore);
+		}
 	} else {
 		const header = document.createElement('div');
-		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
 		if (headerMessage) {
 			header.innerText = headerMessage;
 			outputElement.appendChild(header);
@@ -214,6 +221,54 @@ function renderError(
 
 	outputElement.classList.add('error');
 	return disposableStore;
+}
+
+function createMinimalError(errorLocation: string | undefined, headerMessage: string, stackTrace: HTMLDivElement, outputElement: HTMLElement) {
+	const outputDiv = document.createElement('div');
+	const headerSection = document.createElement('div');
+	headerSection.classList.add('error-output-header');
+
+	if (errorLocation && errorLocation.indexOf('<a') === 0) {
+		headerSection.innerHTML = errorLocation;
+	}
+	const header = document.createElement('span');
+	header.innerText = headerMessage;
+	headerSection.appendChild(header);
+	outputDiv.appendChild(headerSection);
+
+	function addButton(linkElement: HTMLElement) {
+		const button = document.createElement('li');
+		button.appendChild(linkElement);
+		// the :hover css selector doesn't work in the webview,
+		// so we need to add the hover class manually
+		button.onmouseover = function () {
+			button.classList.add('hover');
+		};
+		button.onmouseout = function () {
+			button.classList.remove('hover');
+		};
+		return button;
+	}
+
+	const buttons = document.createElement('ul');
+	buttons.classList.add('error-output-actions');
+	outputDiv.appendChild(buttons);
+
+	const toggleStackLink = document.createElement('a');
+	toggleStackLink.innerText = 'Show Details';
+	toggleStackLink.href = '#!';
+	buttons.appendChild(addButton(toggleStackLink));
+
+	toggleStackLink.onclick = (e) => {
+		e.preventDefault();
+		const hidden = stackTrace.style.display === 'none';
+		stackTrace.style.display = hidden ? '' : 'none';
+		toggleStackLink.innerText = hidden ? 'Hide Details' : 'Show Details';
+	};
+
+	outputDiv.appendChild(stackTrace);
+	stackTrace.style.display = 'none';
+	outputElement.appendChild(outputDiv);
 }
 
 function getPreviousMatchingContentGroup(outputElement: HTMLElement) {
@@ -448,6 +503,35 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.output-stream .code-underline,
 	.traceback .code-underline {
 		text-decoration: underline;
+	}
+	#container ul.error-output-actions {
+		margin: 0px;
+		padding: 6px 0px 0px 6px;
+		padding-inline-start: 0px;
+	}
+	#container .error-output-actions li {
+		padding: 0px 4px 0px 4px;
+		border-radius: 5px;
+		height: 20px;
+		display: inline-flex;
+		cursor: pointer;
+		border: solid 1px var(--vscode-notebook-cellToolbarSeparator);
+	}
+	#container .error-output-actions li.hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+	#container .error-output-actions li:focus-within {
+		border-color: var(--theme-input-focus-border-color);
+	}
+	#container .error-output-actions a:focus {
+		outline: 0;
+	}
+	#container .error-output-actions li a {
+		color: var(--vscode-foreground);
+		text-decoration: none;
+	}
+	#container .error-output-header a {
+		padding-right: 12px;
 	}
 	`;
 	document.body.appendChild(style);

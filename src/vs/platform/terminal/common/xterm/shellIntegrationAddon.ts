@@ -21,6 +21,7 @@ import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/b
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from 'vs/base/common/uri';
 import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
+import { removeAnsiEscapeCodesFromPrompt } from 'vs/base/common/strings';
 
 
 /**
@@ -40,7 +41,7 @@ import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 /**
  * The identifier for the first numeric parameter (`Ps`) for OSC commands used by shell integration.
  */
-const enum ShellIntegrationOscPs {
+export const enum ShellIntegrationOscPs {
 	/**
 	 * Sequences pioneered by FinalTerm.
 	 */
@@ -382,12 +383,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 				switch (key) {
 					case 'ContinuationPrompt': {
-						// Exclude escape sequences and values between \[ and \]
-						const sanitizedValue = (value
-							.replace(/\x1b\[[0-9;]*m/g, '')
-							.replace(/\\\[.*?\\\]/g, '')
-						);
-						this._updateContinuationPrompt(sanitizedValue);
+						this._updateContinuationPrompt(removeAnsiEscapeCodesFromPrompt(value));
 						return true;
 					}
 					case 'Cwd': {
@@ -396,6 +392,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					}
 					case 'IsWindows': {
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
+						return true;
+					}
+					case 'Prompt': {
+						// Remove escape sequences from the user's prompt
+						const sanitizedValue = value.replace(/\x1b\[[0-9;]*m/g, '');
+						this._updatePromptTerminator(sanitizedValue);
 						return true;
 					}
 					case 'Task': {
@@ -420,6 +422,17 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return;
 		}
 		this._createOrGetCommandDetection(this._terminal).setContinuationPrompt(value);
+	}
+
+	private _updatePromptTerminator(prompt: string) {
+		if (!this._terminal) {
+			return;
+		}
+		const lastPromptLine = prompt.substring(prompt.lastIndexOf('\n')).trim();
+		const promptTerminator = lastPromptLine.substring(lastPromptLine.lastIndexOf(' ')).trim();
+		if (promptTerminator) {
+			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator);
+		}
 	}
 
 	private _updateCwd(value: string) {

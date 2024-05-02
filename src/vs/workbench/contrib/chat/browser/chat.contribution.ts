@@ -53,6 +53,7 @@ import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVari
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { ILanguageModelsService, LanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
+import { ILanguageModelStatsService, LanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
 import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -268,7 +269,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const agentWithLeader = `${chatAgentLeader}${a.name}`;
-					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
+					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest ?? ''}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
 					const description = a.description ? `- ${a.description}` : '';
 					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) ${description}`;
@@ -340,6 +341,7 @@ registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelsService, LanguageModelsService, InstantiationType.Delayed);
+registerSingleton(ILanguageModelStatsService, LanguageModelStatsService, InstantiationType.Delayed);
 registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType.Delayed);
