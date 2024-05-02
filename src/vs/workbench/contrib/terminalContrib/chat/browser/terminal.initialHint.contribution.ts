@@ -127,7 +127,10 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			this._decoration?.dispose();
 			this._addon?.dispose();
 		}));
-		this._decoration?.onRender((e) => {
+		if (!this._decoration) {
+			return;
+		}
+		this._register(this._decoration.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalService.instances.length === 1) {
 				const chatProviders = [...this._inlineChatService.getAllProvider()];
 				if (chatProviders?.length) {
@@ -147,7 +150,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 					decoration.style.width = (this._xterm.raw.cols - this._xterm.raw.buffer.active.cursorX) / this._xterm!.raw.cols * 100 + '%';
 				}
 			}
-		});
+		}));
 	}
 }
 registerTerminalContribution(TerminalInitialHintContribution.ID, TerminalInitialHintContribution, false);
