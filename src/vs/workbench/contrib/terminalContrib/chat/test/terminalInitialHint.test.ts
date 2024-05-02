@@ -42,12 +42,12 @@ suite('Terminal Initial Hint Addon', () => {
 	});
 
 	suite('Chat providers', () => {
-		test('hint is not shown when there are no chat providers', async () => {
+		test('hint is not shown when there are no chat providers', () => {
 			eventCount = 0;
 			xterm.focus();
 			strictEqual(eventCount, 0);
 		});
-		test('hint is shown when there is a chat provider', async () => {
+		test('hint is shown when there is a chat provider', () => {
 			eventCount = 0;
 			const provider: IInlineChatSessionProvider = {
 				extensionId: new ExtensionIdentifier('test'),
@@ -65,7 +65,7 @@ suite('Terminal Initial Hint Addon', () => {
 		});
 	});
 	suite('Input', () => {
-		test('hint is not shown when there has been input', async () => {
+		test('hint is not shown when there has been input', () => {
 			const provider: IInlineChatSessionProvider = {
 				extensionId: new ExtensionIdentifier('test'),
 				label: 'blahblah',
