@@ -100,7 +100,7 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 			this._register(marker);
 			this._chatHint = this._xterm.raw.registerDecoration({
 				marker,
-				x: this._xterm.raw.buffer.active.cursorX + 1
+				x: this._xterm.raw.buffer.active.cursorX + 1,
 			});
 		}
 
@@ -116,8 +116,9 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 					}
 					e.appendChild(this._hintWidget);
 					e.classList.add('terminal-chat-hint');
-					e.style.width = (this._xterm!.raw.cols - this._xterm!.raw.buffer.active.cursorX) / this._xterm!.raw.cols * 100 + '%';
 				}
+			} else {
+				this._hintWidget!.parentElement!.style.width = (this._xterm!.raw.cols - this._xterm!.raw.buffer.active.cursorX) / this._xterm!.raw.cols * 100 + '%';
 			}
 		});
 	}
@@ -241,7 +242,6 @@ class TerminalChatHintWidget extends Disposable {
 	getDomNode(providers: IInlineChatSessionProvider[]): HTMLElement {
 		if (!this.domNode) {
 			this.domNode = $('.terminal-chat-hint');
-			this.domNode!.style.width = 'max-content';
 			this.domNode!.style.paddingLeft = '4px';
 
 			const { hintElement, ariaLabel } = this._getHintInlineChat(providers);
