@@ -323,7 +323,7 @@ suite('PromptInputModel', () => {
 	});
 
 	suite('multi-line', () => {
-		test('basic', async () => {
+		test('basic 2 line', async () => {
 			await writePromise('$ ');
 			fireCommandStart();
 			await assertPromptInput('|');
@@ -337,6 +337,29 @@ suite('PromptInputModel', () => {
 
 			await writePromise('b');
 			await assertPromptInput(`echo "a\nb|`);
+		});
+
+		test('basic 3 line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\nb\n|`);
+
+			await writePromise('c');
+			await assertPromptInput(`echo "a\nb\nc|`);
 		});
 	});
 
