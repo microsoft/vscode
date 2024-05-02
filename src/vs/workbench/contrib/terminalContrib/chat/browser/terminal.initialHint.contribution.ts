@@ -40,17 +40,18 @@ export class InitialHintAddon extends Disposable implements ITerminalAddon {
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _onDidChangeProviders: Event<InlineChatProviderChangeEvent>) {
 		super();
-		this._disposables.value = this._register(new DisposableStore());
 	}
 	activate(terminal: RawXtermTerminal): void {
+		const store = this._register(new DisposableStore());
+		this._disposables.value = store;
 		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (capability) {
-			this._disposables.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._onDidRequestCreateHint.fire()));
+			store.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._onDidRequestCreateHint.fire()));
 		} else {
 			this._register(this._capabilities.onDidAddCapability(e => {
 				if (e.id === TerminalCapability.CommandDetection) {
 					const capability = e.capability;
-					this._disposables.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._onDidRequestCreateHint.fire()));
+					store.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._onDidRequestCreateHint.fire()));
 					if (!capability.promptInputModel.value) {
 						this._onDidRequestCreateHint.fire();
 					}
