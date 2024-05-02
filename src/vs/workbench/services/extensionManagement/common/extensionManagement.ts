@@ -43,6 +43,7 @@ export interface IExtensionManagementServerService {
 export const DefaultIconPath = FileAccess.asBrowserUri('vs/workbench/services/extensionManagement/common/media/defaultIcon.png').toString(true);
 
 export interface IResourceExtension {
+	readonly type: 'resource';
 	readonly identifier: IExtensionIdentifier;
 	readonly location: URI;
 	readonly manifest: IExtensionManifest;
