@@ -33,8 +33,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import 'vs/css!./media/terminalInitialHint';
+
 const $ = dom.$;
 
 export class TerminalInitialHintContribution extends Disposable implements ITerminalContribution {
@@ -277,13 +277,4 @@ class TerminalInitialHintWidget extends Disposable {
 		super.dispose();
 	}
 }
-
-export const terminalInitialHintConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
-	[TerminalSettingId.InitialHint]: {
-		restricted: true,
-		markdownDescription: localize('terminal.integrated.initialHint', "Controls if the first terminal without input will show a hint about available actions when it is focused."),
-		type: 'boolean',
-		default: true
-	}
-};
 
