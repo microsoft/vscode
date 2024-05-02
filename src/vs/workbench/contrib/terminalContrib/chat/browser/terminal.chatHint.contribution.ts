@@ -162,7 +162,7 @@ class TerminalChatHintWidget extends Disposable {
 
 		const handleClick = () => {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-				id: 'inlineChat.hintAction',
+				id: 'terminalInlineChat.hintAction',
 				from: 'hint'
 			});
 			this.commandService.executeCommand(TerminalChatCommandId.Start, { from: 'hint' });
