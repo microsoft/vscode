@@ -622,6 +622,12 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
+		[TerminalSettingId.ChatHint]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.chatHint', "Controls if the first terminal without input will show a hint that chat is available when it is focused."),
+			type: 'boolean',
+			default: true
+		},
 		...terminalAccessibilityConfiguration,
 		...terminalStickyScrollConfiguration,
 		...terminalSuggestConfiguration,

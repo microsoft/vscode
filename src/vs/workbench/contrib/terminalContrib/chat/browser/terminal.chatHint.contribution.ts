@@ -32,6 +32,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 const $ = dom.$;
 
 class TerminalChatHintContribution extends Disposable implements ITerminalContribution {
@@ -144,12 +145,17 @@ class TerminalChatHintWidget extends Disposable {
 	) {
 		super();
 		this.toDispose.add(_instance.onDidFocus(() => {
-			if (this._instance.hasFocus && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
+			if (this._instance.hasFocus && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.TerminalChat)) {
 				status(this.ariaLabel);
 			}
 		}));
 		this.toDispose.add(terminalService.onDidChangeInstances(() => {
 			if (this.terminalService.instances.length !== 1) {
+				this.dispose();
+			}
+		}));
+		this.toDispose.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ChatHint) && !this.configurationService.getValue(TerminalSettingId.ChatHint)) {
 				this.dispose();
 			}
 		}));
@@ -213,7 +219,7 @@ class TerminalChatHintWidget extends Disposable {
 
 			hintElement.appendChild(after);
 
-			const typeToDismiss = localize('emptyHintTextDismiss', 'Start typing to dismiss.');
+			const typeToDismiss = localize('hintTextDismiss', 'Start typing to dismiss.');
 			const textHint2 = $('span', undefined, typeToDismiss);
 			textHint2.style.fontStyle = 'italic';
 			hintElement.appendChild(textHint2);
@@ -242,7 +248,7 @@ class TerminalChatHintWidget extends Disposable {
 
 			const { hintElement, ariaLabel } = this._getHintInlineChat(providers);
 			this.domNode.append(hintElement);
-			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));
+			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalChat));
 
 			this.toDispose.add(dom.addDisposableListener(this.domNode, 'click', () => {
 				this.domNode?.remove();
