@@ -7,7 +7,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import type { Terminal as RawXtermTerminal, IDecoration } from '@xterm/xterm';
@@ -47,6 +47,8 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 	private _chatHint: IDecoration | undefined;
 
+	private readonly _showHintDisposableStore = this._register(new MutableDisposable<DisposableStore>());
+
 	constructor(
 		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
 		processManager: ITerminalProcessManager | ITerminalProcessInfo,
@@ -56,6 +58,7 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
+		this._showHintDisposableStore.value = this._register(new DisposableStore());
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -66,12 +69,12 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 		this._xterm = xterm;
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (capability) {
-			this._register(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
+			this._showHintDisposableStore.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
 		} else {
 			this._register(this._instance.capabilities.onDidAddCapability(e => {
 				if (e.id === TerminalCapability.CommandDetection) {
 					const capability = e.capability;
-					this._register(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
+					this._showHintDisposableStore.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
 					if (!capability.promptInputModel.value) {
 						this._addChatHint();
 					}
@@ -79,7 +82,7 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 			}));
 		}
 
-		this._register(Event.once(this._inlineChatService.onDidChangeProviders)(() => this._addChatHint()));
+		this._showHintDisposableStore.value?.add(Event.once(this._inlineChatService.onDidChangeProviders)(() => this._addChatHint()));
 	}
 
 	private _addChatHint(): void {
@@ -104,12 +107,16 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 			});
 		}
 
-		this._register(this._xterm.raw.onCursorMove(() => this._chatHint?.dispose()));
+		this._register(this._xterm.raw.onKey(() => {
+			this._chatHint?.dispose();
+			this._showHintDisposableStore.clear();
+		}));
 		this._chatHint?.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalService.instances.length === 1) {
 				const chatProviders = [...this._inlineChatService.getAllProvider()];
 				if (chatProviders?.length) {
 					const widget = this._instantiationService.createInstance(TerminalChatHintWidget, instance);
+					this._showHintDisposableStore.clear();
 					this._hintWidget = widget.getDomNode(chatProviders);
 					if (!this._hintWidget) {
 						return;
