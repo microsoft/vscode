@@ -139,12 +139,18 @@ class TerminalChatHintWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super();
 		this.toDispose.add(_instance.onDidFocus(() => {
 			if (this._instance.hasFocus && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
 				status(this.ariaLabel);
+			}
+		}));
+		this.toDispose.add(terminalService.onDidChangeInstances(() => {
+			if (this.terminalService.instances.length !== 1) {
+				this.dispose();
 			}
 		}));
 	}
