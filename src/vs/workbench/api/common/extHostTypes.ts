@@ -4362,6 +4362,17 @@ export class ChatResponseProgressPart {
 	}
 }
 
+export class ChatResponseWarningPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
@@ -4371,8 +4382,8 @@ export class ChatResponseCommandButtonPart {
 
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
-	iconPath?: vscode.ThemeIcon;
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.ThemeIcon) {
+	iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
 		this.value = value;
 		this.iconPath = iconPath;
 	}
