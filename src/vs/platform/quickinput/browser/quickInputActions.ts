@@ -16,13 +16,12 @@ import { IQuickInputService, IQuickPick, QuickInputType, QuickPickFocus } from '
 const defaultCommandAndKeybindingRule = {
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick), inQuickInputContext),
+	metadata: { description: localize('quickPick', "Used while in the context of the quick pick. If you change one keybinding for this command, you should change all of the other keybindings (modifier variants) of this command as well.") }
 };
 function registerQuickPickCommandAndKeybindingRule(rule: PartialExcept<ICommandAndKeybindingRule, 'id' | 'handler'>, options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		...defaultCommandAndKeybindingRule,
-		id: rule.id,
-		handler: rule.handler,
-		primary: rule.primary,
+		...rule,
 		secondary: getSecondary(rule.primary!, rule.secondary ?? [], options)
 	});
 }
