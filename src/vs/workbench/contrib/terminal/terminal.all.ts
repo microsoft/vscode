@@ -26,4 +26,5 @@ import 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminal.quickFix.
 import 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminal.typeAhead.contribution';
 import 'vs/workbench/contrib/terminalContrib/suggest/browser/terminal.suggest.contribution';
 import 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.chatHint.contribution';
+import 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.chatHint.contribution.ts';
 

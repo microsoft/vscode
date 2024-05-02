@@ -35,7 +35,7 @@ import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 const $ = dom.$;
 
-class TerminalChatHintContribution extends Disposable implements ITerminalContribution {
+export class TerminalChatHintContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chatHint';
 
 	private _hintWidget: HTMLElement | undefined;
@@ -43,16 +43,16 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalChatHintContribution | null {
 		return instance.getContribution<TerminalChatHintContribution>(TerminalChatHintContribution.ID);
 	}
-
-	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 	private _chatHint: IDecoration | undefined;
+	get chatHint(): IDecoration | undefined { return this._chatHint; }
+	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 
 	private readonly _showHintDisposableStore = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
-		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
-		processManager: ITerminalProcessManager | ITerminalProcessInfo,
-		widgetManager: TerminalWidgetManager,
+		private readonly _instance: Pick<ITerminalInstance, 'capabilities'> | IDetachedTerminalInstance,
+		processManager: ITerminalProcessManager | ITerminalProcessInfo | undefined,
+		widgetManager: TerminalWidgetManager | undefined,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService

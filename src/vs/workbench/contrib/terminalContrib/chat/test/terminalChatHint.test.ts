@@ -5,31 +5,37 @@
 
 // Test terminalChatHintContribution
 
-
-import { ok } from 'assert';
+import { strictEqual } from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ISelection } from 'vs/editor/common/core/selection';
+import { ITextModel } from 'vs/editor/common/model';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatService, IInlineChatSession, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalChatHintContribution } from 'vs/workbench/contrib/terminal/browser/terminal.chatHint.contribution';
+import { TerminalChatHintContribution } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.chatHint.contribution';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-class TestInlineChatService implements Pick<IInlineChatService, 'getAllProvider' | 'onDidChangeProviders'> {
-	providers: IInlineChatSessionProvider[];
-	constructor(providers: IInlineChatSessionProvider[]) {
-		this.providers = providers;
+class TestInlineChatService extends InlineChatServiceImpl {
+	private _providers: IInlineChatSessionProvider[] = [];
+	constructor(contextKeyService: IContextKeyService, providers: IInlineChatSessionProvider[]) {
+		super(contextKeyService);
+		this._providers = providers;
 	}
-	getAllProvider(): Iterable<IInlineChatSessionProvider> {
-		return this.providers;
+	override getAllProvider(): IInlineChatSessionProvider[] {
+		return this._providers;
 	}
-	onDidChangeProviders = () => ({ dispose() { } });
 }
 
 class TestTerminalService implements Pick<ITerminalService, 'onDidChangeInstances' | 'instances'> {
@@ -85,7 +91,7 @@ suite('Workbench - TerminalChatHint', () => {
 		const XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		const capabilityStore = store.add(new TerminalCapabilityStore());
-		inlineChatService = instantiationService.stub(IInlineChatService, new TestInlineChatService([]));
+		inlineChatService = instantiationService.stub(IInlineChatService, new TestInlineChatService(new MockContextKeyService(), []));
 		terminalService = instantiationService.stub(ITerminalService, new TestTerminalService([createInstance()]));
 
 		xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => undefined }, capabilityStore, '', true));
@@ -93,6 +99,20 @@ suite('Workbench - TerminalChatHint', () => {
 	});
 	test('TerminalChatHint should not show decoration when no provider is registered', () => {
 		terminalChatHintContribution.xtermOpen(xterm);
-		ok(terminalChatHintContribution.chatHint === undefined);
+		strictEqual(terminalChatHintContribution.chatHint, undefined);
+	});
+	test('TerminalChatHint should not show decoration when provider is registered but no terminal has been created', () => {
+		terminalChatHintContribution.xtermOpen(xterm);
+		store.add(inlineChatService.addProvider({
+			extensionId: new ExtensionIdentifier('test'),
+			label: 'blahblah',
+			prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): Promise<IInlineChatSession> {
+				throw new Error('Method not implemented.');
+			},
+			provideResponse() {
+				throw new Error('Method not implemented.');
+			}
+		}));
+		strictEqual(terminalChatHintContribution.chatHint, undefined);
 	});
 });
