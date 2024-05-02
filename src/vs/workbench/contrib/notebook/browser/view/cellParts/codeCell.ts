@@ -228,6 +228,10 @@ export class CodeCell extends Disposable {
 					this.onCellEditorHeightChange(realContentHeight);
 				}
 
+				if (this._isDisposed) {
+					return;
+				}
+
 				focusEditorIfNeeded();
 			}
 
@@ -287,6 +291,10 @@ export class CodeCell extends Disposable {
 
 				if (contentHeight !== layoutContentHeight) {
 					this.onCellEditorHeightChange(contentHeight);
+
+					if (this._isDisposed) {
+						return;
+					}
 				}
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);

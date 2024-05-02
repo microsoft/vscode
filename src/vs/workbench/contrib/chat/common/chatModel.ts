@@ -15,11 +15,12 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { TextEdit } from 'vs/editor/common/languages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatPromptVariableData {
@@ -48,6 +49,16 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 }
 
+export interface IChatTextEditGroup {
+	uri: URI;
+	edits: TextEdit[][];
+	state?: {
+		sha1: string;
+		applied: number;
+	};
+	kind: 'textEditGroup';
+}
+
 export type IChatProgressResponseContent =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -55,7 +66,8 @@ export type IChatProgressResponseContent =
 	| IChatContentInlineReference
 	| IChatProgressMessage
 	| IChatCommandButton
-	| IChatTextEdit;
+	| IChatWarningMessage
+	| IChatTextEditGroup;
 
 export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>;
 
@@ -86,6 +98,7 @@ export interface IChatResponseModel {
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
 	setVote(vote: InteractiveSessionVoteDirection): void;
+	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -160,7 +173,7 @@ export class Response implements IResponse {
 		this._updateRepr(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit, quiet?: boolean): void {
 		if (progress.kind === 'markdownContent') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -184,13 +197,17 @@ export class Response implements IResponse {
 				let found = false;
 				for (let i = 0; !found && i < this._responseParts.length; i++) {
 					const candidate = this._responseParts[i];
-					if (candidate.kind === 'textEdit' && isEqual(candidate.uri, progress.uri)) {
-						candidate.edits.push(...progress.edits);
+					if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
+						candidate.edits.push(progress.edits);
 						found = true;
 					}
 				}
 				if (!found) {
-					this._responseParts.push(progress);
+					this._responseParts.push({
+						kind: 'textEditGroup',
+						uri: progress.uri,
+						edits: [progress.edits]
+					});
 				}
 				this._updateRepr(quiet);
 			}
@@ -209,12 +226,18 @@ export class Response implements IResponse {
 				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
 			} else if (part.kind === 'command') {
 				return part.command.title;
-			} else if (part.kind === 'textEdit') {
+			} else if (part.kind === 'textEditGroup') {
+				return '';
+			} else if (part.kind === 'progressMessage') {
+				return '';
+			} else if (part.kind === 'warning') {
 				return '';
 			} else {
 				return part.content.value;
 			}
-		}).join('\n\n');
+		})
+			.filter(s => s.length > 0)
+			.join('\n\n');
 
 		if (!quiet) {
 			this._onDidChangeValue.fire();
@@ -327,7 +350,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	/**
 	 * Apply a progress update to the actual response content.
 	 */
-	updateContent(responsePart: IChatProgressResponseContent, quiet?: boolean) {
+	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
@@ -378,6 +401,18 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setVote(vote: InteractiveSessionVoteDirection): void {
 		this._vote = vote;
 		this._onDidChange.fire();
+	}
+
+	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean {
+		if (!this.response.value.includes(edit)) {
+			return false;
+		}
+		if (!edit.state) {
+			return false;
+		}
+		edit.state.applied = editCount; // must not be edit.edits.length
+		this._onDidChange.fire();
+		return true;
 	}
 }
 
@@ -644,6 +679,16 @@ export class ChatModel extends Disposable implements IChatModel {
 				...(raw as any),
 				name: (raw as any).id,
 			};
+
+		// Fill in required fields that may be missing from old data
+		if (!('extensionPublisherId' in agent)) {
+			agent.extensionPublisherId = agent.extensionPublisher ?? '';
+		}
+
+		if (!('extensionDisplayName' in agent)) {
+			agent.extensionDisplayName = '';
+		}
+
 		return revive(agent);
 	}
 
@@ -720,7 +765,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-		if (progress.kind === 'markdownContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage' || progress.kind === 'command' || progress.kind === 'textEdit') {
+		if (progress.kind === 'markdownContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage' || progress.kind === 'command' || progress.kind === 'textEdit' || progress.kind === 'warning') {
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
@@ -819,7 +864,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent,
+					agent: r.response?.agent ? { ...r.response.agent } : undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/6b7e1ad89c031a35a2bf8359538204bcef82f5be",
+	"version": "https://github.com/worlpaker/go-syntax/commit/254bd0f25182c86ffd2043824f8d003e11a34268",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -265,8 +265,18 @@
 		},
 		"language_constants": {
 			"comment": "Language constants",
-			"match": "\\b(true|false|nil|iota)\\b",
-			"name": "constant.language.go"
+			"match": "\\b(?:(true|false)|(nil)|(iota))\\b",
+			"captures": {
+				"1": {
+					"name": "constant.language.boolean.go"
+				},
+				"2": {
+					"name": "constant.language.null.go"
+				},
+				"3": {
+					"name": "constant.language.iota.go"
+				}
+			}
 		},
 		"comments": {
 			"patterns": [
