@@ -201,8 +201,6 @@ class TerminalChatHintWidget extends Disposable {
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
 				const hintPart = $('a', undefined, fragment);
-				hintPart.style.fontStyle = 'italic';
-				hintPart.style.cursor = 'pointer';
 				this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
 				return hintPart;
 			});
