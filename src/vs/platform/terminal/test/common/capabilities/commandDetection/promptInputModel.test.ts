@@ -34,6 +34,10 @@ suite('PromptInputModel', () => {
 		onCommandExecuted.fire(null!);
 	}
 
+	function setContinuationPrompt(prompt: string) {
+		promptInputModel.setContinuationPrompt(prompt);
+	}
+
 	async function assertPromptInput(valueWithCursor: string) {
 		await timeout(0);
 
@@ -315,6 +319,24 @@ suite('PromptInputModel', () => {
 
 			await writePromise('\x1b[4D');
 			await assertPromptInput(`${' '.repeat(4)}|${' '.repeat(4)}`);
+		});
+	});
+
+	suite('multi-line', () => {
+		test('basic', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
 		});
 	});
 

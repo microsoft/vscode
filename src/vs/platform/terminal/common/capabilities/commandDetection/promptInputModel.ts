@@ -88,13 +88,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			this._xterm.onCursorMove,
 			this._xterm.onData,
 			this._xterm.onWriteParsed,
-		)(() => {
-			try {
-				this._sync();
-			} catch (e) {
-				this._logService.error('Error while syncing prompt input model', e);
-			}
-		}));
+		)(() => this._sync()));
 		this._register(this._xterm.onData(e => this._handleUserInput(e)));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
@@ -115,6 +109,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	setContinuationPrompt(value: string): void {
 		this._continuationPrompt = value;
+		this._sync();
 	}
 
 	setConfidentCommandLine(value: string): void {
@@ -181,6 +176,14 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	@throttle(0)
 	private _sync() {
+		try {
+			this._doSync();
+		} catch (e) {
+			this._logService.error('Error while syncing prompt input model', e);
+		}
+	}
+
+	private _doSync() {
 		if (this._state !== PromptInputState.Input) {
 			return;
 		}
@@ -278,26 +281,39 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 
-			// Adjust trimmed whitespace value based on cursor position
+
+			const valueLines = value.split('\n');
+			const isMultiLine = valueLines.length > 1;
 			const valueEndTrimmed = value.trimEnd();
-			if (valueEndTrimmed.length < value.length) {
-				// Handle space key
-				if (this._lastUserInput === ' ') {
-					this._lastUserInput = '';
-					if (cursorIndex > valueEndTrimmed.length && cursorIndex > this._cursorIndex) {
-						trailingWhitespace++;
+			// TODO: This doesn't support multi-line
+			if (!isMultiLine) {
+				// Adjust trimmed whitespace value based on cursor position
+				if (valueEndTrimmed.length < value.length) {
+					// Handle space key
+					if (this._lastUserInput === ' ') {
+						this._lastUserInput = '';
+						if (cursorIndex > valueEndTrimmed.length && cursorIndex > this._cursorIndex) {
+							trailingWhitespace++;
+						}
 					}
+					trailingWhitespace = Math.max(cursorIndex - valueEndTrimmed.length, trailingWhitespace, 0);
 				}
-				trailingWhitespace = Math.max(cursorIndex - valueEndTrimmed.length, trailingWhitespace, 0);
+
+				// Handle case where a non-space character is inserted in the middle of trailing whitespace
+				const charBeforeCursor = cursorIndex === 0 ? '' : value[cursorIndex - 1];
+				if (trailingWhitespace > 0 && cursorIndex === this._cursorIndex + 1 && this._lastUserInput !== '' && charBeforeCursor !== ' ') {
+					trailingWhitespace = this._value.length - this._cursorIndex;
+				}
 			}
 
-			// Handle case where a non-space character is inserted in the middle of trailing whitespace
-			const charBeforeCursor = cursorIndex === 0 ? '' : value[cursorIndex - 1];
-			if (trailingWhitespace > 0 && cursorIndex === this._cursorIndex + 1 && this._lastUserInput !== '' && charBeforeCursor !== ' ') {
-				trailingWhitespace = this._value.length - this._cursorIndex;
+			if (isMultiLine) {
+				valueLines[valueLines.length - 1] = valueLines.at(-1)?.trimEnd() ?? '';
+				const continuationOffset = (valueLines.length - 1) * (this._continuationPrompt?.length ?? 0);
+				trailingWhitespace = Math.max(0, cursorIndex - value.length - continuationOffset);
+				cursorIndex -= continuationOffset;
 			}
 
-			value = valueEndTrimmed + ' '.repeat(trailingWhitespace);
+			value = valueLines.map(e => e.trimEnd()).join('\n') + ' '.repeat(trailingWhitespace);
 		}
 
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
