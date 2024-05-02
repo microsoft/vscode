@@ -539,6 +539,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _matchOnDescription = true;
 		private _matchOnDetail = true;
 		private _sortByLabel = true;
+		private _filterPattern: RegExp | undefined;
 		private _keepScrollPosition = false;
 		private _activeItems: T[] = [];
 		private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
@@ -642,6 +643,20 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set sortByLabel(sortByLabel: boolean) {
 			this._sortByLabel = sortByLabel;
 			this.update({ sortByLabel });
+		}
+
+		get filterPattern() {
+			return this._filterPattern;
+		}
+
+		set filterPattern(filterPattern: RegExp | undefined) {
+			this._filterPattern = filterPattern;
+			this.update({
+				filterPattern: filterPattern && {
+					source: filterPattern.source,
+					flags: filterPattern.flags
+				}
+			});
 		}
 
 		get keepScrollPosition() {

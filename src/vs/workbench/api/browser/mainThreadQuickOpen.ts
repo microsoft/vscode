@@ -202,6 +202,8 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 					return button;
 				});
+			} else if (param === 'filterPattern') {
+				(input as any)[param] = params[param] && new RegExp(params[param].source, params[param].flags);
 			} else {
 				(input as any)[param] = params[param];
 			}

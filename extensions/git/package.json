@@ -25,6 +25,7 @@
     "editSessionIdentityProvider",
     "quickDiffProvider",
     "quickPickSortByLabel",
+    "quickPickFilterPattern",
     "scmActionButton",
     "scmHistoryProvider",
     "scmMultiDiffEditor",
