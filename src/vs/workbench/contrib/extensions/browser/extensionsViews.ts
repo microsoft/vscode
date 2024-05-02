@@ -910,7 +910,11 @@ export class ExtensionsListView extends ViewPane {
 			}
 			if (resourceExtensions.length) {
 				const extensions = await this.extensionsWorkbenchService.getResourceExtensions(resourceExtensions, true);
-				result.push(...extensions);
+				for (const extension of extensions) {
+					if (await this.extensionsWorkbenchService.canInstall(extension)) {
+						result.push(extension);
+					}
+				}
 			}
 		}
 		return result;
