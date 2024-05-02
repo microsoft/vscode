@@ -22,11 +22,13 @@ import type { ITerminalSuggestConfiguration } from 'vs/workbench/contrib/termina
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 import { isWindows } from 'vs/base/common/platform';
+import { events as windows11_pwsh_getcontent_delete_ghost } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_delete_ghost';
 import { events as windows11_pwsh_getcontent_file } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_file';
 import { events as windows11_pwsh_input_ls_complete_ls } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_input_ls_complete_ls';
 import { events as windows11_pwsh_namespace_completion } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_namespace_completion';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
+	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_file', events: windows11_pwsh_getcontent_file as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_namespace_completion', events: windows11_pwsh_namespace_completion as any as RecordedSessionEvent[] }
@@ -95,6 +97,7 @@ interface IRecordedSessionResizeEvent {
 			const suggestDataEvents: string[] = [];
 			store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
 			for (const event of testCase.events) {
+				// DEBUG: Uncomment to see the events as they are played
 				// console.log(
 				// 	event.type,
 				// 	event.type === 'command'

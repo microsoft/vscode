@@ -164,6 +164,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		const event = this._createStateObject();
 		if (this._lastUserInput === '\u0003') {
+			this._lastUserInput = '';
 			this._onDidInterrupt.fire(event);
 		}
 
@@ -241,6 +242,56 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace(`PromptInputModel#_sync: ${this.getCombinedString()}`);
+		}
+
+		// Adjust trailing whitespace
+		{
+			let trailingWhitespace = this._value.length - this._value.trimEnd().length;
+
+			// Handle backspace key
+			if (this._lastUserInput === '\x7F') {
+				this._lastUserInput = '';
+				if (cursorIndex === this._cursorIndex - 1) {
+					// If trailing whitespace is being increased by removing a non-whitespace character
+					if (this._value.trimEnd().length > value.trimEnd().length && value.trimEnd().length <= cursorIndex) {
+						trailingWhitespace = Math.max((this._value.length - 1) - value.trimEnd().length, 0);
+					}
+					// Standard case; subtract from trailing whitespace
+					else {
+						trailingWhitespace = Math.max(trailingWhitespace - 1, 0);
+					}
+
+				}
+			}
+
+			// Handle delete key
+			if (this._lastUserInput === '\x1b[3~') {
+				this._lastUserInput = '';
+				if (cursorIndex === this._cursorIndex) {
+					trailingWhitespace = Math.max(trailingWhitespace - 1, 0);
+				}
+			}
+
+			// Adjust trimmed whitespace value based on cursor position
+			const valueEndTrimmed = value.trimEnd();
+			if (valueEndTrimmed.length < value.length) {
+				// Handle space key
+				if (this._lastUserInput === ' ') {
+					this._lastUserInput = '';
+					if (cursorIndex > valueEndTrimmed.length && cursorIndex > this._cursorIndex) {
+						trailingWhitespace++;
+					}
+				}
+				trailingWhitespace = Math.max(cursorIndex - valueEndTrimmed.length, trailingWhitespace, 0);
+			}
+
+			// Handle case where a non-space character is inserted in the middle of trailing whitespace
+			const charBeforeCursor = cursorIndex === 0 ? '' : value[cursorIndex - 1];
+			if (trailingWhitespace > 0 && cursorIndex === this._cursorIndex + 1 && this._lastUserInput !== '' && charBeforeCursor !== ' ') {
+				trailingWhitespace = this._value.length - this._cursorIndex;
+			}
+
+			value = valueEndTrimmed + ' '.repeat(trailingWhitespace);
 		}
 
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {

@@ -227,6 +227,97 @@ suite('PromptInputModel', () => {
 		await assertPromptInput('|✌️👍\n😎😕😅\n🤔🤷😩');
 	});
 
+	suite('trailing whitespace', () => {
+		test('delete whitespace with backspace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(' ');
+			await assertPromptInput(` |`);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput('|');
+
+			xterm.input(' '.repeat(4), true);
+			await writePromise(' '.repeat(4));
+			await assertPromptInput(`    |`);
+
+			xterm.input('\x1b[D'.repeat(2), true); // Left
+			await writePromise('\x1b[2D');
+			await assertPromptInput(`  |  `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput(` |  `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput(`|  `);
+
+			xterm.input(' ', true);
+			await writePromise(' ');
+			await assertPromptInput(` |  `);
+
+			xterm.input(' ', true);
+			await writePromise(' ');
+			await assertPromptInput(`  |  `);
+
+			xterm.input('\x1b[C', true); // Right
+			await writePromise('\x1b[C');
+			await assertPromptInput(`   | `);
+
+			xterm.input('a', true);
+			await writePromise('a');
+			await assertPromptInput(`   a| `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D\x1b[K');
+			await assertPromptInput(`   | `);
+
+			xterm.input('\x1b[D'.repeat(2), true); // Left
+			await writePromise('\x1b[2D');
+			await assertPromptInput(` |   `);
+
+			xterm.input('\x1b[3~', true); // Delete
+			await writePromise('');
+			await assertPromptInput(` |  `);
+		});
+
+		// TODO: This doesn't work correctly but it doesn't matter too much as it only happens when
+		// there is a lot of whitespace at the end of a prompt input
+		test.skip('track whitespace when ConPTY deletes whitespace unexpectedly', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			xterm.input('ls', true);
+			await writePromise('ls');
+			await assertPromptInput(`ls|`);
+
+			xterm.input(' '.repeat(4), true);
+			await writePromise(' '.repeat(4));
+			await assertPromptInput(`ls    |`);
+
+			xterm.input(' ', true);
+			await writePromise('\x1b[4D\x1b[5X\x1b[5C'); // Cursor left x(N-1), delete xN, cursor right xN
+			await assertPromptInput(`ls     |`);
+		});
+
+		test('track whitespace beyond cursor', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(' '.repeat(8));
+			await assertPromptInput(`${' '.repeat(8)}|`);
+
+			await writePromise('\x1b[4D');
+			await assertPromptInput(`${' '.repeat(4)}|${' '.repeat(4)}`);
+		});
+	});
+
 	// To "record a session" for these tests:
 	// - Enable debug logging
 	// - Open and clear Terminal output channel
