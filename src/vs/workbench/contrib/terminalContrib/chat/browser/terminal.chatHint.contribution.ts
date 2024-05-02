@@ -69,10 +69,10 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 			this._register(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
 		} else {
 			this._register(this._instance.capabilities.onDidAddCapability(e => {
-				if (e.capability.type === TerminalCapability.CommandDetection) {
-					const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-					this._register(Event.once(capability!.promptInputModel.onDidStartInput)(() => this._addChatHint()));
-					if (!capability!.promptInputModel.value) {
+				if (e.id === TerminalCapability.CommandDetection) {
+					const capability = e.capability;
+					this._register(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
+					if (!capability.promptInputModel.value) {
 						this._addChatHint();
 					}
 				}
