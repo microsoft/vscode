@@ -67,7 +67,7 @@ import { ChatAgentLocation, IChatAgentMetadata, IChatAgentNameService } from 'vs
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatWarningMessage, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -511,7 +511,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'command' ? this.renderCommandButton(element, data)
 							: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
-								: data.kind === 'warning' ? this.renderWarning(element, data)
+								: data.kind === 'warning' ? this.renderNotification('warning', data.content)
 									: undefined;
 
 			if (result) {
@@ -521,13 +521,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
-			const icon = element.errorDetails.responseIsFiltered ? Codicon.info : Codicon.error;
-			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(icon)));
-			const renderedError = templateData.elementDisposables.add(this.renderer.render(new MarkdownString(element.errorDetails.message)));
-			errorDetails.appendChild($('span', undefined, renderedError.element));
+			const renderedError = this.renderNotification(element.errorDetails.responseIsFiltered ? 'info' : 'error', new MarkdownString(element.errorDetails.message));
+			templateData.elementDisposables.add(renderedError);
+			templateData.value.appendChild(renderedError.element);
 		}
-
-
 
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
@@ -921,10 +918,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderWarning(element: ChatTreeItem, chatWarning: IChatWarningMessage): IMarkdownRenderResult | undefined {
-		const container = $('.chat-warning');
-		container.appendChild($('.chat-warning-codicon', undefined, renderIcon(Codicon.warning)));
-		const markdownContent = this.renderer.render(chatWarning.content);
+	private renderNotification(kind: 'info' | 'warning' | 'error', content: IMarkdownString): IMarkdownRenderResult {
+		const container = $('.chat-notification-widget');
+		let icon;
+		let iconClass;
+		switch (kind) {
+			case 'warning':
+				icon = Codicon.warning;
+				iconClass = '.chat-warning-codicon';
+				break;
+			case 'error':
+				icon = Codicon.error;
+				iconClass = '.chat-error-codicon';
+				break;
+			case 'info':
+				icon = Codicon.info;
+				iconClass = '.chat-info-codicon';
+				break;
+		}
+		container.appendChild($(iconClass, undefined, renderIcon(icon)));
+		const markdownContent = this.renderer.render(content);
 		container.appendChild(markdownContent.element);
 		return {
 			element: container,
