@@ -127,9 +127,11 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			this._decoration?.dispose();
 			this._addon?.dispose();
 		}));
+
 		if (!this._decoration) {
 			return;
 		}
+		this._register(this._decoration);
 		this._register(this._decoration.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalService.instances.length === 1) {
 				const chatProviders = [...this._inlineChatService.getAllProvider()];
