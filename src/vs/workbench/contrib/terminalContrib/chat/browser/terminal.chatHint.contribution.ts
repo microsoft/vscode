@@ -117,8 +117,12 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 					e.appendChild(this._hintWidget);
 					e.classList.add('terminal-chat-hint');
 				}
-			} else {
-				this._hintWidget!.parentElement!.style.width = (this._xterm!.raw.cols - this._xterm!.raw.buffer.active.cursorX) / this._xterm!.raw.cols * 100 + '%';
+			}
+			if (this._hintWidget && this._xterm) {
+				const decoration = this._hintWidget.parentElement;
+				if (decoration) {
+					decoration.style.width = (this._xterm.raw.cols - this._xterm.raw.buffer.active.cursorX) / this._xterm!.raw.cols * 100 + '%';
+				}
 			}
 		});
 	}
