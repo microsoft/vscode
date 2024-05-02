@@ -623,8 +623,8 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		...terminalInitialHintConfiguration,
 		...terminalAccessibilityConfiguration,
+		...terminalInitialHintConfiguration,
 		...terminalStickyScrollConfiguration,
 		...terminalSuggestConfiguration,
 		...terminalTypeAheadConfiguration,
