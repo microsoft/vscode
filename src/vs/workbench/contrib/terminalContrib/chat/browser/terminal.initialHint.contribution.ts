@@ -61,10 +61,6 @@ export class InitialHintAddon extends Disposable implements ITerminalAddon {
 
 		this._disposables.value?.add(Event.once(this._onDidChangeProviders)(() => this._onDidRequestCreateHint.fire()));
 	}
-	override dispose(): void {
-		this._disposables.clear();
-		super.dispose();
-	}
 }
 
 export class TerminalInitialHintContribution extends Disposable implements ITerminalContribution {
