@@ -29,7 +29,13 @@ export async function startVsCodeServer(connection: Connection) {
 		slugifier = md.githubSlugifier;
 
 		tokenize(document: md.ITextDocument): Promise<md.Token[]> {
-			return connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
+			return connection.sendRequest(protocol.parse, {
+				uri: document.uri,
+
+				// Clients won't be able to read temp documents.
+				// Send along the full text for parsing.
+				text: document.version < 0 ? document.getText() : undefined
+			});
 		}
 	};
 

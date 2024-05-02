@@ -365,20 +365,24 @@ registerAction2(class extends NotebookAction {
 interface IInsertCellWithChatArgs extends INotebookActionContext {
 	input?: string;
 	autoSend?: boolean;
+	source?: string;
 }
 
-async function startChat(accessor: ServicesAccessor, context: INotebookActionContext, index: number, input?: string, autoSend?: boolean) {
+async function startChat(accessor: ServicesAccessor, context: INotebookActionContext, index: number, input?: string, autoSend?: boolean, source?: string) {
 	const configurationService = accessor.get(IConfigurationService);
 	const commandService = accessor.get(ICommandService);
 
 	if (configurationService.getValue<boolean>(NotebookSetting.cellChat)) {
 		context.notebookEditor.focusContainer();
 		NotebookChatController.get(context.notebookEditor)?.run(index, input, autoSend);
-	} else {
-		const newCell = await insertNewCell(accessor, context, CellKind.Code, 'below', true);
-		if (newCell) {
-			await context.notebookEditor.revealFirstLineIfOutsideViewport(newCell);
-			const codeEditor = context.notebookEditor.codeEditors.find(ce => ce[0] === newCell)?.[1];
+	} else if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate)) {
+		const activeCell = context.notebookEditor.getActiveCell();
+		const targetCell = activeCell?.getTextLength() === 0 && source !== 'insertToolbar' ? activeCell : (await insertNewCell(accessor, context, CellKind.Code, 'below', true));
+
+		if (targetCell) {
+			targetCell.enableAutoLanguageDetection();
+			await context.notebookEditor.revealFirstLineIfOutsideViewport(targetCell);
+			const codeEditor = context.notebookEditor.codeEditors.find(ce => ce[0] === targetCell)?.[1];
 			if (codeEditor) {
 				codeEditor.focus();
 				commandService.executeCommand('inlineChat.start');
@@ -427,6 +431,10 @@ registerAction2(class extends NotebookAction {
 						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 						ContextKeyExpr.not(InputFocusedContextKey),
 						CTX_INLINE_CHAT_HAS_PROVIDER,
+						ContextKeyExpr.or(
+							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
+							ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
+						)
 					),
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyCode.KeyI,
@@ -440,6 +448,10 @@ registerAction2(class extends NotebookAction {
 						when: ContextKeyExpr.and(
 							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 							CTX_INLINE_CHAT_HAS_PROVIDER,
+							ContextKeyExpr.or(
+								ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
+								ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
+							)
 						)
 					}
 				]
@@ -488,7 +500,7 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: IInsertCellWithChatArgs) {
 		const index = Math.max(0, context.cell ? context.notebookEditor.getCellIndex(context.cell) + 1 : 0);
-		await startChat(accessor, context, index, context.input, context.autoSend);
+		await startChat(accessor, context, index, context.input, context.autoSend, context.source);
 	}
 });
 
@@ -510,7 +522,11 @@ registerAction2(class extends NotebookAction {
 						order: -1,
 						when: ContextKeyExpr.and(
 							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-							CTX_INLINE_CHAT_HAS_PROVIDER
+							CTX_INLINE_CHAT_HAS_PROVIDER,
+							ContextKeyExpr.or(
+								ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
+								ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
+							)
 						)
 					},
 				]
@@ -536,6 +552,10 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
 		CTX_INLINE_CHAT_HAS_PROVIDER,
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
+			ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
+		)
 	)
 });
 

@@ -760,17 +760,18 @@ async fn handle_serve(
 			macro_rules! do_setup {
 				($sb:expr) => {
 					match $sb.get_running().await? {
-						Some(AnyCodeServer::Socket(s)) => s,
+						Some(AnyCodeServer::Socket(s)) => ($sb, Ok(s)),
 						Some(_) => return Err(AnyError::from(MismatchedLaunchModeError())),
 						None => {
 							$sb.setup().await?;
-							$sb.listen_on_default_socket().await?
+							let r = $sb.listen_on_default_socket().await;
+							($sb, r)
 						}
 					}
 				};
 			}
 
-			let server = if params.use_local_download {
+			let (sb, server) = if params.use_local_download {
 				let sb = ServerBuilder::new(
 					&install_log,
 					&resolved,
@@ -782,6 +783,24 @@ async fn handle_serve(
 				let sb =
 					ServerBuilder::new(&install_log, &resolved, &c.launcher_paths, c.http.clone());
 				do_setup!(sb)
+			};
+
+			let server = match server {
+				Ok(s) => s,
+				Err(e) => {
+					// we don't loop to avoid doing so infinitely: allow the client to reconnect in this case.
+					if let AnyError::CodeError(CodeError::ServerUnexpectedExit(ref e)) = e {
+						warning!(
+							c.log,
+							"({}), removing server due to possible corruptions",
+							e
+						);
+						if let Err(e) = sb.evict().await {
+							warning!(c.log, "Failed to evict server: {}", e);
+						}
+					}
+					return Err(e);
+				}
 			};
 
 			server_ref.replace(server.clone());

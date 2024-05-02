@@ -111,7 +111,7 @@ export class DebugService implements IDebugService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
@@ -198,6 +198,13 @@ export class DebugService implements IDebugService {
 					editor.dispose();
 				}
 			}
+		}));
+
+		this.disposables.add(extensionService.onWillStop(evt => {
+			evt.veto(
+				this.stopSession(undefined).then(() => false),
+				nls.localize('stoppingDebug', 'Stopping debug sessions...'),
+			);
 		}));
 
 		this.initContextKeys(contextKeyService);

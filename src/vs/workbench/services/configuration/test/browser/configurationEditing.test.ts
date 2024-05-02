@@ -108,7 +108,7 @@ suite('ConfigurationEditing', () => {
 		const workspaceFolder = joinPath(ROOT, uuid.generateUuid());
 		await fileService.createFolder(workspaceFolder);
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(workspaceFolder, 'policies.json');
 		instantiationService.stub(IEnvironmentService, environmentService);

@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibleViewProviderId, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
-import { IAccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService, IAccessibleViewContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
@@ -43,7 +43,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 	}
 }
 
-class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
+class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Editor;
 	onClose() {
 		this._editor.focus();

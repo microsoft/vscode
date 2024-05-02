@@ -960,6 +960,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookOutputLayout']
 		},
+		[NotebookSetting.minimalErrorRendering]: {
+			description: nls.localize('notebook.minimalErrorRendering', "Control whether to render error output in a minimal style."),
+			type: 'boolean',
+			default: false,
+			tags: ['notebookOutputLayout']
+		},
 		[NotebookSetting.markupFontSize]: {
 			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
 			type: 'number',
@@ -1086,6 +1092,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
+		[NotebookSetting.cellGenerate]: {
+			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
+			type: 'boolean',
+			default: typeof product.quality === 'string' && product.quality !== 'stable',
+			tags: ['experimental']
+		},
 		[NotebookSetting.notebookVariablesView]: {
 			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
 			type: 'boolean',
@@ -1096,5 +1108,10 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
+		[NotebookSetting.outputBackupSizeLimit]: {
+			markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in kilobytes (KB) where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
+			type: 'number',
+			default: 10000
+		}
 	}
 });

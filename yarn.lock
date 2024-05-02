@@ -1021,13 +1021,6 @@
   resolved "https://registry.yarnpkg.com/@types/color-name/-/color-name-1.1.1.tgz#1c1261bbeaa10a8055bbc5d8ab84b7b2afc846a0"
   integrity sha512-rr+OQyAjxze7GgWrSaJwydHStIhHq2lvY3BOC2Mj7KnzI7XK0Uw1TOOdI9lDoajEbSWLiYgoo4f1R51erQfhPQ==
 
-"@types/commander@^2.11.0":
-  version "2.12.2"
-  resolved "https://registry.yarnpkg.com/@types/commander/-/commander-2.12.2.tgz#183041a23842d4281478fa5d23c5ca78e6fd08ae"
-  integrity sha512-0QEFiR8ljcHp9bAbWxecjVRuAMr16ivPiGOw6KFQBVrVd0RQIcM3xKdRisH2EDWgVWujiYtHwhSkSUoAAGzH7Q==
-  dependencies:
-    commander "*"
-
 "@types/cookie@^0.3.3":
   version "0.3.3"
   resolved "https://registry.yarnpkg.com/@types/cookie/-/cookie-0.3.3.tgz#85bc74ba782fb7aa3a514d11767832b0e3bc6803"
@@ -1214,7 +1207,7 @@
   dependencies:
     "@types/node" "*"
 
-"@types/semver@^5.4.0", "@types/semver@^5.5.0":
+"@types/semver@^5.5.0":
   version "5.5.0"
   resolved "https://registry.yarnpkg.com/@types/semver/-/semver-5.5.0.tgz#146c2a29ee7d3bae4bf2fcb274636e264c813c45"
   integrity sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
@@ -1913,45 +1906,40 @@
   resolved "https://registry.yarnpkg.com/@webpack-cli/serve/-/serve-2.0.5.tgz#325db42395cd49fe6c14057f9a900e427df8810e"
   integrity sha512-lqaoKnRYBdo1UgDX8uF24AfGMifWK19TxPmM5FHc2vAGxrJ/qtyUyFBWoY1tISZdelsQ5fBcOusifo5o5wSJxQ==
 
-"@xterm/addon-canvas@0.8.0-beta.2":
-  version "0.8.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-canvas/-/addon-canvas-0.8.0-beta.2.tgz#1149d9d174a984d5028fdf18f9291a1e047ed523"
-  integrity sha512-+ujhLzqrFvG8WyQoVLjXnLCMC5xiIVNp7R/fc1xdHd0HGMz2cqoCSgkMxsv6GK3SJK18ESncXSDbwcZ6hGoO4g==
+"@xterm/addon-image@0.9.0-beta.17":
+  version "0.9.0-beta.17"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-image/-/addon-image-0.9.0-beta.17.tgz#343d0665a6060d4f893b4f2d32de6ccbbd00bb63"
+  integrity sha512-g0r2hpBcLABY5as4llsMP36RHtkWooEn7tf+7U0/hTndJoCAvs4uGDqZNQigFgeAM3lJ4PnRYh4lfnEh9bGt8A==
 
-"@xterm/addon-image@0.9.0-beta.2":
-  version "0.9.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-image/-/addon-image-0.9.0-beta.2.tgz#b77fa85dc5567ad199b4b1310d82fe29a1497392"
-  integrity sha512-wDzXA8b+IxUZHoGmG5eG2vL+7YrWh8+Edd8bkF+IdzJXH8OFCGCi2nLxMWkLBGf/FvBoGBbhNtUZ4DrgfC6QRw==
+"@xterm/addon-search@0.16.0-beta.17":
+  version "0.16.0-beta.17"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-search/-/addon-search-0.16.0-beta.17.tgz#7cb01c7f498405909d37040884ee22d1889a36d2"
+  integrity sha512-wBfxmWOeqG6HHHE5mVamDJ75zBdHC35ERNy5/aTpQsQsyxrnV0Ks76c8ZVTaTu9wyBCAyx7UmZT42Ot80khY/g==
 
-"@xterm/addon-search@0.16.0-beta.2":
-  version "0.16.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-search/-/addon-search-0.16.0-beta.2.tgz#3d6538d681bb198ead9e6896ff041d687055f540"
-  integrity sha512-PdbHtE33xkfaYD3U5pBatZaBR5udGrdRwsGeN5IOddPoYegXm63x8k2nlCK+moYprWKA9xs8mEAOYom0hHAR4w==
+"@xterm/addon-serialize@0.14.0-beta.17":
+  version "0.14.0-beta.17"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-serialize/-/addon-serialize-0.14.0-beta.17.tgz#1cb8e35c0d118060a807adb340624fa7f80dd9c5"
+  integrity sha512-/c3W39kdRgGGYDoYjXb5HrUC421qwPn6NryAT4WJuJWnyMtFbe2DPwKsTfHuCBPiPyovS3a9j950Md3O3YXDZA==
 
-"@xterm/addon-serialize@0.14.0-beta.2":
-  version "0.14.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-serialize/-/addon-serialize-0.14.0-beta.2.tgz#79efb4c2ee668628ef10060e6d7d95488ee316d6"
-  integrity sha512-6A1NYh0kaYKjOvml9FXevVpHVVOqC6uVDhg9G/ZUP5vyyu32z3MJ9CsOuQx1Jr3okCLpBa2IIzGZjz/Bsx0LUg==
+"@xterm/addon-unicode11@0.9.0-beta.17":
+  version "0.9.0-beta.17"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-unicode11/-/addon-unicode11-0.9.0-beta.17.tgz#b5558148029a796c6a6d78e2a8b7255f92a51530"
+  integrity sha512-z7v8uojFVrO1aLSWtnz5MzSrfWRT8phde7kh9ufqHLBv7YYtMHxlPVjSuW8PZ2h4eY1LOZf6icUAzrmyJmJ7Kg==
 
-"@xterm/addon-unicode11@0.9.0-beta.2":
-  version "0.9.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-unicode11/-/addon-unicode11-0.9.0-beta.2.tgz#9c7197b7aad6a0d6bbb710a3283a67bba1d9ee6e"
-  integrity sha512-Ylet0mqkUpbO46jC0A1Zhd6udrV/dp9ZcpfCs/n57PripJ3ViHBi3UrjvUmalzeynMtgEG9gdGY9Df2j7aahsw==
+"@xterm/addon-webgl@0.19.0-beta.17":
+  version "0.19.0-beta.17"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-webgl/-/addon-webgl-0.19.0-beta.17.tgz#68ad9e68dd1cf581b391971de33f5c04966b0d8e"
+  integrity sha512-X8ObRgoZl7UZTgdndM+mpSO3hLzAhWKoXXrGvUQg/7XabRKAPrQ2XvdyZm04nYwibE6Tpit2h5kkxjlVqupIig==
 
-"@xterm/addon-webgl@0.19.0-beta.2":
-  version "0.19.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-webgl/-/addon-webgl-0.19.0-beta.2.tgz#413dcb35910898855b1a61eb633c2aa701481beb"
-  integrity sha512-gvDeIjyss9koLtLpt/9JumkBm+dH0iBUSmQsuvRLn++hR+5XTnGbTmCuE6MxlC+37XZTH8PGGRdsacNW1aafSA==
+"@xterm/headless@5.6.0-beta.17":
+  version "5.6.0-beta.17"
+  resolved "https://registry.yarnpkg.com/@xterm/headless/-/headless-5.6.0-beta.17.tgz#bff1d67c9c061c57adff22571e733d54e3aba2b7"
+  integrity sha512-ehS7y/XRqX1ppx4RPiYc0vu0SdIQ91aA4lSN/2XNOf3IGdP0A38Q7a0T6mzqxRGZKiiyA0kTR1szr78wnY+wmA==
 
-"@xterm/headless@5.6.0-beta.2":
-  version "5.6.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@xterm/headless/-/headless-5.6.0-beta.2.tgz#ece64150cabec47662fc7c5b5b76e02dc485ee68"
-  integrity sha512-NB6YYRdSt10xgGbVgjNtKc57LzvHxDV+BjxTmm3OYIa/37Bn4RH6EFcwTv/LVEay3SvkyUR4VAYzITQXyZJ2VQ==
-
-"@xterm/xterm@5.6.0-beta.2":
-  version "5.6.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@xterm/xterm/-/xterm-5.6.0-beta.2.tgz#a082549579cce0c3d581a3968c1e71b02c89f0c3"
-  integrity sha512-LU8WEYR7oBlxA22bdF3CTl4K5IuorwgVKD3jFAuyH+ESCmsDHX7bO4GP5nG2IrSsbjWEGMXPzlYcehObdCPTfw==
+"@xterm/xterm@5.6.0-beta.17":
+  version "5.6.0-beta.17"
+  resolved "https://registry.yarnpkg.com/@xterm/xterm/-/xterm-5.6.0-beta.17.tgz#67ce2e2ff45bd6cc9f26d455d5522c6c4a122ed9"
+  integrity sha512-+wAv8PhaGQSN9yXWIa8EFtT33pbrA4lZakMB1P05fr+DQ7zoH66QOAUoDY95uOf/4+S6Ihz8wzP2+FH8zETQEA==
 
 "@xtuc/ieee754@^1.2.0":
   version "1.2.0"
@@ -3095,11 +3083,6 @@ command-line-args@^5.2.1:
     lodash.camelcase "^4.3.0"
     typical "^4.0.0"
 
-commander@*:
-  version "8.3.0"
-  resolved "https://registry.yarnpkg.com/commander/-/commander-8.3.0.tgz#4837ea1b2da67b9c616a67afbb0fafee567bca66"
-  integrity sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==
-
 commander@2.11.x:
   version "2.11.0"
   resolved "https://registry.yarnpkg.com/commander/-/commander-2.11.0.tgz#157152fd1e7a6c8d98a5b715cf376df928004563"
@@ -3110,7 +3093,7 @@ commander@^10.0.1:
   resolved "https://registry.yarnpkg.com/commander/-/commander-10.0.1.tgz#881ee46b4f77d1c1dccc5823433aa39b022cbe06"
   integrity sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==
 
-commander@^2.11.0, commander@^2.19.0, commander@^2.20.0:
+commander@^2.19.0, commander@^2.20.0:
   version "2.20.3"
   resolved "https://registry.yarnpkg.com/commander/-/commander-2.20.3.tgz#fd485e84c03eb4881c20722ba48035e8531aeb33"
   integrity sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==
@@ -3129,11 +3112,6 @@ commander@^9.4.0:
   version "9.5.0"
   resolved "https://registry.yarnpkg.com/commander/-/commander-9.5.0.tgz#bc08d1eb5cedf7ccb797a96199d41c7bc3e60d30"
   integrity sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==
-
-commandpost@^1.0.0:
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/commandpost/-/commandpost-1.2.1.tgz#2e9c4c7508b9dc704afefaa91cab92ee6054cc68"
-  integrity sha512-V1wzc+DTFsO96te2W/U+fKNRSOWtOwXhkkZH2WRLLbucrY+YrDNsRr4vtfSf83MUZVF3E6B4nwT30fqaTpzipQ==
 
 comment-parser@1.4.0:
   version "1.4.0"
@@ -3761,18 +3739,6 @@ eastasianwidth@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/eastasianwidth/-/eastasianwidth-0.2.0.tgz#696ce2ec0aa0e6ea93a397ffcf24aa7840c827cb"
   integrity sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==
-
-editorconfig@^0.15.0:
-  version "0.15.0"
-  resolved "https://registry.yarnpkg.com/editorconfig/-/editorconfig-0.15.0.tgz#b6dd4a0b6b9e76ce48e066bdc15381aebb8804fd"
-  integrity sha512-j7JBoj/bpNzvoTQylfRZSc85MlLNKWQiq5y6gwKhmqD2h1eZ+tH4AXbkhEJD468gjDna/XMx2YtSkCxBRX9OGg==
-  dependencies:
-    "@types/commander" "^2.11.0"
-    "@types/semver" "^5.4.0"
-    commander "^2.11.0"
-    lru-cache "^4.1.1"
-    semver "^5.4.1"
-    sigmund "^1.0.1"
 
 editorconfig@^0.15.2:
   version "0.15.2"
@@ -6576,14 +6542,6 @@ lowercase-keys@^2.0.0:
   resolved "https://registry.yarnpkg.com/lowercase-keys/-/lowercase-keys-2.0.0.tgz#2603e78b7b4b0006cbca2fbcc8a3202558ac9479"
   integrity sha512-tqNXrS78oMOE73NMxK4EMLQsQowWf8jKooH9g7xPavRT706R6bkQJ6DY2Te7QukaZsulxa30wQ7bk0pm4XiHmA==
 
-lru-cache@^4.1.1:
-  version "4.1.2"
-  resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-4.1.2.tgz#45234b2e6e2f2b33da125624c4664929a0224c3f"
-  integrity sha512-wgeVXhrDwAWnIF/yZARsFnMBtdFXOg1b8RIrhilp+0iDYN4mdQcNZElDZ0e4B64BhaxeQ5zN7PMyvu7we1kPeQ==
-  dependencies:
-    pseudomap "^1.0.2"
-    yallist "^2.1.2"
-
 lru-cache@^4.1.3:
   version "4.1.5"
   resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-4.1.5.tgz#8bbe50ea85bed59bc9e33dcab8235ee9bcf443cd"
@@ -8755,7 +8713,7 @@ semver-greatest-satisfied-range@^1.1.0:
   dependencies:
     sver-compat "^1.5.0"
 
-"semver@2 || 3 || 4 || 5", semver@^5.4.1, semver@^5.5.0, semver@^5.5.1, semver@^5.6.0:
+"semver@2 || 3 || 4 || 5", semver@^5.5.0, semver@^5.5.1, semver@^5.6.0:
   version "5.7.2"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.7.2.tgz#48d55db737c3287cd4835e17fa13feace1c41ef8"
   integrity sha512-cBznnQ9KjJqU67B52RMC65CMarK2600WFnbkcaiwWq3xy/5haFJlshgnpjovMVJ+Hff49d8GEn0b87C5pDQ10g==
@@ -9555,10 +9513,10 @@ tar@^6.1.11:
     mkdirp "^1.0.3"
     yallist "^4.0.0"
 
-tas-client-umd@0.1.8:
-  version "0.1.8"
-  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.8.tgz#38bd32d49545417a0ea67fb618e646298e1b67cc"
-  integrity sha512-0jAAujLmjjGXf9PzrNpjOrr/6CTpSOp8jX80NOHK5nlOTWWpwaZ16EOyrPdHnm2bVfPHvT0/RAD0xyiQHGQvCQ==
+tas-client-umd@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.2.0.tgz#b71cc28f4c9b14f7b62f1ca4669886aa197e390c"
+  integrity sha512-oezN7mJVm5qZDVEby7OzxCLKUpUN5of0rY4dvOWaDF2JZBlGpd3BXceFN8B53qlTaIkVSzP65aAMT0Vc+/N25Q==
 
 teex@^1.0.1:
   version "1.0.1"
@@ -9930,14 +9888,6 @@ typedarray@^0.0.6:
   version "0.0.6"
   resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
   integrity sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-
-typescript-formatter@7.1.0:
-  version "7.1.0"
-  resolved "https://registry.yarnpkg.com/typescript-formatter/-/typescript-formatter-7.1.0.tgz#dd1b5547de211065221f765263e15f18c84c66b8"
-  integrity sha512-XgPUSZ3beF7Xx2ZIEngIonWpDTS0XzWqV0vjtcm6nOPONug4WFXQYjbvulCzY2T0+knceZn5CFQjVUShNkIdLA==
-  dependencies:
-    commandpost "^1.0.0"
-    editorconfig "^0.15.0"
 
 typescript@^2.6.2:
   version "2.6.2"

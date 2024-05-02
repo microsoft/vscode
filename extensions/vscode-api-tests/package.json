@@ -44,6 +44,7 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
+    "terminalShellIntegration",
     "tunnels",
     "testObserver",
     "textSearchProvider",

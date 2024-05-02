@@ -28,6 +28,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 	getSession(sessionId: string): IChatModel | undefined {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {} as IChatModel;
 	}
 	getOrRestoreSession(sessionId: string): IChatModel | undefined {

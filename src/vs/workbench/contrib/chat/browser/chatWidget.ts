@@ -14,6 +14,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
+import 'vs/css!./media/chatAgentHover';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -334,8 +335,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
 		if (this.tree && this._visible) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
-				.map(item => {
-					return <ITreeElement<ChatTreeItem>>{
+				.map((item): ITreeElement<ChatTreeItem> => {
+					return {
 						element: item,
 						collapsed: false,
 						collapsible: false

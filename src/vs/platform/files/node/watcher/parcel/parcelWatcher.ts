@@ -782,7 +782,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return true;
 	}
 
-	subscribe(path: string, callback: (error: boolean, change?: IFileChange) => void): IDisposable | undefined {
+	subscribe(path: string, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined {
 		for (const watcher of this.watchers) {
 			if (watcher.failed) {
 				continue; // watcher has already failed
@@ -810,7 +810,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				callback(true /* error */);
 			}));
 			disposables.add(Event.once(watcher.onDidFail)(() => callback(true /* error */)));
-			disposables.add(watcher.subscribe(path, change => callback(false, change)));
+			disposables.add(watcher.subscribe(path, change => callback(null, change)));
 
 			return disposables;
 		}
