@@ -27,6 +27,7 @@ function registerQuickPickCommandAndKeybindingRule(rule: PartialExcept<ICommandA
 	});
 }
 
+// This function will generate all the combinations of keybindings for the given primary keybinding
 function getSecondary(primary: number, secondary: number[], options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}): number[] {
 	if (options.withAltMod) {
 		secondary.push(KeyMod.Alt + primary);
@@ -96,6 +97,11 @@ registerQuickPickCommandAndKeybindingRule(
 	{ withCtrlMod: true }
 );
 
+// The next & previous separator commands are interesting because if we are in quick access mode, we are already holding a modifier key down.
+// In this case, we want that modifier key+up/down to navigate to the next/previous item, not the next/previous separator.
+// To handle this, we have a separate command for navigating to the next/previous separator when we are not in quick access mode.
+// If, however, we are in quick access mode, and you hold down an additional modifier key, we will navigate to the next/previous separator.
+
 const nextSeparatorFallbackDesc = localize('quickInput.nextSeparatorWithQuickAccessFallback', "If we're in quick access mode, this will navigate to the next item. If we are not in quick access mode, this will navigate to the next separator.");
 const prevSeparatorFallbackDesc = localize('quickInput.previousSeparatorWithQuickAccessFallback', "If we're in quick access mode, this will navigate to the previous item. If we are not in quick access mode, this will navigate to the previous separator.");
 if (isMacintosh) {
@@ -111,6 +117,8 @@ if (isMacintosh) {
 		{
 			id: 'quickInput.nextSeparator',
 			primary: KeyMod.CtrlCmd + KeyMod.Alt + KeyCode.DownArrow,
+			// Since macOS has the cmd key as the primary modifier, we need to add this additional
+			// keybinding to capture cmd+ctrl+upArrow
 			secondary: [KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.DownArrow],
 			handler: focusHandler(QuickPickFocus.NextSeparator)
 		},
@@ -129,6 +137,8 @@ if (isMacintosh) {
 		{
 			id: 'quickInput.previousSeparator',
 			primary: KeyMod.CtrlCmd + KeyMod.Alt + KeyCode.UpArrow,
+			// Since macOS has the cmd key as the primary modifier, we need to add this additional
+			// keybinding to capture cmd+ctrl+upArrow
 			secondary: [KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.UpArrow],
 			handler: focusHandler(QuickPickFocus.PreviousSeparator)
 		},
