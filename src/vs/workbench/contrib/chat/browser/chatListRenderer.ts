@@ -511,7 +511,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'command' ? this.renderCommandButton(element, data)
 							: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
-								: undefined;
+								: data.kind === 'warning' ? this.renderNotification('warning', data.content)
+									: undefined;
+
 			if (result) {
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
@@ -519,13 +521,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
-			const icon = element.errorDetails.responseIsFiltered ? Codicon.info : Codicon.error;
-			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(icon)));
-			const renderedError = templateData.elementDisposables.add(this.renderer.render(new MarkdownString(element.errorDetails.message)));
-			errorDetails.appendChild($('span', undefined, renderedError.element));
+			const renderedError = this.renderNotification(element.errorDetails.responseIsFiltered ? 'info' : 'error', new MarkdownString(element.errorDetails.message));
+			templateData.elementDisposables.add(renderedError);
+			templateData.value.appendChild(renderedError.element);
 		}
-
-
 
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
@@ -916,6 +915,33 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.dispose();
 			},
 			element: container
+		};
+	}
+
+	private renderNotification(kind: 'info' | 'warning' | 'error', content: IMarkdownString): IMarkdownRenderResult {
+		const container = $('.chat-notification-widget');
+		let icon;
+		let iconClass;
+		switch (kind) {
+			case 'warning':
+				icon = Codicon.warning;
+				iconClass = '.chat-warning-codicon';
+				break;
+			case 'error':
+				icon = Codicon.error;
+				iconClass = '.chat-error-codicon';
+				break;
+			case 'info':
+				icon = Codicon.info;
+				iconClass = '.chat-info-codicon';
+				break;
+		}
+		container.appendChild($(iconClass, undefined, renderIcon(icon)));
+		const markdownContent = this.renderer.render(content);
+		container.appendChild(markdownContent.element);
+		return {
+			element: container,
+			dispose() { markdownContent.dispose(); }
 		};
 	}
 
@@ -1394,6 +1420,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	constructor(
 		private labels: ResourceLabels,
+		@IThemeService private readonly themeService: IThemeService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) { }
 
@@ -1403,9 +1430,19 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		return { templateDisposables, label };
 	}
 
+
+	private getReferenceIcon(data: IChatContentReference): URI | ThemeIcon | undefined {
+		if (ThemeIcon.isThemeIcon(data.iconPath)) {
+			return data.iconPath;
+		} else {
+			return this.themeService.getColorTheme().type === ColorScheme.DARK && data.iconPath?.dark ? data.iconPath?.dark :
+				data.iconPath?.light;
+		}
+	}
+
 	renderElement(data: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		const reference = data.reference;
-		const icon = data.iconPath;
+		const icon = this.getReferenceIcon(data);
 		templateData.label.element.style.display = 'flex';
 		if ('variableName' in reference) {
 			if (reference.value) {
