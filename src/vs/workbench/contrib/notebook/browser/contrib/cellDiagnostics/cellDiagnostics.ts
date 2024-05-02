@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IRange } from 'vs/editor/common/core/range';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -22,8 +22,7 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 
 	private enabled = false;
 	private listening = false;
-	private cellHandles: Set<number> = new Set();
-	private cellDisposables: Map<number, IDisposable[]> = new Map();
+	private diagnosticsByHandle: Map<number, IDisposable[]> = new Map();
 
 
 	constructor(
@@ -73,27 +72,24 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 	}
 
 	private clearAll() {
-		for (const handle of this.cellHandles) {
+		for (const handle of this.diagnosticsByHandle.keys()) {
 			this.clear(handle);
 		}
 	}
 
 	public clear(cellHandle: number) {
-		if (this.cellHandles.delete(cellHandle)) {
-			const cellUri = this.notebookEditor.getCellByHandle(cellHandle)?.uri;
-			if (cellUri) {
-				this.markerService.changeOne(CellDiagnostics.ID, cellUri, []);
+		const disposables = this.diagnosticsByHandle.get(cellHandle);
+		if (disposables) {
+			for (const disposable of disposables) {
+				disposable.dispose();
 			}
+			this.diagnosticsByHandle.delete(cellHandle);
 		}
-
-		for (const disposable of this.cellDisposables.get(cellHandle) || []) {
-			disposable.dispose();
-		}
-		this.cellDisposables.delete(cellHandle);
 	}
 
 	private setDiagnostics(cellHandle: number) {
-		if (this.cellHandles.has(cellHandle)) {
+		if (this.diagnosticsByHandle.has(cellHandle)) {
+			// multiple diagnostics per cell not supported for now
 			return;
 		}
 
@@ -107,18 +103,17 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 			const disposables: IDisposable[] = [];
 			const marker = this.createMarkerData(metadata.error.message, metadata.error.location);
 			this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [marker]);
-			this.cellHandles.add(cellHandle);
+			disposables.push(toDisposable(() => this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [])));
 			disposables.push(this.notebookCellDiagnosticsService.registerCellExecutionError(cell.uri, metadata.error));
 			disposables.push(cell.model.onDidChangeOutputs(() => {
 				if (cell.model.outputs.length === 0) {
 					this.clear(cellHandle);
 				}
 			}));
-
 			disposables.push(cell.model.onDidChangeContent(() => {
 				this.clear(cellHandle);
 			}));
-			this.cellDisposables.set(cellHandle, disposables);
+			this.diagnosticsByHandle.set(cellHandle, disposables);
 		}
 	}
 
