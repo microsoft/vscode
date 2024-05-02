@@ -21,7 +21,7 @@ import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminal
 import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
 import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
-import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.chatHint.contribution';
+import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.initialHint.contribution';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),

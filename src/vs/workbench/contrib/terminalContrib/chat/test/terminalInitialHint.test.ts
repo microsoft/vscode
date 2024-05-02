@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Test terminalChatHintContribution
+// Test TerminalInitialHintContribution
 
 import { strictEqual } from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
@@ -22,7 +22,7 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { IInlineChatService, IInlineChatSession, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalChatHintContribution } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.chatHint.contribution';
+import { TerminalInitialHintContribution } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.initialHint.contribution';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -55,12 +55,12 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	unicodeVersion: '6'
 };
 
-suite('Workbench - TerminalChatHint', () => {
+suite('Workbench - TerminalInitialHint', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let capabilities: TerminalCapabilityStore;
 	let xterm: XtermTerminal;
-	let terminalChatHintContribution: TerminalChatHintContribution;
+	let terminalInitialHintContribution: TerminalInitialHintContribution;
 	let terminalService: ITerminalService;
 	let inlineChatService: IInlineChatService;
 	let configurationService: TestConfigurationService;
@@ -95,14 +95,14 @@ suite('Workbench - TerminalChatHint', () => {
 		terminalService = instantiationService.stub(ITerminalService, new TestTerminalService([createInstance()]));
 
 		xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => undefined }, capabilityStore, '', true));
-		terminalChatHintContribution = store.add(new TerminalChatHintContribution(createInstance(), undefined, undefined, inlineChatService, instantiationService, terminalService));
+		terminalInitialHintContribution = store.add(new TerminalInitialHintContribution(createInstance(), undefined, undefined, inlineChatService, instantiationService, terminalService));
 	});
-	test('TerminalChatHint should not show decoration when no provider is registered', () => {
-		terminalChatHintContribution.xtermOpen(xterm);
-		strictEqual(terminalChatHintContribution.chatHint, undefined);
+	test('TerminalInitialHint should not show decoration when no provider is registered', () => {
+		terminalInitialHintContribution.xtermOpen(xterm);
+		strictEqual(terminalInitialHintContribution.decoration, undefined);
 	});
-	test('TerminalChatHint should not show decoration when provider is registered but no terminal has been created', () => {
-		terminalChatHintContribution.xtermOpen(xterm);
+	test('TerminalInitialHint should not show decoration when provider is registered but no terminal has been created', () => {
+		terminalInitialHintContribution.xtermOpen(xterm);
 		store.add(inlineChatService.addProvider({
 			extensionId: new ExtensionIdentifier('test'),
 			label: 'blahblah',
@@ -113,6 +113,6 @@ suite('Workbench - TerminalChatHint', () => {
 				throw new Error('Method not implemented.');
 			}
 		}));
-		strictEqual(terminalChatHintContribution.chatHint, undefined);
+		strictEqual(terminalInitialHintContribution.decoration, undefined);
 	});
 });

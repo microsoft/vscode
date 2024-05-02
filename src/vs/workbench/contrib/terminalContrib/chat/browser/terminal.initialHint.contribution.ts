@@ -37,16 +37,16 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 const $ = dom.$;
 
-export class TerminalChatHintContribution extends Disposable implements ITerminalContribution {
-	static readonly ID = 'terminal.chatHint';
+export class TerminalInitialHintContribution extends Disposable implements ITerminalContribution {
+	static readonly ID = 'terminal.initialHint';
 
 	private _hintWidget: HTMLElement | undefined;
 
-	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalChatHintContribution | null {
-		return instance.getContribution<TerminalChatHintContribution>(TerminalChatHintContribution.ID);
+	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalInitialHintContribution | null {
+		return instance.getContribution<TerminalInitialHintContribution>(TerminalInitialHintContribution.ID);
 	}
-	private _chatHint: IDecoration | undefined;
-	get chatHint(): IDecoration | undefined { return this._chatHint; }
+	private _decoration: IDecoration | undefined;
+	get decoration(): IDecoration | undefined { return this._decoration; }
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 
 	private readonly _showHintDisposableStore = this._register(new MutableDisposable<DisposableStore>());
@@ -71,29 +71,29 @@ export class TerminalChatHintContribution extends Disposable implements ITermina
 		this._xterm = xterm;
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (capability) {
-			this._showHintDisposableStore.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
+			this._showHintDisposableStore.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addHint()));
 		} else {
 			this._register(this._instance.capabilities.onDidAddCapability(e => {
 				if (e.id === TerminalCapability.CommandDetection) {
 					const capability = e.capability;
-					this._showHintDisposableStore.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addChatHint()));
+					this._showHintDisposableStore.value?.add(Event.once(capability.promptInputModel.onDidStartInput)(() => this._addHint()));
 					if (!capability.promptInputModel.value) {
-						this._addChatHint();
+						this._addHint();
 					}
 				}
 			}));
 		}
 
-		this._showHintDisposableStore.value?.add(Event.once(this._inlineChatService.onDidChangeProviders)(() => this._addChatHint()));
+		this._showHintDisposableStore.value?.add(Event.once(this._inlineChatService.onDidChangeProviders)(() => this._addHint()));
 	}
 
-	private _addChatHint(): void {
+	private _addHint(): void {
 		const instance = this._instance instanceof TerminalInstance ? this._instance : undefined;
 		if (!instance || !this._xterm || this._hintWidget || instance?.capabilities.get(TerminalCapability.CommandDetection)?.hasInput) {
 			return;
 		}
 
-		if (!this._chatHint) {
+		if (!this._decoration) {
 			const marker = this._xterm.raw.registerMarker();
 			if (!marker) {
 				return;
@@ -103,21 +103,21 @@ export class TerminalChatHintContribution extends Disposable implements ITermina
 				return;
 			}
 			this._register(marker);
-			this._chatHint = this._xterm.raw.registerDecoration({
+			this._decoration = this._xterm.raw.registerDecoration({
 				marker,
 				x: this._xterm.raw.buffer.active.cursorX + 1,
 			});
 		}
 
 		this._register(this._xterm.raw.onKey(() => {
-			this._chatHint?.dispose();
+			this._decoration?.dispose();
 			this._showHintDisposableStore.clear();
 		}));
-		this._chatHint?.onRender((e) => {
+		this._decoration?.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalService.instances.length === 1) {
 				const chatProviders = [...this._inlineChatService.getAllProvider()];
 				if (chatProviders?.length) {
-					const widget = this._instantiationService.createInstance(TerminalChatHintWidget, instance);
+					const widget = this._instantiationService.createInstance(TerminalInitialHintWidget, instance);
 					this._showHintDisposableStore.clear();
 					this._hintWidget = widget.getDomNode(chatProviders);
 					if (!this._hintWidget) {
@@ -136,11 +136,11 @@ export class TerminalChatHintContribution extends Disposable implements ITermina
 		});
 	}
 }
-registerTerminalContribution(TerminalChatHintContribution.ID, TerminalChatHintContribution, false);
+registerTerminalContribution(TerminalInitialHintContribution.ID, TerminalInitialHintContribution, false);
 
 
 
-class TerminalChatHintWidget extends Disposable {
+class TerminalInitialHintWidget extends Disposable {
 
 
 	private domNode: HTMLElement | undefined;
@@ -204,7 +204,7 @@ class TerminalChatHintWidget extends Disposable {
 			}
 		};
 
-		const hintElement = $('terminal-chat-hint');
+		const hintElement = $('terminal-initial-hint');
 		hintElement.style.display = 'block';
 
 		const keybindingHint = this.keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
