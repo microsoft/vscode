@@ -198,6 +198,7 @@ export interface IGalleryExtensionVersion {
 }
 
 export interface IGalleryExtension {
+	type: 'gallery';
 	name: string;
 	identifier: IGalleryExtensionIdentifier;
 	version: string;

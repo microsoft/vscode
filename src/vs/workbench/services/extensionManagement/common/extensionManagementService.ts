@@ -39,8 +39,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-function isResourceExtension(extension: any): extension is IResourceExtension {
-	return extension && !!(extension as IResourceExtension).manifest;
+function isGalleryExtension(extension: IResourceExtension | IGalleryExtension): extension is IGalleryExtension {
+	return extension.type === 'gallery';
 }
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
@@ -320,10 +320,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	async canInstall(extension: IGalleryExtension | IResourceExtension): Promise<boolean> {
-		if (isResourceExtension(extension)) {
-			return this.canInstallResourceExtension(extension);
+		if (isGalleryExtension(extension)) {
+			return this.canInstallGalleryExtension(extension);
 		}
-		return this.canInstallGalleryExtension(extension);
+		return this.canInstallResourceExtension(extension);
 	}
 
 	private async canInstallGalleryExtension(gallery: IGalleryExtension): Promise<boolean> {
@@ -435,6 +435,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			const workspaceExtension = await this.workspaceExtensionManagementService.toLocalWorkspaceExtension(scannedExtension);
 			if (workspaceExtension) {
 				result.push({
+					type: 'resource',
 					identifier: workspaceExtension.identifier,
 					location: workspaceExtension.location,
 					manifest: workspaceExtension.manifest,

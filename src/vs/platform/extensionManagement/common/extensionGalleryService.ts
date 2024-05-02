@@ -521,6 +521,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 	};
 
 	return {
+		type: 'gallery',
 		identifier: {
 			id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
 			uuid: galleryExtension.extensionId
