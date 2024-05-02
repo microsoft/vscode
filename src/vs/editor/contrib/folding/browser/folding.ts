@@ -1127,7 +1127,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 					--endLineNumber;
 				}
 				if (endLineNumber > selection.startLineNumber) {
-					collapseRanges.push(<FoldRange>{
+					collapseRanges.push({
 						startLineNumber: selection.startLineNumber,
 						endLineNumber: endLineNumber,
 						type: undefined,
