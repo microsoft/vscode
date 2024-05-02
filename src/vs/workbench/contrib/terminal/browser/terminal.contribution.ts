@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/terminalVoice';
-import 'vs/css!./media/terminalChatHint';
 import 'vs/css!./media/widgets';
 import 'vs/css!./media/xterm';
 import * as nls from 'vs/nls';

@@ -9,6 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
 import 'vs/css!./media/terminalChatWidget';
+import 'vs/css!./media/terminalChatHint';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
