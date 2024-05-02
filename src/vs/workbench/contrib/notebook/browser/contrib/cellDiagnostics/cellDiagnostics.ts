@@ -6,7 +6,7 @@
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IRange } from 'vs/editor/common/core/range';
-import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecutionError, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -14,7 +14,14 @@ import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contr
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { INotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/common/notebookCellDiagnosticsService';
 import { Iterable } from 'vs/base/common/iterator';
+import { URI } from 'vs/base/common/uri';
+import { ResourceMap } from 'vs/base/common/map';
 
+type CellDiagnostic = {
+	cellUri: URI;
+	error: ICellExecutionError;
+	disposables: IDisposable[];
+};
 
 export class CellDiagnostics extends Disposable implements INotebookEditorContribution {
 
@@ -22,7 +29,8 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 
 	private enabled = false;
 	private listening = false;
-	private diagnosticsByHandle: Map<number, IDisposable[]> = new Map();
+	private diagnosticsByHandle: Map<number, CellDiagnostic> = new Map();
+	private errors: ResourceMap<ICellExecutionError> = new ResourceMap();
 
 
 	constructor(
@@ -43,6 +51,10 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 				this.updateEnabled();
 			}
 		}));
+	}
+
+	public getCellError(cellUri: URI): ICellExecutionError | undefined {
+		return this.errors.get(cellUri);
 	}
 
 	private updateEnabled() {
@@ -78,12 +90,13 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 	}
 
 	public clear(cellHandle: number) {
-		const disposables = this.diagnosticsByHandle.get(cellHandle);
-		if (disposables) {
-			for (const disposable of disposables) {
+		const diagnostic = this.diagnosticsByHandle.get(cellHandle);
+		if (diagnostic) {
+			for (const disposable of diagnostic.disposables) {
 				disposable.dispose();
 			}
 			this.diagnosticsByHandle.delete(cellHandle);
+			this.errors.delete(diagnostic.cellUri);
 		}
 	}
 
@@ -113,7 +126,8 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 			disposables.push(cell.model.onDidChangeContent(() => {
 				this.clear(cellHandle);
 			}));
-			this.diagnosticsByHandle.set(cellHandle, disposables);
+			this.diagnosticsByHandle.set(cellHandle, { cellUri: cell.uri, error: metadata.error, disposables });
+			this.errors.set(cell.uri, metadata.error);
 		}
 	}
 
