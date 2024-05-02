@@ -32,7 +32,7 @@ import 'vs/css!./media/terminalInitialHint';
 
 const $ = dom.$;
 
-class TerminalInitialHintAddon extends Disposable implements ITerminalAddon {
+export class InitialHintAddon extends Disposable implements ITerminalAddon {
 	private readonly _onDidRequestCreateHint = this._register(new Emitter<void>());
 	get onDidRequestCreateHint(): Event<void> { return this._onDidRequestCreateHint.event; }
 	private readonly _disposables = this._register(new MutableDisposable<DisposableStore>());
@@ -69,7 +69,7 @@ class TerminalInitialHintAddon extends Disposable implements ITerminalAddon {
 export class TerminalInitialHintContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.initialHint';
 
-	private _addon: TerminalInitialHintAddon | undefined;
+	private _addon: InitialHintAddon | undefined;
 
 	private _hintWidget: HTMLElement | undefined;
 
@@ -96,7 +96,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			return;
 		}
 		this._xterm = xterm;
-		this._addon = this._register(this._instantiationService.createInstance(TerminalInitialHintAddon, this._instance.capabilities, this._inlineChatService.onDidChangeProviders));
+		this._addon = this._register(this._instantiationService.createInstance(InitialHintAddon, this._instance.capabilities, this._inlineChatService.onDidChangeProviders));
 		this._xterm.raw.loadAddon(this._addon);
 		this._register(this._addon.onDidRequestCreateHint(() => this._createHint()));
 	}
