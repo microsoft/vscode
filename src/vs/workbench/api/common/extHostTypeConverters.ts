@@ -578,7 +578,7 @@ export namespace DecorationRenderOptions {
 export namespace TextEdit {
 
 	export function from(edit: vscode.TextEdit): languages.TextEdit {
-		return <languages.TextEdit>{
+		return {
 			text: edit.newText,
 			eol: edit.newEol && EndOfLine.from(edit.newEol),
 			range: Range.from(edit.range)
