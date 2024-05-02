@@ -253,7 +253,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				this._lastUserInput = '';
 				if (cursorIndex === this._cursorIndex - 1) {
 					// If trailing whitespace is being increased by removing a non-whitespace character
-					if (this._value.trimEnd().length > value.trimEnd().length) {
+					if (this._value.trimEnd().length > value.trimEnd().length && value.trimEnd().length <= cursorIndex) {
 						trailingWhitespace = Math.max((this._value.length - 1) - value.trimEnd().length, 0);
 					}
 					// Standard case; subtract from trailing whitespace
