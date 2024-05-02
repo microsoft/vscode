@@ -124,7 +124,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 						return;
 					}
 					e.appendChild(this._hintWidget);
-					e.classList.add('terminal-chat-hint');
+					e.classList.add('terminal-initial-hint');
 				}
 			}
 			if (this._hintWidget && this._xterm) {
@@ -254,7 +254,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 	getDomNode(providers: IInlineChatSessionProvider[]): HTMLElement {
 		if (!this.domNode) {
-			this.domNode = $('.terminal-chat-hint');
+			this.domNode = $('.terminal-initial-hint');
 			this.domNode!.style.paddingLeft = '4px';
 
 			const { hintElement, ariaLabel } = this._getHintInlineChat(providers);
