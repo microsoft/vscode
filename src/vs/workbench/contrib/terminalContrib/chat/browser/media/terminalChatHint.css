@@ -5,7 +5,6 @@
 
 .monaco-workbench .pane-body.integrated-terminal .contentWidgets .terminal-chat-hint {
 	color: var(--vscode-input-placeholderForeground);
-	width: inherit;
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-chat-hint a {
 	color: var(--vscode-textLink-foreground)
