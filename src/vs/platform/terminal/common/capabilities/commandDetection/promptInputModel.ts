@@ -88,7 +88,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			this._xterm.onCursorMove,
 			this._xterm.onData,
 			this._xterm.onWriteParsed,
-		)(() => this._sync()));
+		)(() => {
+			try {
+				this._sync();
+			} catch (e) {
+				this._logService.error('Error while syncing prompt input model', e);
+			}
+		}));
 		this._register(this._xterm.onData(e => this._handleUserInput(e)));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
