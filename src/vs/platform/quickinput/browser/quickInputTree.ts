@@ -741,25 +741,6 @@ export class QuickInputTree extends Disposable {
 				indent: 0,
 				horizontalScrolling: false,
 				allowNonCollapsibleParents: true,
-				identityProvider: {
-					getId: element => {
-						// always prefer item over separator because if item is defined, it must be the main item type
-						const mainItem = element.item || element.separator;
-						if (mainItem === undefined) {
-							return '';
-						}
-						// always prefer a defined id if one was specified and use "label + description + detail" as a fallback
-						if (mainItem.id !== undefined) {
-							return mainItem.id;
-						}
-						let id = `label:${mainItem.label}`;
-						id += `$$description:${mainItem.description}`;
-						if (mainItem.type !== 'separator') {
-							id += `$$detail:${mainItem.detail}`;
-						}
-						return id;
-					},
-				},
 				alwaysConsumeMouseWheel: true
 			}
 		));

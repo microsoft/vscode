@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItem, CompletionItemKind } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
@@ -300,10 +300,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				return <CompletionList>{
-					suggestions: slashCommands.map((c, i) => {
+				return {
+					suggestions: slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `/${c.command}`;
-						return <CompletionItem>{
+						return {
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
@@ -354,11 +354,11 @@ class AgentCompletions extends Disposable {
 					.filter(a => !a.isDefault)
 					.filter(a => a.locations.includes(widget.location));
 
-				return <CompletionList>{
-					suggestions: agents.map((a, i) => {
+				return {
+					suggestions: agents.map((a, i): CompletionItem => {
 						const withAt = `@${a.name}`;
 						const isDupe = !!agents.find(other => other.name === a.name && other.id !== a.id);
-						return <CompletionItem>{
+						return {
 							// Leading space is important because detail has no space at the start by design
 							label: isDupe ?
 								{ label: withAt, description: a.description, detail: ` (${a.extensionPublisherDisplayName})` } :
@@ -409,10 +409,10 @@ class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
-				return <CompletionList>{
-					suggestions: usedAgent.agent.slashCommands.map((c, i) => {
+				return {
+					suggestions: usedAgent.agent.slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `/${c.name}`;
-						return <CompletionItem>{
+						return {
 							label: withSlash,
 							insertText: `${withSlash} `,
 							detail: c.description,
@@ -538,9 +538,9 @@ class BuiltinDynamicCompletions extends Disposable {
 				}
 
 				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
-				return <CompletionList>{
+				return {
 					suggestions: [
-						<CompletionItem>{
+						{
 							label: `${chatVariableLeader}file`,
 							insertText: `${chatVariableLeader}file:`,
 							detail: localize('pickFileLabel', "Pick a file"),
@@ -548,7 +548,7 @@ class BuiltinDynamicCompletions extends Disposable {
 							kind: CompletionItemKind.Text,
 							command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
 							sortText: 'z'
-						}
+						} satisfies CompletionItem
 					]
 				};
 			}
@@ -607,9 +607,9 @@ class VariableCompletions extends Disposable {
 				const variableItems = Array.from(this.chatVariablesService.getVariables())
 					// This doesn't look at dynamic variables like `file`, where multiple makes sense.
 					.filter(v => !usedVariables.some(usedVar => usedVar.variableName === v.name))
-					.map(v => {
+					.map((v): CompletionItem => {
 						const withLeader = `${chatVariableLeader}${v.name}`;
-						return <CompletionItem>{
+						return {
 							label: withLeader,
 							range,
 							insertText: withLeader + ' ',
@@ -619,7 +619,7 @@ class VariableCompletions extends Disposable {
 						};
 					});
 
-				return <CompletionList>{
+				return {
 					suggestions: variableItems
 				};
 			}
