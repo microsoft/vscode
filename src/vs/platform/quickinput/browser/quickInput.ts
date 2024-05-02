@@ -25,7 +25,7 @@ import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
-import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickInputType } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,6 +38,9 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 export const inQuickInputContextKeyValue = 'inQuickInput';
 export const InQuickInputContextKey = new RawContextKey<boolean>(inQuickInputContextKeyValue, false, localize('inQuickInput', "Whether keyboard focus is inside the quick input control"));
 export const inQuickInputContext = ContextKeyExpr.has(inQuickInputContextKeyValue);
+
+export const quickInputTypeContextKeyValue = 'quickInputType';
+export const QuickInputTypeContextKey = new RawContextKey<QuickInputType>(quickInputTypeContextKeyValue, undefined, localize('quickInputType', "The type of the currently visible quick input"));
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -136,7 +139,7 @@ export type Visibilities = {
 	progressBar?: boolean;
 };
 
-class QuickInput extends Disposable implements IQuickInput {
+abstract class QuickInput extends Disposable implements IQuickInput {
 	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 	private _title: string | undefined;
@@ -167,6 +170,8 @@ class QuickInput extends Disposable implements IQuickInput {
 	protected readonly visibleDisposables = this._register(new DisposableStore());
 
 	private busyDelay: TimeoutTimer | undefined;
+
+	abstract type: QuickInputType;
 
 	constructor(
 		protected ui: QuickInputUI
@@ -541,6 +546,8 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private _hideCountBadge: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
 	private _focusEventBufferer = new EventBufferer();
+
+	readonly type = QuickInputType.QuickPick;
 
 	get quickNavigate() {
 		return this._quickNavigate;
@@ -1132,6 +1139,8 @@ export class InputBox extends QuickInput implements IInputBox {
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
+	readonly type = QuickInputType.InputBox;
+
 	get value() {
 		return this._value;
 	}
@@ -1238,6 +1247,8 @@ export class InputBox extends QuickInput implements IInputBox {
 }
 
 export class QuickWidget extends QuickInput implements IQuickWidget {
+	readonly type = QuickInputType.QuickWidget;
+
 	protected override update() {
 		if (!this.visible) {
 			return;

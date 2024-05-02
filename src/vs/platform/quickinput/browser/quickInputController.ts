@@ -18,7 +18,7 @@ import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
-import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -59,6 +59,7 @@ export class QuickInputController extends Disposable {
 	private previousFocusElement?: HTMLElement;
 
 	private readonly inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
+	private readonly quickInputTypeContext = QuickInputTypeContextKey.bindTo(this.contextKeyService);
 
 	constructor(
 		private options: IQuickInputOptions,
@@ -578,6 +579,7 @@ export class QuickInputController extends Disposable {
 		ui.container.style.display = '';
 		this.updateLayout();
 		ui.inputBox.setFocus();
+		this.quickInputTypeContext.set(controller.type);
 	}
 
 	isVisible(): boolean {

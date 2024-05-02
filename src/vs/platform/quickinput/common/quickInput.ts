@@ -205,9 +205,23 @@ export interface IQuickInputHideEvent {
 }
 
 /**
+ * A collection of the different types of QuickInput
+ */
+export const enum QuickInputType {
+	QuickPick = 'quickPick',
+	InputBox = 'inputBox',
+	QuickWidget = 'quickWidget'
+}
+
+/**
  * Represents a quick input control that allows users to make selections or provide input quickly.
  */
 export interface IQuickInput extends IDisposable {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType;
 
 	/**
 	 * An event that is fired when the quick input is hidden.
@@ -304,6 +318,12 @@ export interface IQuickInput extends IDisposable {
 }
 
 export interface IQuickWidget extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.QuickWidget;
+
 	/**
 	 * Should be an HTMLElement (TODO: move this entire file into browser)
 	 * @override
@@ -399,6 +419,11 @@ export enum QuickPickFocus {
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.QuickPick;
 
 	/**
 	 * The current value of the quick pick input.
@@ -621,6 +646,11 @@ export interface IQuickInputToggle {
  * Represents an input box in a quick input dialog.
  */
 export interface IInputBox extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.InputBox;
 
 	/**
 	 * Value shown in the input box.
