@@ -419,6 +419,54 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly outlineKind = 'notebookCells';
 
 	get activeElement(): OutlineEntry | undefined {
+		const newActive = this._outlineProviderReference?.object?.activeElement;
+		if (!newActive) {
+			return undefined;
+		}
+
+		if (!this.filterEntry(newActive)) {
+			return newActive;
+		}
+
+		// find a valid parent
+		let parent = newActive.parent;
+		while (parent) {
+			if (this.filterEntry(parent)) {
+				parent = parent.parent;
+			} else {
+				return parent;
+			}
+		}
+
+		// no valid parent found, return undefined
+		return undefined;
+	}
+
+	/**
+	 * Checks if the given outline entry should be filtered out of the outlinePane
+	 *
+	 * @param entry the OutlineEntry to check
+	 * @returns true if the entry should be filtered out of the outlinePane
+	 */
+	private filterEntry(entry: OutlineEntry): boolean {
+		const showCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
+		const showCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+		const showMarkdownHeadersOnly = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
+
+		// if any are true, return true, this entry should NOT be included in the outline
+		if (
+			(showMarkdownHeadersOnly && entry.cell.cellKind === CellKind.Markup && entry.level === NotebookOutlineConstants.NonHeaderOutlineLevel) ||	// show headers only   + cell is mkdn + is level 7 (not header)
+			(!showCodeCells && entry.cell.cellKind === CellKind.Code) ||																				// show code cells off + cell is code
+			(!showCodeCellSymbols && entry.cell.cellKind === CellKind.Code && entry.level > NotebookOutlineConstants.NonHeaderOutlineLevel)				// show symbols off    + cell is code + is level >7 (nb symbol levels)
+		) {
+			return true;
+		}
+
+		return false;
+	}
+
+	// same as get activeElement(), but will bypass the filters in favor of filter in breadcrumb data source
+	get activeBreadcrumbsElement(): OutlineEntry | undefined {
 		return this._outlineProviderReference?.object?.activeElement;
 	}
 
@@ -430,7 +478,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		_target: OutlineTarget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IConfigurationService _configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		const installSelectionListener = () => {
 			const notebookEditor = _editor.getControl();
@@ -469,7 +517,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this.config = {
 			treeDataSource: instantiationService.createInstance(NotebookOutlinePaneProvider, () => (this.entries ?? [])),
 			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, () => (this.entries ?? [])),
-			breadcrumbsDataSource: instantiationService.createInstance(NotebookBreadcrumbsProvider, () => (this.activeElement)),
+			breadcrumbsDataSource: instantiationService.createInstance(NotebookBreadcrumbsProvider, () => (this.activeBreadcrumbsElement)),
 			delegate,
 			renderers,
 			comparator,
