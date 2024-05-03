@@ -12,13 +12,35 @@ declare module 'vscode' {
 	 */
 	export interface LanguageModelChatResponse {
 
+		//TODO@API give this some structure
+		// https://github.com/openai/openai-openapi/blob/master/openapi.yaml#L7700
+		// https://github.com/ollama/ollama/blob/main/docs/api.md#response-7
+		// https://docs.anthropic.com/claude/reference/messages_post
+
 		/**
 		 * An async iterable that is a stream of text chunks forming the overall response.
 		 *
-		 * *Note* that this stream will error when during data receiving an error occurrs.
+		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of
+		 * the stream should handle the errors accordingly.
+		 *
+		 * @example
+		 * ```ts
+		 * try {
+		 *   // consume stream
+		 *   for await (const chunk of response.stream) {
+		 *    console.log(chunk);
+		 *   }
+		 *
+		 * } catch(e) {
+		 *   // stream ended with an error
+		 *   console.error(e);
+		 * }
+		 * ```
 		 */
 		stream: AsyncIterable<string>;
 	}
+
+	// TODO@API have just LanguageModelChatMessage & LanguageModelChatMessageRole
 
 	/**
 	 * A language model message that represents a system message.
@@ -115,6 +137,7 @@ declare module 'vscode' {
 		/**
 		 * The version of the language model.
 		 */
+		// TODO@API drop this for now?
 		readonly version: string;
 
 		/**
@@ -123,6 +146,8 @@ declare module 'vscode' {
 		 *
 		 * @see {@link lm.sendChatRequest}
 		 */
+		// TODO@API is this optional?
+		// TODO@API rename: contextLength?
 		readonly tokens: number;
 	}
 
