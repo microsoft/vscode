@@ -203,7 +203,7 @@ function Send-Completions {
 	# `[` is included here as namespace commands are not included in CompleteCommand(''),
 	# additionally for some reason CompleteVariable('[') causes the prompt to clear and reprint
 	# multiple times
-	if ($completionPrefix.Contains(' ') -or $completionPrefix.Contains('[')) {
+	if ($completionPrefix.Contains(' ') -or $completionPrefix.Contains('[') -or $PSVersionTable.PSVersion -lt "6.0") {
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
