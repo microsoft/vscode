@@ -427,7 +427,12 @@ export type MockNotebookCell = [
 	metadata?: NotebookCellMetadata,
 ];
 
-export type textSymbol = { name: string; range: {}; children?: textSymbol[] };
+export type MockDocumentSymbol = {
+	name: string;
+	range: {};
+	kind?: number;
+	children?: MockDocumentSymbol[];
+};
 
 export async function withTestNotebook<R = any>(cells: MockNotebookCell[], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
 	const disposables: DisposableStore = new DisposableStore();

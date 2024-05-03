@@ -17,7 +17,7 @@ import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBr
 import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { textSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { MockDocumentSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 suite('Notebook Outline View Providers', function () {
@@ -27,8 +27,8 @@ suite('Notebook Outline View Providers', function () {
 	const configurationService = new TestConfigurationService();
 	const themeService = new TestThemeService();
 
-	const symbolsPerTextModel: Record<string, textSymbol[]> = {};
-	function setSymbolsForTextModel(symbols: textSymbol[], textmodelId = 'textId') {
+	const symbolsPerTextModel: Record<string, MockDocumentSymbol[]> = {};
+	function setSymbolsForTextModel(symbols: MockDocumentSymbol[], textmodelId = 'textId') {
 		symbolsPerTextModel[textmodelId] = symbols;
 	}
 
@@ -374,6 +374,165 @@ suite('Notebook Outline View Providers', function () {
 
 	// #endregion
 	// #region QuickPick
+
+	test('QuickPick 0: Symbols On + 2 cells WITH symbols', async function () {
+		await setOutlineViewConfiguration({
+			outlineShowMarkdownHeadersOnly: false,
+			outlineShowCodeCells: false,
+			outlineShowCodeCellSymbols: false,
+			quickPickShowAllSymbols: true,
+			breadcrumbsShowCodeCells: false
+		});
+
+		// Create models + symbols
+		const cells = [
+			createMarkupCellViewModel(1, '# h1', '$0', 0),
+			createMarkupCellViewModel(1, 'plaintext', '$1', 0),
+			createCodeCellViewModel(1, '# code cell 2', '$2'),
+			createCodeCellViewModel(1, '# code cell 3', '$3')
+		];
+		setSymbolsForTextModel([], '$0');
+		setSymbolsForTextModel([], '$1');
+		setSymbolsForTextModel([{ name: 'var2', range: {}, kind: 12 }], '$2');
+		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
+
+		// Cache symbols
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		for (const cell of cells) {
+			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		}
+
+		// Generate raw outline
+		const outlineModel = new OutlineEntry(-1, -1, createCodeCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
+		for (const cell of cells) {
+			entryFactory.getOutlineEntries(cell, OutlineTarget.OutlinePane, 0).forEach(entry => outlineModel.addChild(entry));
+		}
+
+		// Generate filtered outline (view model)
+		const quickPickProvider = new NotebookQuickPickProvider(() => [...outlineModel.children], configurationService, themeService);
+		const results = quickPickProvider.getQuickPickElements();
+
+		// Validate
+		assert.equal(results.length, 4);
+
+		assert.equal(results[0].label, '$(markdown) h1');
+		assert.equal(results[0].element.level, 1);
+
+		assert.equal(results[1].label, '$(markdown) plaintext');
+		assert.equal(results[1].element.level, 7);
+
+		assert.equal(results[2].label, '$(symbol-variable) var2');
+		assert.equal(results[2].element.level, 8);
+
+		assert.equal(results[3].label, '$(symbol-variable) var3');
+		assert.equal(results[3].element.level, 8);
+	});
+
+	test('QuickPick 1: Symbols On + 1 cell WITH symbol + 1 cell WITHOUT symbol', async function () {
+		await setOutlineViewConfiguration({
+			outlineShowMarkdownHeadersOnly: false,
+			outlineShowCodeCells: false,
+			outlineShowCodeCellSymbols: false,
+			quickPickShowAllSymbols: true,
+			breadcrumbsShowCodeCells: false
+		});
+
+		// Create models + symbols
+		const cells = [
+			createMarkupCellViewModel(1, '# h1', '$0', 0),
+			createMarkupCellViewModel(1, 'plaintext', '$1', 0),
+			createCodeCellViewModel(1, '# code cell 2', '$2'),
+			createCodeCellViewModel(1, '# code cell 3', '$3')
+		];
+		setSymbolsForTextModel([], '$0');
+		setSymbolsForTextModel([], '$1');
+		setSymbolsForTextModel([], '$2');
+		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
+
+		// Cache symbols
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		for (const cell of cells) {
+			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		}
+
+		// Generate raw outline
+		const outlineModel = new OutlineEntry(-1, -1, createCodeCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
+		for (const cell of cells) {
+			entryFactory.getOutlineEntries(cell, OutlineTarget.OutlinePane, 0).forEach(entry => outlineModel.addChild(entry));
+		}
+
+		// Generate filtered outline (view model)
+		const quickPickProvider = new NotebookQuickPickProvider(() => [...outlineModel.children], configurationService, themeService);
+		const results = quickPickProvider.getQuickPickElements();
+
+		// Validate
+		assert.equal(results.length, 4);
+
+		assert.equal(results[0].label, '$(markdown) h1');
+		assert.equal(results[0].element.level, 1);
+
+		assert.equal(results[1].label, '$(markdown) plaintext');
+		assert.equal(results[1].element.level, 7);
+
+		assert.equal(results[2].label, '$(code) # code cell 2');
+		assert.equal(results[2].element.level, 7);
+
+		assert.equal(results[3].label, '$(symbol-variable) var3');
+		assert.equal(results[3].element.level, 8);
+	});
+
+	test('QuickPick 3: Symbols Off', async function () {
+		await setOutlineViewConfiguration({
+			outlineShowMarkdownHeadersOnly: false,
+			outlineShowCodeCells: false,
+			outlineShowCodeCellSymbols: false,
+			quickPickShowAllSymbols: false,
+			breadcrumbsShowCodeCells: false
+		});
+
+		// Create models + symbols
+		const cells = [
+			createMarkupCellViewModel(1, '# h1', '$0', 0),
+			createMarkupCellViewModel(1, 'plaintext', '$1', 0),
+			createCodeCellViewModel(1, '# code cell 2', '$2'),
+			createCodeCellViewModel(1, '# code cell 3', '$3')
+		];
+		setSymbolsForTextModel([], '$0');
+		setSymbolsForTextModel([], '$1');
+		setSymbolsForTextModel([{ name: 'var2', range: {}, kind: 12 }], '$2');
+		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
+
+		// Cache symbols
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		for (const cell of cells) {
+			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		}
+
+		// Generate raw outline
+		const outlineModel = new OutlineEntry(-1, -1, createCodeCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
+		for (const cell of cells) {
+			entryFactory.getOutlineEntries(cell, OutlineTarget.OutlinePane, 0).forEach(entry => outlineModel.addChild(entry));
+		}
+
+		// Generate filtered outline (view model)
+		const quickPickProvider = new NotebookQuickPickProvider(() => [...outlineModel.children], configurationService, themeService);
+		const results = quickPickProvider.getQuickPickElements();
+
+		// Validate
+		assert.equal(results.length, 4);
+
+		assert.equal(results[0].label, '$(markdown) h1');
+		assert.equal(results[0].element.level, 1);
+
+		assert.equal(results[1].label, '$(markdown) plaintext');
+		assert.equal(results[1].element.level, 7);
+
+		assert.equal(results[2].label, '$(code) # code cell 2');
+		assert.equal(results[2].element.level, 7);
+
+		assert.equal(results[3].label, '$(code) # code cell 3');
+		assert.equal(results[3].element.level, 7);
+	});
 
 	// #endregion
 	// #region Breadcrumbs

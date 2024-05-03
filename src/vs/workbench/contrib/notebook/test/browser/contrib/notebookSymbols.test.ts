@@ -12,14 +12,14 @@ import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSy
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { textSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { MockDocumentSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 suite('Notebook Symbols', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const symbolsPerTextModel: Record<string, textSymbol[]> = {};
-	function setSymbolsForTextModel(symbols: textSymbol[], textmodelId = 'textId') {
+	const symbolsPerTextModel: Record<string, MockDocumentSymbol[]> = {};
+	function setSymbolsForTextModel(symbols: MockDocumentSymbol[], textmodelId = 'textId') {
 		symbolsPerTextModel[textmodelId] = symbols;
 	}
 
