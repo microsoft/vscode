@@ -15,7 +15,6 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { Iterable } from 'vs/base/common/iterator';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
 
 type CellDiagnostic = {
 	cellUri: URI;
@@ -26,9 +25,6 @@ type CellDiagnostic = {
 export class CellDiagnostics extends Disposable implements INotebookEditorContribution {
 
 	static ID: string = 'workbench.notebook.cellDiagnostics';
-
-	private readonly _onDidDiagnosticsChange = new Emitter<void>();
-	readonly onDidDiagnosticsChange: Event<void> = this._onDidDiagnosticsChange.event;
 
 	private enabled = false;
 	private listening = false;

@@ -124,8 +124,6 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariables';
-import { INotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/common/notebookCellDiagnosticsService';
-import { NotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/browser/services/notebookCellDiagnosticServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -760,7 +758,6 @@ registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingSe
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 registerSingleton(INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory, InstantiationType.Delayed);
-registerSingleton(INotebookCellDiagnosticsService, NotebookCellDiagnosticsService, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
