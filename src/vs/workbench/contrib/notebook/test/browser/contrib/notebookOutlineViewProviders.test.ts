@@ -599,14 +599,14 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate raw outline
-		const outlineModel = new OutlineEntry(-1, -1, createCodeCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
+		const outlineModel = new OutlineEntry(-1, -1, createMarkupCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
 		for (const cell of cells) {
 			entryFactory.getOutlineEntries(cell, OutlineTarget.OutlinePane, 0).forEach(entry => outlineModel.addChild(entry));
 		}
 		const outlineTree = buildOutlineTree([...outlineModel.children]);
 
 		// Generate filtered outline (view model)
-		const breadcrumbsProvider = new NotebookBreadcrumbsProvider(() => [...outlineTree![0].children][1]);
+		const breadcrumbsProvider = new NotebookBreadcrumbsProvider(() => [...outlineTree![0].children][1], configurationService);
 		const results = breadcrumbsProvider.getBreadcrumbElements();
 
 		// Validate
@@ -622,7 +622,7 @@ suite('Notebook Outline View Providers', function () {
 		assert.equal(results[2].level, 7);
 	});
 
-	test.skip('Breadcrumbs 1: Code Cells Off ', async function () {
+	test('Breadcrumbs 1: Code Cells Off ', async function () {
 		await setOutlineViewConfiguration({
 			outlineShowMarkdownHeadersOnly: false,
 			outlineShowCodeCells: false,
@@ -650,14 +650,14 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate raw outline
-		const outlineModel = new OutlineEntry(-1, -1, createCodeCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
+		const outlineModel = new OutlineEntry(-1, -1, createMarkupCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
 		for (const cell of cells) {
 			entryFactory.getOutlineEntries(cell, OutlineTarget.OutlinePane, 0).forEach(entry => outlineModel.addChild(entry));
 		}
 		const outlineTree = buildOutlineTree([...outlineModel.children]);
 
 		// Generate filtered outline (view model)
-		const breadcrumbsProvider = new NotebookBreadcrumbsProvider(() => [...outlineTree![0].children][1]);
+		const breadcrumbsProvider = new NotebookBreadcrumbsProvider(() => [...outlineTree![0].children][1], configurationService);
 		const results = breadcrumbsProvider.getBreadcrumbElements();
 
 		// Validate

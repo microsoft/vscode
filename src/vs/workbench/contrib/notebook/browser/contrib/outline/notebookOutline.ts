@@ -368,14 +368,17 @@ export class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutl
 export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<OutlineEntry> {
 	constructor(
 		private _getActiveElement: () => OutlineEntry | undefined,
-		// @IConfigurationService private readonly _configurationService: IConfigurationService, // TODO: @Yoyokrazy will need this service once we start filtering entries at this layer
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	getBreadcrumbElements(): readonly OutlineEntry[] {
 		const result: OutlineEntry[] = [];
+		const showCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.breadcrumbsShowCodeCells);
 		let candidate = this._getActiveElement();
 		while (candidate) {
-			result.unshift(candidate);
+			if (showCodeCells || candidate.cell.cellKind !== CellKind.Code) {
+				result.unshift(candidate);
+			}
 			candidate = candidate.parent;
 		}
 		return result;
