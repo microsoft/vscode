@@ -352,15 +352,6 @@ declare module 'vscode' {
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
 
 		/**
-		 * Push a warning to this stream. Short-hand for
-		 * `push(new ChatResponseWarningPart(message))`.
-		 *
-		 * @param message A warning message
-		 * @returns This stream.
-		 */
-		warning(message: string | MarkdownString): ChatResponseStream;
-
-		/**
 		 * Pushes a part to this stream.
 		 *
 		 * @param part A response part, rendered or metadata
@@ -410,16 +401,11 @@ declare module 'vscode' {
 		constructor(value: Command);
 	}
 
-	export class ChatResponseWarningPart {
-		value: MarkdownString;
-		constructor(value: string | MarkdownString);
-	}
-
 	/**
 	 * Represents the different chat response types.
 	 */
 	export type ChatResponsePart = ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
-		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart | ChatResponseWarningPart;
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
 
 
 	export namespace chat {

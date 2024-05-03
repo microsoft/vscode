@@ -123,7 +123,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -183,7 +183,7 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestDynamicVariablePart).text,
-					revive((part as ChatRequestDynamicVariablePart).data)
+					revive((part as ChatRequestDynamicVariablePart).data) as any
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

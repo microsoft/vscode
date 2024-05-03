@@ -102,11 +102,25 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
 
+	export class ChatResponseWarningPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
 	export interface ChatResponseStream {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
 		detectedParticipant(participant: string, command?: ChatCommand): ChatResponseStream;
-		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart): ChatResponseStream;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart): ChatResponseStream;
+		/**
+		 * Push a warning to this stream. Short-hand for
+		 * `push(new ChatResponseWarningPart(message))`.
+		 *
+		 * @param message A warning message
+		 * @returns This stream.
+		 */
+		warning(message: string | MarkdownString): ChatResponseStream;
+
 	}
 
 	// TODO@API fit this into the stream
@@ -233,11 +247,6 @@ declare module 'vscode' {
 		 * A description of this value, which could be provided to the LLM as a hint.
 		 */
 		description?: string;
-
-		/**
-		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
-		 */
-		kind?: string;
 	}
 
 	export interface ChatVariableResolverResponseStream {
