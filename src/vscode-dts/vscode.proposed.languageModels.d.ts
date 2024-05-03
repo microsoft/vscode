@@ -163,6 +163,11 @@ declare module 'vscode' {
 		static NoPermissions(message?: string): LanguageModelError;
 
 		/**
+		 * The requestor is blocked from using this language model.
+		 */
+		static Blocked(message?: string): LanguageModelError;
+
+		/**
 		 * A code that identifies this error.
 		 *
 		 * Possible values are names of errors, like {@linkcode LanguageModelError.NotFound NotFound},

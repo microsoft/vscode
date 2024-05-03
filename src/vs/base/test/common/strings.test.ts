@@ -536,6 +536,11 @@ suite('Strings', () => {
 				`expect to forAnsiStringParts ${JSON.stringify(sequence)}`
 			);
 		}
+
+		// #209937
+		assert.strictEqual(
+			strings.removeAnsiEscapeCodes(`localhost:\x1b[31m1234`),
+			'localhost:1234',);
 	});
 
 	test('removeAnsiEscapeCodesFromPrompt', () => {

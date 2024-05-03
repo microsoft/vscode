@@ -80,8 +80,8 @@ class BridgeAgent implements IChatAgentImplementation {
 			throw new Error('FAILED to find last input');
 		}
 
-		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.values[0];
-		const inlineChatContext = typeof inlineChatContextValue?.value === 'string' && JSON.parse(inlineChatContextValue.value);
+		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.value;
+		const inlineChatContext = typeof inlineChatContextValue === 'string' && JSON.parse(inlineChatContextValue);
 
 		const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
@@ -385,10 +385,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			async (_message, _arg, model) => {
 				for (const [, data] of this._sessions) {
 					if (data.session.chatModel === model) {
-						return [{
-							level: 'full',
-							value: JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange))
-						}];
+						return JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange));
 					}
 				}
 				return undefined;
@@ -399,7 +396,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			async (_message, _arg, model) => {
 				for (const [, data] of this._sessions) {
 					if (data.session.chatModel === model) {
-						return [{ level: 'full', value: data.session.textModelN.uri }];
+						return data.session.textModelN.uri;
 					}
 				}
 				return undefined;
@@ -802,10 +799,7 @@ export class AgentInlineChatProvider implements IInlineChatSessionProvider {
 			variables: {
 				variables: [{
 					name: InlineChatContext.variableName,
-					values: [{
-						level: 'full',
-						value: JSON.stringify(new InlineChatContext(request.previewDocument, request.selection, request.wholeRange))
-					}]
+					value: JSON.stringify(new InlineChatContext(request.previewDocument, request.selection, request.wholeRange))
 				}]
 			}
 		}, part => {

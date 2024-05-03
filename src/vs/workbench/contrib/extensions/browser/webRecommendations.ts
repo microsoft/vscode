@@ -24,7 +24,7 @@ export class WebRecommendations extends ExtensionRecommendations {
 	protected async doActivate(): Promise<void> {
 		const isOnlyWeb = this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer;
 		if (isOnlyWeb && Array.isArray(this.productService.webExtensionTips)) {
-			this._recommendations = this.productService.webExtensionTips.map(extensionId => (<ExtensionRecommendation>{
+			this._recommendations = this.productService.webExtensionTips.map((extensionId): ExtensionRecommendation => ({
 				extension: extensionId.toLowerCase(),
 				reason: {
 					reasonId: ExtensionRecommendationReason.Application,
@@ -33,6 +33,5 @@ export class WebRecommendations extends ExtensionRecommendations {
 			}));
 		}
 	}
-
 }
 
