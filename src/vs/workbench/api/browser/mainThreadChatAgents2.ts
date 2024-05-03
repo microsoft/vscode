@@ -92,7 +92,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
 	}
 
-	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string } | undefined): void {
+	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string; publisherDisplayName: string } | undefined): void {
 		const staticAgentRegistration = this._chatAgentService.getAgent(id);
 		if (!staticAgentRegistration && !dynamicProps) {
 			if (this._chatAgentService.getAgentsByName(id).length) {
@@ -138,8 +138,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					description: dynamicProps.description,
 					extensionId: extension,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
-					extensionPublisherId: extensionDescription?.publisher ?? '', // extensionDescription _should_ be present at this point, since this extension is active and registering agents
-					extensionPublisherDisplayName: extensionDescription?.publisherDisplayName,
+					extensionPublisherId: '',
+					publisherDisplayName: dynamicProps.publisherDisplayName,
 					metadata: revive(metadata),
 					slashCommands: [],
 					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
