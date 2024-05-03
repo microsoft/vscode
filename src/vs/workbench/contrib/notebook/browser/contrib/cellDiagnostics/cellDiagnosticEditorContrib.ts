@@ -15,6 +15,7 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { Iterable } from 'vs/base/common/iterator';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 
 type CellDiagnostic = {
 	cellUri: URI;
@@ -58,19 +59,32 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 			this.enabled = true;
 			if (!this.listening) {
 				this.listening = true;
-				this._register(this.notebookExecutionStateService.onDidChangeExecution((e) => this.handleChangeExecutionState(e)));
+				this._register(Event.accumulate<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>(
+					this.notebookExecutionStateService.onDidChangeExecution, 200
+				)((e) => this.handleChangeExecutionState(e)));
 			}
 		}
 	}
 
-	private handleChangeExecutionState(e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) {
-		const notebookUri = this.notebookEditor.textModel?.uri;
-		if (this.enabled && e.type === NotebookExecutionType.cell && notebookUri && e.affectsNotebook(notebookUri)) {
-			if (!!e.changed) {
-				// cell is running
-				this.clear(e.cellHandle);
-			} else {
-				this.setDiagnostics(e.cellHandle);
+
+
+	private handleChangeExecutionState(changes: (ICellExecutionStateChangedEvent | IExecutionStateChangedEvent)[]) {
+		if (!this.enabled) {
+			return;
+		}
+
+		const handled = new Set<number>();
+		for (const e of changes.reverse()) {
+
+			const notebookUri = this.notebookEditor.textModel?.uri;
+			if (e.type === NotebookExecutionType.cell && notebookUri && e.affectsNotebook(notebookUri) && !handled.has(e.cellHandle)) {
+				handled.add(e.cellHandle);
+				if (!!e.changed) {
+					// cell is running
+					this.clear(e.cellHandle);
+				} else {
+					this.setDiagnostics(e.cellHandle);
+				}
 			}
 		}
 	}

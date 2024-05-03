@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { waitForState } from 'vs/base/common/observable';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -88,6 +89,7 @@ suite('notebookCellDiagnostics', () => {
 			};
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
 
+			await waitForState(cell.excecutionError, error => !!error);
 			assert.strictEqual(cell?.excecutionError.get()?.message, 'error');
 		}, instantiationService);
 	});
