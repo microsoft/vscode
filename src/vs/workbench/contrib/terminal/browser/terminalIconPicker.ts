@@ -51,11 +51,12 @@ export class TerminalIconPicker extends Disposable {
 	}
 
 	async pickIcons(eventSource?: 'inline-tab' | 'other'): Promise<ThemeIcon | undefined> {
-		const dimension = new Dimension(486, 260);
-		const target = eventSource === 'inline-tab' ?
-			getActiveDocument().getElementById('terminal') :
+		const isEventSourceInlineTab = eventSource === 'inline-tab';
+		const dimension = isEventSourceInlineTab ? new Dimension(486, 1000) : new Dimension(486, 260);
+		const target = isEventSourceInlineTab ?
+			getActiveDocument().getElementById('workbench.parts.panel') :
 			getActiveDocument().getElementById('workbench.parts.editor');
-		const position = eventSource === 'inline-tab' ? HoverPosition.LEFT : HoverPosition.BELOW;
+		const position = isEventSourceInlineTab ? HoverPosition.LEFT : HoverPosition.BELOW;
 		return new Promise<ThemeIcon | undefined>(resolve => {
 			this._register(this._iconSelectBox.onDidSelect(e => {
 				resolve(e);
@@ -66,7 +67,7 @@ export class TerminalIconPicker extends Disposable {
 				content: this._iconSelectBox.domNode,
 				target: target || getActiveDocument().body,
 				position: {
-					hoverPosition: position
+					hoverPosition: position,
 				},
 				persistence: {
 					sticky: true,
