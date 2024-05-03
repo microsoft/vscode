@@ -21,8 +21,9 @@ import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browse
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecutionError, ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { observableValue } from 'vs/base/common/observable';
 
 export const outputDisplayLimit = 500;
 
@@ -143,6 +144,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	get outputsViewModels() {
 		return this._outputViewModels;
 	}
+
+	readonly excecutionError = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
 
 	constructor(
 		viewType: string,

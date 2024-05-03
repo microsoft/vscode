@@ -15,7 +15,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import { INotebookCellActionContext, NotebookCellAction, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/common/notebookCellDiagnosticsService';
 import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 registerAction2(class extends NotebookCellAction {
@@ -35,8 +34,7 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		if (context.cell instanceof CodeCellViewModel) {
-			const cellErrors = accessor.get(INotebookCellDiagnosticsService);
-			const error = cellErrors.getCellExecutionError(context.cell.uri);
+			const error = context.cell.excecutionError.get();
 			if (error?.location) {
 				const location = Range.lift({
 					startLineNumber: error.location.startLineNumber + 1,

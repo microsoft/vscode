@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { autorun } from 'vs/base/common/observable';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
@@ -12,7 +13,6 @@ import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/bro
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { INotebookCellDiagnosticsService } from 'vs/workbench/contrib/notebook/common/notebookCellDiagnosticsService';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -59,7 +59,6 @@ export class CellContextKeyManager extends Disposable {
 		private element: ICellViewModel | undefined,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
-		@INotebookCellDiagnosticsService private readonly _notebookCellDiagnosticsService: INotebookCellDiagnosticsService,
 	) {
 		super();
 
@@ -103,7 +102,9 @@ export class CellContextKeyManager extends Disposable {
 
 		if (element instanceof CodeCellViewModel) {
 			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
-			this.elementDisposables.add(this._notebookCellDiagnosticsService.onDidDiagnosticsChange(() => this.updateForDiagnostics()));
+			this.elementDisposables.add(autorun(reader => {
+				this.cellHasErrorDiagnostics.set(!!reader.readObservable(element.excecutionError));
+			}));
 		}
 
 		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
@@ -121,7 +122,6 @@ export class CellContextKeyManager extends Disposable {
 			this.updateForCollapseState();
 			this.updateForOutputs();
 			this.updateForChat();
-			this.updateForDiagnostics();
 
 			this.cellLineNumbers.set(this.element!.lineNumbers);
 			this.cellResource.set(this.element!.uri.toString());
@@ -246,11 +246,5 @@ export class CellContextKeyManager extends Disposable {
 		}
 
 		this.cellGeneratedByChat.set(chatController.isCellGeneratedByChat(this.element));
-	}
-
-	private updateForDiagnostics() {
-		if (this.element instanceof CodeCellViewModel) {
-			this.cellHasErrorDiagnostics.set(!!this._notebookCellDiagnosticsService.getCellExecutionError(this.element.uri));
-		}
 	}
 }
