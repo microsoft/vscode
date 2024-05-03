@@ -30,7 +30,7 @@
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
 		"src/vs/base/test/common/filters.perf.data.js": true,
-		"src/vs/base/test/node/uri.test.data.txt": true,
+		"src/vs/base/test/node/uri.perf.data.txt": true,
 		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
 	},
