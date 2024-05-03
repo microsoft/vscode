@@ -284,7 +284,7 @@ class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntr
 	}
 }
 
-class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
+export class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 	constructor(
 		private _getEntries: () => OutlineEntry[],
@@ -332,7 +332,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 	}
 }
 
-class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutline, OutlineEntry> {
+export class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutline, OutlineEntry> {
 	constructor(
 		private _getEntries: () => OutlineEntry[],
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -343,7 +343,10 @@ class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutline, Ou
 		const showCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
 		const showMarkdownHeadersOnly = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
 
-		for (const entry of element instanceof NotebookCellOutline ? (this._getEntries()) : element.children) {
+		const isOutline = element instanceof NotebookCellOutline;
+		const entries = isOutline ? this._getEntries() : element.children;
+
+		for (const entry of entries) {
 			if (entry.cell.cellKind === CellKind.Markup) {
 				if (!showMarkdownHeadersOnly) {
 					yield entry;
@@ -362,7 +365,7 @@ class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutline, Ou
 	}
 }
 
-class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<OutlineEntry> {
+export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<OutlineEntry> {
 	constructor(
 		private _getActiveElement: () => OutlineEntry | undefined,
 		// @IConfigurationService private readonly _configurationService: IConfigurationService, // TODO: @Yoyokrazy will need this service once we start filtering entries at this layer
