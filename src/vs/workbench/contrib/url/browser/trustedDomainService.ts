@@ -9,10 +9,8 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TRUSTED_DOMAINS_STORAGE_KEY, readAuthenticationTrustedDomains, readStaticTrustedDomains, readWorkspaceTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { TRUSTED_DOMAINS_STORAGE_KEY, readStaticTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 
 export const ITrustedDomainService = createDecorator<ITrustedDomainService>('ITrustedDomainService');
 
@@ -30,41 +28,13 @@ export interface ITrustedDomainService {
 export class TrustedDomainService extends Disposable implements ITrustedDomainService {
 	_serviceBrand: undefined;
 
-	private _readWorkspaceTrustedDomainsResult: WindowIdleValue<Promise<string[]>>;
-	private _workspaceTrustedDomainsCache: string[] = [];
-
-	private _readAuthenticationTrustedDomainsResult: WindowIdleValue<Promise<string[]>>;
-	private _authenticationTrustedDomainsCache: string[] = [];
-
 	private _staticTrustedDomainsResult!: WindowIdleValue<string[]>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
-
-		const initAuthenticationTrustedDomainsResult = () => new WindowIdleValue(mainWindow, () =>
-			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains)
-				.then(domains => this._authenticationTrustedDomainsCache = domains));
-
-		this._readAuthenticationTrustedDomainsResult = initAuthenticationTrustedDomainsResult();
-		this._authenticationService.onDidRegisterAuthenticationProvider(() => {
-			this._readAuthenticationTrustedDomainsResult?.dispose();
-			this._readAuthenticationTrustedDomainsResult = initAuthenticationTrustedDomainsResult();
-		});
-
-		const initWorkspaceTrustedDomainsResult = () => new WindowIdleValue(mainWindow, () =>
-			this._instantiationService.invokeFunction(readWorkspaceTrustedDomains)
-				.then(domains => this._workspaceTrustedDomainsCache = domains));
-
-		this._readWorkspaceTrustedDomainsResult = initWorkspaceTrustedDomainsResult();
-		this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
-			this._readWorkspaceTrustedDomainsResult?.dispose();
-			this._readWorkspaceTrustedDomainsResult = initWorkspaceTrustedDomainsResult();
-		});
 
 		const initStaticDomainsResult = () => {
 			return new WindowIdleValue(mainWindow, () => {
@@ -83,9 +53,8 @@ export class TrustedDomainService extends Disposable implements ITrustedDomainSe
 	}
 
 	async isValid(resource: URI): Promise<boolean> {
-		const [workspaceDomains, userDomains] = await Promise.all([this._readWorkspaceTrustedDomainsResult.value, this._readAuthenticationTrustedDomainsResult.value]);
 		const { defaultTrustedDomains, trustedDomains, } = this._instantiationService.invokeFunction(readStaticTrustedDomains);
-		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
+		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains];
 
 		return isURLDomainTrusted(resource, allTrustedDomains);
 	}
@@ -93,8 +62,6 @@ export class TrustedDomainService extends Disposable implements ITrustedDomainSe
 	isValidSync(resource: URI): boolean {
 		const allTrustedDomains = [
 			...this._staticTrustedDomainsResult.value,
-			...this._workspaceTrustedDomainsCache,
-			...this._authenticationTrustedDomainsCache
 		];
 
 		return isURLDomainTrusted(resource, allTrustedDomains);
