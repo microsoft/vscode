@@ -226,8 +226,6 @@ export class Response implements IResponse {
 				return '';
 			} else if (part.kind === 'progressMessage') {
 				return '';
-			} else if (part.kind === 'warning') {
-				return '';
 			} else {
 				return part.content.value;
 			}
