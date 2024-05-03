@@ -629,6 +629,12 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * @param focus The focus behavior.
 	 */
 	focus(focus: QuickPickFocus): void;
+
+	/**
+	 * Programmatically accepts an item. Used internally for keyboard navigation.
+	 * @param inBackground Whether you are accepting an item in the background and keeping the picker open.
+	 */
+	accept(inBackground?: boolean): void;
 }
 
 /**
