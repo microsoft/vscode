@@ -155,6 +155,11 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				markdownDescription: localize('proxyKerberosServicePrincipal', "Overrides the principal service name for Kerberos authentication with the HTTP proxy. A default based on the proxy hostname is used when this is not set."),
 				restricted: true
 			},
+			'http.noProxy': {
+				type: 'string',
+				markdownDescription: localize('noProxy', "The noProxy variable specifies domain names, separated by commas, for which proxy settings should be ignored for HTTP/HTTPS requests made by extensions."),
+				restricted: true
+			},
 			'http.proxyAuthorization': {
 				type: ['null', 'string'],
 				default: null,
