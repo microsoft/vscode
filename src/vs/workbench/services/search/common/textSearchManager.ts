@@ -200,7 +200,7 @@ export class TextSearchManager {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
-		const options = <TextSearchOptions>{
+		const options = {
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
@@ -210,7 +210,7 @@ export class TextSearchManager {
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults,
+			maxResults: this.query.maxResults ?? Number.MAX_SAFE_INTEGER,
 			previewOptions: this.query.previewOptions,
 			afterContext: this.query.afterContext,
 			beforeContext: this.query.beforeContext
