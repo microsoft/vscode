@@ -1073,8 +1073,14 @@ export class DebugService implements IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	addFunctionBreakpoint(opts?: IFunctionBreakpointOptions, id?: string): void {
+	async addFunctionBreakpoint(opts?: IFunctionBreakpointOptions, id?: string): Promise<void> {
 		this.model.addFunctionBreakpoint(opts ?? { name: '' }, id);
+		// If opts not provided, sending the breakpoint is handled by a later to call to `updateFunctionBreakpoint`
+		if (opts) {
+			this.debugStorage.storeBreakpoints(this.model);
+			await this.sendFunctionBreakpoints();
+			this.debugStorage.storeBreakpoints(this.model);
+		}
 	}
 
 	async updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): Promise<void> {
