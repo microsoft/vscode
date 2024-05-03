@@ -130,6 +130,7 @@ declare module 'vscode' {
 		 * the confirmation is accepted or rejected
 		 */
 		confirmation(title: string, message: string, data: any): ChatResponseStream;
+
 		/**
 		 * Push a warning to this stream. Short-hand for
 		 * `push(new ChatResponseWarningPart(message))`.
@@ -142,6 +143,10 @@ declare module 'vscode' {
 		push(part: ExtendedChatResponsePart): ChatResponseStream;
 	}
 
+	/**
+	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
+	 * Does it show up in history?
+	 */
 	export interface ChatRequest {
 		/**
 		 * The `data` for any confirmations that were accepted
