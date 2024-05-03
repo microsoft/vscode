@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
+import { autorun } from 'vs/base/common/observable';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
-import { CellDiagnostics } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnosticEditorContrib';
 import { NotebookStatusBarController } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
-import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookCellStatusBarItem, CellStatusbarAlignment } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class DiagnosticCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar.diagtnostic';
@@ -41,21 +41,16 @@ class DiagnosticCellStatusBarItem extends Disposable {
 		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly cell: CodeCellViewModel,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
-		this._update();
-		const editor = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
-		const diagnostics = editor?.getContribution<CellDiagnostics>(CellDiagnostics.ID);
-		if (diagnostics) {
-			this._register(diagnostics.onDidDiagnosticsChange(() => this._update()));
-		}
+		this._register(autorun((reader) => this.updateSparkleItem(reader.readObservable(cell.excecutionError))));
+
 	}
 
-	private async _update() {
+	private async updateSparkleItem(error: ICellExecutionError | undefined) {
 		let item: INotebookCellStatusBarItem | undefined;
 
-		if (!!this.cell.excecutionError.get()) {
+		if (error?.location) {
 			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
 			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
 
