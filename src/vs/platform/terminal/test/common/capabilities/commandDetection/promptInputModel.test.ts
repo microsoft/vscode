@@ -361,6 +361,87 @@ suite('PromptInputModel', () => {
 			await writePromise('c');
 			await assertPromptInput(`echo "a\nb\nc|`);
 		});
+
+		test('navigate left in multi-line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "a\n|b`);
+
+			await writePromise('\x1b[@c');
+			await assertPromptInput(`echo "a\nc|b`);
+
+			await writePromise('\x1b[K\n\r\∙ ');
+			await assertPromptInput(`echo "a\nc\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nc\nb|`);
+
+			await writePromise(' foo');
+			await assertPromptInput(`echo "a\nc\nb foo|`);
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput(`echo "a\nc\nb |foo`);
+		});
+
+		test('navigate up in multi-line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "foo');
+			await assertPromptInput(`echo "foo|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\n|`);
+
+			await writePromise('bar');
+			await assertPromptInput(`echo "foo\nbar|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\nbar\n|`);
+
+			await writePromise('baz');
+			await assertPromptInput(`echo "foo\nbar\nbaz|`);
+
+			await writePromise('\x1b[A');
+			await assertPromptInput(`echo "foo\nbar|\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nba|r\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nb|ar\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\n|bar\nbaz`);
+
+			await writePromise('\x1b[1;9H');
+			await assertPromptInput(`echo "|foo\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "f|oo\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "fo|o\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "foo|\nbar\nbaz`);
+		});
 	});
 
 	// To "record a session" for these tests:
