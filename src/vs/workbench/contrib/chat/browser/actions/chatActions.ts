@@ -60,7 +60,6 @@ class OpenChatGlobalAction extends Action2 {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
 			title: localize2('openChat', "Open Chat"),
-			precondition: CONTEXT_CHAT_ENABLED,
 			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,

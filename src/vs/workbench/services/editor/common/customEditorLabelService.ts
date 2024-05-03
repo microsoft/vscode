@@ -6,13 +6,14 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { ParsedPattern, parse as parseGlob } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isAbsolute, parse as parsePath, ParsedPath } from 'vs/base/common/path';
-import { relativePath as getRelativePath } from 'vs/base/common/resources';
+import { isAbsolute, parse as parsePath, ParsedPath, dirname } from 'vs/base/common/path';
+import { dirname as resourceDirname, relativePath as getRelativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { MRUCache } from 'vs/base/common/map';
 
 interface ICustomEditorLabelObject {
 	readonly [key: string]: string;
@@ -39,6 +40,8 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	private patterns: ICustomEditorLabelPattern[] = [];
 	private enabled = true;
 
+	private cache = new MRUCache<string, string | null>(1000);
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -64,6 +67,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 			// Cache the patterns
 			else if (e.affectsConfiguration(CustomEditorLabelService.SETTING_ID_PATTERNS)) {
+				this.cache.clear();
 				this.storeCustomPatterns();
 				this._onDidChange.fire();
 			}
@@ -112,24 +116,33 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	}
 
 	getName(resource: URI): string | undefined {
-		if (!this.enabled) {
+		if (!this.enabled || this.patterns.length === 0) {
 			return undefined;
 		}
-		return this.applyPatterns(resource);
+
+		const key = resource.toString();
+		const cached = this.cache.get(key);
+		if (cached !== undefined) {
+			return cached ?? undefined;
+		}
+
+		const result = this.applyPatterns(resource);
+		this.cache.set(key, result ?? null);
+
+		return result;
 	}
 
 	private applyPatterns(resource: URI): string | undefined {
-		if (this.patterns.length === 0) {
-			return undefined;
-		}
-
 		const root = this.workspaceContextService.getWorkspaceFolder(resource);
 		let relativePath: string | undefined;
 
 		for (const pattern of this.patterns) {
 			let relevantPath: string;
 			if (root && !pattern.isAbsolutePath) {
-				relevantPath = relativePath = relativePath ?? getRelativePath(root.uri, resource) ?? resource.path;
+				if (!relativePath) {
+					relativePath = getRelativePath(resourceDirname(root.uri), resource) ?? resource.path;
+				}
+				relevantPath = relativePath;
 			} else {
 				relevantPath = resource.path;
 			}
@@ -154,7 +167,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 					return parsedPath.ext.slice(1);
 				default: { // dirname and dirname(arg)
 					const n = variable === 'dirname' ? 0 : parseInt(arg);
-					const nthDir = this.getNthDirname(relevantPath, n);
+					const nthDir = this.getNthDirname(dirname(relevantPath), n);
 					if (nthDir) {
 						return nthDir;
 					}
@@ -167,19 +180,19 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 	private getNthDirname(path: string, n: number): string | undefined {
 		// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
+		path = path.startsWith('/') ? path.slice(1) : path;
 		const pathFragments = path.split('/');
 
 		const length = pathFragments.length;
 
-		let nthDir;
+		let nth;
 		if (n < 0) {
-			const nth = Math.abs(n) - 1;
-			nthDir = pathFragments[nth];
+			nth = Math.abs(n) - 1;
 		} else {
-			const nth = length - 1 - n - 1; // -1 for the filename, -1 for 0-based index
-			nthDir = pathFragments[nth];
+			nth = length - n - 1;
 		}
 
+		const nthDir = pathFragments[nth];
 		if (nthDir === undefined || nthDir === '') {
 			return undefined;
 		}

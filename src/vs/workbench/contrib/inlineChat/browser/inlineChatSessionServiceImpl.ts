@@ -80,8 +80,8 @@ class BridgeAgent implements IChatAgentImplementation {
 			throw new Error('FAILED to find last input');
 		}
 
-		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.values[0];
-		const inlineChatContext = typeof inlineChatContextValue?.value === 'string' && JSON.parse(inlineChatContextValue.value);
+		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.value;
+		const inlineChatContext = typeof inlineChatContextValue === 'string' && JSON.parse(inlineChatContextValue);
 
 		const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
@@ -229,6 +229,7 @@ export class InlineChatError extends Error {
 
 const _bridgeAgentId = 'brigde.editor';
 const _inlineChatContext = '_inlineChatContext';
+const _inlineChatDocument = '_inlineChatDocument';
 
 class InlineChatContext {
 
@@ -298,14 +299,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 				if (!fakeProviders.has(agent.id)) {
 					fakeProviders.set(agent.id, _inlineChatService.addProvider(_instaService.createInstance(AgentInlineChatProvider, agent)));
-					this._logService.info(`ADDED inline chat provider for agent ${agent.id}`);
+					this._logService.debug(`ADDED inline chat provider for agent ${agent.id}`);
 				}
 			}
 
 			for (const [id] of fakeProviders) {
 				if (!providersNow.has(id)) {
 					fakeProviders.deleteAndDispose(id);
-					this._logService.info(`REMOVED inline chat provider for agent ${id}`);
+					this._logService.debug(`REMOVED inline chat provider for agent ${id}`);
 				}
 			}
 		}));
@@ -317,7 +318,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				id: _bridgeAgentId,
 				name: 'editor',
 				extensionId: nullExtensionDescription.identifier,
-				extensionPublisher: '',
+				extensionPublisherDisplayName: '',
+				extensionDisplayName: '',
+				extensionPublisherId: '',
 				isDefault: true,
 				locations: [ChatAgentLocation.Editor],
 				get slashCommands(): IChatAgentCommand[] {
@@ -360,13 +363,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 			if (otherEditorAgent) {
 				bridgeStore.clear();
-				_logService.info(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
+				_logService.debug(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
 
 			} else if (!myEditorAgent) {
 				bridgeStore.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions, data => {
 					this._lastResponsesFromBridgeAgent.set(data.id, data.response);
 				}));
-				_logService.info(`ADDED bridge agent "${agentData.id}"`);
+				_logService.debug(`ADDED bridge agent "${agentData.id}"`);
 			}
 		};
 
@@ -382,10 +385,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			async (_message, _arg, model) => {
 				for (const [, data] of this._sessions) {
 					if (data.session.chatModel === model) {
-						return [{
-							level: 'full',
-							value: JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange))
-						}];
+						return JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange));
+					}
+				}
+				return undefined;
+			}
+		));
+		this._store.add(chatVariableService.registerVariable(
+			{ name: _inlineChatDocument, description: '', hidden: true },
+			async (_message, _arg, model) => {
+				for (const [, data] of this._sessions) {
+					if (data.session.chatModel === model) {
+						return data.session.textModelN.uri;
 					}
 				}
 				return undefined;
@@ -503,13 +514,15 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 						for (const item of response.response.value) {
 							if (item.kind === 'markdownContent') {
 								markdownContent.value += item.content.value;
-							} else if (item.kind === 'textEdit') {
-								for (const edit of item.edits) {
-									raw.edits.edits.push({
-										resource: item.uri,
-										textEdit: edit,
-										versionId: undefined
-									});
+							} else if (item.kind === 'textEditGroup') {
+								for (const group of item.edits) {
+									for (const edit of group) {
+										raw.edits.edits.push({
+											resource: item.uri,
+											textEdit: edit,
+											versionId: undefined
+										});
+									}
 								}
 							}
 						}
@@ -524,10 +537,17 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							e.request.id,
 							e.request.response
 						);
+
 					}
 				}
 
 				session.addExchange(new SessionExchange(session.lastInput!, inlineResponse));
+
+				if (inlineResponse instanceof ReplyResponse && inlineResponse.untitledTextModel) {
+					this._textModelService.createModelReference(inlineResponse.untitledTextModel.resource).then(ref => {
+						store.add(ref);
+					});
+				}
 			});
 		}));
 
@@ -779,10 +799,7 @@ export class AgentInlineChatProvider implements IInlineChatSessionProvider {
 			variables: {
 				variables: [{
 					name: InlineChatContext.variableName,
-					values: [{
-						level: 'full',
-						value: JSON.stringify(new InlineChatContext(request.previewDocument, request.selection, request.wholeRange))
-					}]
+					value: JSON.stringify(new InlineChatContext(request.previewDocument, request.selection, request.wholeRange))
 				}]
 			}
 		}, part => {

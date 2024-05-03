@@ -15,7 +15,7 @@ import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IThre
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint, Thread, StackFrame, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
+import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint, DebugThread, DebugStackFrame, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebugVisualization, IDebugVisualizationContext, IDebuggerContribution, DebugVisualizationType, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
@@ -29,6 +29,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { coalesce } from 'vs/base/common/arrays';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -44,8 +45,8 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
 	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
-	onDidChangeActiveStackItem: Event<vscode.Thread | vscode.StackFrame | undefined>;
-	activeStackItem: vscode.Thread | vscode.StackFrame | undefined;
+	onDidChangeActiveStackItem: Event<vscode.DebugThread | vscode.DebugStackFrame | undefined>;
+	activeStackItem: vscode.DebugThread | vscode.DebugStackFrame | undefined;
 
 	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
 	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
@@ -97,8 +98,8 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
-	private _activeStackItem: vscode.Thread | vscode.StackFrame | undefined;
-	private readonly _onDidChangeActiveStackItem: Emitter<vscode.Thread | vscode.StackFrame | undefined>;
+	private _activeStackItem: vscode.DebugThread | vscode.DebugStackFrame | undefined;
+	private readonly _onDidChangeActiveStackItem: Emitter<vscode.DebugThread | vscode.DebugStackFrame | undefined>;
 
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
@@ -144,7 +145,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>();
 
-		this._onDidChangeActiveStackItem = new Emitter<vscode.Thread | vscode.StackFrame | undefined>();
+		this._onDidChangeActiveStackItem = new Emitter<vscode.DebugThread | vscode.DebugStackFrame | undefined>();
 
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 
@@ -278,11 +279,11 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	// extension debug API
 
 
-	get activeStackItem(): vscode.Thread | vscode.StackFrame | undefined {
+	get activeStackItem(): vscode.DebugThread | vscode.DebugStackFrame | undefined {
 		return this._activeStackItem;
 	}
 
-	get onDidChangeActiveStackItem(): Event<vscode.Thread | vscode.StackFrame | undefined> {
+	get onDidChangeActiveStackItem(): Event<vscode.DebugThread | vscode.DebugStackFrame | undefined> {
 		return this._onDidChangeActiveStackItem.event;
 	}
 
@@ -769,13 +770,13 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	}
 
 	public async $acceptStackFrameFocus(focusDto: IThreadFocusDto | IStackFrameFocusDto | undefined): Promise<void> {
-		let focus: vscode.Thread | vscode.StackFrame | undefined;
+		let focus: vscode.DebugThread | vscode.DebugStackFrame | undefined;
 		if (focusDto) {
 			const session = await this.getSession(focusDto.sessionId);
 			if (focusDto.kind === 'thread') {
-				focus = new Thread(session.api, focusDto.threadId);
+				focus = new DebugThread(session.api, focusDto.threadId);
 			} else {
-				focus = new StackFrame(session.api, focusDto.threadId, focusDto.frameId);
+				focus = new DebugStackFrame(session.api, focusDto.threadId, focusDto.frameId);
 			}
 		}
 
@@ -935,7 +936,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private definesDebugType(ed: IExtensionDescription, type: string) {
 		if (ed.contributes) {
-			const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+			const debuggers = ed.contributes['debuggers'];
 			if (debuggers && debuggers.length > 0) {
 				for (const dbg of debuggers) {
 					// only debugger contributions with a "label" are considered a "defining" debugger contribution
@@ -961,7 +962,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		return Promise.race([
 			Promise.all(promises).then(result => {
-				const trackers = <vscode.DebugAdapterTracker[]>result.filter(t => !!t);	// filter null
+				const trackers = coalesce(result);	// filter null
 				if (trackers.length > 0) {
 					return new MultiTracker(trackers);
 				}

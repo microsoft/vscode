@@ -83,20 +83,6 @@ declare module 'vscode' {
 		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
 
-	/** @deprecated */
-	export interface ChatProgressMessage {
-		message: string;
-	}
-
-	/** @deprecated */
-
-	export interface ChatContentReference {
-		/**
-		 * The resource that was referenced.
-		 */
-		reference: Uri | Location;
-	}
-
 	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
@@ -125,6 +111,11 @@ declare module 'vscode' {
 
 	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart;
 
+	export class ChatResponseWarningPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
 	export interface ChatResponseStream {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
@@ -139,6 +130,14 @@ declare module 'vscode' {
 		 * the confirmation is accepted or rejected
 		 */
 		confirmation(title: string, message: string, data: any): ChatResponseStream;
+		/**
+		 * Push a warning to this stream. Short-hand for
+		 * `push(new ChatResponseWarningPart(message))`.
+		 *
+		 * @param message A warning message
+		 * @returns This stream.
+		 */
+		warning(message: string | MarkdownString): ChatResponseStream;
 
 		push(part: ExtendedChatResponsePart): ChatResponseStream;
 	}
@@ -177,6 +176,7 @@ declare module 'vscode' {
 		insertText?: string;
 		detail?: string;
 		documentation?: string | MarkdownString;
+		command?: Command;
 
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
@@ -254,11 +254,30 @@ declare module 'vscode' {
 		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
 	}
 
+	/**
+	 * The detail level of this chat variable value.
+	 */
+	export enum ChatVariableLevel {
+		Short = 1,
+		Medium = 2,
+		Full = 3
+	}
+
 	export interface ChatVariableValue {
 		/**
-		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
+		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
 		 */
-		kind?: string;
+		level: ChatVariableLevel;
+
+		/**
+		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
+		 */
+		value: string | Uri;
+
+		/**
+		 * A description of this value, which could be provided to the LLM as a hint.
+		 */
+		description?: string;
 	}
 
 	export interface ChatVariableResolverResponseStream {

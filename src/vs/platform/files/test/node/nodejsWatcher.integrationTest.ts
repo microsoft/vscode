@@ -8,7 +8,7 @@ import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangeFilter, FileChangeType } from 'vs/platform/files/common/files';
 import { INonRecursiveWatchRequest, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
 import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -759,5 +759,37 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		await changeFuture;
 
 		assert.strictEqual(watcher.isSuspended(request), false);
+	});
+
+	test('event type filter (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		const request = { path: filePath, excludes: [], recursive: false, filter: FileChangeFilter.UPDATED | FileChangeFilter.DELETED, correlationId: 1 };
+		await watcher.watch([request]);
+
+		// Change file
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, 1);
+		await Promises.writeFile(filePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, 1);
+		await Promises.unlink(filePath);
+		await changeFuture;
+	});
+
+	test('event type filter (folder watch)', async function () {
+		const request = { path: testDir, excludes: [], recursive: false, filter: FileChangeFilter.UPDATED | FileChangeFilter.DELETED, correlationId: 1 };
+		await watcher.watch([request]);
+
+		// Change file
+		const filePath = join(testDir, 'lorem.txt');
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, 1);
+		await Promises.writeFile(filePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, 1);
+		await Promises.unlink(filePath);
+		await changeFuture;
 	});
 });

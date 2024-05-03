@@ -17,11 +17,11 @@ import { CorruptZipMessage } from 'vs/base/node/zip';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionVerificationStatus } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignaturetErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { ExtensionSignatureVerificationError, ExtensionSignatureVerificationCode, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionsDownloader extends Disposable {
 
@@ -60,14 +60,11 @@ export class ExtensionsDownloader extends Disposable {
 		if (verifySignature && this.shouldVerifySignature(extension)) {
 			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
 			try {
-				verificationStatus = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath, this.logService.getLevel() === LogLevel.Trace);
+				verificationStatus = await this.extensionSignatureVerificationService.verify(extension.identifier.id, location.fsPath, signatureArchiveLocation.fsPath);
 			} catch (error) {
 				const sigError = error as ExtensionSignatureVerificationError;
 				verificationStatus = sigError.code;
-				if (sigError.output) {
-					this.logService.trace(`Extension signature verification details for ${extension.identifier.id} ${extension.version}:\n${sigError.output}`);
-				}
-				if (verificationStatus === ExtensionSignaturetErrorCode.PackageIsInvalidZip || verificationStatus === ExtensionSignaturetErrorCode.SignatureArchiveIsInvalidZip) {
+				if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
 					try {
 						// Delete the downloaded vsix before throwing the error
 						await this.delete(location);
@@ -84,14 +81,6 @@ export class ExtensionsDownloader extends Disposable {
 					this.logService.error(error);
 				}
 			}
-		}
-
-		if (verificationStatus === true) {
-			this.logService.info(`Extension signature is verified: ${extension.identifier.id}`);
-		} else if (verificationStatus === false) {
-			this.logService.info(`Extension signature verification is not done: ${extension.identifier.id}`);
-		} else {
-			this.logService.warn(`Extension signature verification failed with error '${verificationStatus}': ${extension.identifier.id}`);
 		}
 
 		return { location, verificationStatus };

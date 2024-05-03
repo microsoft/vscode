@@ -11,7 +11,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
@@ -51,6 +51,56 @@ class AccessibleViewNextAction extends Action2 {
 }
 registerAction2(AccessibleViewNextAction);
 
+
+class AccessibleViewNextCodeBlockAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.NextCodeBlock,
+			precondition: ContextKeyExpr.and(accessibleViewContainsCodeBlocks, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Chat)),
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
+			icon: Codicon.arrowRight,
+			menu:
+			{
+				...accessibleViewMenu,
+				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+			},
+			title: localize('editor.action.accessibleViewNextCodeBlock', "Accessible View: Next Code Block")
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IAccessibleViewService).navigateToCodeBlock('next');
+	}
+}
+registerAction2(AccessibleViewNextCodeBlockAction);
+
+
+class AccessibleViewPreviousCodeBlockAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.PreviousCodeBlock,
+			precondition: ContextKeyExpr.and(accessibleViewContainsCodeBlocks, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Chat)),
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
+			icon: Codicon.arrowLeft,
+			menu: {
+				...accessibleViewMenu,
+				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+			},
+			title: localize('editor.action.accessibleViewPreviousCodeBlock', "Accessible View: Previous Code Block")
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IAccessibleViewService).navigateToCodeBlock('previous');
+	}
+}
+registerAction2(AccessibleViewPreviousCodeBlockAction);
 
 class AccessibleViewPreviousAction extends Action2 {
 	constructor() {
