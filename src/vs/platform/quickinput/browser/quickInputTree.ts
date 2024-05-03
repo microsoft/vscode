@@ -856,11 +856,6 @@ export class QuickInputTree extends Disposable {
 				case KeyCode.Space:
 					this.toggleCheckbox();
 					break;
-				case KeyCode.KeyA:
-					if (isMacintosh ? e.metaKey : e.ctrlKey) {
-						this._tree.setFocus(this._itemElements);
-					}
-					break;
 			}
 
 			this._onKeyDown.fire(event);
