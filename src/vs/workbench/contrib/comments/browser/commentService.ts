@@ -30,7 +30,7 @@ interface IResourceCommentThreadEvent {
 	commentInfos: ICommentInfo[];
 }
 
-export interface ICommentInfo extends CommentInfo {
+export interface ICommentInfo<T = IRange> extends CommentInfo<T> {
 	uniqueOwner: string;
 	label?: string;
 }
@@ -67,7 +67,7 @@ export interface ICommentController {
 	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void>;
 	deleteCommentThreadMain(commentThreadId: string): void;
 	toggleReaction(uri: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo>;
+	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo<IRange>>;
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
 	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void>;
 }

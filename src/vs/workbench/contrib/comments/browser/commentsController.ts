@@ -46,7 +46,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 export const ID = 'editor.contrib.review';
 
@@ -408,7 +407,7 @@ export function revealCommentThread(commentService: ICommentService, editorServi
 			preserveFocus: preserveFocus,
 			selection: range ?? new Range(1, 1, 1, 1)
 		}
-	} as ITextResourceEditorInput, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
+	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 		if (editor) {
 			const control = editor.getControl();
 			if (threadToReveal && isCodeEditor(control)) {
@@ -1169,10 +1168,10 @@ export class CommentController implements IEditorContribution {
 		const picks: QuickPickInput[] = commentInfos.map((commentInfo) => {
 			const { ownerId, extensionId, label } = commentInfo.action;
 
-			return <IQuickPickItem>{
-				label: label || extensionId,
+			return {
+				label: label ?? extensionId ?? ownerId,
 				id: ownerId
-			};
+			} satisfies IQuickPickItem;
 		});
 
 		return picks;
