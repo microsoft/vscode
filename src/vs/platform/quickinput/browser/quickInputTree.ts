@@ -20,7 +20,7 @@ import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { OS, isMacintosh } from 'vs/base/common/platform';
+import { OS } from 'vs/base/common/platform';
 import { memoize } from 'vs/base/common/decorators';
 import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
