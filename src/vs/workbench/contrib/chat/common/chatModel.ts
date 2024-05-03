@@ -23,14 +23,10 @@ import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedCha
 import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export interface IChatPromptVariableData {
-	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
-}
-
 export interface IChatRequestVariableEntry {
 	name: string;
 	range?: IOffsetRange;
-	values: IChatRequestVariableValue[];
+	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 }
 
