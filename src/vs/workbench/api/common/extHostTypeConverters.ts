@@ -16,6 +16,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { basename } from 'vs/base/common/resources';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined, isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -40,10 +41,8 @@ import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
-import { IInlineChatCommandFollowup, IInlineChatFollowup, IInlineChatReplyFollowup, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -54,7 +53,6 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { ThemeIcon } from 'vs/base/common/themables';
 
 export namespace Command {
 
@@ -578,7 +576,7 @@ export namespace DecorationRenderOptions {
 export namespace TextEdit {
 
 	export function from(edit: vscode.TextEdit): languages.TextEdit {
-		return <languages.TextEdit>{
+		return {
 			text: edit.newText,
 			eol: edit.newEol && EndOfLine.from(edit.newEol),
 			range: Range.from(edit.range)
@@ -2241,28 +2239,6 @@ export namespace ChatFollowup {
 	}
 }
 
-export namespace ChatInlineFollowup {
-	export function from(followup: vscode.InteractiveEditorFollowup): IInlineChatFollowup {
-		if ('commandId' in followup) {
-			return {
-				kind: 'command',
-				title: followup.title ?? '',
-				commandId: followup.commandId ?? '',
-				when: followup.when ?? '',
-				args: followup.args
-			} satisfies IInlineChatCommandFollowup;
-		} else {
-			return {
-				kind: 'reply',
-				message: followup.message,
-				title: followup.title,
-				tooltip: followup.tooltip,
-			} satisfies IInlineChatReplyFollowup;
-		}
-
-	}
-}
-
 export namespace LanguageModelMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
@@ -2282,76 +2258,6 @@ export namespace LanguageModelMessage {
 			return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
 		} else {
 			throw new Error('Invalid LanguageModelMessage');
-		}
-	}
-}
-
-export namespace ChatVariable {
-	export function objectTo(variableObject: Record<string, IChatRequestVariableValue[]>): Record<string, vscode.ChatVariableValue[]> {
-		const result: Record<string, vscode.ChatVariableValue[]> = {};
-		for (const key of Object.keys(variableObject)) {
-			result[key] = variableObject[key].map(ChatVariable.to);
-		}
-
-		return result;
-	}
-
-	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
-		return {
-			level: ChatVariableLevel.to(variable.level),
-			kind: variable.kind,
-			value: isUriComponents(variable.value) ? URI.revive(variable.value) : variable.value,
-			description: variable.description
-		};
-	}
-
-	export function from(variable: vscode.ChatVariableValue): IChatRequestVariableValue {
-		return {
-			level: ChatVariableLevel.from(variable.level),
-			kind: variable.kind,
-			value: variable.value,
-			description: variable.description
-		};
-	}
-}
-
-export namespace ChatVariableLevel {
-
-
-	export function to(level: 'short' | 'medium' | 'full'): vscode.ChatVariableLevel {
-		switch (level) {
-			case 'short': return types.ChatVariableLevel.Short;
-			case 'medium': return types.ChatVariableLevel.Medium;
-			case 'full':
-			default:
-				return types.ChatVariableLevel.Full;
-		}
-	}
-	export function from(level: vscode.ChatVariableLevel): 'short' | 'medium' | 'full' {
-		switch (level) {
-			case types.ChatVariableLevel.Short: return 'short';
-			case types.ChatVariableLevel.Medium: return 'medium';
-			case types.ChatVariableLevel.Full:
-			default:
-				return 'full';
-		}
-	}
-}
-
-export namespace InteractiveEditorResponseFeedbackKind {
-
-	export function to(kind: InlineChatResponseFeedbackKind): vscode.InteractiveEditorResponseFeedbackKind {
-		switch (kind) {
-			case InlineChatResponseFeedbackKind.Helpful:
-				return types.InteractiveEditorResponseFeedbackKind.Helpful;
-			case InlineChatResponseFeedbackKind.Unhelpful:
-				return types.InteractiveEditorResponseFeedbackKind.Unhelpful;
-			case InlineChatResponseFeedbackKind.Undone:
-				return types.InteractiveEditorResponseFeedbackKind.Undone;
-			case InlineChatResponseFeedbackKind.Accepted:
-				return types.InteractiveEditorResponseFeedbackKind.Accepted;
-			case InlineChatResponseFeedbackKind.Bug:
-				return types.InteractiveEditorResponseFeedbackKind.Bug;
 		}
 	}
 }
@@ -2628,7 +2534,7 @@ export namespace ChatLocation {
 
 export namespace ChatAgentValueReference {
 	export function to(request: IChatRequestVariableEntry): vscode.ChatValueReference {
-		const value = request.values[0]?.value;
+		const value = request.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
 		}
@@ -2645,7 +2551,7 @@ export namespace ChatAgentCompletionItem {
 	export function from(item: vscode.ChatCompletionItem, commandsConverter: CommandsConverter, disposables: DisposableStore): extHostProtocol.IChatAgentCompletionItem {
 		return {
 			label: item.label,
-			values: item.values.map(ChatVariable.from),
+			value: item.values[0].value,
 			insertText: item.insertText,
 			detail: item.detail,
 			documentation: item.documentation,
