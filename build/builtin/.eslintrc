@@ -9,7 +9,8 @@
 		"no-cond-assign": 0,
 		"no-unused-vars": 1,
 		"no-extra-semi": "warn",
-		"semi": "warn"
+		"semi": "warn",
+		"local/code-no-dangerous-type-assertions": "warn"
 	},
 	"extends": "eslint:recommended",
 	"parserOptions": {
