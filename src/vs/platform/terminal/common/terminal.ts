@@ -115,6 +115,7 @@ export const enum TerminalSettingId {
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
+
 	// Debug settings that are hidden from user
 
 	/** Simulated latency applied to all calls made to the pty host */
