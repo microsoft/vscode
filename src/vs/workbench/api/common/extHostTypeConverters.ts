@@ -43,7 +43,6 @@ import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chat
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
-import { IInlineChatCommandFollowup, IInlineChatFollowup, IInlineChatReplyFollowup, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -2240,28 +2239,6 @@ export namespace ChatFollowup {
 	}
 }
 
-export namespace ChatInlineFollowup {
-	export function from(followup: vscode.InteractiveEditorFollowup): IInlineChatFollowup {
-		if ('commandId' in followup) {
-			return {
-				kind: 'command',
-				title: followup.title ?? '',
-				commandId: followup.commandId ?? '',
-				when: followup.when ?? '',
-				args: followup.args
-			} satisfies IInlineChatCommandFollowup;
-		} else {
-			return {
-				kind: 'reply',
-				message: followup.message,
-				title: followup.title,
-				tooltip: followup.tooltip,
-			} satisfies IInlineChatReplyFollowup;
-		}
-
-	}
-}
-
 export namespace LanguageModelMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
@@ -2281,24 +2258,6 @@ export namespace LanguageModelMessage {
 			return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
 		} else {
 			throw new Error('Invalid LanguageModelMessage');
-		}
-	}
-}
-
-export namespace InteractiveEditorResponseFeedbackKind {
-
-	export function to(kind: InlineChatResponseFeedbackKind): vscode.InteractiveEditorResponseFeedbackKind {
-		switch (kind) {
-			case InlineChatResponseFeedbackKind.Helpful:
-				return types.InteractiveEditorResponseFeedbackKind.Helpful;
-			case InlineChatResponseFeedbackKind.Unhelpful:
-				return types.InteractiveEditorResponseFeedbackKind.Unhelpful;
-			case InlineChatResponseFeedbackKind.Undone:
-				return types.InteractiveEditorResponseFeedbackKind.Undone;
-			case InlineChatResponseFeedbackKind.Accepted:
-				return types.InteractiveEditorResponseFeedbackKind.Accepted;
-			case InlineChatResponseFeedbackKind.Bug:
-				return types.InteractiveEditorResponseFeedbackKind.Bug;
 		}
 	}
 }
