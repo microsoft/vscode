@@ -198,6 +198,9 @@ __vsc_update_cwd() {
 }
 
 __vsc_command_output_start() {
+	if [[ -z "$__vsc_first_prompt" ]]; then
+		builtin return
+	fi
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 	builtin printf '\e]633;C\a'
 }
