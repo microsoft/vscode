@@ -20,7 +20,7 @@ export interface IChatVariableData {
 	canTakeArgument?: boolean;
 }
 
-export type IChatRequestVariableValue = string | URI | Location/*  | unknown */;
+export type IChatRequestVariableValue = string | URI | Location | unknown;
 
 export type IChatVariableResolverProgress =
 	| IChatContentReference

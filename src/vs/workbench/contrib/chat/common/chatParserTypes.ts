@@ -183,7 +183,6 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestDynamicVariablePart).text,
-					// TODO check for old format
 					revive((part as ChatRequestDynamicVariablePart).data) as any
 				);
 			} else {
