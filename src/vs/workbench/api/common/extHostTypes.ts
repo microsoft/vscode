@@ -4462,6 +4462,10 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
 	}
 
+	static Blocked(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.Blocked.name);
+	}
+
 	readonly code: string;
 
 	constructor(message?: string, code?: string, cause?: Error) {

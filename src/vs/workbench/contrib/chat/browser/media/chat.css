@@ -410,14 +410,16 @@
 	padding-inline-start: unset;
 }
 
-.chat-warning .chat-warning-codicon {
+.chat-notification-widget .chat-info-codicon,
+.chat-notification-widget .chat-error-codicon,
+.chat-notification-widget .chat-warning-codicon {
 	margin-left: 3px;
 	display: flex;
 	align-items: start;
 	gap: 6px;
 }
 
-.interactive-item-container .value .chat-warning .rendered-markdown p {
+.interactive-item-container .value .chat-notification-widget .rendered-markdown p {
 	margin: 0;
 }
 
@@ -431,7 +433,9 @@
 	margin-bottom: 0px;
 }
 
-.chat-warning .chat-warning-codicon .codicon {
+.chat-notification-widget .chat-info-codicon .codicon,
+.chat-notification-widget .chat-error-codicon .codicon,
+.chat-notification-widget .chat-warning-codicon .codicon {
 	margin-top: 2px;
 }
 
@@ -439,14 +443,16 @@
 	margin-top: 1px;
 }
 
-.chat-warning .chat-warning-codicon .codicon-warning {
+.chat-notification-widget .chat-warning-codicon .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
+.chat-notification-widget .chat-error-codicon .codicon-error,
 .interactive-response .interactive-response-error-details .codicon-error {
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
 
+.chat-notification-widget .chat-info-codicon .codicon-info,
 .interactive-response .interactive-response-error-details .codicon-info {
 	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
@@ -615,7 +621,7 @@
 }
 
 .interactive-response-progress-tree,
-.interactive-item-container .chat-warning,
+.interactive-item-container .chat-notification-widget,
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
@@ -689,7 +695,7 @@
 	margin-bottom: 16px;
 }
 
-.interactive-item-container .chat-warning {
+.interactive-item-container .chat-notification-widget {
 	display: flex;
 	flex-direction: row;
 	gap: 6px;
