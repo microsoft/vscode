@@ -60,14 +60,7 @@ export const enum ShellIntegrationOscPs {
 }
 
 /**
- * VS Code-specific shell integration sequences. Some of these are based on more common alternatives
- * like those pioneered in FinalTerm. The decision to move to entirely custom sequences was to try
- * to improve reliability and prevent the possibility of applications confusing the terminal. If
- * multiple shell integration scripts run, VS Code will prioritize the VS Code-specific ones.
- *
- * It's recommended that authors of shell integration scripts use the common sequences (eg. 133)
- * when building general purpose scripts and the VS Code-specific (633) when targeting only VS Code
- * or when there are no other alternatives.
+ * Sequences pioneered by FinalTerm.
  */
 const enum FinalTermOscPt {
 	/**
