@@ -442,6 +442,31 @@ suite('PromptInputModel', () => {
 			await writePromise('\x1b[C');
 			await assertPromptInput(`echo "foo|\nbar\nbaz`);
 		});
+
+		test('navigating up when first line contains invalid/stale trailing whitespace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "foo      \x1b[6D');
+			await assertPromptInput(`echo "foo|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\n|`);
+
+			await writePromise('bar');
+			await assertPromptInput(`echo "foo\nbar|`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nba|r`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nb|ar`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\n|bar`);
+		});
 	});
 
 	// To "record a session" for these tests:

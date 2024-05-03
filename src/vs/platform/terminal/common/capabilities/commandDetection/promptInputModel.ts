@@ -203,7 +203,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		let value = commandLine;
-		let cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.length + 1;
+		let cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.trimEnd().length + 1;
 		let ghostTextIndex = -1;
 
 		// Detect ghost text by looking for italic or dim text in or after the cursor and
