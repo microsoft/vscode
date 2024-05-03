@@ -486,6 +486,7 @@
 	border-color: var(--vscode-notebook-inactiveFocusedCellBorder);
 	box-sizing: border-box;
 	transform: translateX(3px);
+	pointer-events: none;
 }
 .terminal-command-guide.top {
 	border-top-left-radius: 1px;
@@ -511,22 +512,6 @@
 .terminal-scroll-highlight,
 .terminal-scroll-highlight.terminal-scroll-highlight-outline {
 	border-color: var(--vscode-focusBorder);
-}
-.hc-black .xterm-find-result-decoration,
-.hc-light .xterm-find-result-decoration {
-	outline-style: dotted !important;
-}
-
-.hc-black .xterm-find-result-decoration,
-.hc-light .xterm-find-result-decoration {
-	outline-style: solid !important;
-}
-
-.xterm-find-active-result-decoration {
-	outline-style: solid !important;
-	outline-width: 2px !important;
-	/* Ensure the active decoration is above the regular decoration */
-	z-index: 7 !important;
 }
 
 .monaco-workbench.hc-black .editor-instance .xterm.focus::before,

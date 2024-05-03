@@ -752,6 +752,7 @@ suite('ExtHost Testing', () => {
 					exclude: [new TestId(['ctrlId', 'id-b']).toString()],
 					persist: false,
 					continuous: false,
+					preserveFocus: true,
 				}]
 			]);
 

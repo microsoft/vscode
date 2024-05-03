@@ -10,9 +10,11 @@ import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { Command } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -104,11 +106,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): string | IMarkdownString {
-		const value = ref.data[0];
-		if (URI.isUri(value.value)) {
-			return new MarkdownString(this.labelService.getUriLabel(value.value, { relative: true }));
+		const value = ref.data;
+		if (URI.isUri(value)) {
+			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
 		} else {
-			return value.value.toString();
+			return (value as any).toString();
 		}
 	}
 }
@@ -207,7 +209,7 @@ export class SelectAndInsertFileAction extends Action2 {
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: [{ level: 'full', value: resource }]
+			data: resource
 		});
 	}
 }
@@ -216,7 +218,8 @@ registerAction2(SelectAndInsertFileAction);
 export interface IAddDynamicVariableContext {
 	widget: IChatWidget;
 	range: IRange;
-	variableData: IChatRequestVariableValue[];
+	variableData: IChatRequestVariableValue;
+	command?: Command;
 }
 
 function isAddDynamicVariableContext(context: any): context is IAddDynamicVariableContext {
@@ -241,9 +244,39 @@ export class AddDynamicVariableAction extends Action2 {
 			return;
 		}
 
+		let range = context.range;
+		const variableData = context.variableData;
+
+		const doCleanup = () => {
+			// Failed, remove the dangling variable prefix
+			context.widget.inputEditor.executeEdits('chatInsertDynamicVariableWithArguments', [{ range: context.range, text: `` }]);
+		};
+
+		// If this completion item has no command, return it directly
+		if (context.command) {
+			// Invoke the command on this completion item along with its args and return the result
+			const commandService = accessor.get(ICommandService);
+			const selection: string | undefined = await commandService.executeCommand(context.command.id, ...(context.command.arguments ?? []));
+			if (!selection) {
+				doCleanup();
+				return;
+			}
+
+			// Compute new range and variableData
+			const insertText = ':' + selection;
+			const insertRange = new Range(range.startLineNumber, range.endColumn, range.endLineNumber, range.endColumn + insertText.length);
+			range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + insertText.length);
+			const editor = context.widget.inputEditor;
+			const success = editor.executeEdits('chatInsertDynamicVariableWithArguments', [{ range: insertRange, text: insertText + ' ' }]);
+			if (!success) {
+				doCleanup();
+				return;
+			}
+		}
+
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			range: context.range,
-			data: context.variableData
+			range: range,
+			data: variableData
 		});
 	}
 }

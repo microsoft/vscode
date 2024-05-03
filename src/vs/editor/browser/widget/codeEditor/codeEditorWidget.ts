@@ -1570,7 +1570,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		this._modelData.view.render(true, forceRedraw);
+		this._modelData.viewModel.batchEvents(() => {
+			this._modelData!.view.render(true, forceRedraw);
+		});
 	}
 
 	public setAriaOptions(options: editorBrowser.IEditorAriaOptions): void {

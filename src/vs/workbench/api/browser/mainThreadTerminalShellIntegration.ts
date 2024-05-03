@@ -69,7 +69,10 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			currentCommand = undefined;
 			const instanceId = e.instance.instanceId;
 			instanceDataListeners.get(instanceId)?.dispose();
-			this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
+			// Send end in a microtask to ensure the data events are sent first
+			setTimeout(() => {
+				this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
+			});
 		}));
 
 		// onDidChangeTerminalShellIntegration via cwd

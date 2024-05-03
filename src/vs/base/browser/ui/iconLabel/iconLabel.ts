@@ -16,6 +16,7 @@ import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/ho
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { isString } from 'vs/base/common/types';
 import { stripIcons } from 'vs/base/common/iconLabels';
+import { URI } from 'vs/base/common/uri';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -38,6 +39,7 @@ export interface IIconLabelValueOptions {
 	disabledCommand?: boolean;
 	readonly separator?: string;
 	readonly domId?: string;
+	iconPath?: URI;
 }
 
 class FastLabelNode {
@@ -151,6 +153,20 @@ export class IconLabel extends Disposable {
 					ariaLabel += label;
 				}
 			}
+		}
+
+		const existingIconNode = this.domNode.element.querySelector('.monaco-icon-label-iconpath');
+		if (options?.iconPath) {
+			let iconNode;
+			if (!existingIconNode || !(existingIconNode instanceof HTMLElement)) {
+				iconNode = dom.$('.monaco-icon-label-iconpath');
+				this.domNode.element.prepend(iconNode);
+			} else {
+				iconNode = existingIconNode;
+			}
+			iconNode.style.backgroundImage = dom.asCSSUrl(options?.iconPath);
+		} else if (existingIconNode) {
+			existingIconNode.remove();
 		}
 
 		this.domNode.className = labelClasses.join(' ');

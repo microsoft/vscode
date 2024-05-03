@@ -10,5 +10,7 @@ export const enum AccessibilityCommandId {
 	GoToSymbol = 'editor.action.accessibleViewGoToSymbol',
 	ShowNext = 'editor.action.accessibleViewNext',
 	ShowPrevious = 'editor.action.accessibleViewPrevious',
-	AccessibleViewAcceptInlineCompletion = 'editor.action.accessibleViewAcceptInlineCompletion'
+	AccessibleViewAcceptInlineCompletion = 'editor.action.accessibleViewAcceptInlineCompletion',
+	NextCodeBlock = 'editor.action.accessibleViewNextCodeBlock',
+	PreviousCodeBlock = 'editor.action.accessibleViewPreviousCodeBlock'
 }
