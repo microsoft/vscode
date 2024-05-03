@@ -18,7 +18,7 @@ import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandb
 import { IIssueMainService, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
-import { IssueReporter } from './issueReporterService';
+import { IssueReporter } from '../browser/issueReporterService';
 import { mainWindow } from 'vs/base/browser/window';
 
 export function startup(configuration: IssueReporterWindowConfiguration) {
