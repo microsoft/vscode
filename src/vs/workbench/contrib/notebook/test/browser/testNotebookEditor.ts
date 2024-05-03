@@ -502,7 +502,7 @@ class TestCellExecution implements INotebookCellExecution {
 	}
 }
 
-class TestNotebookExecutionStateService implements INotebookExecutionStateService {
+export class TestNotebookExecutionStateService implements INotebookExecutionStateService {
 	_serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
