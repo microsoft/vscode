@@ -683,11 +683,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	setEditorSelections(editors: EditorInput[], selected: boolean): void {
-		this.redraw();
+		this.redrawTabSelections();
 	}
 
 	clearEditorSelections(): void {
-		this.redraw();
+		this.redrawTabSelections();
+	}
+
+	private redrawTabSelections(): void {
+		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			this.redrawTabSelected(tabIndex, tabContainer);
+		});
 	}
 
 	private updateEditorLabelScheduler = this._register(new RunOnceScheduler(() => this.doUpdateEditorLabels(), 0));
@@ -1490,6 +1496,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 
 		// Selected state
+		this.redrawTabSelected(tabIndex, tabContainer);
+	}
+
+	private redrawTabSelected(tabIndex: number, tabContainer: HTMLElement): void {
 		const isSelected = this.groupView.isSelected(this.tabsModel.getEditorByIndex(tabIndex)!);
 		tabContainer.classList.toggle('editor-selected', isSelected);
 	}

@@ -1069,7 +1069,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return [...this.selectedEditors];
 	}
 
-
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
 		return this.model.contains(candidate, options);
 	}
@@ -1424,7 +1423,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.titleControl.closeEditors(Array.from(movedEditors));
 		}
 
-		target.unSelectAllEditors();
 		this.unSelectAllEditors();
 
 		return !moveFailed;
