@@ -207,9 +207,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		console.log('commandStartX', this._commandStartX);
-		console.log('promptTerminator', this._lastPromptLine);
-
 		const buffer = this._xterm.buffer.active;
 		let line = buffer.getLine(commandStartY);
 		const commandLine = line?.translateToString(true, this._commandStartX);
