@@ -12,7 +12,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NotebookCellOutline, NotebookOutlinePaneProvider, NotebookQuickPickProvider } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import { NotebookBreadcrumbsProvider, NotebookCellOutline, NotebookOutlinePaneProvider, NotebookQuickPickProvider } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
@@ -111,6 +111,39 @@ suite('Notebook Outline View Providers', function () {
 		return elements;
 	}
 
+	function buildOutlineTree(entries: OutlineEntry[]): OutlineEntry[] | undefined {
+		if (entries.length > 0) {
+			const result: OutlineEntry[] = [entries[0]];
+			const parentStack: OutlineEntry[] = [entries[0]];
+
+			for (let i = 1; i < entries.length; i++) {
+				const entry = entries[i];
+
+				while (true) {
+					const len = parentStack.length;
+					if (len === 0) {
+						// root node
+						result.push(entry);
+						parentStack.push(entry);
+						break;
+
+					} else {
+						const parentCandidate = parentStack[len - 1];
+						if (parentCandidate.level < entry.level) {
+							parentCandidate.addChild(entry);
+							parentStack.push(entry);
+							break;
+						} else {
+							parentStack.pop();
+						}
+					}
+				}
+			}
+			return result;
+		}
+		return undefined;
+	}
+
 	/**
 	 * Set the configuration settings relevant to various outline views (OutlinePane, QuickPick, Breadcrumbs)
 	 *
@@ -135,6 +168,7 @@ suite('Notebook Outline View Providers', function () {
 	}
 	// #endregion
 	// #region OutlinePane
+
 	test('OutlinePane 0: Default Settings (Headers Only ON, Code cells OFF, Symbols ON)', async function () {
 		await setOutlineViewConfiguration({
 			outlineShowMarkdownHeadersOnly: true,
@@ -536,6 +570,105 @@ suite('Notebook Outline View Providers', function () {
 
 	// #endregion
 	// #region Breadcrumbs
+
+	test('Breadcrumbs 0: Code Cells On ', async function () {
+		await setOutlineViewConfiguration({
+			outlineShowMarkdownHeadersOnly: false,
+			outlineShowCodeCells: false,
+			outlineShowCodeCellSymbols: false,
+			quickPickShowAllSymbols: false,
+			breadcrumbsShowCodeCells: true
+		});
+
+		// Create models + symbols
+		const cells = [
+			createMarkupCellViewModel(1, '# h1', '$0', 0),
+			createMarkupCellViewModel(1, 'plaintext', '$1', 0),
+			createCodeCellViewModel(1, '# code cell 2', '$2'),
+			createCodeCellViewModel(1, '# code cell 3', '$3')
+		];
+		setSymbolsForTextModel([], '$0');
+		setSymbolsForTextModel([], '$1');
+		setSymbolsForTextModel([{ name: 'var2', range: {}, kind: 12 }], '$2');
+		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
+
+		// Cache symbols
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		for (const cell of cells) {
+			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		}
+
+		// Generate raw outline
+		const outlineModel = new OutlineEntry(-1, -1, createCodeCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
+		for (const cell of cells) {
+			entryFactory.getOutlineEntries(cell, OutlineTarget.OutlinePane, 0).forEach(entry => outlineModel.addChild(entry));
+		}
+		const outlineTree = buildOutlineTree([...outlineModel.children]);
+
+		// Generate filtered outline (view model)
+		const breadcrumbsProvider = new NotebookBreadcrumbsProvider(() => [...outlineTree![0].children][1]);
+		const results = breadcrumbsProvider.getBreadcrumbElements();
+
+		// Validate
+		assert.equal(results.length, 3);
+
+		assert.equal(results[0].label, 'fakeRoot');
+		assert.equal(results[0].level, -1);
+
+		assert.equal(results[1].label, 'h1');
+		assert.equal(results[1].level, 1);
+
+		assert.equal(results[2].label, '# code cell 2');
+		assert.equal(results[2].level, 7);
+	});
+
+	test.skip('Breadcrumbs 1: Code Cells Off ', async function () {
+		await setOutlineViewConfiguration({
+			outlineShowMarkdownHeadersOnly: false,
+			outlineShowCodeCells: false,
+			outlineShowCodeCellSymbols: false,
+			quickPickShowAllSymbols: false,
+			breadcrumbsShowCodeCells: false
+		});
+
+		// Create models + symbols
+		const cells = [
+			createMarkupCellViewModel(1, '# h1', '$0', 0),
+			createMarkupCellViewModel(1, 'plaintext', '$1', 0),
+			createCodeCellViewModel(1, '# code cell 2', '$2'),
+			createCodeCellViewModel(1, '# code cell 3', '$3')
+		];
+		setSymbolsForTextModel([], '$0');
+		setSymbolsForTextModel([], '$1');
+		setSymbolsForTextModel([{ name: 'var2', range: {}, kind: 12 }], '$2');
+		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
+
+		// Cache symbols
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		for (const cell of cells) {
+			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		}
+
+		// Generate raw outline
+		const outlineModel = new OutlineEntry(-1, -1, createCodeCellViewModel(), 'fakeRoot', false, false, undefined, undefined);
+		for (const cell of cells) {
+			entryFactory.getOutlineEntries(cell, OutlineTarget.OutlinePane, 0).forEach(entry => outlineModel.addChild(entry));
+		}
+		const outlineTree = buildOutlineTree([...outlineModel.children]);
+
+		// Generate filtered outline (view model)
+		const breadcrumbsProvider = new NotebookBreadcrumbsProvider(() => [...outlineTree![0].children][1]);
+		const results = breadcrumbsProvider.getBreadcrumbElements();
+
+		// Validate
+		assert.equal(results.length, 2);
+
+		assert.equal(results[0].label, 'fakeRoot');
+		assert.equal(results[0].level, -1);
+
+		assert.equal(results[1].label, 'h1');
+		assert.equal(results[1].level, 1);
+	});
 
 	// #endregion
 });
