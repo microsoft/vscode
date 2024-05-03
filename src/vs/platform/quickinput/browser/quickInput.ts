@@ -42,6 +42,10 @@ export const inQuickInputContext = ContextKeyExpr.has(inQuickInputContextKeyValu
 export const quickInputTypeContextKeyValue = 'quickInputType';
 export const QuickInputTypeContextKey = new RawContextKey<QuickInputType>(quickInputTypeContextKeyValue, undefined, localize('quickInputType', "The type of the currently visible quick input"));
 
+export const endOfQuickInputBoxContextKeyValue = 'cursorAtEndOfQuickInputBox';
+export const EndOfQuickInputBoxContextKey = new RawContextKey<boolean>(endOfQuickInputBoxContextKeyValue, false, localize('cursorAtEndOfQuickInputBox', "Whether the cursor in the quick input is at the end of the input box"));
+export const endOfQuickInputBoxContext = ContextKeyExpr.has(endOfQuickInputBoxContextKeyValue);
+
 export interface IQuickInputOptions {
 	idPrefix: string;
 	container: HTMLElement;
@@ -841,27 +845,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this.ui.inputBox.onDidChange(value => {
 					this.doSetValue(value, true /* skip update since this originates from the UI */);
 				}));
-			// Keybindings for the input box or list if there is no input box
-			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
-				switch (event.keyCode) {
-					case KeyCode.RightArrow:
-						if (!this._canAcceptInBackground) {
-							return; // needs to be enabled
-						}
-
-						if (!this.ui.inputBox.isSelectionAtEnd()) {
-							return; // ensure input box selection at end
-						}
-
-						if (this.activeItems[0]) {
-							this._selectedItems = [this.activeItems[0]];
-							this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-							this.handleAccept(true);
-						}
-
-						break;
-				}
-			}));
 			this.visibleDisposables.add(this.ui.onDidAccept(() => {
 				if (this.canSelectMany) {
 					// if there are no checked elements, it means that an onDidChangeSelection never fired to overwrite
@@ -1125,6 +1108,18 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		// To allow things like space to check/uncheck items
 		if (this.canSelectMany) {
 			this.ui.list.domFocus();
+		}
+	}
+
+	accept(inBackground?: boolean | undefined): void {
+		if (inBackground && !this._canAcceptInBackground) {
+			return; // needs to be enabled
+		}
+
+		if (this.activeItems[0]) {
+			this._selectedItems = [this.activeItems[0]];
+			this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+			this.handleAccept(inBackground ?? false);
 		}
 	}
 }

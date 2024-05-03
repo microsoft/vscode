@@ -12,7 +12,7 @@ import * as languages from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
+import { ICommentController, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
 import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
@@ -416,46 +416,50 @@ export class MainThreadCommentController implements ICommentController {
 			};
 		}
 
-		const ret: languages.CommentThread<IRange | ICellRange>[] = [];
+		const ret: languages.CommentThread<IRange>[] = [];
 		for (const thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
 			if (commentThread.resource === resource.toString()) {
-				ret.push(commentThread);
+				if (commentThread.isDocumentCommentThread()) {
+					ret.push(commentThread);
+				}
 			}
 		}
 
 		const commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
 
-		return <ICommentInfo>{
+		return {
 			uniqueOwner: this._uniqueId,
 			label: this.label,
 			threads: ret,
 			commentingRanges: {
 				resource: resource,
 				ranges: commentingRanges?.ranges || [],
-				fileComments: commentingRanges?.fileComments
+				fileComments: !!commentingRanges?.fileComments
 			}
 		};
 	}
 
 	async getNotebookComments(resource: URI, token: CancellationToken) {
 		if (resource.scheme !== Schemas.vscodeNotebookCell) {
-			return <INotebookCommentInfo>{
+			return {
 				uniqueOwner: this._uniqueId,
 				label: this.label,
 				threads: []
 			};
 		}
 
-		const ret: languages.CommentThread<IRange | ICellRange>[] = [];
+		const ret: languages.CommentThread<ICellRange>[] = [];
 		for (const thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
 			if (commentThread.resource === resource.toString()) {
-				ret.push(commentThread);
+				if (!commentThread.isDocumentCommentThread()) {
+					ret.push(commentThread as languages.CommentThread<ICellRange>);
+				}
 			}
 		}
 
-		return <INotebookCommentInfo>{
+		return {
 			uniqueOwner: this._uniqueId,
 			label: this.label,
 			threads: ret

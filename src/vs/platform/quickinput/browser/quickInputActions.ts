@@ -9,8 +9,9 @@ import { PartialExcept } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { inQuickInputContext, quickInputTypeContextKeyValue } from 'vs/platform/quickinput/browser/quickInput';
+import { endOfQuickInputBoxContext, inQuickInputContext, quickInputTypeContextKeyValue } from 'vs/platform/quickinput/browser/quickInput';
 import { IQuickInputService, IQuickPick, QuickInputType, QuickPickFocus } from 'vs/platform/quickinput/common/quickInput';
 
 const defaultCommandAndKeybindingRule = {
@@ -178,3 +179,22 @@ if (isMacintosh) {
 }
 
 //#endregion
+
+//#region Accept
+
+registerQuickPickCommandAndKeybindingRule(
+	{
+		id: 'quickInput.acceptInBackground',
+		// If we are in the quick pick but the input box is not focused or our cursor is at the end of the input box
+		when: ContextKeyExpr.and(defaultCommandAndKeybindingRule.when, ContextKeyExpr.or(InputFocusedContext.negate(), endOfQuickInputBoxContext)),
+		primary: KeyCode.RightArrow,
+		// Need a little extra weight to ensure this keybinding is preferred over the default cmd+alt+right arrow keybinding
+		// https://github.com/microsoft/vscode/blob/1451e4fbbbf074a4355cc537c35b547b80ce1c52/src/vs/workbench/browser/parts/editor/editorActions.ts#L1178-L1195
+		weight: KeybindingWeight.WorkbenchContrib + 50,
+		handler: (accessor) => {
+			const currentQuickPick = accessor.get(IQuickInputService).currentQuickInput as IQuickPick<any>;
+			currentQuickPick?.accept(true);
+		},
+	},
+	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
+);
