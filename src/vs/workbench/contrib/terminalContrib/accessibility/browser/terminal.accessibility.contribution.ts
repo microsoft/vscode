@@ -371,7 +371,7 @@ registerTerminalAction({
 	},
 	run: (c, accessor) => {
 		const accessibleViewService = accessor.get(IAccessibleViewService);
-		accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
+		accessibleViewService.setPosition(new Position(1, 1), true);
 	}
 });
 
