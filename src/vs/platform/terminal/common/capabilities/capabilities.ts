@@ -181,7 +181,7 @@ export interface ICommandDetectionCapability {
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setContinuationPrompt(value: string): void;
-	setPromptTerminator(value: string): void;
+	setPromptTerminator(value: string, lastPromptLine: string): void;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
 	setIsCommandStorageDisabled(): void;

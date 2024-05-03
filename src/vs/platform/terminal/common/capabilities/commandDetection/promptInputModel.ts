@@ -54,6 +54,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _commandStartMarker: IMarker | undefined;
 	private _commandStartX: number = 0;
+	private _lastPromptLine: string | undefined;
 	private _continuationPrompt: string | undefined;
 
 	private _lastUserInput: string = '';
@@ -112,6 +113,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._sync();
 	}
 
+	setLastPromptLine(value: string): void {
+		this._lastPromptLine = value;
+		this._sync();
+	}
+
 	setConfidentCommandLine(value: string): void {
 		if (this._value !== value) {
 			this._value = value;
@@ -148,6 +154,17 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._cursorIndex = 0;
 		this._onDidStartInput.fire(this._createStateObject());
 		this._onDidChangeInput.fire(this._createStateObject());
+
+		// Trigger a sync if prompt terminator is set as that could adjust the command start X
+		if (this._lastPromptLine) {
+			if (this._commandStartX !== this._lastPromptLine.length) {
+				const line = this._xterm.buffer.active.getLine(this._commandStartMarker.line);
+				if (line?.translateToString(true).startsWith(this._lastPromptLine)) {
+					this._commandStartX = this._lastPromptLine.length;
+					this._sync();
+				}
+			}
+		}
 	}
 
 	private _handleCommandExecuted() {
