@@ -8,13 +8,11 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ISettableObservable, constObservable, derived, observableValue } from 'vs/base/common/observable';
 import 'vs/css!./media/inlineChat';
-import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -39,17 +37,13 @@ import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/commo
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { isNonEmptyArray, tail } from 'vs/base/common/arrays';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -618,34 +612,9 @@ export class InlineChatWidget {
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
-const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-	isSimpleWidget: true,
-	contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-		SnippetController2.ID,
-		SuggestController.ID
-	])
-};
-
-const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
-	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
-	renderMarginRevertIcon: false,
-	diffCodeLens: false,
-	scrollBeyondLastLine: false,
-	stickyScroll: { enabled: false },
-	originalAriaLabel: localize('original', 'Original'),
-	modifiedAriaLabel: localize('modified', 'Modified'),
-	diffAlgorithm: 'advanced',
-	readOnly: true,
-	isInEmbeddedEditor: true
-};
-
-
 export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
-
-	private readonly _previewDiffEditor: Lazy<EmbeddedDiffEditorWidget>;
-	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
 
 	constructor(
 		private readonly _parentEditor: ICodeEditor,
@@ -661,40 +630,13 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IHoverService hoverService: IHoverService,
 	) {
 		super(ChatAgentLocation.Editor, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
-
-		// preview editors
-		this._previewDiffEditor = new Lazy(() => this._store.add(instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
-			useInlineViewWhenSpaceIsLimited: false,
-			..._previewEditorEditorOptions,
-			onlyShowAccessibleDiffViewer: accessibilityService.isScreenReaderOptimized(),
-		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, _parentEditor)));
 	}
 
 	// --- layout
 
-	override get contentHeight(): number {
-		let result = super.contentHeight;
-		if (this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel()) {
-			result += 14 + Math.min(300, this._previewDiffEditor.value.getContentHeight());
-		}
-		if (this._accessibleViewer.value) {
-			result += this._accessibleViewer.value.height;
-		}
-		return result;
-	}
-
 	protected override _doLayout(dimension: Dimension): void {
 
 		let newHeight = dimension.height;
-
-
-		if (this._previewDiffEditor.hasValue) {
-			const previewDiffDim = new Dimension(dimension.width - 12, Math.min(300, this._previewDiffEditor.value.getContentHeight()));
-			this._elements.previewDiff.style.width = `${previewDiffDim.width}px`;
-			this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
-			this._previewDiffEditor.value.layout(previewDiffDim);
-			newHeight -= previewDiffDim.height + 14;
-		}
 
 		if (this._accessibleViewer.value) {
 			this._accessibleViewer.value.width = dimension.width - 12;
@@ -708,7 +650,6 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 	}
 
 	override reset() {
-		this.hideEditsPreview();
 		this._accessibleViewer.clear();
 		super.reset();
 	}
@@ -728,58 +669,6 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		);
 
 		this._onDidChangeHeight.fire();
-
-	}
-
-	// --- preview
-
-	showEditsPreview(hunks: HunkData, textModel0: ITextModel, textModelN: ITextModel) {
-
-		if (hunks.size === 0) {
-			this.hideEditsPreview();
-			return;
-		}
-
-		this._elements.previewDiff.classList.remove('hidden');
-
-		this._previewDiffEditor.value.setModel({ original: textModel0, modified: textModelN });
-
-		// joined ranges
-		let originalLineRange: LineRange | undefined;
-		let modifiedLineRange: LineRange | undefined;
-		for (const item of hunks.getInfo()) {
-			const [first0] = item.getRanges0();
-			const [firstN] = item.getRangesN();
-
-			originalLineRange = !originalLineRange ? LineRange.fromRangeInclusive(first0) : originalLineRange.join(LineRange.fromRangeInclusive(first0));
-			modifiedLineRange = !modifiedLineRange ? LineRange.fromRangeInclusive(firstN) : modifiedLineRange.join(LineRange.fromRangeInclusive(firstN));
-		}
-
-		if (!originalLineRange || !modifiedLineRange) {
-			this.hideEditsPreview();
-			return;
-		}
-
-		const hiddenOriginal = LineRange.invert(originalLineRange, textModel0);
-		const hiddenModified = LineRange.invert(modifiedLineRange, textModelN);
-		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lr => LineRange.asRange(lr, textModel0)), 'diff-hidden');
-		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lr => LineRange.asRange(lr, textModelN)), 'diff-hidden');
-		this._previewDiffEditor.value.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
-
-		this._onDidChangeHeight.fire();
-	}
-
-	hideEditsPreview() {
-		this._elements.previewDiff.classList.add('hidden');
-		if (this._previewDiffEditor.hasValue) {
-			this._previewDiffEditor.value.setModel(null);
-		}
-		this._previewDiffModel.clear();
-		this._onDidChangeHeight.fire();
-	}
-
-	showsAnyPreview() {
-		return !this._elements.previewDiff.classList.contains('hidden');
 	}
 }
 
