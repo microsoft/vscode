@@ -1043,7 +1043,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		let codeBlockIndex = 0;
 		const result = this.renderer.render(markdown, {
-			remoteImageIsAllowed: (uri) => this.trustedDomainService.isValidSync(uri),
+			remoteImageIsAllowed: (uri) => this.trustedDomainService.isValid(uri),
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const index = codeBlockIndex++;

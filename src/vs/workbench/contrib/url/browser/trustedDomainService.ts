@@ -17,12 +17,7 @@ export const ITrustedDomainService = createDecorator<ITrustedDomainService>('ITr
 export interface ITrustedDomainService {
 	_serviceBrand: undefined;
 
-	isValid(resource: URI): Promise<boolean>;
-
-	/**
-	 * This method does the validity check using the latest cached values of trusted domains, which may be slightly out of date.
-	 */
-	isValidSync(resource: URI): boolean;
+	isValid(resource: URI): boolean;
 }
 
 export class TrustedDomainService extends Disposable implements ITrustedDomainService {
@@ -52,17 +47,9 @@ export class TrustedDomainService extends Disposable implements ITrustedDomainSe
 		}));
 	}
 
-	async isValid(resource: URI): Promise<boolean> {
+	isValid(resource: URI): boolean {
 		const { defaultTrustedDomains, trustedDomains, } = this._instantiationService.invokeFunction(readStaticTrustedDomains);
 		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains];
-
-		return isURLDomainTrusted(resource, allTrustedDomains);
-	}
-
-	isValidSync(resource: URI): boolean {
-		const allTrustedDomains = [
-			...this._staticTrustedDomainsResult.value,
-		];
 
 		return isURLDomainTrusted(resource, allTrustedDomains);
 	}
@@ -98,7 +85,7 @@ function normalizeURL(url: string | URI): string {
  * - There's no subdomain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
  * - Star matches all subdomains. For example https://*.microsoft.com matches https://www.microsoft.com and https://foo.bar.microsoft.com
  */
-export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
+export function isURLDomainTrusted(url: URI, trustedDomains: string[]): boolean {
 	url = URI.parse(normalizeURL(url));
 	trustedDomains = trustedDomains.map(normalizeURL);
 
