@@ -16,7 +16,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ISuggestController, ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 
@@ -25,6 +25,8 @@ import { TerminalCapability, type ITerminalCapabilityStore } from 'vs/platform/t
 import type { IPromptInputModel, IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 
 const enum VSCodeOscPt {
 	Completions = 'Completions',
@@ -72,6 +74,15 @@ const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	13: Codicon.symbolKeyword
 };
 
+export interface ISuggestController {
+	selectPreviousSuggestion(): void;
+	selectPreviousPageSuggestion(): void;
+	selectNextSuggestion(): void;
+	selectNextPageSuggestion(): void;
+	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
+	hideSuggestWidget(): void;
+}
+
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -91,6 +102,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
 
+	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
+
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
@@ -99,6 +112,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
 	) {
@@ -140,11 +154,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _requestCompletions(): void {
 		// TODO: Debounce? Prevent this flooding the channel
-		this._onAcceptedCompletion.fire('\x1b[24~e');
+		this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
-		const enabled = this._terminalConfigurationService.config.suggest?.enabled || this._terminalConfigurationService.config.shellIntegration?.suggestEnabled;
+		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
+		const enabled = config.enabled || this._terminalConfigurationService.config.shellIntegration?.suggestEnabled;
 		if (!enabled) {
 			return;
 		}
@@ -155,7 +170,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				let sent = false;
 
 				// Quick suggestions
-				if (this._terminalConfigurationService.config.suggest?.quickSuggestions) {
+				if (config.quickSuggestions) {
 					const completionPrefix = promptInputState.value.substring(0, promptInputState.cursorIndex);
 					if (promptInputState.cursorIndex === 1 || completionPrefix.match(/([\s\[])[^\s]$/)) {
 						this._requestCompletions();
@@ -164,7 +179,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 
 				// Trigger characters
-				if (this._terminalConfigurationService.config.suggest?.suggestOnTriggerCharacters && !sent) {
+				if (config.suggestOnTriggerCharacters && !sent) {
 					const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
 					if (lastChar?.match(/[\\\/\-]/)) {
 						this._requestCompletions();

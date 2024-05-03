@@ -20,6 +20,7 @@ export interface IRawChatParticipantContribution {
 	description?: string;
 	isDefault?: boolean;
 	isSticky?: boolean;
+	sampleRequest?: string;
 	commands?: IRawChatCommandContribution[];
 	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];

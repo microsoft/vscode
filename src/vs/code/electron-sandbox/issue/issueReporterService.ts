@@ -38,7 +38,8 @@ interface SearchResult {
 enum IssueSource {
 	VSCode = 'vscode',
 	Extension = 'extension',
-	Marketplace = 'marketplace'
+	Marketplace = 'marketplace',
+	Unknown = 'unknown'
 }
 
 export class IssueReporter extends Disposable {
@@ -289,6 +290,13 @@ export class IssueReporter extends Disposable {
 					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 				});
 			}
+
+			// Resets placeholder
+			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
+			if (descriptionTextArea) {
+				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
+			}
+
 			this.updatePreviewButtonState();
 			this.setSourceOptions();
 			this.render();
@@ -332,6 +340,17 @@ export class IssueReporter extends Disposable {
 				return;
 			} else {
 				hide(problemSourceHelpText);
+			}
+
+			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
+			if (value === IssueSource.VSCode) {
+				descriptionTextArea.placeholder = localize('vscodePlaceholder', "E.g Workbench is missing problems panel");
+			} else if (value === IssueSource.Extension) {
+				descriptionTextArea.placeholder = localize('extensionPlaceholder', "E.g. Missing alt text on extension readme image");
+			} else if (value === IssueSource.Marketplace) {
+				descriptionTextArea.placeholder = localize('marketplacePlaceholder', "E.g Cannot disable installed extension");
+			} else {
+				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
 			let fileOnExtension, fileOnMarketplace = false;
@@ -712,7 +731,7 @@ export class IssueReporter extends Disposable {
 		reset(typeSelect,
 			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
 			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
+			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue (freeze, slow, crash)"))
 		);
 
 		typeSelect.value = issueType.toString();
@@ -747,14 +766,14 @@ export class IssueReporter extends Disposable {
 
 		sourceSelect.innerText = '';
 		sourceSelect.append(this.makeOption('', localize('selectSource', "Select source"), true));
-		sourceSelect.append(this.makeOption('vscode', localize('vscode', "Visual Studio Code"), false));
-		sourceSelect.append(this.makeOption('extension', localize('extension', "An extension"), false));
+		sourceSelect.append(this.makeOption(IssueSource.VSCode, localize('vscode', "Visual Studio Code"), false));
+		sourceSelect.append(this.makeOption(IssueSource.Extension, localize('extension', "A VS Code extension"), false));
 		if (this.configuration.product.reportMarketplaceIssueUrl) {
-			sourceSelect.append(this.makeOption('marketplace', localize('marketplace', "Extensions marketplace"), false));
+			sourceSelect.append(this.makeOption(IssueSource.Marketplace, localize('marketplace', "Extensions Marketplace"), false));
 		}
 
 		if (issueType !== IssueType.FeatureRequest) {
-			sourceSelect.append(this.makeOption('unknown', localize('unknown', "Don't know"), false));
+			sourceSelect.append(this.makeOption(IssueSource.Unknown, localize('unknown', "Don't know"), false));
 		}
 
 		if (selected !== -1 && selected < sourceSelect.options.length) {

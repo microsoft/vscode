@@ -97,10 +97,6 @@ export const enum TerminalSettingId {
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	AllowedLinkSchemes = 'terminal.integrated.allowedLinkSchemes',
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
-	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
-	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
-	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
-	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	HideOnStartup = 'terminal.integrated.hideOnStartup',
@@ -119,17 +115,6 @@ export const enum TerminalSettingId {
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
-	AccessibleViewPreserveCursorPosition = 'terminal.integrated.accessibleViewPreserveCursorPosition',
-	AccessibleViewFocusOnCommandExecution = 'terminal.integrated.accessibleViewFocusOnCommandExecution',
-	StickyScrollEnabled = 'terminal.integrated.stickyScroll.enabled',
-	StickyScrollMaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
-	MouseWheelZoom = 'terminal.integrated.mouseWheelZoom',
-
-	// terminal.suggest.contribution
-	SuggestEnabled = 'terminal.integrated.suggest.enabled',
-	SuggestEnabledLegacy = 'terminal.integrated.shellIntegration.suggestEnabled',
-	SuggestQuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
-	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 
 	// Debug settings that are hidden from user
 

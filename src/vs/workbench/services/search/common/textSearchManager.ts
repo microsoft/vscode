@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
+import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -81,11 +81,11 @@ export class TextSearchManager {
 				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
 					limitHit: this.isLimitHit || someFolderHitLImit,
-					messages: flatten(results.map(result => {
+					messages: results.flatMap(result => {
 						if (!result?.message) { return []; }
 						if (Array.isArray(result.message)) { return result.message; }
 						else { return [result.message]; }
-					})),
+					}),
 					stats: {
 						type: this.processType
 					}
@@ -223,7 +223,7 @@ export class TextSearchManager {
 }
 
 function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
-	return <TextSearchQuery>{
+	return {
 		isCaseSensitive: patternInfo.isCaseSensitive || false,
 		isRegExp: patternInfo.isRegExp || false,
 		isWordMatch: patternInfo.isWordMatch || false,
@@ -283,7 +283,7 @@ export class TextSearchResultsCollector {
 function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
 	if (extensionResultIsMatch(data)) {
-		return <ITextSearchMatch>{
+		return {
 			preview: {
 				matches: mapArrayOrNot(data.preview.matches, m => ({
 					startLineNumber: m.start.line,
@@ -299,12 +299,12 @@ function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchRes
 				endLineNumber: r.end.line,
 				endColumn: r.end.character
 			}))
-		};
+		} satisfies ITextSearchMatch;
 	} else {
-		return <ITextSearchContext>{
+		return {
 			text: data.text,
 			lineNumber: data.lineNumber
-		};
+		} satisfies ITextSearchContext;
 	}
 }
 

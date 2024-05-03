@@ -123,6 +123,13 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				warning(value) {
+					throwIfDone(this.progress);
+					const part = new extHostTypes.ChatResponseWarningPart(value);
+					const dto = typeConvert.ChatResponseWarningPart.from(part);
+					_report(dto);
+					return this;
+				},
 				reference(value, iconPath) {
 					throwIfDone(this.reference);
 
@@ -294,7 +301,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), h.request.agentId));
+			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentValueReference.to), h.request.agentId));
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this.commands.converter)));

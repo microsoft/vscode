@@ -47,8 +47,9 @@ export class ChatMarkdownDecorationsRenderer {
 
 				result += `[${text}](${agentRefUrl}?${encodeURIComponent(part.agent.id)})`;
 			} else {
-				const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
-					|| undefined;
+				const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
+					part.data :
+					undefined;
 				const title = uri ? encodeURIComponent(this.labelService.getUriLabel(uri, { relative: true })) :
 					part instanceof ChatRequestAgentPart ? part.agent.id :
 						'';

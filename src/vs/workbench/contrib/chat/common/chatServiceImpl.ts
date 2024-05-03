@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -250,7 +251,7 @@ export class ChatService extends Disposable implements IChatService {
 				throw new Error('Expected array');
 			}
 
-			const sessions = arrayOfSessions.reduce((acc, session) => {
+			const sessions = arrayOfSessions.reduce<ISerializableChatsData>((acc, session) => {
 				// Revive serialized markdown strings in response data
 				for (const request of session.requests) {
 					if (Array.isArray(request.response)) {
@@ -267,7 +268,7 @@ export class ChatService extends Disposable implements IChatService {
 
 				acc[session.sessionId] = session;
 				return acc;
-			}, {} as ISerializableChatsData);
+			}, {});
 			return sessions;
 		} catch (err) {
 			this.error('deserializeChats', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
@@ -544,8 +545,12 @@ export class ChatService extends Disposable implements IChatService {
 					if (implicitVariablesEnabled) {
 						const implicitVariables = agent.defaultImplicitVariables;
 						if (implicitVariables) {
-							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => ({ name: v, values: await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token) } satisfies IChatRequestVariableEntry)));
-							updatedVariableData.variables.push(...resolvedImplicitVariables);
+							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => {
+								const value = await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token);
+								return value ? { name: v, value } satisfies IChatRequestVariableEntry :
+									undefined;
+							}));
+							updatedVariableData.variables.push(...coalesce(resolvedImplicitVariables));
 						}
 					}
 
