@@ -582,7 +582,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermReadyPromise.then(xterm => {
 				contribution.xtermReady?.(xterm);
 			});
-			this.onDisposed(() => {
+			this._register(this.onDisposed(() => {
 				contribution.dispose();
 				this._contributions.delete(desc.id);
 				// Just in case to prevent potential future memory leaks due to cyclic dependency.
@@ -592,7 +592,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if ('_instance' in contribution) {
 					delete contribution._instance;
 				}
-			});
+			}));
 		}
 	}
 
