@@ -1235,7 +1235,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 export interface IChatAgentCompletionItem {
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
-	values: IChatRequestVariableValueDto[];
+	value: IChatRequestVariableValueDto;
 	detail?: string;
 	documentation?: string | IMarkdownString;
 	command?: ICommandDto;
@@ -1273,7 +1273,7 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
 
 export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto[] | undefined>;
+	$resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
