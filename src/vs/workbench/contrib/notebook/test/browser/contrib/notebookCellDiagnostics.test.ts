@@ -97,7 +97,7 @@ suite('notebookCellDiagnostics', () => {
 
 			await waitForState(cell.excecutionError, error => !!error);
 			assert.strictEqual(cell?.excecutionError.get()?.message, 'error');
-			assert.equal(markerService.markers.keys.length, 1);
+			assert.equal(markerService.markers.get(cell.uri)?.length, 1);
 		}, instantiationService);
 	});
 
