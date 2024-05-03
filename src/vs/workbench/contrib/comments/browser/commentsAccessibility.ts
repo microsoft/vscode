@@ -6,17 +6,17 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { ctxCommentEditorFocused } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import * as nls from 'vs/nls';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as strings from 'vs/base/common/strings';
 import { getActiveElement } from 'vs/base/browser/dom';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
+import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 
 export namespace CommentAccessibilityHelpNLS {
 	export const intro = nls.localize('intro', "The editor contains commentable range(s). Some useful commands include:");

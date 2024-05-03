@@ -25,7 +25,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
-import { accessibleViewCurrentProviderId, accessibleViewIsShown, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
 	constructor() {

@@ -13,6 +13,7 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditor
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
+import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,8 +22,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

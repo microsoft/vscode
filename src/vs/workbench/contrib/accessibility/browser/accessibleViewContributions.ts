@@ -8,20 +8,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import * as strings from 'vs/base/common/strings';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { FocusedViewContext, NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { IAccessibleViewService, IAccessibleViewOptions, AccessibleViewType, ExtensionContentProvider } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IAction } from 'vs/base/common/actions';
@@ -32,16 +28,13 @@ import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { Extensions, IViewDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { COMMENTS_VIEW_ID, CommentsMenus } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { CommentsPanel, CONTEXT_KEY_HAS_COMMENTS } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
+import { IAccessibleViewOptions, AccessibleViewType, AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);
@@ -51,57 +44,18 @@ export function descriptionForCommand(commandId: string, msg: string, noKbMsg: s
 	return strings.format(noKbMsg, commandId);
 }
 
-export class HoverAccessibleViewContribution extends Disposable {
-	static ID: 'hoverAccessibleViewContribution';
-	private _options: IAccessibleViewOptions = { language: 'typescript', type: AccessibleViewType.View };
+export class AccesibleViewHelpContribution extends Disposable {
+	static ID: 'accesibleViewHelpContribution';
 	constructor() {
 		super();
-		this._register(AccessibleViewAction.addImplementation(95, 'hover', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			const editorHoverContent = editor ? HoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
-			if (!editor || !editorHoverContent) {
-				return false;
-			}
-			this._options.language = editor?.getModel()?.getLanguageId() ?? undefined;
-			accessibleViewService.show({
-				id: AccessibleViewProviderId.Hover,
-				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
-				provideContent() { return editorHoverContent; },
-				onClose() {
-					HoverController.get(editor)?.focus();
-				},
-				options: this._options
-			});
-			return true;
-		}, EditorContextKeys.hoverFocused));
-		this._register(AccessibleViewAction.addImplementation(90, 'extension-hover', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const contextViewService = accessor.get(IContextViewService);
-			const contextViewElement = contextViewService.getContextViewElement();
-			const extensionHoverContent = contextViewElement?.textContent ?? undefined;
-			const hoverService = accessor.get(IHoverService);
-
-			if (contextViewElement.classList.contains('accessible-view-container') || !extensionHoverContent) {
-				// The accessible view, itself, uses the context view service to display the text. We don't want to read that.
-				return false;
-			}
-			accessibleViewService.show({
-				id: AccessibleViewProviderId.Hover,
-				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
-				provideContent() { return extensionHoverContent; },
-				onClose() {
-					hoverService.showAndFocusLastHover();
-				},
-				options: this._options
-			});
-			return true;
-		}));
 		this._register(AccessibilityHelpAction.addImplementation(115, 'accessible-view', accessor => {
 			accessor.get(IAccessibleViewService).showAccessibleViewHelp();
 			return true;
 		}, accessibleViewIsShown));
+		// TODO: @meganrogge move this out, have separate types so help or view can be contributed
+		AccessibleViewRegistry.getImplementations().forEach(impl => {
+			this._register(AccessibleViewAction.addImplementation(impl.priority, impl.name, impl.implementation, impl.when));
+		});
 	}
 }
 
@@ -351,77 +305,4 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 			return show();
 		}));
 	}
-}
-
-export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
-	static ID = 'extensionAccessibilityHelpDialogContribution';
-	private _viewHelpDialogMap = this._register(new DisposableMap<string, IDisposable>());
-	constructor(@IKeybindingService keybindingService: IKeybindingService) {
-		super();
-		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
-			for (const view of e) {
-				for (const viewDescriptor of view.views) {
-					if (viewDescriptor.accessibilityHelpContent) {
-						this._viewHelpDialogMap.set(viewDescriptor.id, registerAccessibilityHelpAction(keybindingService, viewDescriptor));
-					}
-				}
-			}
-		}));
-		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsDeregistered(e => {
-			for (const viewDescriptor of e.views) {
-				if (viewDescriptor.accessibilityHelpContent) {
-					this._viewHelpDialogMap.get(viewDescriptor.id)?.dispose();
-				}
-			}
-		}));
-	}
-}
-
-function registerAccessibilityHelpAction(keybindingService: IKeybindingService, viewDescriptor: IViewDescriptor): IDisposable {
-	const disposableStore = new DisposableStore();
-	const helpContent = resolveExtensionHelpContent(keybindingService, viewDescriptor.accessibilityHelpContent);
-	if (!helpContent) {
-		throw new Error('No help content for view');
-	}
-	disposableStore.add(AccessibilityHelpAction.addImplementation(95, viewDescriptor.id, accessor => {
-		const accessibleViewService = accessor.get(IAccessibleViewService);
-		const viewsService = accessor.get(IViewsService);
-		accessibleViewService.show(new ExtensionContentProvider(
-			viewDescriptor.id,
-			{ type: AccessibleViewType.Help },
-			() => helpContent.value,
-			() => viewsService.openView(viewDescriptor.id, true)
-		));
-		return true;
-	}, FocusedViewContext.isEqualTo(viewDescriptor.id)));
-	disposableStore.add(keybindingService.onDidUpdateKeybindings(() => {
-		disposableStore.clear();
-		disposableStore.add(registerAccessibilityHelpAction(keybindingService, viewDescriptor));
-	}));
-	return disposableStore;
-}
-
-function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: MarkdownString): MarkdownString | undefined {
-	if (!content) {
-		return;
-	}
-	let resolvedContent = typeof content === 'string' ? content : content.value;
-	const matches = resolvedContent.matchAll(/\<keybinding:(?<commandId>.*)\>/gm);
-	for (const match of [...matches]) {
-		const commandId = match?.groups?.commandId;
-		if (match?.length && commandId) {
-			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
-			let kbLabel = keybinding;
-			if (!kbLabel) {
-				const args = URI.parse(`command:workbench.action.openGlobalKeybindings?${encodeURIComponent(JSON.stringify(commandId))}`);
-				kbLabel = ` [Configure a keybinding](${args})`;
-			} else {
-				kbLabel = ' (' + keybinding + ')';
-			}
-			resolvedContent = resolvedContent.replace(match[0], kbLabel);
-		}
-	}
-	const result = new MarkdownString(resolvedContent);
-	result.isTrusted = true;
-	return result;
 }

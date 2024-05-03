@@ -11,7 +11,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
@@ -26,6 +26,7 @@ import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/link
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { TerminalLinksCommandId } from 'vs/workbench/contrib/terminalContrib/links/common/terminal.links';
+import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
 
 // #region Services
 
