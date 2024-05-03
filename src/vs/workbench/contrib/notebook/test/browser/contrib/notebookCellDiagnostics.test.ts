@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { waitForState } from 'vs/base/common/observable';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
@@ -18,7 +19,7 @@ import { IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/con
 import { CellDiagnostics } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnosticEditorContrib';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { setupInstantiationService, TestNotebookExecutionStateService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 
@@ -27,7 +28,7 @@ suite('notebookCellDiagnostics', () => {
 	let instantiationService: TestInstantiationService;
 	let disposables: DisposableStore;
 	let testExecutionService: TestExecutionService;
-	let markerService: IMarkerService;
+	let markerService: ITestMarkerService;
 
 	teardown(() => {
 		disposables.dispose();
@@ -39,15 +40,20 @@ suite('notebookCellDiagnostics', () => {
 		private _onDidChangeExecution = new Emitter<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>();
 		override onDidChangeExecution = this._onDidChangeExecution.event;
 
-		fireExecutionChanged(notebook: URI, cellHandle: number) {
+		fireExecutionChanged(notebook: URI, cellHandle: number, changed?: INotebookCellExecution) {
 			this._onDidChangeExecution.fire({
 				type: NotebookExecutionType.cell,
 				cellHandle,
 				notebook,
 				affectsNotebook: () => true,
-				affectsCell: () => true
+				affectsCell: () => true,
+				changed: changed
 			});
 		}
+	}
+
+	interface ITestMarkerService extends IMarkerService {
+		markers: ResourceMap<IMarkerData[]>;
 	}
 
 	setup(function () {
@@ -61,10 +67,10 @@ suite('notebookCellDiagnostics', () => {
 		const chatProviders = instantiationService.get<IInlineChatService>(IInlineChatService);
 		disposables.add(chatProviders.addProvider({} as IInlineChatSessionProvider));
 
-		markerService = new class extends mock<IMarkerService>() {
-			markers: IMarkerData[] = [];
+		markerService = new class extends mock<ITestMarkerService>() {
+			override markers: ResourceMap<IMarkerData[]> = new ResourceMap();
 			override changeOne(owner: string, resource: URI, markers: IMarkerData[]) {
-				this.markers = markers;
+				this.markers.set(resource, markers);
 			}
 		};
 		instantiationService.stub(IMarkerService, markerService);
@@ -91,6 +97,48 @@ suite('notebookCellDiagnostics', () => {
 
 			await waitForState(cell.excecutionError, error => !!error);
 			assert.strictEqual(cell?.excecutionError.get()?.message, 'error');
+			assert.equal(markerService.markers.keys.length, 1);
+		}, instantiationService);
+	});
+
+	test('diagnostics are cleared only for cell with new execution', async function () {
+		await withTestNotebook([
+			['print(x)', 'python', CellKind.Code, [], {}],
+			['print(y)', 'python', CellKind.Code, [], {}]
+		], async (editor, viewModel, store, accessor) => {
+			const cell = viewModel.viewCells[0] as CodeCellViewModel;
+			const cell2 = viewModel.viewCells[1] as CodeCellViewModel;
+
+			disposables.add(instantiationService.createInstance(CellDiagnostics, editor));
+
+			cell.model.internalMetadata.error = {
+				message: 'error',
+				stack: 'line 1 : print(x)',
+				uri: cell.uri,
+				location: { startColumn: 1, endColumn: 5, startLineNumber: 1, endLineNumber: 1 }
+			};
+			cell2.model.internalMetadata.error = {
+				message: 'another error',
+				stack: 'line 1 : print(y)',
+				uri: cell.uri,
+				location: { startColumn: 1, endColumn: 5, startLineNumber: 1, endLineNumber: 1 }
+			};
+			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
+			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell2.handle);
+
+			await waitForState(cell.excecutionError, error => !!error);
+			await waitForState(cell2.excecutionError, error => !!error);
+			cell.model.internalMetadata.error = undefined;
+
+			// on NotebookCellExecution value will make it look like its currently running
+			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle, {} as INotebookCellExecution);
+
+			await waitForState(cell.excecutionError, error => error === undefined);
+
+			assert.strictEqual(cell?.excecutionError.get(), undefined);
+			assert.strictEqual(cell2?.excecutionError.get()?.message, 'another error', 'cell that was not executed should still have an error');
+			assert.equal(markerService.markers.get(cell.uri)?.length, 0);
+			assert.equal(markerService.markers.get(cell2.uri)?.length, 1);
 		}, instantiationService);
 	});
 });
