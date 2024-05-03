@@ -213,21 +213,23 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
 		}
 
-		// IDEA: Detect line continuation if it's not set
-
 		// From command start line to cursor line
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
 			line = buffer.getLine(y);
-			let lineText = line?.translateToString(true);
+			const lineText = line?.translateToString(true);
 			if (lineText && line) {
 				// Verify continuation prompt if we have it, if this line doesn't have it then the
 				// user likely just pressed enter
 				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
-					lineText = this._trimContinuationPrompt(lineText);
-					value += `\n${lineText}`;
-					cursorIndex += (absoluteCursorY === y
-						? this._getRelativeCursorIndex(this._getContinuationPromptCellWidth(line, lineText), buffer, line)
-						: lineText.length + 1);
+					const trimmedLineText = this._trimContinuationPrompt(lineText);
+					value += `\n${trimmedLineText}`;
+					if (absoluteCursorY === y) {
+						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
+						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
+						cursorIndex += relativeCursorIndex;
+					} else {
+						cursorIndex += trimmedLineText.length + 1;
+					}
 				} else {
 					break;
 				}
@@ -281,11 +283,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 
-
 			const valueLines = value.split('\n');
 			const isMultiLine = valueLines.length > 1;
 			const valueEndTrimmed = value.trimEnd();
-			// TODO: This doesn't support multi-line
 			if (!isMultiLine) {
 				// Adjust trimmed whitespace value based on cursor position
 				if (valueEndTrimmed.length < value.length) {
@@ -310,7 +310,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				valueLines[valueLines.length - 1] = valueLines.at(-1)?.trimEnd() ?? '';
 				const continuationOffset = (valueLines.length - 1) * (this._continuationPrompt?.length ?? 0);
 				trailingWhitespace = Math.max(0, cursorIndex - value.length - continuationOffset);
-				cursorIndex -= continuationOffset;
 			}
 
 			value = valueLines.map(e => e.trimEnd()).join('\n') + ' '.repeat(trailingWhitespace);

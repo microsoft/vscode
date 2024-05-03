@@ -147,7 +147,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"a⏎|b⏎"
+		"data": "echo \"a⏎b⏎|"
 	},
 	{
 		"type": "input",
@@ -159,7 +159,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"a⏎b|⏎c"
+		"data": "echo \"a⏎b⏎c|"
 	},
 	{
 		"type": "input",
@@ -171,7 +171,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"a⏎b⏎|c\""
+		"data": "echo \"a⏎b⏎c\"|"
 	},
 	{
 		"type": "input",
@@ -323,7 +323,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"d⏎|e⏎"
+		"data": "echo \"d⏎e⏎|"
 	},
 	{
 		"type": "input",
@@ -335,7 +335,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"d⏎e|⏎f"
+		"data": "echo \"d⏎e⏎f|"
 	},
 	{
 		"type": "input",
@@ -347,7 +347,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"d⏎|e⏎f⏎"
+		"data": "echo \"d⏎e⏎f⏎|"
 	},
 	{
 		"type": "input",
@@ -359,7 +359,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"d⏎e|⏎f⏎g"
+		"data": "echo \"d⏎e⏎f⏎g|"
 	},
 	{
 		"type": "input",
@@ -371,7 +371,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"d⏎|e⏎f⏎g⏎"
+		"data": "echo \"d⏎e⏎f⏎g⏎|"
 	},
 	{
 		"type": "input",
@@ -383,7 +383,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"d⏎e|⏎f⏎g⏎h"
+		"data": "echo \"d⏎e⏎f⏎g⏎h|"
 	},
 	{
 		"type": "input",
@@ -395,7 +395,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo \"d⏎e⏎|f⏎g⏎h\""
+		"data": "echo \"d⏎e⏎f⏎g⏎h\"|"
 	},
 	{
 		"type": "input",
