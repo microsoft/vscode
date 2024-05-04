@@ -172,4 +172,6 @@
 	"css.format.spaceAroundSelectorSeparator": true,
 	"inlineChat.mode": "live",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
+	"vscode-corda.isCordaProject": false,
+	"cmake.sourceDirectory": "/Users/babynong/vscode/node_modules/@vscode/spdlog/deps/spdlog",
 }
