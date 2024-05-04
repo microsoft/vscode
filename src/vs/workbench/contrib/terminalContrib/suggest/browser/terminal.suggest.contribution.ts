@@ -5,6 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import * as dom from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize2 } from 'vs/nls';
@@ -39,7 +40,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		_processManager: ITerminalProcessManager,
+		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -51,7 +52,9 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		this._loadSuggestAddon(xterm.raw);
+		this.add(Event.runAndSubscribe(this._instance.onDidChangeShellType, async () => {
+			this._loadSuggestAddon(xterm.raw);
+		}));
 		this.add(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._terminalSuggestWidgetContextKeys)) {
 				this._loadSuggestAddon(xterm.raw);
@@ -66,8 +69,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private _loadSuggestAddon(xterm: RawXtermTerminal): void {
 		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
-		if (sendingKeybindingsToShell) {
-			this._addon.dispose();
+		if (sendingKeybindingsToShell || this._instance.shellType !== 'pwsh') {
+			this._addon.clear();
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {

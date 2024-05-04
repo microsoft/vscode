@@ -183,7 +183,7 @@ suite('InteractiveChatController', function () {
 
 		store.add(chatAgentService.registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
-			extensionPublisherDisplayName: '',
+			publisherDisplayName: '',
 			extensionDisplayName: '',
 			extensionPublisherId: '',
 			id: 'testAgent',
