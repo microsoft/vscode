@@ -70,7 +70,7 @@
 			if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
 				return resolve();
 			}
-			const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.js';
+			const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.cjs';
 
 			const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, globalThis.origin.length) !== globalThis.origin);
 			if (!isCrossOrigin && canUseEval()) {

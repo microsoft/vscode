@@ -34,7 +34,7 @@ exports.base = [
 		include: ['vs/base/common/worker/simpleWorker'],
 		exclude: ['vs/nls'],
 		prepend: [
-			{ path: 'vs/loader.js' },
+			{ path: 'vs/loader.cjs' },
 			{ path: 'vs/base/worker/workerMain.js' }
 		],
 		dest: 'vs/base/worker/workerMain.js'

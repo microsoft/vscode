@@ -71,7 +71,7 @@ module.exports.indentationFilter = [
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
 	'!**/*.mp3',
-	'!src/vs/loader.js',
+	'!src/vs/loader.cjs',
 	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/semver/semver.js',

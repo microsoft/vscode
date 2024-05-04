@@ -23,7 +23,7 @@ function main() {
 	const editorMainBundle = new CachedBundle('vs/editor/editor.main', moduleIdMapper);
 	fileServer.overrideFileContent(editorMainBundle.entryModulePath, () => editorMainBundle.bundle());
 
-	const loaderPath = path.join(rootDir, 'out/vs/loader.js');
+	const loaderPath = path.join(rootDir, 'out/vs/loader.cjs');
 	fileServer.overrideFileContent(loaderPath, async () =>
 		Buffer.from(new TextEncoder().encode(makeLoaderJsHotReloadable(await fsPromise.readFile(loaderPath, 'utf8'), new URL('/file-changes', server.url))))
 	);

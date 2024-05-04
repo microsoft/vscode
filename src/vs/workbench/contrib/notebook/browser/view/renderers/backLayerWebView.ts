@@ -558,7 +558,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		return [
-			dirname(FileAccess.asFileUri('vs/loader.js')),
+			dirname(FileAccess.asFileUri('vs/loader.cjs')),
 		];
 	}
 
