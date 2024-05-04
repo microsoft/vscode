@@ -216,6 +216,7 @@ export class HoverService extends Disposable implements IHoverService {
 				hoverDelegate.onDidHideHover?.();
 				hoverWidget = undefined;
 			}
+			htmlElement.removeAttribute('custom-hover-active');
 		};
 
 		const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget) => {
@@ -223,6 +224,7 @@ export class HoverService extends Disposable implements IHoverService {
 				if (!hoverWidget || hoverWidget.isDisposed) {
 					hoverWidget = new UpdatableHoverWidget(hoverDelegate, target || htmlElement, delay > 0);
 					await hoverWidget.update(typeof content === 'function' ? content() : content, focus, options);
+					htmlElement.setAttribute('custom-hover-active', 'true');
 				}
 			}, delay);
 		};

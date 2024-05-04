@@ -202,7 +202,7 @@ export class NotebookStickyScroll extends Disposable {
 	}
 
 	private init() {
-		const { object: notebookOutlineReference } = this.notebookOutlineReference = this.instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineProviderFactory).getOrCreate(this.notebookEditor, OutlineTarget.QuickPick));
+		const { object: notebookOutlineReference } = this.notebookOutlineReference = this.instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineProviderFactory).getOrCreate(this.notebookEditor, OutlineTarget.OutlinePane));
 		this._register(this.notebookOutlineReference);
 		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookOutlineReference.entries, this.getCurrentStickyHeight()));
 

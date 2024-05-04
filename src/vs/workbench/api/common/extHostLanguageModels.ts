@@ -303,6 +303,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		await barrier.wait();
 
 		if (error) {
+			if (error.name === LanguageModelError.name) {
+				throw error;
+			}
+
 			throw new LanguageModelError(
 				`Language model '${languageModelId}' errored, check cause for more details`,
 				'Unknown',

@@ -12,7 +12,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { DeferredPromise } from 'vs/base/common/async';
-import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, IKeywordRecognitionSession, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
+import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, IKeywordRecognitionSession, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -126,6 +126,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 		this._onDidChangeHasSpeechProvider.fire();
 	}
 
+	//#region Transcription
+
 	private readonly _onDidStartSpeechToTextSession = this._register(new Emitter<void>());
 	readonly onDidStartSpeechToTextSession = this._onDidStartSpeechToTextSession.event;
 
@@ -236,6 +238,89 @@ export class SpeechService extends Disposable implements ISpeechService {
 		return provider;
 	}
 
+	//#endregion
+
+	//#region Synthesizer
+
+	private readonly _onDidStartTextToSpeechSession = this._register(new Emitter<void>());
+	readonly onDidStartTextToSpeechSession = this._onDidStartTextToSpeechSession.event;
+
+	private readonly _onDidEndTextToSpeechSession = this._register(new Emitter<void>());
+	readonly onDidEndTextToSpeechSession = this._onDidEndTextToSpeechSession.event;
+
+	private _activeTextToSpeechSession: ITextToSpeechSession | undefined = undefined;
+	get hasActiveTextToSpeechSession() { return !!this._activeTextToSpeechSession; }
+
+	private readonly textToSpeechInProgress = TextToSpeechInProgress.bindTo(this.contextKeyService);
+
+	async createTextToSpeechSession(token: CancellationToken, context: string = 'speech'): Promise<ITextToSpeechSession> {
+		const provider = await this.getProvider();
+
+		const session = this._activeTextToSpeechSession = provider.createTextToSpeechSession(token);
+
+		const sessionStart = Date.now();
+		let sessionError = false;
+
+		const disposables = new DisposableStore();
+
+		const onSessionStoppedOrCanceled = () => {
+			if (session === this._activeTextToSpeechSession) {
+				this._activeTextToSpeechSession = undefined;
+				this.textToSpeechInProgress.reset();
+				this._onDidEndTextToSpeechSession.fire();
+
+				type TextToSpeechSessionClassification = {
+					owner: 'bpasero';
+					comment: 'An event that fires when a text to speech session is created';
+					context: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Context of the session.' };
+					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration of the session.' };
+					sessionError: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If speech resulted in error.' };
+				};
+				type TextToSpeechSessionEvent = {
+					context: string;
+					sessionDuration: number;
+					sessionError: boolean;
+				};
+				this.telemetryService.publicLog2<TextToSpeechSessionEvent, TextToSpeechSessionClassification>('textToSpeechSession', {
+					context,
+					sessionDuration: Date.now() - sessionStart,
+					sessionError
+				});
+			}
+
+			disposables.dispose();
+		};
+
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+		if (token.isCancellationRequested) {
+			onSessionStoppedOrCanceled();
+		}
+
+		disposables.add(session.onDidChange(e => {
+			switch (e.status) {
+				case TextToSpeechStatus.Started:
+					if (session === this._activeTextToSpeechSession) {
+						this.textToSpeechInProgress.set(true);
+						this._onDidStartTextToSpeechSession.fire();
+					}
+					break;
+				case TextToSpeechStatus.Stopped:
+					onSessionStoppedOrCanceled();
+					break;
+				case TextToSpeechStatus.Error:
+					this.logService.error(`Speech provider error in text to speech session: ${e.text}`);
+					sessionError = true;
+					break;
+			}
+		}));
+
+		return session;
+	}
+
+	//#endregion
+
+	//#region Keyword Recognition
+
 	private readonly _onDidStartKeywordRecognition = this._register(new Emitter<void>());
 	readonly onDidStartKeywordRecognition = this._onDidStartKeywordRecognition.event;
 
@@ -344,4 +429,6 @@ export class SpeechService extends Disposable implements ISpeechService {
 			onSessionStoppedOrCanceled();
 		}
 	}
+
+	//#endregion
 }

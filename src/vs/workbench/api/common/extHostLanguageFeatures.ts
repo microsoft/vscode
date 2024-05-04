@@ -792,7 +792,7 @@ class RenameAdapter {
 		private readonly _logService: ILogService
 	) { }
 
-	async provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+	async provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto & languages.Rejection | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
@@ -807,7 +807,7 @@ class RenameAdapter {
 		} catch (err) {
 			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
-				return <extHostProtocol.IWorkspaceEditDto>{ rejectReason, edits: undefined! };
+				return { rejectReason, edits: undefined! };
 			} else {
 				// generic error
 				return Promise.reject<extHostProtocol.IWorkspaceEditDto>(err);
@@ -849,7 +849,7 @@ class RenameAdapter {
 		} catch (err) {
 			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
-				return <languages.RenameLocation & languages.Rejection>{ rejectReason, range: undefined!, text: undefined! };
+				return { rejectReason, range: undefined!, text: undefined! };
 			} else {
 				return Promise.reject<any>(err);
 			}

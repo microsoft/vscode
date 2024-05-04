@@ -39,7 +39,6 @@ import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
-import { flatten } from 'vs/base/common/arrays';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -589,7 +588,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		const selection = this.getSelectedResources();
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
-		const args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
+		const args = actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]).flat();
 		await action.run(...args);
 	}
 }
@@ -2980,7 +2979,15 @@ export class SCMViewPane extends ViewPane {
 	private createTree(container: HTMLElement, viewState?: IAsyncDataTreeViewState): void {
 		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => { this.tree.updateElementHeight(input, height); });
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => {
+			try {
+				// Attempt to update the input element height. There is an
+				// edge case where the input has already been disposed and
+				// updating the height would fail.
+				this.tree.updateElementHeight(input, height);
+			}
+			catch { }
+		});
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
@@ -3586,7 +3593,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 					type: 'actionButton',
 					repository: inputOrElement,
 					button: actionButton
-				} as ISCMActionButton);
+				} satisfies ISCMActionButton);
 			}
 
 			// ResourceGroups
@@ -3614,7 +3621,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 					ariaLabel = localize('syncOutgoingSeparatorHeaderAriaLabel', "Outgoing changes");
 				}
 
-				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } as SCMViewSeparatorElement);
+				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
 			}
 
 			children.push(...historyItemGroups);

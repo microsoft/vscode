@@ -6,8 +6,8 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { ParsedPattern, parse as parseGlob } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isAbsolute, parse as parsePath, ParsedPath } from 'vs/base/common/path';
-import { dirname, relativePath as getRelativePath } from 'vs/base/common/resources';
+import { isAbsolute, parse as parsePath, ParsedPath, dirname } from 'vs/base/common/path';
+import { dirname as resourceDirname, relativePath as getRelativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -139,7 +139,10 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		for (const pattern of this.patterns) {
 			let relevantPath: string;
 			if (root && !pattern.isAbsolutePath) {
-				relevantPath = relativePath ?? getRelativePath(dirname(root.uri), resource) ?? resource.path;
+				if (!relativePath) {
+					relativePath = getRelativePath(resourceDirname(root.uri), resource) ?? resource.path;
+				}
+				relevantPath = relativePath;
 			} else {
 				relevantPath = resource.path;
 			}
@@ -164,7 +167,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 					return parsedPath.ext.slice(1);
 				default: { // dirname and dirname(arg)
 					const n = variable === 'dirname' ? 0 : parseInt(arg);
-					const nthDir = this.getNthDirname(relevantPath, parsedPath.name, n);
+					const nthDir = this.getNthDirname(dirname(relevantPath), n);
 					if (nthDir) {
 						return nthDir;
 					}
@@ -175,7 +178,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		});
 	}
 
-	private getNthDirname(path: string, filename: string, n: number): string | undefined {
+	private getNthDirname(path: string, n: number): string | undefined {
 		// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
 		path = path.startsWith('/') ? path.slice(1) : path;
 		const pathFragments = path.split('/');
@@ -186,10 +189,10 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		if (n < 0) {
 			nth = Math.abs(n) - 1;
 		} else {
-			nth = length - 1 - n - 1; // -1 for the filename, -1 for 0-based index
+			nth = length - n - 1;
 		}
 
-		const nthDir = nth === pathFragments.length - 1 ? filename : pathFragments[nth];
+		const nthDir = pathFragments[nth];
 		if (nthDir === undefined || nthDir === '') {
 			return undefined;
 		}
