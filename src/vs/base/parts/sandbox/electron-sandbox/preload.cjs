@@ -370,7 +370,7 @@ if (isTest) {
 	const zlib = require('zlib')
 	const xtermHeadless = require('@xterm/headless')
 	const vscodeSqlite3 = require('@vscode/sqlite3')
-	const xtermAddonCanvas = require('@xterm/addon-canvas')
+	// const xtermAddonCanvas = require('@xterm/addon-canvas')
 	const nativeKeymap = require('native-keymap')
 
 	let runCallback
@@ -422,7 +422,7 @@ if (isTest) {
 		minimist,
 		gracefulFs,
 		childProcess,
-		xtermAddonCanvas,
+		// xtermAddonCanvas,
 		vscodeRipgrep,
 		vscodeSqlite3,
 		sinonTest,
