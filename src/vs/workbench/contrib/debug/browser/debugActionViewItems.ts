@@ -22,8 +22,8 @@ import { BaseActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } 
 import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -48,7 +48,8 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(context, action, options);
 		this.toDispose = [];
@@ -77,7 +78,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
 		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
 		const title = this.action.label + keybindingLabel;
-		this.toDispose.push(setupCustomHover(getDefaultHoverDelegate('mouse'), this.start, title));
+		this.toDispose.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.start, title));
 		this.start.setAttribute('role', 'button');
 		this.start.ariaLabel = title;
 

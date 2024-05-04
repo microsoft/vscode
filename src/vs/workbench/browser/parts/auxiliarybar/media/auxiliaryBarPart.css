@@ -22,6 +22,10 @@
 	margin-right: 4px;
 }
 
+.monaco-workbench .part.auxiliarybar > .title {
+	background-color: var(--vscode-sideBarTitle-background);
+}
+
 .monaco-workbench .part.auxiliarybar > .title > .title-label {
 	flex: 1;
 }

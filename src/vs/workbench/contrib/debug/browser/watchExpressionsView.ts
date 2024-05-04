@@ -20,6 +20,7 @@ import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platfo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -62,9 +63,10 @@ export class WatchExpressionsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
 		this._register(this.menu);
@@ -107,9 +109,7 @@ export class WatchExpressionsView extends ViewPane {
 				}
 			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 		this.tree.setInput(this.debugService);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
@@ -283,8 +283,9 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(debugService, contextViewService);
+		super(debugService, contextViewService, hoverService);
 	}
 
 	get templateId() {
@@ -312,7 +313,7 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 			hover: data.elementDisposable,
 			colorize: true
-		});
+		}, this.hoverService);
 	}
 
 	protected getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions {

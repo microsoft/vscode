@@ -12,11 +12,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalInstance, TerminalInstanceColorProvider } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalStickyScrollSettingId } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration';
 import { TerminalStickyScrollOverlay } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollOverlay';
 
 export class TerminalStickyScrollContribution extends Disposable implements ITerminalContribution {
@@ -28,10 +28,10 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	private _xterm?: IXtermTerminal & { raw: RawXtermTerminal };
 
-	private _overlay = this._register(new MutableDisposable<TerminalStickyScrollOverlay>());
+	private readonly _overlay = this._register(new MutableDisposable<TerminalStickyScrollOverlay>());
 
-	private _enableListeners = this._register(new MutableDisposable());
-	private _disableListeners = this._register(new MutableDisposable());
+	private readonly _enableListeners = this._register(new MutableDisposable());
+	private readonly _disableListeners = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -45,7 +45,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 		super();
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollEnabled)) {
+			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.Enabled)) {
 				this._refreshState();
 			}
 		}));
@@ -58,6 +58,14 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._refreshState();
+	}
+
+	hideLock() {
+		this._overlay.value?.lockHide();
+	}
+
+	hideUnlock() {
+		this._overlay.value?.unlockHide();
 	}
 
 	private _refreshState(): void {
@@ -110,6 +118,6 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	private _shouldBeEnabled(): boolean {
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-		return !!(this._configurationService.getValue(TerminalSettingId.StickyScrollEnabled) && capability && this._xterm?.raw?.element);
+		return !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && this._xterm?.raw?.element);
 	}
 }

@@ -70,7 +70,10 @@
 		],
 		"local/code-translation-remind": "warn",
 		"local/code-no-native-private": "warn",
+		"local/code-parameter-properties-must-have-explicit-accessibility": "warn",
 		"local/code-no-nls-in-standalone-editor": "warn",
+		"local/code-no-potentially-unsafe-disposables": "warn",
+		"local/code-no-dangerous-type-assertions": "off",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
 		"local/code-must-use-super-dispose": "warn",
@@ -669,7 +672,6 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
-							"@xterm/addon-canvas",
 							"@xterm/addon-image",
 							"@xterm/addon-search",
 							"@xterm/addon-serialize",
@@ -856,7 +858,11 @@
 							}, // TODO@layers
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
-							"@vscode/vscode-languagedetection" // node module allowed even in /common/
+							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							{
+								"when": "hasBrowser",
+								"pattern": "@xterm/xterm"
+							} // node module allowed even in /browser/
 						]
 					},
 					{

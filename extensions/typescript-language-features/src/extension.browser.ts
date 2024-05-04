@@ -118,7 +118,7 @@ async function startPreloadWorkspaceContentsIfNeeded(context: vscode.ExtensionCo
 		return;
 	}
 
-	const workspaceUri = vscode.workspace.workspaceFolders?.[0].uri;
+	const workspaceUri = vscode.workspace.workspaceFolders?.at(0)?.uri;
 	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
 		logger.info(`Skipped loading workspace contents for repository ${workspaceUri?.toString()}`);
 		return;

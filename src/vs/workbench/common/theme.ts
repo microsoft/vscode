@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -411,6 +411,27 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	hcLight: PANEL_BORDER
 }, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
+export const PANEL_STICKY_SCROLL_BACKGROUND = registerColor('panelStickyScroll.background', {
+	dark: PANEL_BACKGROUND,
+	light: PANEL_BACKGROUND,
+	hcDark: PANEL_BACKGROUND,
+	hcLight: PANEL_BACKGROUND
+}, localize('panelStickyScrollBackground', "Background color of sticky scroll in the panel."));
+
+export const PANEL_STICKY_SCROLL_BORDER = registerColor('panelStickyScroll.border', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('panelStickyScrollBorder', "Border color of sticky scroll in the panel."));
+
+export const PANEL_STICKY_SCROLL_SHADOW = registerColor('panelStickyScroll.shadow', {
+	dark: scrollbarShadow,
+	light: scrollbarShadow,
+	hcDark: scrollbarShadow,
+	hcLight: scrollbarShadow
+}, localize('panelStickyScrollShadow', "Shadow color of sticky scroll in the panel."));
+
 // < --- Output Editor -->
 
 const OUTPUT_VIEW_BACKGROUND = registerColor('outputView.background', {
@@ -656,7 +677,7 @@ export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorder', {
 	dark: ACTIVITY_BAR_FOREGROUND,
 	light: ACTIVITY_BAR_FOREGROUND,
-	hcDark: null,
+	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('activityBarActiveBorder', "Activity bar border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
@@ -850,6 +871,13 @@ export const SIDE_BAR_BORDER = registerColor('sideBar.border', {
 	hcLight: contrastBorder
 }, localize('sideBarBorder', "Side bar border color on the side separating to the editor. The side bar is the container for views like explorer and search."));
 
+export const SIDE_BAR_TITLE_BACKGROUND = registerColor('sideBarTitle.background', {
+	dark: SIDE_BAR_BACKGROUND,
+	light: SIDE_BAR_BACKGROUND,
+	hcDark: SIDE_BAR_BACKGROUND,
+	hcLight: SIDE_BAR_BACKGROUND
+}, localize('sideBarTitleBackground', "Side bar title background color. The side bar is the container for views like explorer and search."));
+
 export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground', {
 	dark: SIDE_BAR_FOREGROUND,
 	light: SIDE_BAR_FOREGROUND,
@@ -891,6 +919,27 @@ export const ACTIVITY_BAR_TOP_BORDER = registerColor('sideBarActivityBarTop.bord
 	hcDark: SIDE_BAR_SECTION_HEADER_BORDER,
 	hcLight: SIDE_BAR_SECTION_HEADER_BORDER
 }, localize('sideBarActivityBarTopBorder', "Border color between the activity bar at the top/bottom and the views."));
+
+export const SIDE_BAR_STICKY_SCROLL_BACKGROUND = registerColor('sideBarStickyScroll.background', {
+	dark: SIDE_BAR_BACKGROUND,
+	light: SIDE_BAR_BACKGROUND,
+	hcDark: SIDE_BAR_BACKGROUND,
+	hcLight: SIDE_BAR_BACKGROUND
+}, localize('sideBarStickyScrollBackground', "Background color of sticky scroll in the side bar."));
+
+export const SIDE_BAR_STICKY_SCROLL_BORDER = registerColor('sideBarStickyScroll.border', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('sideBarStickyScrollBorder', "Border color of sticky scroll in the side bar."));
+
+export const SIDE_BAR_STICKY_SCROLL_SHADOW = registerColor('sideBarStickyScroll.shadow', {
+	dark: scrollbarShadow,
+	light: scrollbarShadow,
+	hcDark: scrollbarShadow,
+	hcLight: scrollbarShadow
+}, localize('sideBarStickyScrollShadow', "Shadow color of sticky scroll in the side bar."));
 
 // < --- Title Bar --- >
 

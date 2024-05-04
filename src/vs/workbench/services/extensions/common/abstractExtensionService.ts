@@ -13,6 +13,7 @@ import * as perf from 'vs/base/common/performance';
 import { isCI } from 'vs/base/common/platform';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -767,7 +768,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			this._onDidChangeResponsiveChange.fire({
 				extensionHostKind: processManager.kind,
 				isResponsive: responsiveState === ResponsiveState.Responsive,
-				getInspectPort: (tryEnableInspector: boolean) => {
+				getInspectListener: (tryEnableInspector: boolean) => {
 					return processManager.getInspectPort(tryEnableInspector);
 				}
 			});
@@ -1001,12 +1002,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
-	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<number[]> {
+	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<{ port: number; host: string }[]> {
 		const result = await Promise.all(
 			this._getExtensionHostManagers(extensionHostKind).map(extHost => extHost.getInspectPort(tryEnableInspector))
 		);
 		// remove 0s:
-		return result.filter(element => Boolean(element));
+		return result.filter(isDefined);
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
@@ -1087,7 +1088,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			type ExtensionsMessageClassification = {
 				owner: 'alexdima';
 				comment: 'A validation message for an extension';
-				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Severity of problem.'; isMeasurement: true };
+				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Severity of problem.' };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the extension that has a problem.' };
 				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension point that has a problem.' };
 				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The message of the problem.' };

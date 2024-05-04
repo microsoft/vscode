@@ -255,7 +255,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private readonly _userEditingDisposables = this._register(new DisposableStore());
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private _widget: NotebookChatWidget | undefined;
-	private _widgetDisposableStore = this._register(new DisposableStore());
+	private readonly _widgetDisposableStore = this._register(new DisposableStore());
 	private _focusTracker: IFocusTracker | undefined;
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -519,7 +519,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		assertType(this._activeSession);
 		this._warmupRequestCts?.dispose(true);
 		this._warmupRequestCts = undefined;
-		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value, 0, true));
+		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value));
 
 		assertType(this._activeSession.lastInput);
 		const value = this._activeSession.lastInput.value;
@@ -560,7 +560,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		const request: IInlineChatRequest = {
 			requestId: generateUuid(),
 			prompt: value,
-			attempt: this._activeSession.lastInput.attempt,
+			attempt: 0,
 			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
 			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			live: true,
@@ -614,7 +614,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				if (!progressiveChatResponse) {
 					const message = {
 						message: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false }),
-						providerId: this._activeSession!.provider.label,
 						requestId: request.requestId,
 					};
 					progressiveChatResponse = this._widget?.inlineChatWidget.updateChatMessage(message, true);
@@ -645,7 +644,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				response = new EmptyResponse();
 			} else {
 				const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-				const replyResponse = response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId);
+				const replyResponse = response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId, undefined);
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);
 				}
@@ -748,7 +747,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-		const response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), [], request.requestId);
+		const response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), [], request.requestId, undefined);
 		const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, response.raw, token);
 		if (followups && this._widget) {
 			const widget = this._widget;

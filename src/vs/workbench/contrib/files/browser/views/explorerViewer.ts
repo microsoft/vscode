@@ -68,7 +68,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IExplorerFileContribution, explorerFileContribRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -415,6 +415,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		}));
 
 		const contribs = explorerFileContribRegistry.create(this.instantiationService, container, templateDisposables);
+		templateDisposables.add(explorerFileContribRegistry.onDidRegisterDescriptor(d => {
+			const contr = d.create(this.instantiationService, container);
+			contribs.push(templateDisposables.add(contr));
+			contr.setResource(templateData.currentContext?.resource);
+		}));
 
 		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs };
 		return templateData;
@@ -1067,7 +1072,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private compressedDragOverElement: HTMLElement | undefined;
 	private compressedDropTargetDisposable: IDisposable = Disposable.None;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private dropEnabled = false;
 
 	constructor(

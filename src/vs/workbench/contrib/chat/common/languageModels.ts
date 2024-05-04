@@ -29,8 +29,10 @@ export interface IChatResponseFragment {
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
 	readonly identifier: string;
-	readonly model: string;
-	readonly description?: string;
+	readonly name: string;
+	readonly version: string;
+	readonly tokens: number;
+
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
@@ -40,6 +42,7 @@ export interface ILanguageModelChatMetadata {
 export interface ILanguageModelChat {
 	metadata: ILanguageModelChatMetadata;
 	provideChatResponse(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	provideTokenCount(message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
@@ -57,6 +60,8 @@ export interface ILanguageModelsService {
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable;
 
 	makeLanguageModelChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+
+	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export class LanguageModelsService implements ILanguageModelsService {
@@ -99,5 +104,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
 		}
 		return provider.provideChatResponse(messages, from, options, progress, token);
+	}
+
+	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
+		const provider = this._providers.get(identifier);
+		if (!provider) {
+			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
+		}
+		return provider.provideTokenCount(message, token);
 	}
 }

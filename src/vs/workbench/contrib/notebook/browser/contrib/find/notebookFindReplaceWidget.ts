@@ -41,6 +41,7 @@ import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -182,7 +183,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		return this._filterButtonContainer;
 	}
 
-	get width() {
+	width() {
 		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
@@ -192,6 +193,14 @@ export class NotebookFindInputFilterButton extends Disposable {
 
 	disable(): void {
 		this.container.setAttribute('aria-disabled', String(true));
+	}
+
+	set visible(visible: boolean) {
+		this._filterButtonContainer.style.display = visible ? '' : 'none';
+	}
+
+	get visible() {
+		return this._filterButtonContainer.style.display !== 'none';
 	}
 
 	applyStyles(filterChecked: boolean): void {
@@ -235,7 +244,7 @@ export class NotebookFindInput extends FindInput {
 		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 		this._findFilter = this._register(new NotebookFindInputFilterButton(filters, contextMenuService, instantiationService, options));
 
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width();
 		this.controls.appendChild(this._findFilter.container);
 	}
 
@@ -311,6 +320,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>(),
 		protected readonly _notebookEditor: INotebookEditor,
 	) {
@@ -350,7 +360,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 					this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
 					this._updateReplaceViewDisplay();
 				}
-		}));
+		}, hoverService));
 		this._toggleReplaceBtn.setEnabled(!isInteractiveWindow);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
@@ -433,7 +443,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			onTrigger: () => {
 				this.find(true);
 			}
-		}));
+		}, hoverService));
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
@@ -441,7 +451,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			onTrigger: () => {
 				this.find(false);
 			}
-		}));
+		}, hoverService));
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
@@ -449,7 +459,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			onTrigger: () => {
 				this.hide();
 			}
-		}));
+		}, hoverService));
 
 		this._innerFindDomNode.appendChild(this._findInput.domNode);
 		this._innerFindDomNode.appendChild(this._matchesCount);
@@ -510,7 +520,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			onTrigger: () => {
 				this.replaceOne();
 			}
-		}));
+		}, hoverService));
 
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
@@ -519,7 +529,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			onTrigger: () => {
 				this.replaceAll();
 			}
-		}));
+		}, hoverService));
 
 		this._innerReplaceDomNode.appendChild(this._replaceBtn.domNode);
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);

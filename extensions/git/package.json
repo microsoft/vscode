@@ -31,6 +31,7 @@
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
+    "tabInputMultiDiff",
     "tabInputTextMerge",
     "timeline"
   ],
@@ -857,6 +858,27 @@
         "category": "Git"
       },
       {
+        "command": "git.viewChanges",
+        "title": "%command.viewChanges%",
+        "icon": "$(diff-multiple)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.viewStagedChanges",
+        "title": "%command.viewStagedChanges%",
+        "icon": "$(diff-multiple)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.viewUntrackedChanges",
+        "title": "%command.viewUntrackedChanges%",
+        "icon": "$(diff-multiple)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.viewCommit",
         "title": "%command.viewCommit%",
         "icon": "$(diff-multiple)",
@@ -1366,6 +1388,18 @@
           "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
         },
         {
+          "command": "git.viewChanges",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+        },
+        {
+          "command": "git.viewUntrackedChanges",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled && config.git.untrackedChanges == separate"
+        },
+        {
           "command": "git.viewCommit",
           "when": "false"
         },
@@ -1512,6 +1546,16 @@
           "group": "inline@2"
         },
         {
+          "command": "git.viewStagedChanges",
+          "when": "scmProvider == git && scmResourceGroup == index && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        },
+        {
           "command": "git.cleanAll",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
           "group": "1_modification"
@@ -1560,6 +1604,11 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification"
+        },
+        {
+          "command": "git.viewUntrackedChanges",
+          "when": "scmProvider == git && scmResourceGroup == untracked && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
         },
         {
           "command": "git.cleanAllUntracked",

@@ -117,6 +117,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
+	readonly useVsCodeWatcher: boolean;
 	readonly watchOptions: Proto.WatchOptions | undefined;
 	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	readonly enableTsServerTracing: boolean;
@@ -154,6 +155,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
 			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
 			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(configuration),
+			useVsCodeWatcher: this.readUseVsCodeWatcher(configuration),
 			watchOptions: this.readWatchOptions(configuration),
 			includePackageJsonAutoImports: this.readIncludePackageJsonAutoImports(configuration),
 			enableTsServerTracing: this.readEnableTsServerTracing(configuration),
@@ -222,7 +224,11 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return configuration.get<boolean>('typescript.tsserver.experimental.enableProjectDiagnostics', false);
 	}
 
-	protected readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
+	private readUseVsCodeWatcher(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.experimental.useVsCodeWatcher', false);
+	}
+
+	private readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
 		const watchOptions = configuration.get<Proto.WatchOptions>('typescript.tsserver.watchOptions');
 		// Returned value may be a proxy. Clone it into a normal object
 		return { ...(watchOptions ?? {}) };

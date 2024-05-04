@@ -143,7 +143,7 @@ export abstract class MenubarControl extends Disposable {
 
 	protected topLevelTitles: { [menu: string]: string } = {};
 
-	protected mainMenuDisposables: DisposableStore;
+	protected readonly mainMenuDisposables: DisposableStore;
 
 	protected recentlyOpened: IRecentlyOpened = { files: [], workspaces: [] };
 
@@ -564,7 +564,7 @@ export class CustomMenubarControl extends MenubarControl {
 		return result;
 	}
 
-	private reinstallDisposables = this._register(new DisposableStore());
+	private readonly reinstallDisposables = this._register(new DisposableStore());
 	private setupCustomMenubar(firstTime: boolean): void {
 		// If there is no container, we cannot setup the menubar
 		if (!this.container) {

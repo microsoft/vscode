@@ -109,7 +109,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	private _terminating: boolean;
 
 	// Resources, in order they get acquired/created when .start() is called:
-	private _inspectPort: number | null;
+	private _inspectListener: { port: number; host: string } | null;
 	private _extensionHostProcess: ExtensionHostProcess | null;
 	private _messageProtocol: Promise<IMessagePassingProtocol> | null;
 
@@ -141,7 +141,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		this._terminating = false;
 
-		this._inspectPort = null;
+		this._inspectListener = null;
 		this._extensionHostProcess = null;
 		this._messageProtocol = null;
 
@@ -221,10 +221,11 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			silent: true
 		};
 
+		const inspectHost = '127.0.0.1';
 		if (portNumber !== 0) {
 			opts.execArgv = [
 				'--nolazy',
-				(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portNumber
+				(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + `${inspectHost}:${portNumber}`
 			];
 		} else {
 			opts.execArgv = ['--inspect-port=0'];
@@ -259,13 +260,14 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Print out extension host output
 		this._toDispose.add(onDebouncedOutput(output => {
-			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
+			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+):(\d+)\/[^\s]+/);
 			if (inspectorUrlMatch) {
+				const [, host, port] = inspectorUrlMatch;
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
 					console.log(`%c[Extension Host] %cdebugger inspector at devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
 				}
-				if (!this._inspectPort) {
-					this._inspectPort = Number(inspectorUrlMatch[2]);
+				if (!this._inspectListener) {
+					this._inspectListener = { host, port: Number(port) };
 					this._onDidSetInspectPort.fire();
 				}
 			} else {
@@ -283,10 +285,10 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Notify debugger that we are ready to attach to the process if we run a development extension
 		if (portNumber) {
-			if (this._isExtensionDevHost && portNumber && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
+			if (this._isExtensionDevHost && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
 				this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portNumber);
 			}
-			this._inspectPort = portNumber;
+			this._inspectListener = { port: portNumber, host: inspectHost };
 			this._onDidSetInspectPort.fire();
 		}
 
@@ -555,7 +557,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	public async enableInspectPort(): Promise<boolean> {
-		if (typeof this._inspectPort === 'number') {
+		if (!!this._inspectListener) {
 			return true;
 		}
 
@@ -569,11 +571,11 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
-		return typeof this._inspectPort === 'number';
+		return !!this._inspectListener;
 	}
 
-	public getInspectPort(): number | undefined {
-		return this._inspectPort ?? undefined;
+	public getInspectPort(): { port: number; host: string } | undefined {
+		return this._inspectListener ?? undefined;
 	}
 
 	private _onWillShutdown(event: WillShutdownEvent): void {

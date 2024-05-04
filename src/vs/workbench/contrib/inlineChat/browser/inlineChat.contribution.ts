@@ -34,8 +34,6 @@ registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.CloseAction);
 registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
-registerAction2(InlineChatActions.ReRunRequestAction);
-registerAction2(InlineChatActions.ReRunRequestWithIntentDetectionAction);
 registerAction2(InlineChatActions.DiscardHunkAction);
 registerAction2(InlineChatActions.DiscardAction);
 registerAction2(InlineChatActions.DiscardToClipboardAction);
@@ -50,7 +48,6 @@ registerAction2(InlineChatActions.FocusInlineChat);
 registerAction2(InlineChatActions.ViewInChatAction);
 
 registerAction2(InlineChatActions.ToggleDiffForChange);
-registerAction2(InlineChatActions.ReportIssueForBugCommand);
 registerAction2(InlineChatActions.AcceptChanges);
 
 registerAction2(InlineChatActions.CopyRecordings);

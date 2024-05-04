@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindowConstructorOptions, Display, Rectangle, WebContents, screen } from 'electron';
+import { BrowserWindowConstructorOptions, Display, Rectangle, WebContents, WebPreferences, screen } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -115,7 +115,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 
-export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, webPreferences?: WebPreferences): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -128,12 +128,13 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
 		title: productService.nameLong,
-		...overrides,
+		show: windowState.mode !== WindowMode.Maximized && windowState.mode !== WindowMode.Fullscreen, // reduce flicker by showing later
 		x: windowState.x,
 		y: windowState.y,
 		width: windowState.width,
 		height: windowState.height,
 		webPreferences: {
+			...webPreferences,
 			enableWebSQL: false,
 			spellcheck: false,
 			zoomFactor: zoomLevelToZoomFactor(windowState.zoomLevel ?? windowSettings?.zoomLevel),
@@ -141,7 +142,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
 			enableBlinkFeatures: 'HighlightAPI',
-			...overrides?.webPreferences,
 			sandbox: true
 		},
 		experimentalDarkMode: true

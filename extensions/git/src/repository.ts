@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, TabInputTextDiff, TabInputNotebookDiff, TabInputTextMultiDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
 import { AutoFetcher } from './autofetch';
@@ -1358,21 +1358,28 @@ export class Repository implements Disposable {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
-		const diffEditorTabsToClose: Tab[] = [];
-
-		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
-			const { input } = tab;
-			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
-				if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
-					// Index
-					diffEditorTabsToClose.push(tab);
-				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
-					// Working Tree
-					diffEditorTabsToClose.push(tab);
-				}
+		function checkTabShouldClose(input: TabInputTextDiff | TabInputNotebookDiff) {
+			if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
+				// Index
+				return true;
 			}
+			if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
+				// Working Tree
+				return true;
+			}
+			return false;
 		}
+
+		const diffEditorTabsToClose = window.tabGroups.all
+			.flatMap(g => g.tabs)
+			.filter(({ input }) => {
+				if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
+					return checkTabShouldClose(input);
+				} else if (input instanceof TabInputTextMultiDiff) {
+					return input.textDiffs.every(checkTabShouldClose);
+				}
+				return false;
+			});
 
 		// Close editors
 		window.tabGroups.close(diffEditorTabsToClose, true);

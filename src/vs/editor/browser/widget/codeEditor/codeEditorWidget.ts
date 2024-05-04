@@ -59,6 +59,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -190,6 +191,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._configuration.isSimpleWidget;
 	}
 
+	public get contextMenuId(): MenuId {
+		return this._configuration.contextMenuId;
+	}
+
 	private readonly _telemetryData?: object;
 
 	private readonly _domElement: HTMLElement;
@@ -254,7 +259,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeSubtypes = {};
 		this._telemetryData = codeEditorWidgetOptions.telemetryData;
 
-		this._configuration = this._register(this._createConfiguration(codeEditorWidgetOptions.isSimpleWidget || false, options, accessibilityService));
+		this._configuration = this._register(this._createConfiguration(codeEditorWidgetOptions.isSimpleWidget || false,
+			codeEditorWidgetOptions.contextMenuId ?? (codeEditorWidgetOptions.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext),
+			options, accessibilityService));
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
@@ -362,8 +369,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData?.view.writeScreenReaderContent(reason);
 	}
 
-	protected _createConfiguration(isSimpleWidget: boolean, options: Readonly<IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
-		return new EditorConfiguration(isSimpleWidget, options, this._domElement, accessibilityService);
+	protected _createConfiguration(isSimpleWidget: boolean, contextMenuId: MenuId, options: Readonly<IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
+		return new EditorConfiguration(isSimpleWidget, contextMenuId, options, this._domElement, accessibilityService);
 	}
 
 	public getId(): string {
@@ -1563,7 +1570,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		this._modelData.view.render(true, forceRedraw);
+		this._modelData.viewModel.batchEvents(() => {
+			this._modelData!.view.render(true, forceRedraw);
+		});
 	}
 
 	public setAriaOptions(options: editorBrowser.IEditorAriaOptions): void {
@@ -1909,6 +1918,12 @@ export interface ICodeEditorWidgetOptions {
 	 * Defaults to null.
 	 */
 	telemetryData?: object;
+
+	/**
+	 * The ID of the context menu.
+	 * Defaults to MenuId.SimpleEditorContext or MenuId.EditorContext depending on whether the widget is simple.
+	 */
+	contextMenuId?: MenuId;
 }
 
 class ModelData {

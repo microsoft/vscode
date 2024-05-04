@@ -157,7 +157,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'crash-reporter-directory': { type: 'string' },
 	'crash-reporter-id': { type: 'string' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
-	'unity-launch': { type: 'boolean' },
 	'open-url': { type: 'boolean' },
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },

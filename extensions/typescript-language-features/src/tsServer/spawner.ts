@@ -271,6 +271,10 @@ export class TypeScriptServerSpawner {
 
 		args.push('--noGetErrOnBackgroundUpdate');
 
+		if (apiVersion.gte(API.v544) && configuration.useVsCodeWatcher) {
+			args.push('--canUseWatchEvents');
+		}
+
 		args.push('--validateDefaultNpmLocation');
 
 		if (isWebAndHasSharedArrayBuffers()) {

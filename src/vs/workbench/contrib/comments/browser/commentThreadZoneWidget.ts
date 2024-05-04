@@ -328,7 +328,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.bindCommentThreadListeners();
 		}
 
-		this._commentThreadWidget.updateCommentThread(commentThread);
+		await this._commentThreadWidget.updateCommentThread(commentThread);
 
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range?.endLineNumber ?? 1;
@@ -356,13 +356,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.layout(widthInPixel);
 	}
 
-	display(range: IRange | undefined) {
+	async display(range: IRange | undefined) {
 		if (range) {
 			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
 			this._commentGlyph.setThreadState(this._commentThread.state);
 		}
 
-		this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
+		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));

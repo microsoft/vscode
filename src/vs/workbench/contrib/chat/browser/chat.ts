@@ -11,11 +11,14 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -28,14 +31,13 @@ export interface IChatWidgetService {
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
-	/**
-	 * Returns whether a view was successfully revealed.
-	 */
-	revealViewForProvider(providerId: string): Promise<IChatWidget | undefined>;
-
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
+}
+
+export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
+	return (await viewsService.openView<ChatViewPane>(CHAT_VIEW_ID))?.widget;
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -44,9 +46,9 @@ export interface IQuickChatService {
 	readonly onDidClose: Event<void>;
 	readonly enabled: boolean;
 	readonly focused: boolean;
-	toggle(providerId?: string, options?: IQuickChatOpenOptions): void;
+	toggle(options?: IQuickChatOpenOptions): void;
 	focus(): void;
-	open(providerId?: string, options?: IQuickChatOpenOptions): void;
+	open(options?: IQuickChatOpenOptions): void;
 	close(): void;
 	openInChatView(): void;
 }
@@ -87,12 +89,21 @@ export interface IChatFileTreeInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
+export interface IChatListItemRendererOptions {
+	readonly renderStyle?: 'default' | 'compact';
+	readonly noHeader?: boolean;
+	readonly noPadding?: boolean;
+	readonly editableCodeBlock?: boolean;
+	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
+}
+
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
+	renderFollowups?: boolean;
 	renderStyle?: 'default' | 'compact';
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
-	editableCodeBlocks?: boolean;
+	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		executeToolbar?: MenuId;
 		inputSideToolbar?: MenuId;
@@ -121,7 +132,6 @@ export interface IChatWidget {
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
-	readonly providerId: string;
 	readonly supportsFileReferences: boolean;
 	readonly parsedInput: IParsedChatRequest;
 	lastSelectedAgent: IChatAgentData | undefined;
@@ -164,3 +174,5 @@ export interface IChatCodeBlockContextProviderService {
 }
 
 export const GeneratingPhrase = localize('generating', "Generating");
+
+export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;

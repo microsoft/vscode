@@ -155,8 +155,9 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		code_server_args: (&ctx.args).into(),
 	};
 
-	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, args.on_socket) {
-		(_, true) => {
+	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, &args.on_host, args.on_socket)
+	{
+		(_, _, true) => {
 			let socket = get_socket_name();
 			let listener = listen_socket_rw_stream(&socket)
 				.await
@@ -168,8 +169,14 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 
 			Box::new(listener)
 		}
-		(Some(p), _) => {
-			let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), p);
+		(Some(_), _, _) | (_, Some(_), _) => {
+			let addr = SocketAddr::new(
+				args.on_host
+					.as_ref()
+					.map(|h| h.parse().map_err(CodeError::InvalidHostAddress))
+					.unwrap_or(Ok(IpAddr::V4(Ipv4Addr::LOCALHOST)))?,
+				args.on_port.unwrap_or_default(),
+			);
 			let listener = tokio::net::TcpListener::bind(addr)
 				.await
 				.map_err(|e| wrap(e, "error listening on port"))?;
@@ -498,7 +505,12 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	b64::URL_SAFE_NO_PAD.encode(result)
+	let mut result = b64::URL_SAFE_NO_PAD.encode(result);
+	if result.starts_with('-') {
+		result.insert(0, 'a'); // avoid arg parsing issue
+	}
+
+	result
 }
 
 async fn serve_with_csa(
@@ -544,6 +556,16 @@ async fn serve_with_csa(
 		match acquire_singleton(&paths.tunnel_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
+				if gateway_args.name.is_none()
+					|| !gateway_args.install_extension.is_empty()
+					|| gateway_args.tunnel.tunnel_id.is_some()
+				{
+					warning!(
+						log,
+						"Command-line options will not be applied until the existing tunnel exits."
+					);
+				}
+
 				let should_exit = start_singleton_client(SingletonClientArgs {
 					log: log.clone(),
 					shutdown: shutdown.clone(),

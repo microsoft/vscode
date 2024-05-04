@@ -198,6 +198,7 @@ export interface IGalleryExtensionVersion {
 }
 
 export interface IGalleryExtension {
+	type: 'gallery';
 	name: string;
 	identifier: IGalleryExtensionIdentifier;
 	version: string;
@@ -255,7 +256,6 @@ export interface ILocalExtension extends IExtension {
 	isMachineScoped: boolean;
 	isApplicationScoped: boolean;
 	publisherId: string | null;
-	publisherDisplayName: string | null;
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
 	hasPreReleaseVersion: boolean;
@@ -427,14 +427,9 @@ export enum ExtensionManagementErrorCode {
 	Signature = 'Signature',
 	NotAllowed = 'NotAllowed',
 	Gallery = 'Gallery',
+	Cancelled = 'Cancelled',
 	Unknown = 'Unknown',
 	Internal = 'Internal',
-}
-
-export enum ExtensionSignaturetErrorCode {
-	UnknownError = 'UnknownError',
-	PackageIsInvalidZip = 'PackageIsInvalidZip',
-	SignatureArchiveIsInvalidZip = 'SignatureArchiveIsInvalidZip',
 }
 
 export class ExtensionManagementError extends Error {

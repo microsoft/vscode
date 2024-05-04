@@ -32,6 +32,7 @@ import { TestTextResourcePropertiesService } from 'vs/editor/test/common/service
 import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -68,7 +69,7 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected override _createConfiguration(isSimpleWidget: boolean, options: Readonly<TestCodeEditorCreationOptions>): EditorConfiguration {
+	protected override _createConfiguration(isSimpleWidget: boolean, contextMenuId: MenuId, options: Readonly<TestCodeEditorCreationOptions>): EditorConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected override _createView(viewModel: ViewModel): [View, boolean] {

@@ -1094,6 +1094,9 @@ export interface IListStyles {
 	listHoverOutline: string | undefined;
 	treeIndentGuidesStroke: string | undefined;
 	treeInactiveIndentGuidesStroke: string | undefined;
+	treeStickyScrollBackground: string | undefined;
+	treeStickyScrollBorder: string | undefined;
+	treeStickyScrollShadow: string | undefined;
 	tableColumnsBorder: string | undefined;
 	tableOddRowsBackgroundColor: string | undefined;
 }
@@ -1124,7 +1127,10 @@ export const unthemedListStyles: IListStyles = {
 	listFocusOutline: undefined,
 	listInactiveFocusOutline: undefined,
 	listSelectionOutline: undefined,
-	listHoverOutline: undefined
+	listHoverOutline: undefined,
+	treeStickyScrollBackground: undefined,
+	treeStickyScrollBorder: undefined,
+	treeStickyScrollShadow: undefined
 };
 
 const DefaultOptions: IListOptions<any> = {

@@ -14,13 +14,6 @@ export class MockChatWidgetService implements IChatWidgetService {
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
-	/**
-	 * Returns whether a view was successfully revealed.
-	 */
-	async revealViewForProvider(providerId: string): Promise<IChatWidget | undefined> {
-		return undefined;
-	}
-
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined {
 		return undefined;
 	}

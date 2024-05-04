@@ -182,7 +182,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	private readonly widget = this._register(new DictationWidget(this.editor, this.keybindingService));
 	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
 
-	private sessionDisposables = this._register(new MutableDisposable());
+	private readonly sessionDisposables = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly editor: ICodeEditor,

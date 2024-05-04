@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from 'vs/base/browser/dom';
+import type { IUpdatableHover, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { assertNever } from 'vs/base/common/assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
@@ -16,8 +16,10 @@ import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { asCssVariableName, chartsGreen, chartsRed, chartsYellow } from 'vs/platform/theme/common/colorRegistry';
-import { IExplorerFileContribution } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
+import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 import { ITestingCoverageBarThresholds, TestingConfigKeys, TestingDisplayedCoveragePercent, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { AbstractFileCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
@@ -63,7 +65,7 @@ export class ManagedTestCoverageBars extends Disposable {
 	});
 
 	private readonly visibleStore = this._register(new DisposableStore());
-	private readonly customHovers: ICustomHover[] = [];
+	private readonly customHovers: IUpdatableHover[] = [];
 
 	/** Gets whether coverage is currently visible for the resource. */
 	public get visible() {
@@ -73,12 +75,13 @@ export class ManagedTestCoverageBars extends Disposable {
 	constructor(
 		protected readonly options: TestCoverageBarsOptions,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
 
-	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | ITooltipMarkdownString | undefined) {
-		this._register(setupCustomHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
+	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IUpdatableHoverTooltipMarkdownString | undefined) {
+		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
 	}
 
 	public setCoverageInfo(coverage: CoverageBarSource | undefined) {
@@ -203,7 +206,7 @@ const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCov
 const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', nf.format(coverage.declaration.covered), nf.format(coverage.declaration.total), displayPercent(percent(coverage.declaration)));
 const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', nf.format(coverage.branch.covered), nf.format(coverage.branch.total), displayPercent(percent(coverage.branch)));
 
-const getOverallHoverText = (coverage: CoverageBarSource): ITooltipMarkdownString => {
+const getOverallHoverText = (coverage: CoverageBarSource): IUpdatableHoverTooltipMarkdownString => {
 	const str = [
 		stmtCoverageText(coverage),
 		fnCoverageText(coverage),
@@ -222,13 +225,30 @@ const getOverallHoverText = (coverage: CoverageBarSource): ITooltipMarkdownStrin
  */
 export class ExplorerTestCoverageBars extends ManagedTestCoverageBars implements IExplorerFileContribution {
 	private readonly resource = observableValue<URI | undefined>(this, undefined);
+	private static hasRegistered = false;
+	public static register() {
+		if (this.hasRegistered) {
+			return;
+		}
+
+		this.hasRegistered = true;
+		Registry.as<IExplorerFileContributionRegistry>(ExplorerExtensions.FileContributionRegistry).register({
+			create(insta, container) {
+				return insta.createInstance(
+					ExplorerTestCoverageBars,
+					{ compact: true, container }
+				);
+			},
+		});
+	}
 
 	constructor(
 		options: TestCoverageBarsOptions,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 		@ITestCoverageService testCoverageService: ITestCoverageService,
 	) {
-		super(options, configurationService);
+		super(options, configurationService, hoverService);
 
 		const isEnabled = observeTestingConfiguration(configurationService, TestingConfigKeys.ShowCoverageInExplorer);
 

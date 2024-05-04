@@ -513,7 +513,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			owner: 'sandy081';
 			comment: 'Report profile information of the current workspace';
 			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A UUID given to a workspace to identify it.' };
-			defaultProfile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the profile of the workspace is default or not.' };
+			defaultProfile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the profile of the workspace is default or not.' };
 		};
 		type WorkspaceProfileInfoEvent = {
 			workspaceId: string | undefined;

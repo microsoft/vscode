@@ -29,8 +29,9 @@ import { Event } from 'vs/base/common/event';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -339,6 +340,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -377,14 +379,14 @@ export class NotificationTemplateRenderer extends Disposable {
 		this.renderSeverity(notification);
 
 		// Message
-		const messageCustomHover = this.inputDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), this.template.message, ''));
+		const messageCustomHover = this.inputDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.template.message, ''));
 		const messageOverflows = this.renderMessage(notification, messageCustomHover);
 
 		// Secondary Actions
 		this.renderSecondaryActions(notification, messageOverflows);
 
 		// Source
-		const sourceCustomHover = this.inputDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), this.template.source, ''));
+		const sourceCustomHover = this.inputDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.template.source, ''));
 		this.renderSource(notification, sourceCustomHover);
 
 		// Buttons
@@ -422,7 +424,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		this.template.icon.classList.add(...ThemeIcon.asClassNameArray(this.toSeverityIcon(notification.severity)));
 	}
 
-	private renderMessage(notification: INotificationViewItem, customHover: ICustomHover): boolean {
+	private renderMessage(notification: INotificationViewItem, customHover: IUpdatableHover): boolean {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
 			callback: link => this.openerService.open(URI.parse(link), { allowCommands: true }),
@@ -472,7 +474,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		actions.forEach(action => this.template.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
 	}
 
-	private renderSource(notification: INotificationViewItem, sourceCustomHover: ICustomHover): void {
+	private renderSource(notification: INotificationViewItem, sourceCustomHover: IUpdatableHover): void {
 		if (notification.expanded && notification.source) {
 			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
 			sourceCustomHover.update(notification.source);

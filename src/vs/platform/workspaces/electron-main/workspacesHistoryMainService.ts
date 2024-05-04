@@ -300,7 +300,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
 		'COMMIT_EDITMSG',
-		'MERGE_MSG'
+		'MERGE_MSG',
+		'git-rebase-todo'
 	];
 
 	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));

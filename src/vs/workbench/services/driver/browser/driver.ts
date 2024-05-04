@@ -17,6 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from 'vs/workbench/services/driver/common/driver';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import type { Terminal as XtermTerminal } from '@xterm/xterm';
 
 export class BrowserWindowDriver implements IWindowDriver {
 
@@ -174,13 +175,13 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Element not found: ${selector}`);
 		}
 
-		const xterm = (element as any).xterm;
+		const xterm = (element as any).xterm as (XtermTerminal | undefined);
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core.coreService.triggerDataEvent(text);
+		xterm.input(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {

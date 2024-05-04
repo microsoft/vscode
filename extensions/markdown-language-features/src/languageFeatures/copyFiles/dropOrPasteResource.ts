@@ -30,7 +30,7 @@ enum CopyFilesSettings {
  */
 class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, vscode.DocumentDropEditProvider {
 
-	public static readonly kind = vscode.DocumentPasteEditKind.Empty.append('markdown', 'link');
+	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link');
 
 	public static readonly mimeTypes = [
 		Mime.textUriList,
@@ -39,8 +39,8 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 	];
 
 	private readonly _yieldTo = [
-		vscode.DocumentPasteEditKind.Empty.append('text'),
-		vscode.DocumentPasteEditKind.Empty.append('markdown', 'image', 'attachment'),
+		vscode.DocumentDropOrPasteEditKind.Empty.append('text'),
+		vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'image', 'attachment'),
 	];
 
 	constructor(
@@ -133,7 +133,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 		}
 
 		if (!(await shouldInsertMarkdownLinkByDefault(this._parser, document, settings.insert, ranges, token))) {
-			edit.yieldTo.push(vscode.DocumentPasteEditKind.Empty.append('uri'));
+			edit.yieldTo.push(vscode.DocumentDropOrPasteEditKind.Empty.append('uri'));
 		}
 
 		return edit;
@@ -156,9 +156,14 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			return;
 		}
 
-		// Disable ourselves if there's also a text entry with the same content as our list,
+		// In some browsers, copying from the address bar sets both text/uri-list and text/plain.
+		// Disable ourselves if there's also a text entry with the same http(s) uri as our list,
 		// unless we are explicitly requested.
-		if (uriList.entries.length === 1 && !context?.only?.contains(ResourcePasteOrDropProvider.kind)) {
+		if (
+			uriList.entries.length === 1
+			&& (uriList.entries[0].uri.scheme === Schemes.http || uriList.entries[0].uri.scheme === Schemes.https)
+			&& !context?.only?.contains(ResourcePasteOrDropProvider.kind)
+		) {
 			const text = await dataTransfer.get(Mime.textPlain)?.asString();
 			if (token.isCancellationRequested) {
 				return;

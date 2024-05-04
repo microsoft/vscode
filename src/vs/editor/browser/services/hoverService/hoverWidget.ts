@@ -8,7 +8,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverTarget, IHoverOptions } from 'vs/platform/hover/browser/hover';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -23,7 +22,7 @@ import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { status } from 'vs/base/browser/ui/aria/aria';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import type { IHoverOptions, IHoverTarget, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 const $ = dom.$;
 type TargetRect = {

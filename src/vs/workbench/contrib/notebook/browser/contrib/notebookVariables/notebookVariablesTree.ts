@@ -10,6 +10,7 @@ import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
@@ -45,6 +46,11 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		return NotebookVariableRenderer.ID;
 	}
 
+	constructor(
+		@IHoverService private readonly _hoverService: IHoverService
+	) {
+	}
+
 	renderTemplate(container: HTMLElement): IVariableTemplateData {
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
@@ -64,7 +70,7 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 			colorize: true,
 			hover: data.elementDisposables,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET
-		});
+		}, this._hoverService);
 	}
 
 	disposeElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, index: number, templateData: IVariableTemplateData, height: number | undefined): void {

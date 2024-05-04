@@ -59,6 +59,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
+import { Mutable } from 'vs/base/common/types';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -100,7 +101,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		async getInstalled() { return []; },
 		async getInstalledWorkspaceExtensions() { return []; },
 		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
-		async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
+		async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
 			local.publisherId = metadata.publisherId!;
@@ -2637,7 +2638,7 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 		getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 		canInstall: async (extension: IGalleryExtension) => { return true; },
 		installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-		updateMetadata: async (local: ILocalExtension, metadata: Partial<Metadata>) => {
+		updateMetadata: async (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
 			local.publisherId = metadata.publisherId!;

@@ -19,6 +19,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -118,6 +120,7 @@ suite('Comments View', function () {
 		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService({}, disposables);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IContextViewService, {});
 		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 		commentService = instantiationService.createInstance(CommentService);

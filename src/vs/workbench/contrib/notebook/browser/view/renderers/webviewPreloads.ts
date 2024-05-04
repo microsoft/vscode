@@ -70,6 +70,7 @@ export interface RenderOptions {
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
 	readonly linkifyFilePaths: boolean;
+	readonly minimalError: boolean;
 }
 
 interface PreloadContext {
@@ -195,7 +196,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -271,6 +272,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
+
+	const blurOutput = () => {
+		const selection = window.getSelection();
+		if (!selection) {
+			return;
+		}
+		selection.removeAllRanges();
+	};
+
 	const selectOutputContents = (cellOrOutputId: string) => {
 		const selection = window.getSelection();
 		if (!selection) {
@@ -302,6 +312,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 		if (!lastFocusedOutput?.id || !e.shiftKey) {
 			return;
 		}
+
+		// If we're pressing `Shift+Up/Down` then we want to select a line at a time.
+		if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+			e.stopPropagation(); // We don't want the notebook to handle this, default behavior is what we need.
+			return;
+		}
+
 		// We want to handle just `Shift + PageUp/PageDown` & `Shift + Cmd + ArrowUp/ArrowDown` (for mac)
 		if (!(e.code === 'PageUp' || e.code === 'PageDown') && !(e.metaKey && (e.code === 'ArrowDown' || e.code === 'ArrowUp'))) {
 			return;
@@ -341,7 +358,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 		const activeElement = window.document.activeElement;
 		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
-			e.preventDefault(); // We will handle selection in editor code.
+			// The input element will handle this.
 			return;
 		}
 
@@ -571,14 +588,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		if (node.hasAttribute('recentlyScrolled')) {
-			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 300) {
+			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 400) {
 				// it has been a while since we actually scrolled
-				// if scroll velocity increases, it's likely a new scroll event
-				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 2) {
+				// if scroll velocity increases significantly, it's likely a new scroll event
+				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 8) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
 					return false;
-				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 2) {
+				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 8) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
 					return false;
@@ -689,7 +706,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		element.id = `focus-sink-${cellId}`;
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
-			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
+			postNotebookMessage<webviewMessages.IFocusEditorMessage>('focus-editor', {
 				cellId: cellId,
 				focusNext
 			});
@@ -1559,7 +1576,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
 			return;
 		}
 
@@ -1732,6 +1749,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'focus-output':
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
+			case 'blur-output':
+				blurOutput();
+				break;
 			case 'select-output-contents':
 				selectOutputContents(event.data.cellOrOutputId);
 				break;
@@ -1892,6 +1912,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get outputScrolling() { return currentRenderOptions.outputScrolling; },
 					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
 					get linkifyFilePaths() { return currentRenderOptions.linkifyFilePaths; },
+					get minimalError() { return currentRenderOptions.minimalError; },
 				},
 				get onDidChangeSettings() { return settingChange.event; }
 			};
@@ -2699,7 +2720,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			outputElement/** outputNode */.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 
 			if (!!data.executionId && !!data.rendererId) {
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
+				let outputSize: number | undefined = undefined;
+				let mimeType: string | undefined = undefined;
+				if (data.content.type === 1 /* extension */) {
+					outputSize = data.content.output.valueBytes.length;
+					mimeType = data.content.output.mime;
+				}
+
+				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+					cellId: data.cellId,
+					executionId: data.executionId,
+					duration: Date.now() - startTime,
+					rendererId: data.rendererId,
+					outputSize,
+					mimeType
+				});
 			}
 		}
 

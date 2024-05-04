@@ -164,6 +164,7 @@
 	"typescript.suggest.enabled": "Enabled/disable autocomplete suggestions.",
 	"configuration.surveys.enabled": "Enabled/disable occasional surveys that help us improve VS Code's JavaScript and TypeScript support.",
 	"configuration.suggest.completeJSDocs": "Enable/disable suggestion to complete JSDoc comments.",
+	"configuration.tsserver.useVsCodeWatcher": "Use VS Code's file watchers instead of TypeScript's. Requires using TypeScript 5.4+ in the workspace.",
 	"configuration.tsserver.watchOptions": "Configure which watching strategies should be used to keep track of files and directories.",
 	"configuration.tsserver.watchOptions.watchFile": "Strategy for how individual files are watched.",
 	"configuration.tsserver.watchOptions.watchFile.fixedChunkSizePolling": "Polls files in chunks at regular interval.",

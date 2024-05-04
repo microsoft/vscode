@@ -172,7 +172,7 @@ export class SearchWidget extends Widget {
 	public contextLinesInput!: InputBox;
 
 	private _notebookFilters: NotebookFindFilters;
-	private _toggleReplaceButtonListener: MutableDisposable<IDisposable>;
+	private readonly _toggleReplaceButtonListener: MutableDisposable<IDisposable>;
 
 	constructor(
 		container: HTMLElement,
@@ -210,7 +210,7 @@ export class SearchWidget extends Widget {
 		this._register(
 			this._notebookFilters.onDidChange(() => {
 				if (this.searchInput) {
-					this.searchInput.updateStyles();
+					this.searchInput.updateFilterStyles();
 				}
 			}));
 		this._register(this.editorService.onDidEditorsChange((e) => {

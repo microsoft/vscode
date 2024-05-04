@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
-import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
+import { IObservable, ITransaction, derived, observableValue, transaction } from 'vs/base/common/observable';
+import { constObservable, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent } from 'vs/base/common/observableInternal/utils';
+import { URI } from 'vs/base/common/uri';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditor/model';
@@ -15,15 +16,15 @@ import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
 
 export class MultiDiffEditorViewModel extends Disposable {
-	private readonly _documents = observableFromEvent(this.model.onDidChange, /** @description MultiDiffEditorViewModel.documents */() => this.model.documents);
+	private readonly _documents = observableFromValueWithChangeEvent(this.model, this.model.documents);
 
-	public readonly items = mapObservableArrayCached(this, this._documents, (d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d)))
+	public readonly items = mapObservableArrayCached(this, this._documents, (d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this)))
 		.recomputeInitiallyAndOnChange(this._store);
 
-	public readonly activeDiffItem = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
+	public readonly focusedDiffItem = derived(this, reader => this.items.read(reader).find(i => i.isFocused.read(reader)));
+	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this, (reader, lastValue) => this.focusedDiffItem.read(reader) ?? lastValue);
 
 	public async waitForDiffs(): Promise<void> {
 		for (const d of this.items.get()) {
@@ -71,8 +72,18 @@ export class DocumentDiffItemViewModel extends Disposable {
 	public get originalUri(): URI | undefined { return this.entry.value!.original?.uri; }
 	public get modifiedUri(): URI | undefined { return this.entry.value!.modified?.uri; }
 
+	public readonly isActive: IObservable<boolean> = derived(this, reader => this._editorViewModel.activeDiffItem.read(reader) === this);
+
+	private readonly _isFocusedSource = observableValue<IObservable<boolean>>(this, constObservable(false));
+	public readonly isFocused = derived(this, reader => this._isFocusedSource.read(reader).read(reader));
+
+	public setIsFocused(source: IObservable<boolean>, tx: ITransaction | undefined): void {
+		this._isFocusedSource.set(source, tx);
+	}
+
 	constructor(
 		public readonly entry: LazyPromise<IDocumentDiffItem>,
+		private readonly _editorViewModel: MultiDiffEditorViewModel,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 	) {

@@ -82,6 +82,13 @@ export function appendRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
 	});
 }
 
+export function prependRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
+	parent.prepend(child);
+	return toDisposable(() => {
+		parent.removeChild(child);
+	});
+}
+
 export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
 	return observableFromEvent(
 		(handleChange) => configurationService.onDidChangeConfiguration(e => {
