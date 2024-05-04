@@ -130,7 +130,7 @@ suite('InlineChatSession', function () {
 
 		instaService.get(IChatAgentService).registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
-			extensionPublisherDisplayName: '',
+			publisherDisplayName: '',
 			extensionDisplayName: '',
 			extensionPublisherId: '',
 			id: 'testAgent',

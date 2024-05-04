@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Emitter, Event, IValueWithChangeEvent } from 'vs/base/common/event';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IObjectTreeElement, ITreeEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
@@ -685,8 +685,6 @@ export class QuickInputTree extends Disposable {
 	private readonly _onSeparatorButtonTriggered = new Emitter<IQuickPickSeparatorButtonEvent>();
 	onSeparatorButtonTriggered = this._onSeparatorButtonTriggered.event;
 
-	private readonly _onTriggerEmptySelectionOrFocus = new Emitter<ITreeEvent<IQuickPickElement | null>>();
-
 	private readonly _container: HTMLElement;
 	private readonly _tree: WorkbenchObjectTree<IQuickPickElement, void>;
 	private readonly _separatorRenderer: QuickPickSeparatorElementRenderer;
@@ -742,7 +740,7 @@ export class QuickInputTree extends Disposable {
 	@memoize
 	get onDidChangeFocus() {
 		return Event.map(
-			Event.any(this._tree.onDidChangeFocus, this._onTriggerEmptySelectionOrFocus.event),
+			this._tree.onDidChangeFocus,
 			e => e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item)
 		);
 	}
@@ -750,11 +748,12 @@ export class QuickInputTree extends Disposable {
 	@memoize
 	get onDidChangeSelection() {
 		return Event.map(
-			Event.any(this._tree.onDidChangeSelection, this._onTriggerEmptySelectionOrFocus.event),
+			this._tree.onDidChangeSelection,
 			e => ({
 				items: e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item),
 				event: e.browserEvent
-			}));
+			})
+		);
 	}
 
 	get scrollTop() {
@@ -1483,15 +1482,7 @@ export class QuickInputTree extends Disposable {
 				});
 			}
 		}
-		const before = this._tree.getFocus().length;
 		this._tree.setChildren(null, elements);
-		// Temporary fix until we figure out why the tree doesn't fire an event when focus & selection
-		// get changed to empty arrays.
-		if (before > 0 && elements.length === 0) {
-			this._onTriggerEmptySelectionOrFocus.fire({
-				elements: []
-			});
-		}
 		this._tree.layout();
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
