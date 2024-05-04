@@ -128,6 +128,8 @@ declare module 'vscode' {
 		 * @param message An extra message to display to the user
 		 * @param data An arbitrary JSON-stringifiable object that will be included in the ChatRequest when
 		 * the confirmation is accepted or rejected
+		 * TODO@API should this be MarkdownString?
+		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
 		confirmation(title: string, message: string, data: any): ChatResponseStream;
 

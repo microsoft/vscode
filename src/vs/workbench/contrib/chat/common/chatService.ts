@@ -133,6 +133,13 @@ export interface IChatTextEdit {
 	kind: 'textEdit';
 }
 
+export interface IChatConfirmation {
+	title: string;
+	message: string;
+	data: any;
+	kind: 'confirmation';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -144,7 +151,8 @@ export type IChatProgress =
 	| IChatProgressMessage
 	| IChatCommandButton
 	| IChatWarningMessage
-	| IChatTextEdit;
+	| IChatTextEdit
+	| IChatConfirmation;
 
 export interface IChatFollowup {
 	kind: 'reply';

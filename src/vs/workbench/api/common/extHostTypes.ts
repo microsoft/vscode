@@ -4337,6 +4337,17 @@ export class ChatResponseDetectedParticipantPart {
 	}
 }
 
+export class ChatResponseConfirmationPart {
+	title: string;
+	message: string;
+	data: any;
+	constructor(title: string, message: string, data: any) {
+		this.title = title;
+		this.message = message;
+		this.data = data;
+	}
+}
+
 export class ChatResponseFileTreePart {
 	value: vscode.ChatResponseFileTree[];
 	baseUri: vscode.Uri;
