@@ -158,7 +158,7 @@ declare module 'vscode' {
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 
-		export function createDynamicChatParticipant(id: string, name: string, description: string, handler: ChatExtendedRequestHandler): ChatParticipant;
+		export function createDynamicChatParticipant(id: string, name: string, publisherName: string, description: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 	}
 
 	/*
@@ -247,11 +247,6 @@ declare module 'vscode' {
 		 * A description of this value, which could be provided to the LLM as a hint.
 		 */
 		description?: string;
-
-		/**
-		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
-		 */
-		kind?: string;
 	}
 
 	export interface ChatVariableResolverResponseStream {

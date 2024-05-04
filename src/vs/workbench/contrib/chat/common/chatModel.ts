@@ -23,14 +23,10 @@ import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedCha
 import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export interface IChatPromptVariableData {
-	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
-}
-
 export interface IChatRequestVariableEntry {
 	name: string;
 	range?: IOffsetRange;
-	values: IChatRequestVariableValue[];
+	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 }
 
@@ -644,9 +640,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						: reviveParsedChatRequest(raw.message);
 
 				// Old messages don't have variableData, or have it in the wrong (non-array) shape
-				const variableData: IChatRequestVariableData = raw.variableData && Array.isArray(raw.variableData.variables)
-					? raw.variableData :
-					{ variables: [] };
+				const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
@@ -670,6 +664,27 @@ export class ChatModel extends Disposable implements IChatModel {
 			this.logService.error('Failed to parse chat data', error);
 			return [];
 		}
+	}
+
+	private reviveVariableData(raw: IChatRequestVariableData): IChatRequestVariableData {
+		const variableData = raw && Array.isArray(raw.variables)
+			? raw :
+			{ variables: [] };
+
+		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>(v => {
+			if ('values' in v && Array.isArray(v.values)) {
+				return {
+					name: v.name,
+					value: v.values[0]?.value,
+					range: v.range,
+					references: v.references
+				};
+			} else {
+				return v;
+			}
+		});
+
+		return variableData;
 	}
 
 	private reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
