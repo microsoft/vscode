@@ -1422,9 +1422,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipant');
 				return extHostChatAgents2.createChatAgent(extension, id, handler);
 			},
-			createDynamicChatParticipant(id: string, name: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+			createDynamicChatParticipant(id: string, name: string, publisherName: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-				return extHostChatAgents2.createDynamicChatAgent(extension, id, name, description, handler);
+				return extHostChatAgents2.createDynamicChatAgent(extension, id, name, publisherName, description, handler);
 			}
 		};
 

@@ -158,7 +158,7 @@ declare module 'vscode' {
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 
-		export function createDynamicChatParticipant(id: string, name: string, description: string, handler: ChatExtendedRequestHandler): ChatParticipant;
+		export function createDynamicChatParticipant(id: string, name: string, publisherName: string, description: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 	}
 
 	/*
