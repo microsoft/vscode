@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import * as testRunner from '../../../../test/integration/electron/testrunner.js';
+import * as testRunner from '../../../../test/integration/electron/testrunner';
 
 const options: any = {
 	ui: 'tdd',
