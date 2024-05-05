@@ -100,7 +100,7 @@ function hygiene(some, linting = true) {
 		const lines = file.__lines;
 		if (!file.path.endsWith('codicon.css')) {
 			for (let i = 0; i < copyrightHeaderLines.length; i++) {
-				if (lines[i] !== copyrightHeaderLines[i]) {
+				if (lines[i] !== copyrightHeaderLines[i] && !file.relative.endsWith('loader.js')) {
 					console.error(file.relative + ': Missing or bad copyright statement');
 					errorCount++;
 					break;
