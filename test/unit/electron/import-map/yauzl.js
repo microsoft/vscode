@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { yauzl } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { open } = yauzl;
+const { open } = testGlobals.yauzl;
 
 export { open };

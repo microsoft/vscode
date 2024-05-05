@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { util } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { promisify } = util;
+const { promisify } = testGlobals.util;
 
 export { promisify };

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { vscodeRipgrep } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { rgPath } = vscodeRipgrep;
+const { rgPath } = testGlobals.vscodeRipgrep;
 
 export { rgPath };

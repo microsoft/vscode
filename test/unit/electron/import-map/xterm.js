@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { xterm } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-export default xterm;
+export default testGlobals.xterm;

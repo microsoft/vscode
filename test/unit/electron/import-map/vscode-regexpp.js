@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { vscodeRegexpp } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { RegExpParser, RegExpVisitor } = vscodeRegexpp;
+const { RegExpParser, RegExpVisitor } = testGlobals.vscodeRegexpp;
 
 export { RegExpParser, RegExpVisitor };

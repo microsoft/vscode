@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { stream } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { Transform, Readable, Writable } = stream;
+const { Transform, Readable, Writable } = testGlobals.stream;
 
-export { Transform, Readable, Writable };
+export { Readable, Transform, Writable };

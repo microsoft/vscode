@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { stringDecoder } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { StringDecoder } = stringDecoder;
+const { StringDecoder } = testGlobals.stringDecoder;
 
 export { StringDecoder };
