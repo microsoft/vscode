@@ -276,6 +276,11 @@ export interface IChatSendRequestOptions {
 	parserContext?: IChatParserContext;
 	attempt?: number;
 	noCommandDetection?: boolean;
+	acceptedConfirmationData?: any[];
+	rejectedConfirmationData?: any[];
+
+	/** The target agent ID can be specified with this property instead of using @ in 'message' */
+	agentId?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

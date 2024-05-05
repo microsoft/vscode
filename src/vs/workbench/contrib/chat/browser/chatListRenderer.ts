@@ -33,11 +33,13 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { Range } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/model';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -57,8 +59,9 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
+import { ChatConfirmationWidget } from 'vs/workbench/contrib/chat/browser/chatConfirmationWidget';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
@@ -67,19 +70,16 @@ import { ChatAgentLocation, IChatAgentMetadata, IChatAgentNameService } from 'vs
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
-import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
-import { ChatConfirmationWidget } from 'vs/workbench/contrib/chat/browser/chatConfirmationWidget';
 
 const $ = dom.$;
 
@@ -160,7 +160,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -960,11 +960,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			{ label: localize('deny', "Deny"), data: confirmation.data, isSecondary: true },
 		]));
 
-		// TODO how to make it only clickable when the response finishes?
 		store.add(confirmationWidget.onDidClick(e => {
 			if (isResponseVM(element)) {
-				// TODO Need to pass hidden data, and need better non-textual API for this
-				this.chatWidgetService.getWidgetBySessionId(element.sessionId)?.acceptInput(`@${element.agent?.name} clicked "${e.label}"`);
+				const prompt = `${e.label}: "${confirmation.title}"`;
+				const data: IChatSendRequestOptions = e.isSecondary ?
+					{ rejectedConfirmationData: [e.data] } :
+					{ acceptedConfirmationData: [e.data] };
+				data.agentId = element.agent?.id;
+				this.chatService.sendRequest(element.sessionId, prompt, data);
 			}
 		}));
 

@@ -2530,6 +2530,8 @@ export namespace ChatAgentRequest {
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			variables: request.variables.variables.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
+			acceptedConfirmationData: request.acceptedConfirmationData,
+			rejectedConfirmationData: request.rejectedConfirmationData
 		};
 	}
 }
