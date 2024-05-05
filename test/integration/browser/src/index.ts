@@ -9,7 +9,7 @@ import { promises } from 'fs';
 import minimist from 'minimist';
 import { fileURLToPath } from 'node:url';
 import * as path from 'path';
-import * as rimraf from 'rimraf';
+import rimraf from 'rimraf';
 import * as tmp from 'tmp';
 import kill from 'tree-kill';
 import * as url from 'url';
