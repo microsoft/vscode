@@ -455,13 +455,28 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
-		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform + '.js').then((m) => {
+		this.loadContribution(platform).then((m) => {
 			const keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
 			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 			this._mru = this._keymapInfos;
 			this._initialized = true;
 			this.setLayoutFromBrowserAPI();
 		});
+	}
+
+	private loadContribution(platform: string) {
+		switch (platform) {
+			case 'win':
+				return import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win.js')
+			case 'darwin':
+				return import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin.js')
+			case 'linux':
+				return import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux.js')
+			default:
+				throw new Error('unsupported platform')
+
+
+		}
 	}
 }
 
