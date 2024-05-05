@@ -7,6 +7,7 @@
 
 import { createRequire } from 'module';
 import { fileURLToPath } from 'node:url';
+import * as path from 'node:path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -14,7 +15,6 @@ const require = createRequire(import.meta.url);
 const testWebLocation = require.resolve('@vscode/test-web');
 
 const fs = require('fs');
-const path = require('path');
 const cp = require('child_process');
 
 const minimist = require('minimist');
