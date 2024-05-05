@@ -2455,7 +2455,7 @@ export namespace ChatResponseReferencePart {
 
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2474,6 +2474,8 @@ export namespace ChatResponsePart {
 			return ChatResponseMarkdownWithVulnerabilitiesPart.from(part);
 		} else if (part instanceof types.ChatResponseDetectedParticipantPart) {
 			return ChatResponseDetectedParticipantPart.from(part);
+		} else if (part instanceof types.ChatResponseWarningPart) {
+			return ChatResponseWarningPart.from(part);
 		}
 
 		return {

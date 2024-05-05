@@ -125,6 +125,7 @@ class ChatAgentResponseStream {
 				},
 				warning(value) {
 					throwIfDone(this.progress);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					const part = new extHostTypes.ChatResponseWarningPart(value);
 					const dto = typeConvert.ChatResponseWarningPart.from(part);
 					_report(dto);
@@ -184,7 +185,12 @@ class ChatAgentResponseStream {
 				push(part) {
 					throwIfDone(this.push);
 
-					if (part instanceof extHostTypes.ChatResponseTextEditPart || part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart || part instanceof extHostTypes.ChatResponseDetectedParticipantPart) {
+					if (
+						part instanceof extHostTypes.ChatResponseTextEditPart ||
+						part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart ||
+						part instanceof extHostTypes.ChatResponseDetectedParticipantPart ||
+						part instanceof extHostTypes.ChatResponseWarningPart
+					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}
 
