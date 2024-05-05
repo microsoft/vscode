@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nativeWatchdog } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { start } = nativeWatchdog;
+const { start } = testGlobals.nativeWatchdog;
 
 export { start };

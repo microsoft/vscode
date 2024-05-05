@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nativeIsElevated } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-export default nativeIsElevated;
+export default testGlobals.nativeIsElevated;

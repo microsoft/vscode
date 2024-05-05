@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { childProcess } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { fork, exec, spawn, execSync } = childProcess;
+const { fork, exec, spawn, execSync } = testGlobals.childProcess;
 
 export { fork, exec, spawn, execSync };

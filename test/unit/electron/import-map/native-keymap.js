@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nativeKeymap } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { getCurrentKeyboardLayout } = nativeKeymap;
+const { getCurrentKeyboardLayout } = testGlobals.nativeKeymap;
 
 export { getCurrentKeyboardLayout };

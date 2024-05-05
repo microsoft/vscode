@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { os } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { tmpdir, networkInterfaces, homedir, userInfo, release, hostname } = os;
+const { tmpdir, networkInterfaces, homedir, userInfo, release, hostname } = testGlobals.os;
 
-export { tmpdir, networkInterfaces, homedir, userInfo, release, hostname };
+export { homedir, hostname, networkInterfaces, release, tmpdir, userInfo };

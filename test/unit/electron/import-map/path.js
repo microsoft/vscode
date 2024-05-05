@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { path } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { join, resolve, dirname, isAbsolute, normalize, relative, basename, extname, format, parse, toNamedspacedPath, sep, delimiter } = path;
+const { join, resolve, dirname, isAbsolute, normalize, relative, basename, extname, format, parse, toNamedspacedPath, sep, delimiter } = testGlobals.path;
 
-export { join, resolve, dirname, isAbsolute, normalize, relative, basename, extname, format, parse, toNamedspacedPath, sep, delimiter };
+export { basename, delimiter, dirname, extname, format, isAbsolute, join, normalize, parse, relative, resolve, sep, toNamedspacedPath };

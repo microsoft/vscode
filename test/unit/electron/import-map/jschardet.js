@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { jschardet } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { detect } = jschardet;
+const { detect } = testGlobals.jschardet;
 
 export { detect };

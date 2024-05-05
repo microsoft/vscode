@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { net } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { createServer, createConnection, connect, Socket } = net;
+const { createServer, createConnection, connect, Socket } = testGlobals.net;
 
-export { createServer, createConnection, connect, Socket };
+export { connect, createConnection, createServer, Socket };

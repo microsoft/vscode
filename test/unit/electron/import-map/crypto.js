@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { crypto } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { createHash, randomBytes } = crypto;
+const { createHash, randomBytes } = testGlobals.crypto;
 
 export { createHash, randomBytes };

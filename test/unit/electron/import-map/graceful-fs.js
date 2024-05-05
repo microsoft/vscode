@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { gracefulFs } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-export default gracefulFs;
+export default testGlobals.gracefulFs;

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { events } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { EventEmitter } = events;
+const { EventEmitter } = testGlobals.events;
 
 export { EventEmitter };

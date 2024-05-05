@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { electron } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { ipcMain, screen, BrowserWindow, app, nativeTheme, dialog } = electron;
+const { ipcMain, screen, BrowserWindow, app, nativeTheme, dialog } = testGlobals.electron;
 
 export { ipcMain, screen, BrowserWindow, app, nativeTheme, dialog };

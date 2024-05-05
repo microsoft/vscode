@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parcelWatcher } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { subscribe, writeSnapshot, getEventsSince } = parcelWatcher;
+const { subscribe, writeSnapshot, getEventsSince } = testGlobals.parcelWatcher;
 
-export { subscribe, writeSnapshot, getEventsSince };
+export { getEventsSince, subscribe, writeSnapshot };
 
-export default parcelWatcher;
+export default testGlobals.parcelWatcher;

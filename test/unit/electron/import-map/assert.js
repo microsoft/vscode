@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from './testGlobals.js';
+import { testGlobals } from './testGlobals.js';
 
-const { strictEqual, deepEqual, deepStrictEqual, ok, notStrictEqual, fail, notEqual, throws, notDeepStrictEqual, equal } = assert;
+const { strictEqual, deepEqual, deepStrictEqual, ok, notStrictEqual, fail, notEqual, throws, notDeepStrictEqual, equal } = testGlobals.assert;
 
 export { strictEqual, deepEqual, deepStrictEqual, ok, notStrictEqual, fail, notEqual, throws, notDeepStrictEqual, equal };
 
-export default assert;
+export default testGlobals.assert;
