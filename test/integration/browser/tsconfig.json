@@ -1,10 +1,11 @@
 {
 	"compilerOptions": {
-		"module": "commonjs",
+		"module": "NodeNext",
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "es2020",
+		"moduleResolution": "NodeNext",
 		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,
@@ -15,7 +16,5 @@
 			"dom"
 		]
 	},
-	"exclude": [
-		"node_modules"
-	]
+	"exclude": ["node_modules"]
 }
