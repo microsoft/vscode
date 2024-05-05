@@ -21,3 +21,8 @@ vscode.db
 product.overrides.json
 *.snap.actual
 .vscode-test
+
+.fake
+.python_packages
+__pycache__
+.venv

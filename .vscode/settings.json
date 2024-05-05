@@ -171,5 +171,11 @@
 	"css.format.spaceAroundSelectorSeparator": true,
 	"inlineChat.mode": "live",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"typescript.tsserver.experimental.useVsCodeWatcher": true
+	"typescript.tsserver.experimental.useVsCodeWatcher": true,
+	"azureFunctions.deploySubpath": ".",
+	"azureFunctions.scmDoBuildDuringDeployment": true,
+	"azureFunctions.pythonVenv": ".venv",
+	"azureFunctions.projectLanguage": "Python",
+	"azureFunctions.projectRuntime": "~4",
+	"azureFunctions.projectLanguageModel": 2
 }
