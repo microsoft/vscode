@@ -70,7 +70,7 @@
 			return;
 		}
 		const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.cjs';
-
+		console.log({ loaderSrc })
 		const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, globalThis.origin.length) !== globalThis.origin);
 		if (!isCrossOrigin && canUseEval()) {
 			// use `fetch` if possible because `importScripts`
