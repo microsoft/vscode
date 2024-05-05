@@ -165,12 +165,7 @@
 						file,
 						mocha
 					);
-					const m = await new Promise((resolve, reject) =>
-						require([file], resolve, (err) => {
-							console.log("BAD " + file + JSON.stringify(err, undefined, "\t"));
-							resolve({});
-						})
-					);
+					const m = await import(file);
 					mocha.suite.emit(
 						Mocha.Suite.constants.EVENT_FILE_REQUIRE,
 						m,
