@@ -56,6 +56,7 @@ function startServer(programArgs) {
 			}
 		});
 
+		// @ts-ignore
 		proc.on('exit', (code) => process.exit(code));
 
 		process.on('exit', () => proc.kill());
