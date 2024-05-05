@@ -5,8 +5,8 @@
 
 // @ts-check
 
-const path = require('path');
-const perf = require('@vscode/vscode-perf');
+import * as path from 'node:path';
+import perf from '@vscode/vscode-perf';
 
 const VSCODE_FOLDER = path.join(__dirname, '..');
 

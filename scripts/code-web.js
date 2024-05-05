@@ -5,6 +5,12 @@
 
 // @ts-check
 
+import { createRequire } from 'module';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+
 const testWebLocation = require.resolve('@vscode/test-web');
 
 const fs = require('fs');
@@ -90,6 +96,7 @@ function startServer(runnerArguments) {
 	console.log(`Starting @vscode/test-web: ${testWebLocation} ${runnerArguments.join(' ')}`);
 	const proc = cp.spawn(process.execPath, [testWebLocation, ...runnerArguments], { env, stdio: 'inherit' });
 
+	// @ts-ignore
 	proc.on('exit', (code) => process.exit(code));
 
 	process.on('exit', () => proc.kill());
