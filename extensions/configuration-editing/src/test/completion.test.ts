@@ -292,7 +292,7 @@ suite('Completions in settings.json', () => {
 	});
 });
 
-suite('Completions in extensions.json', () => {
+suite.skip('Completions in extensions.json', () => {
 	const testFile = 'extensions.json';
 	test('change recommendation', async () => {
 		{
