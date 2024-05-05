@@ -128,6 +128,10 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
 
+	if (!args.workspacePath) {
+		throw new Error('workspacePath is required')
+	}
+
 	const testWorkspacePath = URI.file(path.resolve(args.workspacePath)).path;
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(args.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(args.extensionTestsPath)).path, protocol, host, slashes: true });
