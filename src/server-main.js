@@ -5,6 +5,13 @@
 
 // @ts-check
 
+import { createRequire } from 'module';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+
 const perf = require('./vs/base/common/performance');
 const performance = require('perf_hooks').performance;
 const product = require('../product.json');
