@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import {
 	IWorkbenchContribution,
 	registerWorkbenchContribution2,
 	WorkbenchPhase
 } from 'vs/workbench/common/contributions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2, } from 'vs/platform/actions/common/actions';
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -21,12 +20,19 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 export class ExtensionsMenuContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.extensionsMenuContribution';
+	private extensionMenuItems: DisposableMap<MenuId, IDisposable>;
 
 	constructor(
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IGlobalExtensionEnablementService private readonly globalExtensionEnablementService: IGlobalExtensionEnablementService
 	) {
 		super();
-		void this.listExtensions();
+		void this.createExtensionMenu();
+		this.extensionManagementService.onDidInstallExtensions(() => this.updateExtensionMenu());
+		this.extensionManagementService.onDidUninstallExtension(() => this.updateExtensionMenu());
+		this.globalExtensionEnablementService.onDidChangeEnablement(() => this.updateExtensionMenu());
+
+		this.extensionMenuItems = new DisposableMap<MenuId, IDisposable>();
 	}
 
 	private createExtensionActionItem(actionId: string, actionKey: string, actionTitle: string, actionOrder: number, extensionName: string) {
@@ -39,53 +45,25 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 						mnemonicTitle: localize({ key: `mi${actionKey}`, comment: ['&& denotes a mnemonic'] }, `&&${actionTitle}`),
 					},
 					category: Categories.Extension,
-					f1: true,
 					menu: {
 						id: MenuId.for('menu_' + extensionName),
 						order: actionOrder
 					}
 				});
 			}
-
-			run(accessor: ServicesAccessor): void { }
+			run(): void { }
 		};
 	}
 
-	private async listExtensions(): Promise<void> {
-		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+	private updateExtensionMenu(): void {
+		this.extensionMenuItems.clearAndDisposeAll();
+		void this.createExtensionMenu();
+	}
 
-		extensions.forEach((extension, index) => {
-			const extName = extension.manifest.displayName;
-
-			if (extName) {
-				MenuRegistry.appendMenuItem(MenuId.MenubarExtensionMenu, {
-					submenu: new MenuId('menu_' + extName),
-					title: {
-						value: extName,
-						original: extName,
-						mnemonicTitle: localize({ key: `m${extName}`, comment: ['&& denotes a mnemonic'] }, `&&${extName}`)
-					},
-					order: index
-				});
-
-
-				const commands = extension.manifest.contributes?.commands;
-
-				if (commands && commands.length > 0) {
-					commands.forEach((command, index) => {
-						if (!CommandsRegistry.getCommand(command.command)) {
-							const action = this.createExtensionActionItem(command.command, command.command.toString(), command.title.toString(), index, extName);
-							registerAction2(action);
-						}
-					});
-				}
-
-			}
-		});
-
+	private async createExtensionMenu(): Promise<void> {
+		await this.listExtensions();
 		const mainMenuLength = MenuRegistry.getMenuItems(MenuId.MenubarMainMenu).length;
-
-		MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+		const extMenu = MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 			submenu: MenuId.MenubarExtensionMenu,
 			title: {
 				value: 'Extension',
@@ -94,9 +72,47 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 			},
 			order: mainMenuLength
 		});
-
+		this.extensionMenuItems.set(MenuId.MenubarExtensionMenu, extMenu);
 	}
 
+	private listExtensionCommands(extension: ILocalExtension): void {
+		const commands = extension.manifest.contributes?.commands;
+		const extName = extension.manifest.displayName;
+		if (extName && commands && commands.length > 0) {
+			let extensionCommandOrderIndex = 1;
+			commands.forEach(command => {
+				if (!CommandsRegistry.getCommand(command.command)) {
+					const action = this.createExtensionActionItem(command.command, command.command.toString(), command.title.toString(), extensionCommandOrderIndex, extName);
+					registerAction2(action);
+					extensionCommandOrderIndex++;
+				}
+			});
+		}
+	}
+
+	private async listExtensions(): Promise<void> {
+		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+
+		let extensionOrderIndex = 1;
+		extensions.forEach(extension => {
+			const extName = extension.manifest.displayName;
+			const isDisabledExtension = this.globalExtensionEnablementService.isDisabledExtension(extension.identifier);
+			if (extName && !isDisabledExtension) {
+				const menu = MenuRegistry.appendMenuItem(MenuId.MenubarExtensionMenu, {
+					submenu: MenuId.for('menu_' + extName),
+					title: {
+						value: extName,
+						original: extName,
+						mnemonicTitle: localize({ key: `m${extName}`, comment: ['&& denotes a mnemonic'] }, `&&${extName}`)
+					},
+					order: extensionOrderIndex
+				});
+				this.extensionMenuItems.set(MenuId.for('menu_' + extName), menu);
+				this.listExtensionCommands(extension);
+				extensionOrderIndex++;
+			}
+		});
+	}
 }
 
 registerWorkbenchContribution2(ExtensionsMenuContribution.ID, ExtensionsMenuContribution, WorkbenchPhase.BlockStartup);
