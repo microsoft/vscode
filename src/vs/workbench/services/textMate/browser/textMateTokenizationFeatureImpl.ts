@@ -372,7 +372,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private async _loadVSCodeOnigurumaWASM(): Promise<Response | ArrayBuffer> {
 		if (isWeb) {
-			const onigurumaWasmUrl = FileAccess.asBrowserUri(`${root}/node_modules/vscode-oniguruma/release/onig.wasm`).toString(true);
+			const onigurumaWasmUrl = FileAccess.asBrowserUri(`${root}node_modules/vscode-oniguruma/release/onig.wasm`).toString(true);
 			const response = await fetch(onigurumaWasmUrl);
 			// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 			// Otherwise, a TypeError is thrown when using the streaming compiler.
