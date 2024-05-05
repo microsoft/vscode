@@ -636,6 +636,7 @@ var AMDLoader;
 				let script = document.createElement('script');
 				script.setAttribute('async', 'async');
 				script.setAttribute('type', 'text/javascript');
+				script.setAttribute('type', 'module')
 				this.attachListeners(script, callback, errorback);
 				const { trustedTypesPolicy } = moduleManager.getConfig().getOptionsLiteral();
 				if (trustedTypesPolicy) {
