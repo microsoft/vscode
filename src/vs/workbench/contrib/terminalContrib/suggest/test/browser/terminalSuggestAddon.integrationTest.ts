@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import * as xterm from '@xterm/xterm';
+import xterm from '@xterm/xterm';
 
 const { Terminal } = xterm;
 
