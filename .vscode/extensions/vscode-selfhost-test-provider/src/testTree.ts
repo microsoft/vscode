@@ -32,7 +32,7 @@ export const guessWorkspaceFolder = async () => {
 
   for (const folder of vscode.workspace.workspaceFolders) {
     try {
-      await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, 'src/vs/loader.js'));
+      await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, 'src/vs/loader.cjs'));
       return folder;
     } catch {
       // ignored

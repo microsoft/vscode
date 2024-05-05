@@ -45,7 +45,7 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:src/vs/loader.js"
+    "workspaceContains:src/vs/loader.cjs"
   ],
   "workspaceTrust": {
     "request": "onDemand",
