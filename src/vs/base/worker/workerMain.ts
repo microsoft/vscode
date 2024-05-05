@@ -65,42 +65,36 @@
 		}
 	}
 
-	function loadAMDLoader() {
-		return new Promise<void>((resolve, reject) => {
-			if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
-				return resolve();
-			}
-			const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.cjs';
+	async function loadAMDLoader() {
+		if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
+			return;
+		}
+		const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.cjs';
 
-			const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, globalThis.origin.length) !== globalThis.origin);
-			if (!isCrossOrigin && canUseEval()) {
-				// use `fetch` if possible because `importScripts`
-				// is synchronous and can lead to deadlocks on Safari
-				fetch(loaderSrc).then((response) => {
-					if (response.status !== 200) {
-						throw new Error(response.statusText);
-					}
-					return response.text();
-				}).then((text) => {
-					text = `${text}\n//# sourceURL=${loaderSrc}`;
-					const func = (
-						trustedTypesPolicy
-							? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
-							: new Function(text) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
-					);
-					func.call(globalThis);
-					resolve();
-				}).then(undefined, reject);
-				return;
+		const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, globalThis.origin.length) !== globalThis.origin);
+		if (!isCrossOrigin && canUseEval()) {
+			// use `fetch` if possible because `importScripts`
+			// is synchronous and can lead to deadlocks on Safari
+			const response = await fetch(loaderSrc)
+			if (response.status !== 200) {
+				throw new Error(response.statusText);
 			}
+			let text = await response.text();
+			text = `${text}\n//# sourceURL=${loaderSrc}`;
+			const func = (
+				trustedTypesPolicy
+					? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
+					: new Function(text) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
+			);
+			func.call(globalThis);
+			return;
+		}
 
-			if (trustedTypesPolicy) {
-				importScripts(trustedTypesPolicy.createScriptURL(loaderSrc) as unknown as string);
-			} else {
-				importScripts(loaderSrc as string);
-			}
-			resolve();
-		});
+		if (trustedTypesPolicy) {
+			importScripts(trustedTypesPolicy.createScriptURL(loaderSrc) as unknown as string);
+		} else {
+			importScripts(loaderSrc as string);
+		}
 	}
 
 	function configureAMDLoader() {
