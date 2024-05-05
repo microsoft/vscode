@@ -531,7 +531,9 @@ export class SimpleWorkerServer<H extends object> {
 
 			// Since this is in a web worker, enable catching errors
 			loaderConfig.catchError = true;
-			globalThis.require.config(loaderConfig);
+			if (globalThis.require) {
+				globalThis.require.config(loaderConfig);
+			}
 		}
 
 		// Get the global config
