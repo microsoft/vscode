@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/xterm';
+import xterm from '@xterm/xterm';
+const { Terminal } = xterm;
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -23,7 +24,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 suite('Terminal Initial Hint Addon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let eventCount = 0;
-	let xterm: Terminal;
+	let xterm: xterm.Terminal;
 	let initialHintAddon: InitialHintAddon;
 	const _onDidChangeProviders: Emitter<InlineChatProviderChangeEvent> = new Emitter();
 	const onDidChangeProviders = _onDidChangeProviders.event;
@@ -85,5 +86,3 @@ suite('Terminal Initial Hint Addon', () => {
 		});
 	});
 });
-
-
