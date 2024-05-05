@@ -146,18 +146,17 @@ const testModules = (async function () {
 		});
 	}
 
-	return promise.then(files => {
-		const modules = [];
-		for (const file of files) {
-			if (!minimatch(file, excludeGlob)) {
-				modules.push(file.replace(/\.js$/, ''));
+	const files = await promise
+	const modules = [];
+	for (const file of files) {
+		if (!minimatch(file, excludeGlob)) {
+			modules.push(file.replace(/\.js$/, ''));
 
-			} else if (!isDefaultModules) {
-				console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
-			}
+		} else if (!isDefaultModules) {
+			console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
 		}
-		return modules;
-	});
+	}
+	return modules;
 })();
 
 function consoleLogFn(msg) {
