@@ -15,6 +15,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2, } from 'vs/platform/act
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 
 export class ExtensionsMenuContribution extends Disposable implements IWorkbenchContribution {
@@ -24,7 +25,8 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IGlobalExtensionEnablementService private readonly globalExtensionEnablementService: IGlobalExtensionEnablementService
+		@IGlobalExtensionEnablementService private readonly globalExtensionEnablementService: IGlobalExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super();
 		void this.createExtensionMenu();
@@ -46,7 +48,7 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 					},
 					category: Categories.Extension,
 					menu: {
-						id: MenuId.for('menu_' + extensionName),
+						id: MenuId.for(extensionName),
 						order: actionOrder
 					}
 				});
@@ -96,10 +98,10 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 		let extensionOrderIndex = 1;
 		extensions.forEach(extension => {
 			const extName = extension.manifest.displayName;
-			const isDisabledExtension = this.globalExtensionEnablementService.isDisabledExtension(extension.identifier);
-			if (extName && !isDisabledExtension) {
+			const isEnabledExtension = this.extensionEnablementService.isEnabled(extension);
+			if (extName && isEnabledExtension) {
 				const menu = MenuRegistry.appendMenuItem(MenuId.MenubarExtensionMenu, {
-					submenu: MenuId.for('menu_' + extName),
+					submenu: MenuId.for(extName),
 					title: {
 						value: extName,
 						original: extName,
@@ -107,7 +109,7 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 					},
 					order: extensionOrderIndex
 				});
-				this.extensionMenuItems.set(MenuId.for('menu_' + extName), menu);
+				this.extensionMenuItems.set(MenuId.for(extName), menu);
 				this.listExtensionCommands(extension);
 				extensionOrderIndex++;
 			}

@@ -52,11 +52,6 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 		return this._getExtensions(DISABLED_EXTENSIONS_STORAGE_PATH);
 	}
 
-	isDisabledExtension(identifier: IExtensionIdentifier): boolean {
-		const disabledExtensions = this.getDisabledExtensions();
-		return disabledExtensions.findIndex(e => areSameExtensions(e, identifier)) !== -1;
-	}
-
 	async getDisabledExtensionsAsync(): Promise<IExtensionIdentifier[]> {
 		return this.getDisabledExtensions();
 	}

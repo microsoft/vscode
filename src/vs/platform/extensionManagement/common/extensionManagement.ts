@@ -524,7 +524,6 @@ export interface IGlobalExtensionEnablementService {
 	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[]; readonly source?: string }>;
 
 	getDisabledExtensions(): IExtensionIdentifier[];
-	isDisabledExtension(extension: IExtensionIdentifier): boolean;
 	enableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
 	disableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
 
