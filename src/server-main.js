@@ -256,28 +256,27 @@ async function findFreePort(host, start, end) {
 }
 
 /** @returns { Promise<typeof import('./vs/server/node/server.main')> } */
-function loadCode() {
-	return new Promise((resolve, reject) => {
-		const path = require('path');
+async function loadCode() {
+	const path = require('path');
 
-		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
+	delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
 
-		// See https://github.com/microsoft/vscode-remote-release/issues/6543
-		// We would normally install a SIGPIPE listener in bootstrap.js
-		// But in certain situations, the console itself can be in a broken pipe state
-		// so logging SIGPIPE to the console will cause an infinite async loop
-		process.env['VSCODE_HANDLES_SIGPIPE'] = 'true';
+	// See https://github.com/microsoft/vscode-remote-release/issues/6543
+	// We would normally install a SIGPIPE listener in bootstrap.js
+	// But in certain situations, the console itself can be in a broken pipe state
+	// so logging SIGPIPE to the console will cause an infinite async loop
+	process.env['VSCODE_HANDLES_SIGPIPE'] = 'true';
 
-		if (process.env['VSCODE_DEV']) {
-			// When running out of sources, we need to load node modules from remote/node_modules,
-			// which are compiled against nodejs, not electron
-			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
-			require('./bootstrap-node.cjs').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
-		} else {
-			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
-		}
-		require('./bootstrap-amd.cjs').load('vs/server/node/server.main', resolve, reject);
-	});
+	if (process.env['VSCODE_DEV']) {
+		// When running out of sources, we need to load node modules from remote/node_modules,
+		// which are compiled against nodejs, not electron
+		process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
+		require('./bootstrap-node.cjs').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+	} else {
+		delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
+	}
+	const module = await import('./vs/server/node/server.main.js')
+	return module
 }
 
 function hasStdinWithoutTty() {
