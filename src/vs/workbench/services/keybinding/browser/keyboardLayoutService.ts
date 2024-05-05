@@ -30,6 +30,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import * as KeyboardLayoutWindows from 'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win';
+import * as KeyboardLayoutMacos from 'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin';
+import * as KeyboardLayoutLinux from 'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux';
 
 export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	// keyboard mapper
@@ -455,23 +458,22 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
-		this.loadContribution(platform).then((m) => {
-			const keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
-			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
-			this._mru = this._keymapInfos;
-			this._initialized = true;
-			this.setLayoutFromBrowserAPI();
-		});
+		const m = this.loadContribution(platform)
+		const keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
+		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
+		this._mru = this._keymapInfos;
+		this._initialized = true;
+		this.setLayoutFromBrowserAPI();
 	}
 
 	private loadContribution(platform: string) {
 		switch (platform) {
 			case 'win':
-				return import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win.js')
+				return KeyboardLayoutWindows
 			case 'darwin':
-				return import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin.js')
+				return KeyboardLayoutMacos
 			case 'linux':
-				return import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux.js')
+				return KeyboardLayoutLinux
 			default:
 				throw new Error('unsupported platform')
 
