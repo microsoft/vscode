@@ -49,6 +49,19 @@
 		<script src="../../../out/vs/loader.js"></script>
 		<script src="../../../out-build/vs/loader.js"></script>
 
+		<script type="importmap">
+			{
+				"imports": {
+					"assert": "../assert.js",
+					"sinon": "../../../node_modules/sinon/pkg/sinon.js",
+					"sinon-test": "../../../node_modules/sinon-test/dist/sinon-test.js",
+					"@xterm/xterm": "../../../node_modules/@xterm/xterm/lib/xterm.js",
+					"@vscode/iconv-lite-umd": "../../../node_modules/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js",
+					"jschardet": "../../../node_modules/jschardet/dist/jschardet.min.js"
+				}
+			}
+		</script>
+
 		<script>
 			const isBuild = urlParams.get("build");
 
