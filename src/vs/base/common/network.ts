@@ -324,11 +324,12 @@ class FileAccessImpl {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
-		if (uriOrModule.startsWith('vscode-file://')) {
+		if (uriOrModule.startsWith('vscode-file://') || uriOrModule.startsWith('http://') || uriOrModule.startsWith('https://')) {
 			return URI.parse(uriOrModule);
 		}
 		const resolved = `${root}out/${uriOrModule}`;
 		return URI.parse(resolved);
+
 	}
 }
 
