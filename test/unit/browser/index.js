@@ -6,7 +6,7 @@
 //@ts-check
 'use strict';
 
-import path from 'path';
+import path, { join } from 'path';
 import glob from 'glob';
 import events from 'events';
 import mocha from 'mocha';
@@ -25,7 +25,6 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
 
 /**
  * @type {{
@@ -156,7 +155,12 @@ const testModules = (async function () {
 			console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
 		}
 	}
-	return modules;
+	out
+	const jsModules = modules.map(module => {
+		return `../../../${outdir}/${module}.js`
+	})
+	console.log({ jsModules })
+	return jsModules;
 })();
 
 function consoleLogFn(msg) {
