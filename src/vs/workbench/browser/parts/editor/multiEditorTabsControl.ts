@@ -26,7 +26,7 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BORDER_TOP } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
@@ -674,7 +674,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Activity has an impact on each tab's active indication
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTabActiveAndDirty(isGroupActive, editor, tabContainer, tabActionBar);
+			this.redrawTabSelectedActiveAndDirty(isGroupActive, editor, tabContainer, tabActionBar);
 		});
 
 		// Activity has an impact on the toolbar, so we need to update and layout
@@ -692,7 +692,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private redrawTabSelections(): void {
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTabSelected(tabIndex, tabContainer);
+			this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 		});
 	}
 
@@ -723,7 +723,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	updateEditorDirty(editor: EditorInput): void {
-		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar));
+		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar));
 	}
 
 	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -1159,22 +1159,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					targetIndex++;
 				}
 
-				// If we are moving an editor inside the same group and it is
-				// located before the target index we need to reduce the index
-				// by one to account for the fact that the move will cause all
-				// subsequent tabs to move one to the left.
-				const editorIdentifiers = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-				if (editorIdentifiers !== undefined) {
-					const draggedEditorIdentifier = editorIdentifiers[0].identifier;
-					const sourceGroup = this.editorPartsView.getGroup(draggedEditorIdentifier.groupId);
-					if (sourceGroup?.id === this.groupView.id) {
-						const editorIndex = sourceGroup.getIndexOfEditor(draggedEditorIdentifier.editor);
-						if (editorIndex < targetIndex) {
-							targetIndex--;
-						}
-					}
-				}
-
 				this.onDrop(e, targetIndex, tabsContainer);
 			}
 		}));
@@ -1493,16 +1477,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabBorders(tabIndex, tabContainer);
 
 		// Active / dirty state
-		this.redrawTabActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
-
-		// Selected state
-		this.redrawTabSelected(tabIndex, tabContainer);
+		this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 	}
 
-	private redrawTabSelected(tabIndex: number, tabContainer: HTMLElement): void {
-		const isSelected = this.groupView.isSelected(this.tabsModel.getEditorByIndex(tabIndex)!);
-		tabContainer.classList.toggle('editor-selected', isSelected);
-	}
 
 	private redrawTabLabel(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 		const options = this.groupsView.partOptions;
@@ -1559,17 +1536,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	private redrawTabActiveAndDirty(isGroupActive: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
+	private redrawTabSelectedActiveAndDirty(isGroupActive: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabActive = this.tabsModel.isActive(editor);
 		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
 
-		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabActionBar);
+		this.doRedrawTabActive(isGroupActive, editor, tabContainer, tabActionBar);
+		this.redrawTabBorderTop(isGroupActive, !hasModifiedBorderTop, editor, tabContainer);
 	}
 
-	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
+	private doRedrawTabActive(isGroupActive: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 
 		const isActive = this.tabsModel.isActive(editor);
-		const isSelected = this.groupView.isSelected(editor);
 
 		tabContainer.classList.toggle('active', isActive);
 		tabContainer.setAttribute('aria-selected', isActive ? 'true' : 'false');
@@ -1582,12 +1559,33 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabContainer.classList.toggle('tab-border-bottom', !!activeTabBorderColorBottom);
 			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom?.toString() ?? '');
 		}
-		if (isActive || isSelected) {
-			// Set border TOP if theme defined color
-			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : undefined;
-			tabContainer.classList.toggle('tab-border-top', !!activeTabBorderColorTop);
-			tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop?.toString() ?? '');
+	}
+
+	private redrawTabBorderTop(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement): void {
+		const isSelected = this.groupView.isSelected(editor);
+		tabContainer.classList.toggle('editor-selected', isSelected);
+
+		// Set border top if selected
+		if (isSelected) {
+			const selectedTabBorderColor = this.getColor(TAB_SELECTED_BORDER_TOP);
+			this.setTabBorderTop(tabContainer, isSelected && selectedTabBorderColor ? selectedTabBorderColor : undefined);
+			return;
 		}
+
+		// Set border top if theme defined color
+		const isActive = this.tabsModel.isActive(editor);
+		if (isActive) {
+			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : undefined;
+			this.setTabBorderTop(tabContainer, isActive && activeTabBorderColorTop ? activeTabBorderColorTop : undefined);
+			return;
+		}
+
+		this.setTabBorderTop(tabContainer, undefined);
+	}
+
+	private setTabBorderTop(tabContainer: HTMLElement, color: string | undefined): void {
+		tabContainer.classList.toggle('tab-border-top', !!color);
+		tabContainer.style.setProperty('--tab-border-top-color', color ?? '');
 	}
 
 	private doRedrawTabDirty(isGroupActive: boolean, isTabActive: boolean, editor: EditorInput, tabContainer: HTMLElement): boolean {
@@ -2104,7 +2102,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.updateDropFeedback(tabsContainer, false, e, targetTabIndex);
 		tabsContainer.classList.remove('scroll');
 
-		const targetEditorIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetTabIndex + this.groupView.stickyCount : targetTabIndex;
+		let targetEditorIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetTabIndex + this.groupView.stickyCount : targetTabIndex;
 		const options: IEditorOptions = {
 			sticky: this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === targetEditorIndex,
 			index: targetEditorIndex
@@ -2133,28 +2131,32 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 			if (Array.isArray(data)) {
-				const draggedEditors = data;
-				const draggedEditor = data[0].identifier;
-				const sourceGroup = this.editorPartsView.getGroup(draggedEditor.groupId);
-				if (sourceGroup) {
 
-					const editors = draggedEditors.map(de => ({ editor: de.identifier.editor, options }));
-					editors.reverse(); // reverse order to restore original order
-
-					// Move editor to target position and index
-					if (this.isMoveOperation(e, draggedEditor.groupId, draggedEditor.editor)) {
-						sourceGroup.moveEditors(editors, this.groupView);
+				// Keep the same order when moving / copying editors within the same group
+				for (const de of data) {
+					const editor = de.identifier.editor;
+					const sourceGroup = this.editorPartsView.getGroup(de.identifier.groupId);
+					if (!sourceGroup) {
+						continue;
 					}
 
-					// Copy editor to target position and index
-					else {
-						sourceGroup.copyEditors(editors, this.groupView);
+					const sourceEditorIndex = sourceGroup.getIndexOfEditor(editor);
+					if (sourceGroup === this.groupView && sourceEditorIndex < targetEditorIndex) {
+						targetEditorIndex--;
 					}
+
+					if (this.isMoveOperation(e, de.identifier.groupId, editor)) {
+						sourceGroup.moveEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
+					} else {
+						sourceGroup.copyEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
+					}
+
+					targetEditorIndex++;
 				}
-
-				this.groupView.focus();
-				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 			}
+
+			this.groupView.focus();
+			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 		}
 
 		// Check for tree items

@@ -56,6 +56,7 @@ import { EditorTitleControl } from 'vs/workbench/browser/parts/editor/editorTitl
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -988,7 +989,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const editorIndex = this.model.indexOf(editor);
 		if (editorIndex === -1) {
-			throw new Error('Editor not found in group');
+			throw new BugIndicatingError();
 		}
 
 		for (let i = 0; i < this.selectedEditors.length; i++) {
@@ -1007,7 +1008,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	selectEditorsUntil(editor: EditorInput): void {
 		const editorIndex = this.model.indexOf(editor);
 		if (editorIndex === -1) {
-			throw new Error('Editor not found in group');
+			throw new BugIndicatingError();
 		}
 
 		const hadAnchor = this.selectedEditorAnchors.length > 0;
