@@ -13,7 +13,7 @@ declare module 'vscode' {
 	export interface LanguageModelChatResponse {
 
 		//TODO@API give this some structure
-		// https://github.com/openai/openai-openapi/blob/master/openapi.yaml#L7700
+		// https://github.com/openai/openai-openapi/blob/master/openapi.yaml#L7700, https://platform.openai.com/docs/guides/text-generation/chat-completions-api
 		// https://github.com/ollama/ollama/blob/main/docs/api.md#response-7
 		// https://docs.anthropic.com/claude/reference/messages_post
 
@@ -40,7 +40,48 @@ declare module 'vscode' {
 		stream: AsyncIterable<string>;
 	}
 
+	export enum LanguageModelChatMessageRole {
+		User,
+		Assistant,
+		// System see https://github.com/anthropics/anthropic-sdk-typescript/blob/c2da9604646ff103fbdbca016a9a9d49b03b387b/src/resources/messages.ts#L384
+	}
+
+	export class LanguageModelChatMessage2 {
+		/**
+		 * The role of this message.
+		 */
+		role: LanguageModelChatMessageRole;
+
+		/**
+		 * The content of this message.
+		 */
+		content: string;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		name: string | undefined;
+
+		/**
+		 * Create a new user message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
+	}
+
+	export interface LanguageModelChatResponse2 {
+
+		message: {
+			role: LanguageModelChatMessageRole;
+			content: AsyncIterable<string>;
+		};
+	}
+
 	// TODO@API have just LanguageModelChatMessage & LanguageModelChatMessageRole
+	// TODO@API don't have SystemChatMessage because it encourages to mix system and user messages
+	// but AFAIK system message should/must come first (https://github.com/anthropics/anthropic-sdk-typescript/blob/c2da9604646ff103fbdbca016a9a9d49b03b387b/src/resources/messages.ts#L384)
 
 	/**
 	 * A language model message that represents a system message.
@@ -209,6 +250,8 @@ declare module 'vscode' {
 	 */
 	export interface LanguageModelChatRequestOptions {
 
+		// TODO@API add short name for the feature using the language model
+
 		/**
 		 * A human-readable message that explains why access to a language model is needed and what feature is enabled by it.
 		 */
@@ -219,6 +262,8 @@ declare module 'vscode' {
 		 */
 		// TODO@API Revisit this, how do you do the first request?
 		silent?: boolean;
+
+		// TODO@API add system messages here?
 
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
