@@ -189,11 +189,11 @@ declare module 'vscode' {
 		 * The number of available tokens that can be used when sending requests
 		 * to the language model.
 		 *
+		 * _Note_ that input- and output-tokens count towards this limit.
+		 *
 		 * @see {@link lm.sendChatRequest}
 		 */
-		// TODO@API is this optional?
-		// TODO@API rename: contextLength?
-		readonly tokens: number;
+		readonly contextLength: number;
 	}
 
 	/**

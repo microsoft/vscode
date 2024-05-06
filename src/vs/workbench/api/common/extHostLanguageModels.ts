@@ -419,12 +419,12 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return undefined;
 		}
 
-		return {
+		return Object.freeze({
 			id: data.identifier,
 			name: data.name,
 			version: data.version,
-			tokens: data.tokens,
-		};
+			contextLength: data.tokens,
+		});
 	}
 
 	private readonly _languageAccessInformationExtensions = new Set<Readonly<IExtensionDescription>>();
