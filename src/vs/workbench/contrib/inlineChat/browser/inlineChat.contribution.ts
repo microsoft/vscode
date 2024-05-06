@@ -7,7 +7,7 @@ import { EditorContributionInstantiation, registerEditorContribution } from 'vs/
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import * as InlineChatActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IInlineChatService, INLINE_CHAT_ID, INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatService, INLINE_CHAT_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -29,7 +29,8 @@ registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, Insta
 registerSingleton(IInlineChatSavingService, InlineChatSavingServiceImpl, InstantiationType.Delayed);
 
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
-registerEditorContribution(INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID, InlineChatActions.InlineAccessibilityHelpContribution, EditorContributionInstantiation.Eventually);
+
+AccessibleViewRegistry.register(new InlineChatAccessibleView());
 
 registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.CloseAction);

@@ -25,7 +25,7 @@ export class ChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly when = ContextKeyExpr.or(CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE, CONTEXT_REQUEST);
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		return runAccessibilityHelpAction(accessor, codeEditor ?? undefined, 'panelChat');
+		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
 	}
 }
 
@@ -72,7 +72,7 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 	return format(noKbMsg, commandId);
 }
 
-export function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat') {
+export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat') {
 	const widgetService = accessor.get(IChatWidgetService);
 	const inputEditor: ICodeEditor | undefined = type === 'panelChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
 
