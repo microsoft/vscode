@@ -11,12 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { COMMENTS_VIEW_ID, CommentsMenus } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { CommentsPanel, CONTEXT_KEY_HAS_COMMENTS } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibleViewOptions, AccessibleViewType, AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 
@@ -61,76 +56,6 @@ export class AccesibleViewContributions extends Disposable {
 	}
 }
 
-
-export class CommentAccessibleViewContribution extends Disposable {
-	static ID: 'commentAccessibleViewContribution';
-	constructor() {
-		super();
-		this._register(AccessibleViewAction.addImplementation(90, 'comment', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const contextKeyService = accessor.get(IContextKeyService);
-			const viewsService = accessor.get(IViewsService);
-			const menuService = accessor.get(IMenuService);
-			const commentsView = viewsService.getActiveViewWithId<CommentsPanel>(COMMENTS_VIEW_ID);
-			if (!commentsView) {
-				return false;
-			}
-			const menus = this._register(new CommentsMenus(menuService));
-			menus.setContextKeyService(contextKeyService);
-
-			function renderAccessibleView() {
-				if (!commentsView) {
-					return false;
-				}
-
-				const commentNode = commentsView.focusedCommentNode;
-				const content = commentsView.focusedCommentInfo?.toString();
-				if (!commentNode || !content) {
-					return false;
-				}
-				const menuActions = [...menus.getResourceContextActions(commentNode)].filter(i => i.enabled);
-				const actions = menuActions.map(action => {
-					return {
-						...action,
-						run: () => {
-							commentsView.focus();
-							action.run({
-								thread: commentNode.thread,
-								$mid: MarshalledId.CommentThread,
-								commentControlHandle: commentNode.controllerHandle,
-								commentThreadHandle: commentNode.threadHandle,
-							});
-						}
-					};
-				});
-				accessibleViewService.show({
-					id: AccessibleViewProviderId.Notification,
-					provideContent: () => {
-						return content;
-					},
-					onClose(): void {
-						commentsView.focus();
-					},
-					next(): void {
-						commentsView.focus();
-						commentsView.focusNextNode();
-						renderAccessibleView();
-					},
-					previous(): void {
-						commentsView.focus();
-						commentsView.focusPreviousNode();
-						renderAccessibleView();
-					},
-					verbositySettingKey: AccessibilityVerbositySettingId.Comments,
-					options: { type: AccessibleViewType.View },
-					actions
-				});
-				return true;
-			}
-			return renderAccessibleView();
-		}, CONTEXT_KEY_HAS_COMMENTS));
-	}
-}
 
 export class InlineCompletionsAccessibleViewContribution extends Disposable {
 	static ID: 'inlineCompletionsAccessibleViewContribution';
