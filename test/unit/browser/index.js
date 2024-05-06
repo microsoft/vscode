@@ -159,7 +159,6 @@ const testModules = (async function () {
 	const jsModules = modules.map(module => {
 		return `../../../${outdir}/${module}.js`
 	})
-	console.log({ jsModules })
 	return jsModules;
 })();
 
