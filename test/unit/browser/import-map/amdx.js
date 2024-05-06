@@ -35,11 +35,9 @@ export const importAmdModule = async (absolutePath) => {
 		throw new Error('no module was defined')
 	}
 	const defineCall = defineCalls.pop()
-	console.log({ defineCall })
 	if (Array.isArray(defineCall.dependencies) && defineCall.dependencies.length > 0) {
 		throw new Error(`dependencies are not supported`)
 	}
 	const result = getResult(defineCall)
-	console.log({ result })
-	await new Promise(() => { })
+	return result
 }

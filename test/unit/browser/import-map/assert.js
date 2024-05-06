@@ -8,4 +8,7 @@ const module = await importAmdModule(
 	`${root}/test/unit/assert.js`,
 )
 
+const { AssertionError, deepEqual, deepStrictEqual, doesNotReject, doesNotThrow, equal, fail, ifError, notDeepEqual, notDeepStrictEqual, ok, rejects, strictEqual, throws } = module
+
+export { AssertionError, deepEqual, deepStrictEqual, doesNotReject, doesNotThrow, equal, fail, ifError, notDeepEqual, notDeepStrictEqual, ok, rejects, strictEqual, throws }
 export default module
