@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalInlineChatAccessibleViewContribution } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatAccessibleView';
+import { TerminalInlineChatAccessibleView } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatAccessibleView';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
-import { TerminalChatAccessibilityHelpContribution } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatAccessibilityHelp';
 
 // #region Terminal Contributions
 
@@ -17,9 +15,8 @@ registerTerminalContribution(TerminalChatController.ID, TerminalChatController, 
 
 // #region Contributions
 
-registerWorkbenchContribution2(TerminalChatAccessibilityHelpContribution.ID, TerminalChatAccessibilityHelpContribution, WorkbenchPhase.Eventually);
-
-AccessibleViewRegistry.register(new TerminalInlineChatAccessibleViewContribution());
+AccessibleViewRegistry.register(new TerminalInlineChatAccessibleView());
+AccessibleViewRegistry.register(new TerminalChatAccessibilityHelp());
 
 // #endregion
 
@@ -27,5 +24,6 @@ AccessibleViewRegistry.register(new TerminalInlineChatAccessibleViewContribution
 
 import 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatActions';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { TerminalChatAccessibilityHelp } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatAccessibilityHelp';
 
 // #endregion

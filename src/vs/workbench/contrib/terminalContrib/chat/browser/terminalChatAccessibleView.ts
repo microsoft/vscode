@@ -11,7 +11,7 @@ import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/a
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export class TerminalInlineChatAccessibleViewContribution implements IAccessibleViewImplentation {
+export class TerminalInlineChatAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 105;
 	readonly name = 'terminalInlineChat';
 	readonly type = AccessibleViewType.View;
