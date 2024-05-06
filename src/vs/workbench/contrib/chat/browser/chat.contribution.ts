@@ -269,7 +269,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const agentWithLeader = `${chatAgentLeader}${a.name}`;
-					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
+					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest ?? ''}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
 					const description = a.description ? `- ${a.description}` : '';
 					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) ${description}`;

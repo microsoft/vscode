@@ -12,7 +12,7 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 
-
+// #region Terminal Contributions
 class TerminalHighlightContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.highlight';
 
@@ -55,3 +55,5 @@ class TerminalHighlightContribution extends Disposable implements ITerminalContr
 }
 
 registerTerminalContribution(TerminalHighlightContribution.ID, TerminalHighlightContribution, false);
+
+// #endregion

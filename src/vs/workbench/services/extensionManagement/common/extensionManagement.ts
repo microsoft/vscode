@@ -43,6 +43,7 @@ export interface IExtensionManagementServerService {
 export const DefaultIconPath = FileAccess.asBrowserUri('vs/workbench/services/extensionManagement/common/media/defaultIcon.png').toString(true);
 
 export interface IResourceExtension {
+	readonly type: 'resource';
 	readonly identifier: IExtensionIdentifier;
 	readonly location: URI;
 	readonly manifest: IExtensionManifest;
@@ -68,6 +69,8 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 
 	getExtensions(locations: URI[]): Promise<IResourceExtension[]>;
 	getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]>;
+
+	canInstall(extension: IGalleryExtension | IResourceExtension): Promise<boolean>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;
