@@ -53,6 +53,7 @@ import '../common/chatColors';
 import { ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ChatResponseAccessibleView } from 'vs/workbench/contrib/chat/browser/chatResponseAccessibleView';
+import { ChatAccessibilityHelp } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -138,6 +139,7 @@ class ChatResolverContribution extends Disposable {
 }
 
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
+AccessibleViewRegistry.register(new ChatAccessibilityHelp());
 
 class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
