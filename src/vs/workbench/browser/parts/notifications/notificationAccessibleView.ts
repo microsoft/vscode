@@ -7,7 +7,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
-import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType, AdvancedContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation, alertAccessibleViewFocusChange } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IAccessibilitySignalService, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -28,10 +28,10 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 		const commandService = accessor.get(ICommandService);
 		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 
-		function renderAccessibleView(): boolean {
+		function renderAccessibleView(): { provider: AdvancedContentProvider } | undefined {
 			const notification = getNotificationFromContext(listService);
 			if (!notification) {
-				return false;
+				return;
 			}
 			commandService.executeCommand('notifications.showList');
 			let notificationIndex: number | undefined;
@@ -42,7 +42,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 				length = list.length;
 			}
 			if (notificationIndex === undefined) {
-				return false;
+				return;
 			}
 
 			function focusList(): void {
@@ -56,10 +56,10 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 			}
 			const message = notification.message.original.toString();
 			if (!message) {
-				return false;
+				return;
 			}
 			notification.onDidClose(() => accessibleViewService.next());
-			accessibleViewService.show({
+			const provider = {
 				id: AccessibleViewProviderId.Notification,
 				provideContent: () => {
 					return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
@@ -88,8 +88,8 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 				verbositySettingKey: 'accessibility.verbosity.notification',
 				options: { type: AccessibleViewType.View },
 				actions: getActionsFromNotification(notification, accessibilitySignalService)
-			});
-			return true;
+			} satisfies AdvancedContentProvider;
+			return { provider };
 		}
 		return renderAccessibleView();
 	}

@@ -9,7 +9,8 @@ import { accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browse
 import * as strings from 'vs/base/common/strings';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { AccessibleViewRegistry, IShowAccessibleViewArgs } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);
@@ -27,13 +28,6 @@ export class AccesibleViewHelpContribution extends Disposable {
 			accessor.get(IAccessibleViewService).showAccessibleViewHelp();
 			return true;
 		}, accessibleViewIsShown));
-		AccessibleViewRegistry.getImplementations().forEach(impl => {
-			if (impl.type === AccessibleViewType.View) {
-				this._register(AccessibleViewAction.addImplementation(impl.priority, impl.name, impl.implementation, impl.when));
-			} else {
-				this._register(AccessibilityHelpAction.addImplementation(impl.priority, impl.name, impl.implementation, impl.when));
-			}
-		});
 	}
 }
 
@@ -42,10 +36,18 @@ export class AccesibleViewContributions extends Disposable {
 	constructor() {
 		super();
 		AccessibleViewRegistry.getImplementations().forEach(impl => {
+			const implementation = (accessor: ServicesAccessor) => {
+				const result: IShowAccessibleViewArgs | undefined = impl.implementation(accessor, undefined);
+				if (result) {
+					accessor.get(IAccessibleViewService).show(result.provider, result.position);
+					return true;
+				}
+				return false;
+			};
 			if (impl.type === AccessibleViewType.View) {
-				this._register(AccessibleViewAction.addImplementation(impl.priority, impl.name, impl.implementation, impl.when));
+				this._register(AccessibleViewAction.addImplementation(impl.priority, impl.name, implementation, impl.when));
 			} else {
-				this._register(AccessibilityHelpAction.addImplementation(impl.priority, impl.name, impl.implementation, impl.when));
+				this._register(AccessibilityHelpAction.addImplementation(impl.priority, impl.name, implementation, impl.when));
 			}
 		});
 	}

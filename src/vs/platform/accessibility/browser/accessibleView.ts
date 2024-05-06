@@ -123,7 +123,7 @@ export interface ICodeBlockActionContext {
 	element: unknown;
 }
 
-type AccesibleViewContentProvider = AdvancedContentProvider | ExtensionContentProvider;
+export type AccesibleViewContentProvider = AdvancedContentProvider | ExtensionContentProvider;
 
 export class AdvancedContentProvider implements IAccessibleViewContentProvider {
 

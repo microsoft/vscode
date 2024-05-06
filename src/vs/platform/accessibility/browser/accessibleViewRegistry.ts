@@ -4,11 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, AdvancedContentProvider, IPosition } from 'vs/platform/accessibility/browser/accessibleView';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
+
+export interface IShowAccessibleViewArgs {
+	provider: AdvancedContentProvider;
+	position?: IPosition | undefined;
+}
+
+export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => IShowAccessibleViewArgs | undefined;
 
 export interface IAccessibleViewImplentation {
 	type: AccessibleViewType;

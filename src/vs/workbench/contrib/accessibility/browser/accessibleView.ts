@@ -50,7 +50,7 @@ const enum DIMENSIONS {
 	MAX_WIDTH = 600
 }
 
-type AccesibleViewContentProvider = AdvancedContentProvider | ExtensionContentProvider;
+export type AccesibleViewContentProvider = AdvancedContentProvider | ExtensionContentProvider;
 
 interface ICodeBlock {
 	startLine: number;

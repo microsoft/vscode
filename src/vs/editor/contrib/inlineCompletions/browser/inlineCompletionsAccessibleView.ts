@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { AccessibleViewType, IAccessibleViewService, AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -18,44 +18,44 @@ export class InlineCompletionsAccessibleView extends Disposable implements IAcce
 	readonly name = 'inline-completions';
 	readonly when = ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
 	implementation(accessor: ServicesAccessor) {
-		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const codeEditorService = accessor.get(ICodeEditorService);
-		const show = () => {
+		function show() {
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 			if (!editor) {
-				return false;
+				return;
 			}
 			const model = InlineCompletionsController.get(editor)?.model.get();
 			const state = model?.state.get();
 			if (!model || !state) {
-				return false;
+				return;
 			}
 			const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
 			const ghostText = state.primaryGhostText.renderForScreenReader(lineText);
 			if (!ghostText) {
-				return false;
+				return;
 			}
 			const language = editor.getModel()?.getLanguageId() ?? undefined;
-			accessibleViewService.show({
-				id: AccessibleViewProviderId.InlineCompletions,
-				verbositySettingKey: 'accessibility.verbosity.inlineCompletions',
-				provideContent() { return lineText + ghostText; },
-				onClose() {
-					model.stop();
-					editor.focus();
-				},
-				next() {
-					model.next();
-					setTimeout(() => show(), 50);
-				},
-				previous() {
-					model.previous();
-					setTimeout(() => show(), 50);
-				},
-				options: { language, type: this.type }
-			});
-			return true;
-		};
+			return {
+				provider: {
+					id: AccessibleViewProviderId.InlineCompletions,
+					verbositySettingKey: 'accessibility.verbosity.inlineCompletions',
+					provideContent() { return lineText + ghostText; },
+					onClose() {
+						model.stop();
+						editor.focus();
+					},
+					next() {
+						model.next();
+						setTimeout(() => show(), 50);
+					},
+					previous() {
+						model.previous();
+						setTimeout(() => show(), 50);
+					},
+					options: { language, type: AccessibleViewType.View }
+				}
+			};
+		}
 		return show();
 	}
 	constructor() {

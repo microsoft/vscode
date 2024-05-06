@@ -6,7 +6,7 @@
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import { AccessibleViewType, IAccessibleViewService, AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
@@ -18,15 +18,14 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 	readonly name = 'hover';
 	readonly when = EditorContextKeys.hoverFocused;
 	implementation(accessor: ServicesAccessor) {
-		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 		const editorHoverContent = editor ? HoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
 		if (!editor || !editorHoverContent) {
-			return false;
+			return;
 		}
 		const language = editor?.getModel()?.getLanguageId() ?? 'typescript';
-		accessibleViewService.show({
+		const provider = {
 			id: AccessibleViewProviderId.Hover,
 			verbositySettingKey: 'accessibility.verbosity.hover',
 			provideContent() { return editorHoverContent; },
@@ -34,8 +33,8 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 				HoverController.get(editor)?.focus();
 			},
 			options: { language, type: AccessibleViewType.View }
-		});
-		return true;
+		};
+		return { provider };
 	}
 }
 
@@ -44,7 +43,6 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 90;
 	readonly name = 'extension-hover';
 	implementation(accessor: ServicesAccessor) {
-		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const contextViewService = accessor.get(IContextViewService);
 		const contextViewElement = contextViewService.getContextViewElement();
 		const extensionHoverContent = contextViewElement?.textContent ?? undefined;
@@ -52,17 +50,18 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 
 		if (contextViewElement.classList.contains('accessible-view-container') || !extensionHoverContent) {
 			// The accessible view, itself, uses the context view service to display the text. We don't want to read that.
-			return false;
+			return;
 		}
-		accessibleViewService.show({
-			id: AccessibleViewProviderId.Hover,
-			verbositySettingKey: 'accessibility.verbosity.hover',
-			provideContent() { return extensionHoverContent; },
-			onClose() {
-				hoverService.showAndFocusLastHover();
-			},
-			options: { language: 'typescript', type: AccessibleViewType.View }
-		});
-		return true;
+		return {
+			provider: {
+				id: AccessibleViewProviderId.Hover,
+				verbositySettingKey: 'accessibility.verbosity.hover',
+				provideContent() { return extensionHoverContent; },
+				onClose() {
+					hoverService.showAndFocusLastHover();
+				},
+				options: { language: 'typescript', type: AccessibleViewType.View }
+			}
+		};
 	}
 }
