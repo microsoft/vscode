@@ -372,6 +372,7 @@ if (isTest) {
 	const vscodeSqlite3 = require('@vscode/sqlite3')
 	// const xtermAddonCanvas = require('@xterm/addon-canvas')
 	const nativeKeymap = require('native-keymap')
+	const vscodeWindowsRegistry = require('@vscode/windows-registry')
 
 	let runCallback
 	let args
@@ -428,7 +429,8 @@ if (isTest) {
 		sinonTest,
 		parcelWatcher,
 		jschardet,
-		xtermHeadless
+		xtermHeadless,
+		vscodeWindowsRegistry
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals
