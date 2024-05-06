@@ -17,13 +17,15 @@ registerTerminalContribution(TerminalChatController.ID, TerminalChatController, 
 
 // #region Contributions
 
-registerWorkbenchContribution2(TerminalInlineChatAccessibleViewContribution.ID, TerminalInlineChatAccessibleViewContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(TerminalChatAccessibilityHelpContribution.ID, TerminalChatAccessibilityHelpContribution, WorkbenchPhase.Eventually);
+
+AccessibleViewRegistry.register(new TerminalInlineChatAccessibleViewContribution());
 
 // #endregion
 
 // #region Actions
 
 import 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatActions';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 
 // #endregion
