@@ -15,10 +15,11 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { InlineChatSavingServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingServiceImpl';
-import { InlineChatAccessibleViewContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatAccessibleView';
+import { InlineChatAccessibleView } from 'vs/workbench/contrib/inlineChat/browser/inlineChatAccessibleView';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 
 
 // --- browser
@@ -54,4 +55,5 @@ registerAction2(InlineChatActions.CopyRecordings);
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatAccessibleViewContribution, LifecyclePhase.Eventually);
+
+AccessibleViewRegistry.register(new InlineChatAccessibleView());
