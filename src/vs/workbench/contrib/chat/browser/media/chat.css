@@ -257,8 +257,11 @@
 }
 
 .interactive-item-container .value .rendered-markdown p {
-	margin: 0 0 16px 0;
 	line-height: 1.5em;
+}
+
+.interactive-item-container .value > .rendered-markdown p {
+	margin: 0 0 16px 0;
 }
 
 .interactive-item-container .value .rendered-markdown ul {
@@ -318,7 +321,7 @@
 	min-height: 0;
 }
 
-.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown p {
 	margin: 0 0 8px 0;
 }
 
@@ -725,7 +728,7 @@
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title p {
-	margin-bottom: 4px;;
+	margin: 0 0 4px 0;
 }
 
 .chat-confirmation-widget .chat-confirmation-buttons-container {
