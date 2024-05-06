@@ -316,7 +316,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
 		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
 		 */
-		export function sendChatRequest(languageModel: string, messages: (LanguageModelChatMessage | LanguageModelChatMessage2)[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
+		export function sendChatRequest(languageModel: string, messages: (LanguageModelChatMessage | LanguageModelChatMessage2)[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		/**
 		 * Uses the language model specific tokenzier and computes the length in token of a given message.
