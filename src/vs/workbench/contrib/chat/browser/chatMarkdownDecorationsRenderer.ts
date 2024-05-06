@@ -42,13 +42,14 @@ export class ChatMarkdownDecorationsRenderer {
 				let text = part.text;
 				const isDupe = this.chatAgentService.getAgentsByName(part.agent.name).length > 1;
 				if (isDupe) {
-					text += ` (${part.agent.extensionPublisherDisplayName})`;
+					text += ` (${part.agent.publisherDisplayName})`;
 				}
 
 				result += `[${text}](${agentRefUrl}?${encodeURIComponent(part.agent.id)})`;
 			} else {
-				const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
-					|| undefined;
+				const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
+					part.data :
+					undefined;
 				const title = uri ? encodeURIComponent(this.labelService.getUriLabel(uri, { relative: true })) :
 					part instanceof ChatRequestAgentPart ? part.agent.id :
 						'';

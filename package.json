@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.90.0",
-  "distro": "25c9442cad1fee4c5b7fd96dd526ae00022f881b",
+  "distro": "5d328d131fa6f8c6923e6bdec0b6f538318c18e8",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -132,7 +132,7 @@
     "@typescript-eslint/experimental-utils": "^5.57.0",
     "@typescript-eslint/parser": "^6.21.0",
     "@vscode/gulp-electron": "^1.36.0",
-    "@vscode/l10n-dev": "0.0.30",
+    "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",
     "@vscode/test-electron": "^2.3.8",

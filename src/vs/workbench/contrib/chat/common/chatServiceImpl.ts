@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -544,8 +545,12 @@ export class ChatService extends Disposable implements IChatService {
 					if (implicitVariablesEnabled) {
 						const implicitVariables = agent.defaultImplicitVariables;
 						if (implicitVariables) {
-							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => ({ name: v, values: await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token) } satisfies IChatRequestVariableEntry)));
-							updatedVariableData.variables.push(...resolvedImplicitVariables);
+							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => {
+								const value = await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token);
+								return value ? { name: v, value } satisfies IChatRequestVariableEntry :
+									undefined;
+							}));
+							updatedVariableData.variables.push(...coalesce(resolvedImplicitVariables));
 						}
 					}
 

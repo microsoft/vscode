@@ -4424,6 +4424,25 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export enum LanguageModelChatMessageRole {
+	User = 1,
+	Assistant = 2,
+	System = 3
+}
+
+export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
+
+	role: vscode.LanguageModelChatMessageRole;
+	content: string;
+	name: string | undefined;
+
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
+		this.role = role;
+		this.content = content;
+		this.name = name;
+	}
+}
+
 export class LanguageModelChatSystemMessage {
 	content: string;
 
@@ -4460,6 +4479,10 @@ export class LanguageModelError extends Error {
 
 	static NoPermissions(message?: string): LanguageModelError {
 		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
+	}
+
+	static Blocked(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
 	readonly code: string;
