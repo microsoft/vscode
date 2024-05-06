@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, disposableTimeout } from 'vs/base/common/async';
+import 'vs/css!./media/voiceChatActions';
+import { DeferredPromise, RunOnceScheduler, disposableTimeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
@@ -12,7 +13,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined, isNumber } from 'vs/base/common/types';
-import 'vs/css!./media/voiceChatActions';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize, localize2 } from 'vs/nls';
@@ -24,7 +24,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
@@ -34,18 +34,19 @@ import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY, stringifyItem } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus, TextToSpeechInProgress, TextToSpeechStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatContextKeys, TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -53,6 +54,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+
+//#region Speech to Text
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -847,6 +850,124 @@ registerThemingParticipant((theme, collector) => {
 	`);
 });
 
+//#endregion
+
+//#region Text to Speech
+
+class TextToSpeechSessions {
+
+	private static instance: TextToSpeechSessions | undefined = undefined;
+	static getInstance(instantiationService: IInstantiationService): TextToSpeechSessions {
+		if (!TextToSpeechSessions.instance) {
+			TextToSpeechSessions.instance = instantiationService.createInstance(TextToSpeechSessions);
+		}
+
+		return TextToSpeechSessions.instance;
+	}
+
+	private activeSession: CancellationTokenSource | undefined = undefined;
+
+	constructor(
+		@ISpeechService private readonly speechService: ISpeechService,
+		@IProgressService private readonly progressService: IProgressService
+	) { }
+
+	async start(text: string): Promise<void> {
+		this.stop();
+
+		const disposables = new DisposableStore();
+		const synthesisDone = new DeferredPromise<void>();
+
+		const activeSession = this.activeSession = new CancellationTokenSource();
+		disposables.add(activeSession.token.onCancellationRequested(() => {
+			disposables.dispose();
+			synthesisDone.complete();
+		}));
+
+		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
+		disposables.add(session.onDidChange(e => {
+			switch (e.status) {
+
+				// Text to Speech: Started
+				case TextToSpeechStatus.Started:
+					this.progressService.withProgress({
+						location: ProgressLocation.Window,
+						title: localize('synthesizing', "Reading out aloud..."),
+						command: StopSynthesis.ID
+					}, () => synthesisDone.p);
+					break;
+
+				// Text to Speech: Stopped
+				case TextToSpeechStatus.Stopped:
+				case TextToSpeechStatus.Error:
+					synthesisDone.complete();
+					break;
+			}
+		}));
+
+		session.synthesize(text);
+	}
+
+	stop(): void {
+		this.activeSession?.dispose(true);
+		this.activeSession = undefined;
+	}
+}
+
+export class ReadChatItemAloud extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.readChatItemAloud',
+			title: localize2('workbench.action.chat.readChatItemAloud', "Read Aloud"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			precondition: CanVoiceChat,
+			menu: {
+				id: MenuId.ChatContext,
+				when: ContextKeyExpr.and(CanVoiceChat, CONTEXT_RESPONSE_FILTERED.toNegated()),
+				group: 'textToSpeech'
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const item = args[0];
+		if (!isRequestVM(item) && !isResponseVM(item)) {
+			return;
+		}
+
+		TextToSpeechSessions.getInstance(accessor.get(IInstantiationService)).start(stringifyItem(item, false));
+	}
+}
+
+export class StopSynthesis extends Action2 {
+
+	static readonly ID = 'workbench.action.speech.stopSynthesis';
+
+	constructor() {
+		super({
+			id: StopSynthesis.ID,
+			title: localize2('workbench.action.speech.stopSynthesize', "Stop Reading Aloud"),
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: TextToSpeechInProgress,
+			menu: {
+				id: MenuId.ChatContext,
+				when: ContextKeyExpr.and(CanVoiceChat, CONTEXT_RESPONSE_FILTERED.toNegated()),
+				group: 'textToSpeech'
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		TextToSpeechSessions.getInstance(accessor.get(IInstantiationService)).stop();
+	}
+}
+
+//#endregion
+
+//#region Keyword Recognition
+
 function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService, chatAgentService: IChatAgentService): boolean {
 	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
 		return false;
@@ -1086,3 +1207,5 @@ class KeywordActivationStatusEntry extends Disposable {
 		this.entry.value?.update(this.getStatusEntryProperties());
 	}
 }
+
+//#endregion
