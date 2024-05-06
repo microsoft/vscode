@@ -9,12 +9,9 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
+import { FormattingMode, formatDocumentWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -60,9 +57,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const textModelService = accessor.get(ITextModelService);
-		const editorWorkerService = accessor.get(IEditorWorkerService);
-		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-		const bulkEditService = accessor.get(IBulkEditService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.hasModel()) {
@@ -72,35 +67,14 @@ registerAction2(class extends Action2 {
 		const notebook = editor.textModel;
 		const disposable = new DisposableStore();
 		try {
-			const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
+			await Promise.all(notebook.cells.map(async cell => {
 				const ref = await textModelService.createModelReference(cell.uri);
 				disposable.add(ref);
 
 				const model = ref.object.textEditorModel;
 
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
-					editorWorkerService,
-					languageFeaturesService,
-					model,
-					model.getOptions(),
-					CancellationToken.None
-				);
-
-				const edits: ResourceTextEdit[] = [];
-
-				if (formatEdits) {
-					for (const edit of formatEdits) {
-						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
-					}
-
-					return edits;
-				}
-
-				return [];
+				await instantiationService.invokeFunction(formatDocumentWithSelectedProvider, model, FormattingMode.Silent, Progress.None, CancellationToken.None);
 			}));
-
-			await bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
-
 		} finally {
 			disposable.dispose();
 		}
@@ -138,10 +112,8 @@ registerEditorAction(class FormatCellAction extends EditorAction {
 
 class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 	constructor(
-		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 	) {
@@ -156,10 +128,10 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 
 		const disposable = new DisposableStore();
 		try {
-			const allCellEdits = await Promise.all(executions.map(async cellExecution => {
+			await Promise.all(executions.map(async cellExecution => {
 				const nbModel = this._notebookService.getNotebookTextModel(cellExecution.notebook);
 				if (!nbModel) {
-					return [];
+					return;
 				}
 				let activeCell;
 				for (const cell of nbModel.cells) {
@@ -169,7 +141,7 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 					}
 				}
 				if (!activeCell) {
-					return [];
+					return;
 				}
 
 				const ref = await this.textModelService.createModelReference(activeCell.uri);
@@ -177,27 +149,8 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 
 				const model = ref.object.textEditorModel;
 
-				// todo: eventually support cancellation. potential leak if cell deleted mid execution
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
-					this.editorWorkerService,
-					this.languageFeaturesService,
-					model,
-					model.getOptions(),
-					CancellationToken.None
-				);
-
-				const edits: ResourceTextEdit[] = [];
-
-				if (formatEdits) {
-					edits.push(...formatEdits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
-					return edits;
-				}
-
-				return [];
+				await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, model, FormattingMode.Silent, Progress.None, CancellationToken.None);
 			}));
-
-			await this.bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('formatCells.label', "Format Cells"), code: 'undoredo.notebooks.onWillExecuteFormat', });
-
 		} finally {
 			disposable.dispose();
 		}
