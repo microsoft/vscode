@@ -1028,7 +1028,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			changedExtensions.push(...extensions);
 		}
 		if (workspaceExtensions.length) {
-			const extensions = await this.getResourceExtensions(workspaceExtensions.map(e => e.extensionLocation), true)
+			const extensions = await this.getResourceExtensions(workspaceExtensions.map(e => e.extensionLocation), true);
 			changedExtensions.push(...extensions);
 		}
 		for (const changedExtension of changedExtensions) {
@@ -1891,7 +1891,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (extension.resourceExtension) {
+		if (extension.resourceExtension && await this.extensionManagementService.canInstall(extension.resourceExtension)) {
 			return true;
 		}
 
