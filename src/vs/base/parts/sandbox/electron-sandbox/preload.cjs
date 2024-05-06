@@ -338,7 +338,7 @@
 const isTest = !process.contextIsolated
 
 if (isTest) {
-	const { ipcRenderer, contextBridge } = require('electron');
+	const { ipcRenderer } = require('electron');
 	const assert = require('assert')
 	const path = require('path')
 	const glob = require('glob')
