@@ -20,7 +20,7 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 	readonly name = 'comment';
 	readonly when = CONTEXT_KEY_HAS_COMMENTS;
 	readonly type = AccessibleViewType.View;
-	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
+	getProvider(accessor: ServicesAccessor) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
 		const menuService = accessor.get(IMenuService);
@@ -31,7 +31,7 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 		const menus = this._register(new CommentsMenus(menuService));
 		menus.setContextKeyService(contextKeyService);
 
-		function renderAccessibleView() {
+		function resolveProvider() {
 			if (!commentsView) {
 				return;
 			}
@@ -57,31 +57,29 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 				};
 			});
 			return {
-				provider: {
-					id: AccessibleViewProviderId.Notification,
-					provideContent: () => {
-						return content;
-					},
-					onClose(): void {
-						commentsView.focus();
-					},
-					next(): void {
-						commentsView.focus();
-						commentsView.focusNextNode();
-						renderAccessibleView();
-					},
-					previous(): void {
-						commentsView.focus();
-						commentsView.focusPreviousNode();
-						renderAccessibleView();
-					},
-					verbositySettingKey: AccessibilityVerbositySettingId.Comments,
-					options: { type: AccessibleViewType.View },
-					actions
-				}
+				id: AccessibleViewProviderId.Notification,
+				provideContent: () => {
+					return content;
+				},
+				onClose(): void {
+					commentsView.focus();
+				},
+				next(): void {
+					commentsView.focus();
+					commentsView.focusNextNode();
+					resolveProvider();
+				},
+				previous(): void {
+					commentsView.focus();
+					commentsView.focusPreviousNode();
+					resolveProvider();
+				},
+				verbositySettingKey: AccessibilityVerbositySettingId.Comments,
+				options: { type: AccessibleViewType.View },
+				actions
 			};
 		}
-		return renderAccessibleView();
+		return resolveProvider();
 	}
 	constructor() {
 		super();

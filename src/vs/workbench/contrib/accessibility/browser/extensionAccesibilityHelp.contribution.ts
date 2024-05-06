@@ -50,18 +50,17 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 		name: viewDescriptor.id,
 		type: AccessibleViewType.Help,
 		when: FocusedViewContext.isEqualTo(viewDescriptor.id),
-		getShowAccessibleViewArgs: (accessor: ServicesAccessor) => {
+		getProvider: (accessor: ServicesAccessor) => {
 			const viewsService = accessor.get(IViewsService);
-			return {
-				provider: new ExtensionContentProvider(
-					viewDescriptor.id,
-					{ type: AccessibleViewType.Help },
-					() => helpContent.value,
-					() => viewsService.openView(viewDescriptor.id, true)
-				),
-			};
+			return new ExtensionContentProvider(
+				viewDescriptor.id,
+				{ type: AccessibleViewType.Help },
+				() => helpContent.value,
+				() => viewsService.openView(viewDescriptor.id, true)
+			);
 		}
 	}));
+
 	disposableStore.add(keybindingService.onDidUpdateKeybindings(() => {
 		disposableStore.clear();
 		disposableStore.add(registerAccessibilityHelpAction(keybindingService, viewDescriptor));

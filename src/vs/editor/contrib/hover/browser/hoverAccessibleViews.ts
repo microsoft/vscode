@@ -17,7 +17,7 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 95;
 	readonly name = 'hover';
 	readonly when = EditorContextKeys.hoverFocused;
-	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
+	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 		const editorHoverContent = editor ? HoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
@@ -25,17 +25,15 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 			return;
 		}
 		return {
-			provider: {
-				id: AccessibleViewProviderId.Hover,
-				verbositySettingKey: 'accessibility.verbosity.hover',
-				provideContent() { return editorHoverContent; },
-				onClose() {
-					HoverController.get(editor)?.focus();
-				},
-				options: {
-					language: editor?.getModel()?.getLanguageId() ?? 'typescript',
-					type: AccessibleViewType.View
-				}
+			id: AccessibleViewProviderId.Hover,
+			verbositySettingKey: 'accessibility.verbosity.hover',
+			provideContent() { return editorHoverContent; },
+			onClose() {
+				HoverController.get(editor)?.focus();
+			},
+			options: {
+				language: editor?.getModel()?.getLanguageId() ?? 'typescript',
+				type: AccessibleViewType.View
 			}
 		};
 	}
@@ -45,7 +43,7 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 90;
 	readonly name = 'extension-hover';
-	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
+	getProvider(accessor: ServicesAccessor) {
 		const contextViewService = accessor.get(IContextViewService);
 		const contextViewElement = contextViewService.getContextViewElement();
 		const extensionHoverContent = contextViewElement?.textContent ?? undefined;
@@ -56,15 +54,13 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 			return;
 		}
 		return {
-			provider: {
-				id: AccessibleViewProviderId.Hover,
-				verbositySettingKey: 'accessibility.verbosity.hover',
-				provideContent() { return extensionHoverContent; },
-				onClose() {
-					hoverService.showAndFocusLastHover();
-				},
-				options: { language: 'typescript', type: AccessibleViewType.View }
-			}
+			id: AccessibleViewProviderId.Hover,
+			verbositySettingKey: 'accessibility.verbosity.hover',
+			provideContent() { return extensionHoverContent; },
+			onClose() {
+				hoverService.showAndFocusLastHover();
+			},
+			options: { language: 'typescript', type: AccessibleViewType.View }
 		};
 	}
 }

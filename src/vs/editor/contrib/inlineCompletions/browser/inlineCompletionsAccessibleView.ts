@@ -17,9 +17,9 @@ export class InlineCompletionsAccessibleView extends Disposable implements IAcce
 	readonly priority = 95;
 	readonly name = 'inline-completions';
 	readonly when = ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
-	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
+	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
-		function show() {
+		function resolveProvider() {
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 			if (!editor) {
 				return;
@@ -36,27 +36,25 @@ export class InlineCompletionsAccessibleView extends Disposable implements IAcce
 			}
 			const language = editor.getModel()?.getLanguageId() ?? undefined;
 			return {
-				provider: {
-					id: AccessibleViewProviderId.InlineCompletions,
-					verbositySettingKey: 'accessibility.verbosity.inlineCompletions',
-					provideContent() { return lineText + ghostText; },
-					onClose() {
-						model.stop();
-						editor.focus();
-					},
-					next() {
-						model.next();
-						setTimeout(() => show(), 50);
-					},
-					previous() {
-						model.previous();
-						setTimeout(() => show(), 50);
-					},
-					options: { language, type: AccessibleViewType.View }
-				}
+				id: AccessibleViewProviderId.InlineCompletions,
+				verbositySettingKey: 'accessibility.verbosity.inlineCompletions',
+				provideContent() { return lineText + ghostText; },
+				onClose() {
+					model.stop();
+					editor.focus();
+				},
+				next() {
+					model.next();
+					setTimeout(() => resolveProvider(), 50);
+				},
+				previous() {
+					model.previous();
+					setTimeout(() => resolveProvider(), 50);
+				},
+				options: { language, type: AccessibleViewType.View }
 			};
 		}
-		return show();
+		return resolveProvider();
 	}
 	constructor() {
 		super();

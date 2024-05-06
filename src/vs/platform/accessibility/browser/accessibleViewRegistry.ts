@@ -4,25 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { AccessibleViewType, AdvancedContentProvider, ExtensionContentProvider, IPosition } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, AdvancedContentProvider, ExtensionContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-
-export interface IShowAccessibleViewArgs {
-	provider: AdvancedContentProvider | ExtensionContentProvider;
-	position?: IPosition | undefined;
-}
 
 export interface IAccessibleViewImplentation {
 	type: AccessibleViewType;
 	priority: number;
 	name: string;
 	/**
-	 * @returns the provider and position to show the accessible view or undefined
-	 * if the view should not be shown
+	 * @returns the provider or undefined if the view should not be shown
 	 */
-	getShowAccessibleViewArgs: (accessor: ServicesAccessor) => IShowAccessibleViewArgs | undefined;
+	getProvider: (accessor: ServicesAccessor) => AdvancedContentProvider | ExtensionContentProvider | undefined;
 	when?: ContextKeyExpression | undefined;
 }
 
