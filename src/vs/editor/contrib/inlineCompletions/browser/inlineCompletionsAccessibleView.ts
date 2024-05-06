@@ -17,7 +17,7 @@ export class InlineCompletionsAccessibleView extends Disposable implements IAcce
 	readonly priority = 95;
 	readonly name = 'inline-completions';
 	readonly when = ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
-	implementation(accessor: ServicesAccessor) {
+	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		function show() {
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();

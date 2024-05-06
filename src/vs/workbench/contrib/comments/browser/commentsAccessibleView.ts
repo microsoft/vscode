@@ -20,7 +20,7 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 	readonly name = 'comment';
 	readonly when = CONTEXT_KEY_HAS_COMMENTS;
 	readonly type = AccessibleViewType.View;
-	implementation(accessor: ServicesAccessor) {
+	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
 		const menuService = accessor.get(IMenuService);

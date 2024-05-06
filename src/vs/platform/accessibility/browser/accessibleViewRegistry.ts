@@ -14,13 +14,11 @@ export interface IShowAccessibleViewArgs {
 	position?: IPosition | undefined;
 }
 
-export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => IShowAccessibleViewArgs | undefined;
-
 export interface IAccessibleViewImplentation {
 	type: AccessibleViewType;
 	priority: number;
 	name: string;
-	implementation: CommandImplementation;
+	getShowAccessibleViewArgs: (accessor: ServicesAccessor) => IShowAccessibleViewArgs | undefined;
 	when?: ContextKeyExpression | undefined;
 }
 

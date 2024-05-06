@@ -17,7 +17,7 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 95;
 	readonly name = 'hover';
 	readonly when = EditorContextKeys.hoverFocused;
-	implementation(accessor: ServicesAccessor) {
+	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 		const editorHoverContent = editor ? HoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
@@ -45,7 +45,7 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 90;
 	readonly name = 'extension-hover';
-	implementation(accessor: ServicesAccessor) {
+	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
 		const contextViewService = accessor.get(IContextViewService);
 		const contextViewElement = contextViewService.getContextViewElement();
 		const extensionHoverContent = contextViewElement?.textContent ?? undefined;

@@ -22,7 +22,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 	readonly name = 'notifications';
 	readonly when = NotificationFocusedContext;
 	readonly type = AccessibleViewType.View;
-	implementation(accessor: ServicesAccessor) {
+	getShowAccessibleViewArgs(accessor: ServicesAccessor) {
 		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const listService = accessor.get(IListService);
 		const commandService = accessor.get(ICommandService);

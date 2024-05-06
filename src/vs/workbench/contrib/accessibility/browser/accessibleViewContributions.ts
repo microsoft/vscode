@@ -37,7 +37,7 @@ export class AccesibleViewContributions extends Disposable {
 		super();
 		AccessibleViewRegistry.getImplementations().forEach(impl => {
 			const implementation = (accessor: ServicesAccessor) => {
-				const result: IShowAccessibleViewArgs | undefined = impl.implementation(accessor, undefined);
+				const result: IShowAccessibleViewArgs | undefined = impl.getShowAccessibleViewArgs(accessor);
 				if (result) {
 					accessor.get(IAccessibleViewService).show(result.provider, result.position);
 					return true;
