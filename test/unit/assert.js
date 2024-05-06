@@ -502,3 +502,6 @@ export const doesNotReject = async function doesNotReject(fn, message) {
 };
 
 export default assert
+
+
+export const abc = 123
