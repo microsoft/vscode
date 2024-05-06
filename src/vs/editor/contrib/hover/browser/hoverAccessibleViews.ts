@@ -24,17 +24,20 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 		if (!editor || !editorHoverContent) {
 			return;
 		}
-		const language = editor?.getModel()?.getLanguageId() ?? 'typescript';
-		const provider = {
-			id: AccessibleViewProviderId.Hover,
-			verbositySettingKey: 'accessibility.verbosity.hover',
-			provideContent() { return editorHoverContent; },
-			onClose() {
-				HoverController.get(editor)?.focus();
-			},
-			options: { language, type: AccessibleViewType.View }
+		return {
+			provider: {
+				id: AccessibleViewProviderId.Hover,
+				verbositySettingKey: 'accessibility.verbosity.hover',
+				provideContent() { return editorHoverContent; },
+				onClose() {
+					HoverController.get(editor)?.focus();
+				},
+				options: {
+					language: editor?.getModel()?.getLanguageId() ?? 'typescript',
+					type: AccessibleViewType.View
+				}
+			}
 		};
-		return { provider };
 	}
 }
 
