@@ -155,7 +155,6 @@ const testModules = (async function () {
 			console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
 		}
 	}
-	out
 	const jsModules = modules.map(module => {
 		return `../../../${outdir}/${module}.js`
 	})
