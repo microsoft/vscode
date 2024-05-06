@@ -30,7 +30,11 @@ export const importAmdModule = async (absolutePath) => {
 	}
 
 	globalThis.define.amd = true;
+	globalThis.exports = Object.create(null)
 	await import(absolutePath)
+	if (Object.keys(globalThis.exports).length > 0) {
+		return globalThis.exports
+	}
 	if (defineCalls.length === 0) {
 		throw new Error('no module was defined')
 	}
