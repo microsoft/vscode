@@ -1438,7 +1438,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
-			sendChatRequest(languageModel: string, messages: vscode.LanguageModelChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: vscode.CancellationToken) {
+			sendChatRequest(languageModel: string, messages: (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[], options: vscode.LanguageModelChatRequestOptions, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostLanguageModels.sendChatRequest(extension, languageModel, messages, options, token);
 			},
@@ -1707,12 +1707,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatLocation: extHostTypes.ChatLocation,
-			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
-			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,
-			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
-			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage, // TODO@jrieken REMOVE
-			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage, // TODO@jrieken REMOVE
-			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage, // TODO@jrieken REMOVE
+			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
+			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
+			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,// TODO@jrieken REMOVE
+			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,// TODO@jrieken REMOVE
+			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,// TODO@jrieken REMOVE
 			LanguageModelError: extHostTypes.LanguageModelError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,

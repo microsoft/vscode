@@ -5,17 +5,14 @@
 
 declare module 'vscode' {
 
+	// https://github.com/microsoft/vscode/issues/206265
+
 	/**
 	 * Represents a language model response.
 	 *
 	 * @see {@link LanguageModelAccess.chatRequest}
 	 */
 	export interface LanguageModelChatResponse {
-
-		//TODO@API give this some structure
-		// https://github.com/openai/openai-openapi/blob/master/openapi.yaml#L7700, https://platform.openai.com/docs/guides/text-generation/chat-completions-api
-		// https://github.com/ollama/ollama/blob/main/docs/api.md#response-7
-		// https://docs.anthropic.com/claude/reference/messages_post
 
 		/**
 		 * An async iterable that is a stream of text chunks forming the overall response.
@@ -40,12 +37,35 @@ declare module 'vscode' {
 		stream: AsyncIterable<string>;
 	}
 
-	export enum LanguageModelChatMessageRole {
-		User,
-		Assistant,
-		// System see https://github.com/anthropics/anthropic-sdk-typescript/blob/c2da9604646ff103fbdbca016a9a9d49b03b387b/src/resources/messages.ts#L384
+	//TODO@API give this some structure
+	// https://github.com/openai/openai-openapi/blob/master/openapi.yaml#L7700, https://platform.openai.com/docs/guides/text-generation/chat-completions-api
+	// https://github.com/ollama/ollama/blob/main/docs/api.md#response-7
+	// https://docs.anthropic.com/claude/reference/messages_post
+	export interface LanguageModelChatResponse2 {
+
+		message: {
+			role: LanguageModelChatMessageRole;
+			content: AsyncIterable<string>;
+		};
 	}
 
+	/**
+	 * Represents the role of a chat message. This is either the user or the assistant/model.
+	 */
+	export enum LanguageModelChatMessageRole {
+		/**
+		 * The user role, e.g the human interacting with a language model.
+		 */
+		User = 1,
+
+		/**
+		 * The assistant role, e.g. the language model generating responses.
+		 */
+		// TODO@API name: model?
+		Assistant = 2
+	}
+
+	// TODO@API name: LanguageModelChatMessage once the deprecated stuff is removed
 	export class LanguageModelChatMessage2 {
 		/**
 		 * The role of this message.
@@ -71,26 +91,9 @@ declare module 'vscode' {
 		constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
 	}
 
-	export interface LanguageModelChatResponse2 {
-
-		message: {
-			role: LanguageModelChatMessageRole;
-			content: AsyncIterable<string>;
-		};
-	}
-
-	// TODO@API have just LanguageModelChatMessage & LanguageModelChatMessageRole
-	// TODO@API don't have SystemChatMessage because it encourages to mix system and user messages
-	// but AFAIK system message should/must come first (https://github.com/anthropics/anthropic-sdk-typescript/blob/c2da9604646ff103fbdbca016a9a9d49b03b387b/src/resources/messages.ts#L384)
 
 	/**
-	 * A language model message that represents a system message.
-	 *
-	 * System messages provide instructions to the language model that define the context in
-	 * which user messages are interpreted.
-	 *
-	 * *Note* that a language model may choose to add additional system messages to the ones
-	 * provided by extensions.
+	 * @deprecated
 	 */
 	export class LanguageModelChatSystemMessage {
 
@@ -108,7 +111,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A language model message that represents a user message.
+	 * @deprecated
 	 */
 	export class LanguageModelChatUserMessage {
 
@@ -132,8 +135,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A language model message that represents an assistant message, usually in response to a user message
-	 * or as a sample response/reply-pair.
+	 * @deprecated
 	 */
 	export class LanguageModelChatAssistantMessage {
 
@@ -158,6 +160,7 @@ declare module 'vscode' {
 
 	/**
 	 * Different types of language model messages.
+	 * @deprecated
 	 */
 	export type LanguageModelChatMessage = LanguageModelChatSystemMessage | LanguageModelChatUserMessage | LanguageModelChatAssistantMessage;
 
@@ -263,7 +266,6 @@ declare module 'vscode' {
 		// TODO@API Revisit this, how do you do the first request?
 		silent?: boolean;
 
-		// TODO@API add system messages here?
 
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
@@ -317,7 +319,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
 		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
 		 */
-		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
+		export function sendChatRequest(languageModel: string, messages: (LanguageModelChatMessage | LanguageModelChatMessage2)[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		/**
 		 * Uses the language model specific tokenzier and computes the length in token of a given message.
@@ -329,7 +331,10 @@ declare module 'vscode' {
 		 * @param token Optional cancellation token.
 		 * @returns A thenable that resolves to the length of the message in tokens.
 		 */
-		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+		// TODO@API optional?
+		// ollama has nothing
+		// anthropic suggests to count after the fact https://github.com/anthropics/anthropic-tokenizer-typescript?tab=readme-ov-file#anthropic-typescript-tokenizer
+		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token?: CancellationToken): Thenable<number>;
 	}
 
 	/**

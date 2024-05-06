@@ -2239,6 +2239,29 @@ export namespace ChatFollowup {
 	}
 }
 
+
+export namespace LanguageModelChatMessage {
+
+	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage2 {
+		switch (message.role) {
+			case chatProvider.ChatMessageRole.System: return new types.LanguageModelChatMessage2(<number>types.LanguageModelChatMessageRole.System, message.content);
+			case chatProvider.ChatMessageRole.User: return new types.LanguageModelChatMessage2(<number>types.LanguageModelChatMessageRole.User, message.content);
+			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelChatMessage2(<number>types.LanguageModelChatMessageRole.Assistant, message.content);
+		}
+	}
+
+	export function from(message: vscode.LanguageModelChatMessage2): chatProvider.IChatMessage {
+		switch (message.role as types.LanguageModelChatMessageRole) {
+			case types.LanguageModelChatMessageRole.System: return { role: chatProvider.ChatMessageRole.System, content: message.content };
+			case types.LanguageModelChatMessageRole.User: return { role: chatProvider.ChatMessageRole.User, content: message.content };
+			case types.LanguageModelChatMessageRole.Assistant: return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
+		}
+	}
+}
+
+/**
+ * @deprecated
+ */
 export namespace LanguageModelMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
