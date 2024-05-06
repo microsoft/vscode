@@ -413,11 +413,11 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			if (bp instanceof SourceBreakpoint) {
 				let dto = map.get(bp.location.uri.toString());
 				if (!dto) {
-					dto = <ISourceMultiBreakpointDto>{
+					dto = {
 						type: 'sourceMulti',
 						uri: bp.location.uri,
 						lines: []
-					};
+					} satisfies ISourceMultiBreakpointDto;
 					map.set(bp.location.uri.toString(), dto);
 					dtos.push(dto);
 				}
@@ -883,28 +883,28 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	private convertToDto(x: vscode.DebugAdapterDescriptor): Dto<IAdapterDescriptor> {
 
 		if (x instanceof DebugAdapterExecutable) {
-			return <IDebugAdapterExecutable>{
+			return {
 				type: 'executable',
 				command: x.command,
 				args: x.args,
 				options: x.options
-			};
+			} satisfies IDebugAdapterExecutable;
 		} else if (x instanceof DebugAdapterServer) {
-			return <IDebugAdapterServer>{
+			return {
 				type: 'server',
 				port: x.port,
 				host: x.host
-			};
+			} satisfies IDebugAdapterServer;
 		} else if (x instanceof DebugAdapterNamedPipeServer) {
-			return <IDebugAdapterNamedPipeServer>{
+			return {
 				type: 'pipeServer',
 				path: x.path
-			};
+			} satisfies IDebugAdapterNamedPipeServer;
 		} else if (x instanceof DebugAdapterInlineImplementation) {
-			return <Dto<IAdapterDescriptor>>{
+			return {
 				type: 'implementation',
 				implementation: x.implementation
-			};
+			} as Dto<IAdapterDescriptor>;
 		} else {
 			throw new Error('convertToDto unexpected type');
 		}

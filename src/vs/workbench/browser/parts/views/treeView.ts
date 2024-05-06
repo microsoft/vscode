@@ -346,6 +346,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	set dataProvider(dataProvider: ITreeViewDataProvider | undefined) {
 		if (dataProvider) {
+			if (this.visible) {
+				this.activate();
+			}
 			const self = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				private _isEmpty: boolean = true;
