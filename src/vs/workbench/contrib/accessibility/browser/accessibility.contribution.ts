@@ -18,7 +18,7 @@ import { SpeechAccessibilitySignalContribution } from 'vs/workbench/contrib/spee
 import { AccessibleViewInformationService, IAccessibleViewInformationService } from 'vs/workbench/services/accessibility/common/accessibleViewInformationService';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { NotificationAccessibleViewContribution, CommentAccessibleViewContribution, InlineCompletionsAccessibleViewContribution, AccesibleViewHelpContribution } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
+import { CommentAccessibleViewContribution, InlineCompletionsAccessibleViewContribution, AccesibleViewHelpContribution, AccesibleViewContributions } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
 import { ExtensionAccessibilityHelpDialogContribution } from 'vs/workbench/contrib/accessibility/browser/extensionAccesibilityHelp.contribution';
 
 registerAccessibilityConfiguration();
@@ -31,7 +31,7 @@ workbenchRegistry.registerWorkbenchContribution(CommentsAccessibilityHelpContrib
 workbenchRegistry.registerWorkbenchContribution(UnfocusedViewDimmingContribution, LifecyclePhase.Restored);
 
 workbenchRegistry.registerWorkbenchContribution(AccesibleViewHelpContribution, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(AccesibleViewContributions, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(CommentAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(InlineCompletionsAccessibleViewContribution, LifecyclePhase.Eventually);
 

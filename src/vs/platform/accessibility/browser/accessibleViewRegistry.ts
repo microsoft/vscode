@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
 
-export interface AccessibleViewImplentation {
+export interface IAccessibleViewImplentation {
+	type: AccessibleViewType;
 	priority: number;
 	name: string;
 	implementation: CommandImplementation;
@@ -17,9 +19,9 @@ export interface AccessibleViewImplentation {
 }
 
 export const AccessibleViewRegistry = new class AccessibleViewRegistry {
-	_implementations: AccessibleViewImplentation[] = [];
+	_implementations: IAccessibleViewImplentation[] = [];
 
-	registerImplementation(implementation: AccessibleViewImplentation): IDisposable {
+	registerImplementation(implementation: IAccessibleViewImplentation): IDisposable {
 		this._implementations.push(implementation);
 		return {
 			dispose: () => {
@@ -31,7 +33,21 @@ export const AccessibleViewRegistry = new class AccessibleViewRegistry {
 		};
 	}
 
-	getImplementations(): AccessibleViewImplentation[] {
+	getImplementations(): IAccessibleViewImplentation[] {
 		return this._implementations;
 	}
 };
+
+export function alertAccessibleViewFocusChange(index: number | undefined, length: number | undefined, type: 'next' | 'previous'): void {
+	if (index === undefined || length === undefined) {
+		return;
+	}
+	const number = index + 1;
+
+	if (type === 'next' && number + 1 <= length) {
+		alert(`Focused ${number + 1} of ${length}`);
+	} else if (type === 'previous' && number - 1 > 0) {
+		alert(`Focused ${number - 1} of ${length}`);
+	}
+	return;
+}

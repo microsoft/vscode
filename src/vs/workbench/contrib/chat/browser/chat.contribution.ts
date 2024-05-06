@@ -19,7 +19,6 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
@@ -59,6 +58,7 @@ import '../common/chatColors';
 import { ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
 import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { alertAccessibleViewFocusChange } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -211,12 +211,12 @@ class ChatAccessibleViewContribution extends Disposable {
 					},
 					next() {
 						verifiedWidget.moveFocus(focusedItem, 'next');
-						alertFocusChange(responseIndex, length, 'next');
+						alertAccessibleViewFocusChange(responseIndex, length, 'next');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					previous() {
 						verifiedWidget.moveFocus(focusedItem, 'previous');
-						alertFocusChange(responseIndex, length, 'previous');
+						alertAccessibleViewFocusChange(responseIndex, length, 'previous');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					options: { type: AccessibleViewType.View }
