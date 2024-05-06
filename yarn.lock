@@ -1322,9 +1322,9 @@
     "@types/node" "*"
 
 "@types/vinyl@*":
-  version "2.0.4"
-  resolved "https://registry.yarnpkg.com/@types/vinyl/-/vinyl-2.0.4.tgz#9a7a8071c8d14d3a95d41ebe7135babe4ad5995a"
-  integrity sha512-2o6a2ixaVI2EbwBPg1QYLGQoHK56p/8X/sGfKbFC8N6sY9lfjsMf/GprtkQkSya0D4uRiutRZ2BWj7k3JvLsAQ==
+  version "2.0.12"
+  resolved "https://registry.yarnpkg.com/@types/vinyl/-/vinyl-2.0.12.tgz#17642ca9a8ae10f3db018e9f885da4188db4c6e6"
+  integrity sha512-Sr2fYMBUVGYq8kj3UthXFAu5UN6ZW+rYr4NACjZQJvHvj+c8lYv0CahmZ2P/r7iUkN44gGUBwqxZkrKXYPb7cw==
   dependencies:
     "@types/expect" "^1.20.4"
     "@types/node" "*"
@@ -10043,10 +10043,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.5.0-dev.20240408:
-  version "5.5.0-dev.20240408"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.5.0-dev.20240408.tgz#337832c87cf0db5a11f9efcff9c789a982ea77c4"
-  integrity sha512-WCqFA68PbE0+khOu6x2LPxePy0tKdWuNO2m2K4A/L+OPqua1Qmck9OXUQ/5nUd4B/8UlBuhkhuulQbr2LHO9vA==
+typescript@^5.5.0-dev.20240506:
+  version "5.5.0-dev.20240506"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.5.0-dev.20240506.tgz#d46aac8be07432092e3bd7e7fb7aae93b21d738a"
+  integrity sha512-0lnovJfyTASSjJvryIfT3sYDXAv1n2R0vujhtdXQiAxA+PRpCOTk7UqslELD6wl7t3s9hH5UI/+p5aPeSpmbYw==
 
 typical@^4.0.0:
   version "4.0.0"
