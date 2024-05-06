@@ -16,6 +16,8 @@ declare module 'vscode' {
 
 		export const embeddingModels: string[];
 
+		export const onDidChangeEmbeddingModels: Event<void>;
+
 		export function computeEmbeddings(embeddingsModel: string, input: string, token?: CancellationToken): Thenable<Embedding>;
 
 		export function computeEmbeddings(embeddingsModel: string, input: string[], token?: CancellationToken): Thenable<Embedding[]>;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostEmbeddingsShape, IMainContext, MainContext, MainThreadEmbeddingsShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -14,6 +15,9 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 
 	private readonly _proxy: MainThreadEmbeddingsShape;
 	private readonly _provider = new Map<number, { id: string; provider: vscode.EmbeddingsProvider }>();
+
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _allKnownModels = new Set<string>();
 	private _handlePool: number = 0;
@@ -83,5 +87,6 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 
 	$acceptEmbeddingModels(models: string[]): void {
 		this._allKnownModels = new Set(models);
+		this._onDidChange.fire();
 	}
 }

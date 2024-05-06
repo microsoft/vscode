@@ -1458,6 +1458,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'embeddings');
 				return extHostEmbeddings.embeddingsModels;
 			},
+			onDidChangeEmbeddingModels: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'embeddings');
+				return extHostEmbeddings.onDidChange(listener, thisArgs, disposables);
+			},
 			registerEmbeddingsProvider(embeddingsModel, provider) {
 				checkProposedApiEnabled(extension, 'embeddings');
 				return extHostEmbeddings.registerEmbeddingsProvider(extension, embeddingsModel, provider);
