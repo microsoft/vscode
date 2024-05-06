@@ -11,4 +11,5 @@ const module = await importAmdModule(
 const { AssertionError, deepEqual, deepStrictEqual, doesNotReject, doesNotThrow, equal, fail, ifError, notDeepEqual, notDeepStrictEqual, ok, rejects, strictEqual, throws } = module
 
 export { AssertionError, deepEqual, deepStrictEqual, doesNotReject, doesNotThrow, equal, fail, ifError, notDeepEqual, notDeepStrictEqual, ok, rejects, strictEqual, throws }
+
 export default module
