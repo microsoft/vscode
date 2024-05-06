@@ -20,7 +20,7 @@ export const importAmdModule = async (absolutePath) => {
 			dependencies = id
 			id = null
 		}
-		if (typeof dependencies === 'object' || !Array.isArray(dependencies)) {
+		if (typeof dependencies !== 'object' || !Array.isArray(dependencies)) {
 			callback = dependencies
 			dependencies = null
 		}
@@ -30,11 +30,12 @@ export const importAmdModule = async (absolutePath) => {
 	}
 
 	globalThis.define.amd = true;
-	const module = await import(absolutePath)
+	await import(absolutePath)
 	if (defineCalls.length === 0) {
 		throw new Error('no module was defined')
 	}
 	const defineCall = defineCalls.pop()
+	console.log({ defineCall })
 	if (Array.isArray(defineCall.dependencies) && defineCall.dependencies.length > 0) {
 		throw new Error(`dependencies are not supported`)
 	}
