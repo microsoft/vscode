@@ -16,9 +16,14 @@ declare module 'vscode' {
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	 */
 	export interface ChatResponseProvider {
+
+		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
+
+		provideLanguageModelResponse?(messages: LanguageModelChatMessage2[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+
 		provideLanguageModelResponse2(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 
-		provideTokenCount(text: string, token: CancellationToken): Thenable<number>;
+		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
 	}
 
 	export interface ChatResponseProviderMetadata {
@@ -28,6 +33,10 @@ declare module 'vscode' {
 		 */
 		// TODO@API rename to model
 		name: string;
+
+		version: string;
+
+		tokens: number;
 
 		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where

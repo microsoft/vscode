@@ -6,13 +6,13 @@
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';
-import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { TerminalTypeAheadSettingId, type ITerminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration';
 
 class TerminalTypeAheadContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.typeAhead';
@@ -37,7 +37,7 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._loadTypeAheadAddon(xterm.raw);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.LocalEchoEnabled)) {
+			if (e.affectsConfiguration(TerminalTypeAheadSettingId.LocalEchoEnabled)) {
 				this._loadTypeAheadAddon(xterm.raw);
 			}
 		}));
@@ -49,7 +49,7 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 	}
 
 	private _loadTypeAheadAddon(xterm: RawXtermTerminal): void {
-		const enabled = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoEnabled;
+		const enabled = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoEnabled;
 		const isRemote = !!this._processManager.remoteAuthority;
 		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
 			this._addon?.dispose();

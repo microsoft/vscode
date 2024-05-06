@@ -1733,7 +1733,7 @@ export class GridView implements IDisposable {
 				return {
 					node: this._deserializeNode(serializedChild, orthogonal(orientation), deserializer, node.size),
 					visible: (serializedChild as { visible?: boolean }).visible
-				} as INodeDescriptor;
+				} satisfies INodeDescriptor;
 			});
 
 			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, undefined, children);

@@ -19,6 +19,7 @@
     "documentFiltersExclusive",
     "documentPaste",
     "editorInsets",
+    "embeddings",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -44,6 +45,7 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
+    "terminalShellIntegration",
     "tunnels",
     "testObserver",
     "textSearchProvider",
@@ -52,8 +54,7 @@
     "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry",
-    "windowActivity"
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],
@@ -80,7 +81,7 @@
         "id": "api-test.participant2",
         "name": "participant2",
         "description": "test",
-        "commands": [ ]
+        "commands": []
       }
     ],
     "configuration": {

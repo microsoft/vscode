@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Command, Location, TextEdit } from 'vs/editor/common/languages';
@@ -74,6 +75,7 @@ export interface IChatContentVariableReference {
 
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference;
+	iconPath?: ThemeIcon | { light: URI; dark: URI };
 	kind: 'reference';
 }
 
@@ -102,6 +104,11 @@ export interface IChatTreeData {
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
+}
+
+export interface IChatWarningMessage {
+	content: IMarkdownString;
+	kind: 'warning';
 }
 
 export interface IChatAgentVulnerabilityDetails {
@@ -136,6 +143,7 @@ export type IChatProgress =
 	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatCommandButton
+	| IChatWarningMessage
 	| IChatTextEdit;
 
 export interface IChatFollowup {

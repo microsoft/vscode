@@ -237,7 +237,7 @@ class MenuInfo {
 		for (const group of this._menuGroups) {
 			const [id, items] = group;
 
-			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
+			let activeActions: Array<MenuItemAction | SubmenuItemAction> | undefined;
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const isMenuItem = isIMenuItem(item);
@@ -248,19 +248,19 @@ class MenuInfo {
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
 						// MenuItemAction
-						const menuKeybinding = createMenuKeybindingAction(this._id, item.command, item.when, this._commandService, this._keybindingService);
-						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, this._contextKeyService, this._commandService));
+						const menuKeybinding = createConfigureKeybindingAction(item.command.id, item.when, this._commandService, this._keybindingService);
+						(activeActions ??= []).push(new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, this._contextKeyService, this._commandService));
 					} else {
 						// SubmenuItemAction
 						const groups = new MenuInfo(item.submenu, this._hiddenStates, this._collectContextKeysForSubmenus, this._commandService, this._keybindingService, this._contextKeyService).createActionGroups(options);
 						const submenuActions = Separator.join(...groups.map(g => g[1]));
 						if (submenuActions.length > 0) {
-							activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions));
+							(activeActions ??= []).push(new SubmenuItemAction(item, menuHide, submenuActions));
 						}
 					}
 				}
 			}
-			if (activeActions.length > 0) {
+			if (activeActions && activeActions.length > 0) {
 				result.push([id, activeActions]);
 			}
 		}
@@ -442,19 +442,16 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 	};
 }
 
-function createMenuKeybindingAction(menu: MenuId, command: ICommandAction | ISubmenuItem, when: ContextKeyExpression | undefined = undefined, commandService: ICommandService, keybindingService: IKeybindingService): IAction | undefined {
-	if (isISubmenuItem(command)) {
-		return undefined;
-	}
-
-	const configureKeybindingAction = toAction({
-		id: `configureKeybinding/${menu.id}/${command.id}`,
-		label: keybindingService.lookupKeybinding(command.id) ? localize('change keybinding', "Change Keybinding") : localize('configure keybinding', "Configure Keybinding"),
+export function createConfigureKeybindingAction(commandId: string, when: ContextKeyExpression | undefined = undefined, commandService: ICommandService, keybindingService: IKeybindingService): IAction {
+	return toAction({
+		id: `configureKeybinding/${commandId}`,
+		label: localize('configure keybinding', "Configure Keybinding"),
 		run() {
-			const whenValue = when ? when.serialize() : undefined;
-			commandService.executeCommand('workbench.action.openGlobalKeybindings', `@command:${command.id}` + (whenValue ? ` +when:${whenValue}` : ''));
+			// Only set the when clause when there is no keybinding
+			// It is possible that the action and the keybinding have different when clauses
+			const hasKeybinding = !!keybindingService.lookupKeybinding(commandId); // This may only be called inside the `run()` method as it can be expensive on startup. #210529
+			const whenValue = !hasKeybinding && when ? when.serialize() : undefined;
+			commandService.executeCommand('workbench.action.openGlobalKeybindings', `@command:${commandId}` + (whenValue ? ` +when:${whenValue}` : ''));
 		}
 	});
-
-	return configureKeybindingAction;
 }

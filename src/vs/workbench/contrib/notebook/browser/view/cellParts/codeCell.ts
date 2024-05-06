@@ -205,7 +205,14 @@ export class CodeCell extends Disposable {
 
 			if (model && this.templateData.editor) {
 				this._reigsterModelListeners(model);
+
+				// set model can trigger view update, which can lead to dispose of this cell
 				this.templateData.editor.setModel(model);
+
+				if (this._isDisposed) {
+					return;
+				}
+
 				model.updateOptions({
 					indentSize: this._cellEditorOptions.indentSize,
 					tabSize: this._cellEditorOptions.tabSize,
@@ -226,6 +233,10 @@ export class CodeCell extends Disposable {
 				const realContentHeight = this.templateData.editor?.getContentHeight();
 				if (realContentHeight !== undefined && realContentHeight !== initEditorHeight) {
 					this.onCellEditorHeightChange(realContentHeight);
+				}
+
+				if (this._isDisposed) {
+					return;
 				}
 
 				focusEditorIfNeeded();
@@ -287,6 +298,10 @@ export class CodeCell extends Disposable {
 
 				if (contentHeight !== layoutContentHeight) {
 					this.onCellEditorHeightChange(contentHeight);
+
+					if (this._isDisposed) {
+						return;
+					}
 				}
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);

@@ -7,11 +7,23 @@ import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/com
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalInlineChatAccessibleViewContribution } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatAccessibleView';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
-
-import 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatActions';
 import { TerminalChatAccessibilityHelpContribution } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatAccessibilityHelp';
+
+// #region Terminal Contributions
 
 registerTerminalContribution(TerminalChatController.ID, TerminalChatController, false);
 
+// #endregion
+
+// #region Contributions
+
 registerWorkbenchContribution2(TerminalInlineChatAccessibleViewContribution.ID, TerminalInlineChatAccessibleViewContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(TerminalChatAccessibilityHelpContribution.ID, TerminalChatAccessibilityHelpContribution, WorkbenchPhase.Eventually);
+
+// #endregion
+
+// #region Actions
+
+import 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatActions';
+
+// #endregion

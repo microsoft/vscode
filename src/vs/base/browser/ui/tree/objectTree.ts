@@ -219,7 +219,7 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 		// Compress the elements
 		const lastStickyNode = stickyNodes[stickyNodes.length - 1];
 		const compressedElement: ICompressedTreeNode<T> = { elements, incompressible: false };
-		const compressedNode = { ...lastStickyNode.node, children: [], element: compressedElement } as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
+		const compressedNode: ITreeNode<ICompressedTreeNode<T>, TFilterData> = { ...lastStickyNode.node, children: [], element: compressedElement };
 
 		const stickyTreeNode = new Proxy(stickyNodes[0].node, {});
 

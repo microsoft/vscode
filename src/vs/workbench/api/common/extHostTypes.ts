@@ -1202,6 +1202,29 @@ export class Hover {
 	}
 }
 
+@es5ClassCompat
+export class VerboseHover extends Hover {
+
+	public canIncreaseHover: boolean | undefined;
+	public canDecreaseHover: boolean | undefined;
+
+	constructor(
+		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
+		range?: Range,
+		canIncreaseHover?: boolean,
+		canDecreaseHover?: boolean,
+	) {
+		super(contents, range);
+		this.canIncreaseHover = canIncreaseHover;
+		this.canDecreaseHover = canDecreaseHover;
+	}
+}
+
+export enum HoverVerbosityAction {
+	Increase = 0,
+	Decrease = 1
+}
+
 export enum DocumentHighlightKind {
 	Text = 0,
 	Read = 1,
@@ -3076,14 +3099,14 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 }
 
 
-export class StackFrame implements vscode.StackFrame {
+export class DebugStackFrame implements vscode.DebugStackFrame {
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId: number,
 		readonly frameId: number) { }
 }
 
-export class Thread implements vscode.Thread {
+export class DebugThread implements vscode.DebugThread {
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId: number) { }
@@ -3155,6 +3178,11 @@ export class InlineValueContext implements vscode.InlineValueContext {
 
 export enum NewSymbolNameTag {
 	AIGenerated = 1
+}
+
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
 }
 
 export class NewSymbolName implements vscode.NewSymbolName {
@@ -3995,12 +4023,13 @@ export enum TestRunProfileKind {
 }
 
 @es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest {
+export class TestRunRequest implements vscode.TestRunRequest2 {
 	constructor(
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
 		public readonly continuous = false,
+		public readonly preserveFocus = true,
 	) { }
 }
 
@@ -4245,6 +4274,7 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	values: vscode.ChatVariableValue[];
 	detail?: string;
 	documentation?: string | MarkdownString;
+	command?: vscode.Command;
 
 	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
 		this.label = label;
@@ -4332,6 +4362,17 @@ export class ChatResponseProgressPart {
 	}
 }
 
+export class ChatResponseWarningPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
@@ -4341,8 +4382,10 @@ export class ChatResponseCommandButtonPart {
 
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }) {
+	iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
 		this.value = value;
+		this.iconPath = iconPath;
 	}
 }
 
@@ -4359,7 +4402,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly variables: vscode.ChatResolvedVariable[],
+		readonly variables: vscode.ChatValueReference[],
 		readonly participant: string,
 	) { }
 }
@@ -4379,6 +4422,25 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+}
+
+export enum LanguageModelChatMessageRole {
+	User = 1,
+	Assistant = 2,
+	System = 3
+}
+
+export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
+
+	role: vscode.LanguageModelChatMessageRole;
+	content: string;
+	name: string | undefined;
+
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
+		this.role = role;
+		this.content = content;
+		this.name = name;
+	}
 }
 
 export class LanguageModelChatSystemMessage {
@@ -4419,6 +4481,10 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
 	}
 
+	static Blocked(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.Blocked.name);
+	}
+
 	readonly code: string;
 
 	constructor(message?: string, code?: string, cause?: Error) {
@@ -4450,6 +4516,12 @@ export enum SpeechToTextStatus {
 	Recognized = 3,
 	Stopped = 4,
 	Error = 5
+}
+
+export enum TextToSpeechStatus {
+	Started = 1,
+	Stopped = 2,
+	Error = 3
 }
 
 export enum KeywordRecognitionStatus {

@@ -319,9 +319,10 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		this._store.add(this.menu.onDidChange(() => this.updateToolbar()));
 		this.updateToolbar();

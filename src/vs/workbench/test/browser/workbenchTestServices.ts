@@ -2055,6 +2055,7 @@ export class TestQuickInputService implements IQuickInputService {
 	readonly onShow = Event.None;
 	readonly onHide = Event.None;
 
+	readonly currentQuickInput = undefined;
 	readonly quickAccess = undefined!;
 	backButton!: IQuickInputButton;
 
@@ -2189,7 +2190,6 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> { throw new Error('Method not implemented.'); }
 	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
 	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
-	isWorkspaceExtensionsSupported(): boolean { throw new Error('Method not implemented.'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {
