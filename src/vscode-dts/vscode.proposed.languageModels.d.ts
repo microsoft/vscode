@@ -44,9 +44,11 @@ declare module 'vscode' {
 	export interface LanguageModelChatResponse2 {
 
 		message: {
-			role: LanguageModelChatMessageRole;
+			role: LanguageModelChatMessageRole.Assistant;
 			content: AsyncIterable<string>;
 		};
+
+
 	}
 
 	/**
@@ -61,7 +63,6 @@ declare module 'vscode' {
 		/**
 		 * The assistant role, e.g. the language model generating responses.
 		 */
-		// TODO@API name: model?
 		Assistant = 2
 	}
 
@@ -253,8 +254,6 @@ declare module 'vscode' {
 	 */
 	export interface LanguageModelChatRequestOptions {
 
-		// TODO@API add short name for the feature using the language model
-
 		/**
 		 * A human-readable message that explains why access to a language model is needed and what feature is enabled by it.
 		 */
@@ -328,10 +327,10 @@ declare module 'vscode' {
 		 * @param token Optional cancellation token.
 		 * @returns A thenable that resolves to the length of the message in tokens.
 		 */
-		// TODO@API optional?
+		// TODO@API `undefined` when the language model does not support computing token length
 		// ollama has nothing
 		// anthropic suggests to count after the fact https://github.com/anthropics/anthropic-tokenizer-typescript?tab=readme-ov-file#anthropic-typescript-tokenizer
-		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token?: CancellationToken): Thenable<number>;
+		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token?: CancellationToken): Thenable<number | undefined>;
 	}
 
 	/**
