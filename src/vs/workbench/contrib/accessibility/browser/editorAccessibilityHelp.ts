@@ -7,7 +7,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -28,7 +27,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
 	constructor() {
 		super();
-		this._register(AccessibilityHelpAction.addImplementation(95, 'editor', async accessor => {
+		this._register(AccessibilityHelpAction.addImplementation(90, 'editor', async accessor => {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const instantiationService = accessor.get(IInstantiationService);
@@ -39,7 +38,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
 			accessibleViewService.show(instantiationService.createInstance(EditorAccessibilityHelpProvider, codeEditor));
-		}, EditorContextKeys.focus));
+		}));
 	}
 }
 
