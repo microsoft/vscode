@@ -12,7 +12,6 @@ import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibi
 import { AccessibilityStatus } from 'vs/workbench/contrib/accessibility/browser/accessibilityStatus';
 import { EditorAccessibilityHelpContribution } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
 import { SaveAccessibilitySignalContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/saveAccessibilitySignal';
-import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 import { DiffEditorActiveAnnouncementContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/openDiffEditorAnnouncement';
 import { SpeechAccessibilitySignalContribution } from 'vs/workbench/contrib/speech/browser/speechAccessibilitySignal';
 import { AccessibleViewInformationService, IAccessibleViewInformationService } from 'vs/workbench/services/accessibility/common/accessibleViewInformationService';
@@ -27,7 +26,6 @@ registerSingleton(IAccessibleViewInformationService, AccessibleViewInformationSe
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(CommentsAccessibilityHelpContribution, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(UnfocusedViewDimmingContribution, LifecyclePhase.Restored);
 
 workbenchRegistry.registerWorkbenchContribution(AccesibleViewHelpContribution, LifecyclePhase.Eventually);

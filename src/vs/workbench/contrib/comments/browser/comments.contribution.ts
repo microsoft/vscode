@@ -29,6 +29,7 @@ import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workb
 import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { CommentsAccessibleView } from 'vs/workbench/contrib/comments/browser/commentsAccessibleView';
+import { CommentsAccessibilityHelp } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
 	constructor() {
@@ -192,3 +193,4 @@ export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchCon
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(UnresolvedCommentsBadge, LifecyclePhase.Eventually);
 
 AccessibleViewRegistry.register(new CommentsAccessibleView());
+AccessibleViewRegistry.register(new CommentsAccessibilityHelp());
