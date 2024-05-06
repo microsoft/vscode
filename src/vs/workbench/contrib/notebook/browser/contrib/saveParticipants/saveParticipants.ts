@@ -20,13 +20,14 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
+import { formatDocumentWithSelectedProvider, FormattingMode, getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
@@ -41,6 +42,7 @@ import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySavePartic
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -63,35 +65,48 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 		}
 
 		const notebook = workingCopy.model.notebookModel;
+		const nestedProgress = new Progress<{ displayName?: string; extensionId?: ExtensionIdentifier }>(provider => {
+			progress.report({
+				message: localize(
+					{ key: 'formatting2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
+					"Running '{0}' Formatter ([configure]({1})).",
+					provider.displayName || provider.extensionId && provider.extensionId.value || '???',
+					'command:workbench.action.openSettings?%5B%22notebook.formatOnSave.enabled%22%5D'
+				)
+			});
+		});
 
-		progress.report({ message: localize('notebookFormatSave.formatting', "Formatting") });
+		progress.report({ message: localize('notebookFormatOnSave.formatting', "Formatting") });
 		const disposable = new DisposableStore();
 		try {
-			const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
+			// const allCellEdits =
+			await Promise.all(notebook.cells.map(async cell => {
 				const ref = await this.textModelService.createModelReference(cell.uri);
 				disposable.add(ref);
 
 				const model = ref.object.textEditorModel;
 
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
-					this.editorWorkerService,
-					this.languageFeaturesService,
-					model,
-					model.getOptions(),
-					token
-				);
+				await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, model, FormattingMode.Silent, nestedProgress, token);
 
-				const edits: ResourceTextEdit[] = [];
+				// const formatEdits = await getDocumentFormattingEditsUntilResult(
+				// 	this.editorWorkerService,
+				// 	this.languageFeaturesService,
+				// 	model,
+				// 	model.getOptions(),
+				// 	token
+				// );
 
-				if (formatEdits) {
-					edits.push(...formatEdits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
-					return edits;
-				}
+				// const edits: ResourceTextEdit[] = [];
 
-				return [];
+				// if (formatEdits) {
+				// 	edits.push(...formatEdits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
+				// 	return edits;
+				// }
+
+				// return [];
 			}));
 
-			await this.bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('formatNotebook', "Format Notebook"), code: 'undoredo.formatNotebook', });
+			// await this.bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('formatNotebook', "Format Notebook"), code: 'undoredo.formatNotebook', });
 
 		} finally {
 			progress.report({ increment: 100 });
