@@ -20,11 +20,12 @@ export function descriptionForCommand(commandId: string, msg: string, noKbMsg: s
 	return strings.format(noKbMsg, commandId);
 }
 
+
 export class AccesibleViewHelpContribution extends Disposable {
 	static ID: 'accesibleViewHelpContribution';
 	constructor() {
 		super();
-		this._register(AccessibilityHelpAction.addImplementation(115, 'accessible-view', accessor => {
+		this._register(AccessibilityHelpAction.addImplementation(115, 'accessible-view-help', accessor => {
 			accessor.get(IAccessibleViewService).showAccessibleViewHelp();
 			return true;
 		}, accessibleViewIsShown));

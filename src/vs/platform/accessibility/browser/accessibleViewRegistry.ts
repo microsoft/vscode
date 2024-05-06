@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { AccessibleViewType, AdvancedContentProvider, IPosition } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, AdvancedContentProvider, ExtensionContentProvider, IPosition } from 'vs/platform/accessibility/browser/accessibleView';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 
 export interface IShowAccessibleViewArgs {
-	provider: AdvancedContentProvider;
+	provider: AdvancedContentProvider | ExtensionContentProvider;
 	position?: IPosition | undefined;
 }
 

@@ -6,12 +6,13 @@
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableMap, IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { AccessibleViewType, ExtensionContentProvider, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, ExtensionContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IViewsRegistry, Extensions, IViewDescriptor } from 'vs/workbench/common/views';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
@@ -44,17 +45,23 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 	if (!helpContent) {
 		throw new Error('No help content for view');
 	}
-	disposableStore.add(AccessibilityHelpAction.addImplementation(95, viewDescriptor.id, accessor => {
-		const accessibleViewService = accessor.get(IAccessibleViewService);
-		const viewsService = accessor.get(IViewsService);
-		accessibleViewService.show(new ExtensionContentProvider(
-			viewDescriptor.id,
-			{ type: AccessibleViewType.Help },
-			() => helpContent.value,
-			() => viewsService.openView(viewDescriptor.id, true)
-		));
-		return true;
-	}, FocusedViewContext.isEqualTo(viewDescriptor.id)));
+	disposableStore.add(AccessibleViewRegistry.registerImplementation({
+		priority: 95,
+		name: viewDescriptor.id,
+		type: AccessibleViewType.Help,
+		when: FocusedViewContext.isEqualTo(viewDescriptor.id),
+		getShowAccessibleViewArgs: (accessor: ServicesAccessor) => {
+			const viewsService = accessor.get(IViewsService);
+			return {
+				provider: new ExtensionContentProvider(
+					viewDescriptor.id,
+					{ type: AccessibleViewType.Help },
+					() => helpContent.value,
+					() => viewsService.openView(viewDescriptor.id, true)
+				),
+			};
+		}
+	}));
 	disposableStore.add(keybindingService.onDidUpdateKeybindings(() => {
 		disposableStore.clear();
 		disposableStore.add(registerAccessibilityHelpAction(keybindingService, viewDescriptor));
