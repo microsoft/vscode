@@ -35,7 +35,6 @@ suite('LoopbackAuthServer', () => {
 		// Check state
 		const state = locationUrl.searchParams.get('state');
 		assert.ok(state);
-		// @ts-ignore
 		const stateLocation = new URL(state);
 		assert.strictEqual(stateLocation.origin, `http://127.0.0.1:${port}`);
 		assert.strictEqual(stateLocation.pathname, '/callback');
