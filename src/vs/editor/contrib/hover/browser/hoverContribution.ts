@@ -40,5 +40,5 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .monaco-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
 });
-AccessibleViewRegistry.registerImplementation(new HoverAccessibleView());
-AccessibleViewRegistry.registerImplementation(new ExtHoverAccessibleView());
+AccessibleViewRegistry.register(new HoverAccessibleView());
+AccessibleViewRegistry.register(new ExtHoverAccessibleView());

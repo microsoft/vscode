@@ -25,4 +25,4 @@ registerAction2(ToggleAlwaysShowInlineSuggestionToolbar);
 
 HoverParticipantRegistry.register(InlineCompletionsHoverParticipant);
 
-AccessibleViewRegistry.registerImplementation(new InlineCompletionsAccessibleView());
+AccessibleViewRegistry.register(new InlineCompletionsAccessibleView());

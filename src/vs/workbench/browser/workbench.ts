@@ -419,7 +419,7 @@ export class Workbench extends Layout {
 		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
 
 		// Register notification accessible view
-		AccessibleViewRegistry.registerImplementation(new NotificationAccessibleView());
+		AccessibleViewRegistry.register(new NotificationAccessibleView());
 
 		// Register with Layout
 		this.registerNotifications({

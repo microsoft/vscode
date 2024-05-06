@@ -45,7 +45,7 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 	if (!helpContent) {
 		throw new Error('No help content for view');
 	}
-	disposableStore.add(AccessibleViewRegistry.registerImplementation({
+	disposableStore.add(AccessibleViewRegistry.register({
 		priority: 95,
 		name: viewDescriptor.id,
 		type: AccessibleViewType.Help,

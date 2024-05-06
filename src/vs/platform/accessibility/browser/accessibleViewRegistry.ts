@@ -29,7 +29,7 @@ export interface IAccessibleViewImplentation {
 export const AccessibleViewRegistry = new class AccessibleViewRegistry {
 	_implementations: IAccessibleViewImplentation[] = [];
 
-	registerImplementation(implementation: IAccessibleViewImplentation): IDisposable {
+	register(implementation: IAccessibleViewImplentation): IDisposable {
 		this._implementations.push(implementation);
 		return {
 			dispose: () => {

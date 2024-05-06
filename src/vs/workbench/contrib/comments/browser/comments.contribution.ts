@@ -191,4 +191,4 @@ export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchCon
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(UnresolvedCommentsBadge, LifecyclePhase.Eventually);
 
-AccessibleViewRegistry.registerImplementation(new CommentsAccessibleView());
+AccessibleViewRegistry.register(new CommentsAccessibleView());
