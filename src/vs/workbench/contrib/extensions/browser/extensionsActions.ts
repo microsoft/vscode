@@ -63,7 +63,6 @@ import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspac
 import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
@@ -251,7 +250,7 @@ export class ActionWithDropDownAction extends ExtensionAction {
 		private readonly actionsGroups: ExtensionAction[][],
 	) {
 		super(id, label);
-		this.extensionActions = flatten(actionsGroups);
+		this.extensionActions = actionsGroups.flat();
 		this.update();
 		this._register(Event.any(...this.extensionActions.map(a => a.onDidChange))(() => this.update(true)));
 		this.extensionActions.forEach(a => this._register(a));

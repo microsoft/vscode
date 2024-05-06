@@ -36,7 +36,7 @@ export interface IActionWidgetService {
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[]): void;
 
-	hide(): void;
+	hide(didCancel?: boolean): void;
 
 	readonly isVisible: boolean;
 }
@@ -87,8 +87,8 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list?.value?.focusNext();
 	}
 
-	hide() {
-		this._list.value?.hide();
+	hide(didCancel?: boolean) {
+		this._list.value?.hide(didCancel);
 		this._list.clear();
 	}
 
@@ -139,7 +139,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		widget.style.width = `${width}px`;
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
-		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
+		renderDisposables.add(focusTracker.onDidBlur(() => this.hide(true)));
 
 		return renderDisposables;
 	}
@@ -179,7 +179,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IActionWidgetService).hide();
+		accessor.get(IActionWidgetService).hide(true);
 	}
 });
 

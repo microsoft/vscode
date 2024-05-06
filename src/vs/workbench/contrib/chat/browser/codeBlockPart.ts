@@ -60,6 +60,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TextModelText } from 'vs/editor/common/model/textModelText';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
 const $ = dom.$;
 
@@ -277,6 +278,7 @@ export class CodeBlockPart extends Disposable {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				HoverController.ID,
+				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 			])
 		}));
@@ -791,7 +793,7 @@ export class DefaultChatTextEditor {
 				continue;
 			}
 			const model = candidate.getModel();
-			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompreBlock) {
+			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
 				diffEditor = candidate;
 				break;
 			}

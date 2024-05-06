@@ -22,7 +22,10 @@ const THEME_STORAGE_KEY = 'theme';
 const THEME_BG_STORAGE_KEY = 'themeBackground';
 const THEME_WINDOW_SPLASH = 'windowSplash';
 
-const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
+namespace ThemeSettings {
+	export const DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme';
+	export const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
+}
 
 export const IThemeMainService = createDecorator<IThemeMainService>('themeMainService');
 
@@ -51,11 +54,13 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		super();
 
 		// System Theme
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SYSTEM_COLOR_THEME)) {
-				this.updateSystemColorTheme();
-			}
-		}));
+		if (!isLinux) {
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME) || e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)) {
+					this.updateSystemColorTheme();
+				}
+			}));
+		}
 		this.updateSystemColorTheme();
 
 		// Color Scheme changes
@@ -63,23 +68,29 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateSystemColorTheme(): void {
-		switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(SYSTEM_COLOR_THEME)) {
-			case 'dark':
-				nativeTheme.themeSource = 'dark';
-				break;
-			case 'light':
-				nativeTheme.themeSource = 'light';
-				break;
-			case 'auto':
-				switch (this.getBaseTheme()) {
-					case 'vs': nativeTheme.themeSource = 'light'; break;
-					case 'vs-dark': nativeTheme.themeSource = 'dark'; break;
-					default: nativeTheme.themeSource = 'system';
-				}
-				break;
-			default:
-				nativeTheme.themeSource = 'system';
-				break;
+		if (isLinux || this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			// only with `system` we can detect the system color scheme
+			nativeTheme.themeSource = 'system';
+		} else {
+			switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(ThemeSettings.SYSTEM_COLOR_THEME)) {
+				case 'dark':
+					nativeTheme.themeSource = 'dark';
+					break;
+				case 'light':
+					nativeTheme.themeSource = 'light';
+					break;
+				case 'auto':
+					switch (this.getBaseTheme()) {
+						case 'vs': nativeTheme.themeSource = 'light'; break;
+						case 'vs-dark': nativeTheme.themeSource = 'dark'; break;
+						default: nativeTheme.themeSource = 'system';
+					}
+					break;
+				default:
+					nativeTheme.themeSource = 'system';
+					break;
+			}
+
 		}
 	}
 

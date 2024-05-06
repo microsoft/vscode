@@ -11,7 +11,6 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { isBoolean, isString } from 'vs/base/common/types';
 import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -44,8 +43,6 @@ export enum ThemeSettings {
 	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
 
-export const ENABLE_SYSTEM_COLOR_SCHEME_SETTING = !isLinux;
-
 export enum ThemeSettingDefaults {
 	COLOR_THEME_DARK = 'Default Dark Modern',
 	COLOR_THEME_LIGHT = 'Default Light Modern',
@@ -60,15 +57,57 @@ export enum ThemeSettingDefaults {
 }
 
 export const COLOR_THEME_DARK_INITIAL_COLORS = {
+	'activityBar.activeBorder': '#0078d4',
 	'activityBar.background': '#181818',
+	'activityBar.border': '#2b2b2b',
+	'activityBar.foreground': '#d7d7d7',
+	'activityBar.inactiveForeground': '#868686',
+	'editorGroup.border': '#ffffff17',
+	'editorGroupHeader.tabsBackground': '#181818',
+	'editorGroupHeader.tabsBorder': '#2b2b2b',
 	'statusBar.background': '#181818',
+	'statusBar.border': '#2b2b2b',
+	'statusBar.foreground': '#cccccc',
 	'statusBar.noFolderBackground': '#1f1f1f',
+	'tab.activeBackground': '#1f1f1f',
+	'tab.activeBorder': '#1f1f1f',
+	'tab.activeBorderTop': '#0078d4',
+	'tab.activeForeground': '#ffffff',
+	'tab.border': '#2b2b2b',
+	'textLink.foreground': '#4daafc',
+	'titleBar.activeBackground': '#181818',
+	'titleBar.activeForeground': '#cccccc',
+	'titleBar.border': '#2b2b2b',
+	'titleBar.inactiveBackground': '#1f1f1f',
+	'titleBar.inactiveForeground': '#9d9d9d',
+	'welcomePage.tileBackground': '#2b2b2b'
 };
 
 export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
+	'activityBar.activeBorder': '#005FB8',
 	'activityBar.background': '#f8f8f8',
+	'activityBar.border': '#e5e5e5',
+	'activityBar.foreground': '#1f1f1f',
+	'activityBar.inactiveForeground': '#616161',
+	'editorGroup.border': '#e5e5e5',
+	'editorGroupHeader.tabsBackground': '#f8f8f8',
+	'editorGroupHeader.tabsBorder': '#e5e5e5',
 	'statusBar.background': '#f8f8f8',
-	'statusBar.noFolderBackground': '#f8f8f8'
+	'statusBar.border': '#e5e5e5',
+	'statusBar.foreground': '#3b3b3b',
+	'statusBar.noFolderBackground': '#f8f8f8',
+	'tab.activeBackground': '#ffffff',
+	'tab.activeBorder': '#f8f8f8',
+	'tab.activeBorderTop': '#005fb8',
+	'tab.activeForeground': '#3b3b3b',
+	'tab.border': '#e5e5e5',
+	'textLink.foreground': '#005fb8',
+	'titleBar.activeBackground': '#f8f8f8',
+	'titleBar.activeForeground': '#1e1e1e',
+	'titleBar.border': '#E5E5E5',
+	'titleBar.inactiveBackground': '#f8f8f8',
+	'titleBar.inactiveForeground': '#8b949e',
+	'welcomePage.tileBackground': '#f3f3f3'
 };
 
 export interface IWorkbenchTheme {
