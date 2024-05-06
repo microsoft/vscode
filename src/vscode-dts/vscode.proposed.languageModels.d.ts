@@ -261,13 +261,6 @@ declare module 'vscode' {
 		justification?: string;
 
 		/**
-		 * Do not show the consent UI if the user has not yet granted access to the language model but fail the request instead.
-		 */
-		// TODO@API Revisit this, how do you do the first request?
-		silent?: boolean;
-
-
-		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
 		 * and need to be lookup in the respective documentation.
 		 */
@@ -300,18 +293,22 @@ declare module 'vscode' {
 		/**
 		 * Make a chat request using a language model.
 		 *
-		 * - *Note 1:* language model use may be subject to access restrictions and user consent.
+		 * - *Note 1:* language model use may be subject to access restrictions and user consent. Calling this function
+		 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
+		 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
+		 * to check if they have the necessary permissions to make a request.
 		 *
 		 * - *Note 2:* language models are contributed by other extensions and as they evolve and change,
 		 * the set of available language models may change over time. Therefore it is strongly recommend to check
-		 * {@link languageModels} for aviailable values and handle missing language models gracefully.
+		 * {@link languageModels} for available values and handle missing language models gracefully.
 		 *
 		 * This function will return a rejected promise if making a request to the language model is not
 		 * possible. Reasons for this can be:
 		 *
 		 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
 		 * - model does not exist, see {@link LanguageModelError.NotFound `NotFound`}
-		 * - quota limits exceeded, see {@link LanguageModelError.cause `LanguageModelError.cause`}
+		 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
+		 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
 		 *
 		 * @param languageModel A language model identifier.
 		 * @param messages An array of message instances.
