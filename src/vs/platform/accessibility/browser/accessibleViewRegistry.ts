@@ -18,6 +18,10 @@ export interface IAccessibleViewImplentation {
 	type: AccessibleViewType;
 	priority: number;
 	name: string;
+	/**
+	 * @returns the provider and position to show the accessible view or undefined
+	 * if the view should not be shown
+	 */
 	getShowAccessibleViewArgs: (accessor: ServicesAccessor) => IShowAccessibleViewArgs | undefined;
 	when?: ContextKeyExpression | undefined;
 }
