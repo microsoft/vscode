@@ -225,5 +225,6 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
-  }
+  },
+  "packageManager": "yarn@4.2.1"
 }

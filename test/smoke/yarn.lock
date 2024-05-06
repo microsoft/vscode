@@ -609,6 +609,11 @@ tr46@~0.0.3:
   resolved "https://registry.yarnpkg.com/tr46/-/tr46-0.0.3.tgz#8184fd347dac9cdc185992f3a6622e14b9d9ab6a"
   integrity sha1-gYT9NH2snNwYWZLzpmIuFLnZq2o=
 
+typescript@^5.5.0-dev.20240505:
+  version "5.5.0-dev.20240505"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.5.0-dev.20240505.tgz#b260abb922031d45be2e14d6178c7350626a1397"
+  integrity sha512-pS7FxfKdWwZcCywfyjwwVAIV/Tb6YBAcVv63WJFhSf7RclqKUTwkGbvtii/VvHtfaW50/1LdYvHU0z+Xs3xTiQ==
+
 validate-npm-package-license@^3.0.1:
   version "3.0.4"
   resolved "https://registry.yarnpkg.com/validate-npm-package-license/-/validate-npm-package-license-3.0.4.tgz#fc91f6b9c7ba15c857f4cb2c5defeec39d4f410a"
