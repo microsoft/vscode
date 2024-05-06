@@ -356,6 +356,10 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				type: 'string',
 				description: localize('argv.locale', 'The display Language to use. Picking a different language requires the associated language pack to be installed.')
 			},
+			'disable-lcd-text': {
+				type: 'boolean',
+				description: localize('argv.disableLcdText', 'Disables LCD font antialiasing.')
+			},
 			'disable-hardware-acceleration': {
 				type: 'boolean',
 				description: localize('argv.disableHardwareAcceleration', 'Disables hardware acceleration. ONLY change this option if you encounter graphic issues.')
