@@ -96,6 +96,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookCellPausing'
 import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookDebugDecorations';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
 import 'vs/workbench/contrib/notebook/browser/contrib/kernelDetection/notebookKernelDetection';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnostics';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';

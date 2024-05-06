@@ -78,6 +78,7 @@ import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
 import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
 
 const $ = dom.$;
 
@@ -155,6 +156,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
+		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
@@ -1041,7 +1043,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		let codeBlockIndex = 0;
 		const result = this.renderer.render(markdown, {
-			disallowRemoteImages: true,
+			remoteImageIsAllowed: (uri) => this.trustedDomainService.isValid(uri),
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const index = codeBlockIndex++;
