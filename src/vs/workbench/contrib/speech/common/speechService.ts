@@ -81,7 +81,6 @@ export interface ISpeechProvider {
 
 	createSpeechToTextSession(token: CancellationToken, options?: ISpeechToTextSessionOptions): ISpeechToTextSession;
 	createTextToSpeechSession(token: CancellationToken): ITextToSpeechSession;
-
 	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 
