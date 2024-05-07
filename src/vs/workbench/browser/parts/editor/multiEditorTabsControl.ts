@@ -878,7 +878,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 				}
 
-				return undefined;
+				return;
 			}
 
 			if (this.originatesFromTabActionBar(e)) {
@@ -888,21 +888,21 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Open tabs editor
 			const editor = this.tabsModel.getEditorByIndex(tabIndex);
 			if (editor) {
-				if (e.ctrlKey) {
+				if (e.shiftKey) {
+					this.groupView.selectEditorsUntil(editor);
+				} else if (e.ctrlKey) {
 					if (this.groupView.isSelected(editor)) {
 						this.groupView.unSelectEditor(editor);
 					} else {
 						this.groupView.selectEditor(editor);
 					}
-				} else if (e.shiftKey) {
-					this.groupView.selectEditorsUntil(editor);
 				} else {
 					// Even if focus is preserved make sure to activate the group.
 					this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE });
 				}
 			}
 
-			return undefined;
+			return;
 		};
 
 		const showContextMenu = (e: Event) => {
@@ -915,7 +915,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		};
 
 		// Open on Click / Touch
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, e => handleClickOrTouch(e, false)));
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e, false)));
 		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e, true))); // Preserve focus on touch #125470
 
 		// Touch Scroll Support
@@ -928,6 +928,23 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			EventHelper.stop(e);
 
 			tab.blur();
+
+			if (isMouseEvent(e) && (e.button !== 0 /* middle/right mouse button */ || (isMacintosh && e.ctrlKey /* macOS context menu */))) {
+				if (e.button === 1) {
+					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
+				}
+
+				return undefined;
+			}
+
+			if (this.originatesFromTabActionBar(e)) {
+				return; // not when clicking on actions
+			}
+
+			if (!e.ctrlKey && !e.shiftKey && this.groupView.getSelectedEditors().length > 0) {
+				this.groupView.unSelectAllEditors();
+			}
+
 		}));
 
 		// Close on mouse middle click
@@ -1479,7 +1496,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Active / dirty state
 		this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 	}
-
 
 	private redrawTabLabel(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 		const options = this.groupsView.partOptions;

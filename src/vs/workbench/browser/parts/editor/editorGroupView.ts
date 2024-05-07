@@ -978,8 +978,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return;
 		}
 		this.selectedEditorAnchors.push(editor);
-		this._onDidChangeSelection.fire(this.selectedEditors);
+
+		this.openEditor(editor, { activation: EditorActivation.ACTIVATE }, { skipTitleUpdate: true });
 		this.titleControl.setEditorSelections([editor], true);
+		this._onDidChangeSelection.fire(this.selectedEditors);
 	}
 
 	private doSelectEditor(editor: EditorInput): boolean {
@@ -1038,21 +1040,28 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const selectedEditors = this.model.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
 		selectedEditors.forEach(editor => this.doSelectEditor(editor));
-		this.titleControl.setEditorSelections(selectedEditors, true);
 
 		// Create an anchor if we did not have one before
 		if (!hadAnchor) {
 			this.selectedEditorAnchors.push(anchorEditor);
 		}
 
+		this.openEditor(editor, { activation: EditorActivation.ACTIVATE }, { skipTitleUpdate: true });
+		this.titleControl.setEditorSelections(selectedEditors, true);
 		this._onDidChangeSelection.fire(this.selectedEditors);
 	}
 
 	unSelectEditor(editor: EditorInput): void {
 		this.selectedEditors = this.selectedEditors.filter(selectedEditor => selectedEditor !== editor);
 		this.selectedEditorAnchors = this.selectedEditorAnchors.filter(selectedEditor => selectedEditor !== editor);
-		this._onDidChangeSelection.fire(this.selectedEditors);
+
+		// Make sure active editor is part of selection
+		if (this.selectedEditors.length > 0 && this.activeEditor === editor) {
+			this.openEditor(this.selectedEditors[0], { activation: EditorActivation.ACTIVATE }, { skipTitleUpdate: true });
+		}
+
 		this.titleControl.setEditorSelections([editor], false);
+		this._onDidChangeSelection.fire(this.selectedEditors);
 	}
 
 	unSelectAllEditors(): void {
@@ -1205,8 +1214,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return;
 		}
 
-		this.unSelectAllEditors();
-
 		// Fire the event letting everyone know we are about to open an editor
 		this._onWillOpenEditor.fire({ editor, groupId: this.id });
 
@@ -1255,14 +1262,20 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			restoreGroup = !activateGroup;
 		}
 
+		const indexOfEditor = this.model.indexOf(editor);
+
 		// Actually move the editor if a specific index is provided and we figure
 		// out that the editor is already opened at a different index. This
 		// ensures the right set of events are fired to the outside.
 		if (typeof openEditorOptions.index === 'number') {
-			const indexOfEditor = this.model.indexOf(editor);
 			if (indexOfEditor !== -1 && indexOfEditor !== openEditorOptions.index) {
 				this.doMoveEditorInsideGroup(editor, openEditorOptions);
 			}
+		}
+
+		// If a new editor is being opened, unselect all editors
+		if (indexOfEditor === -1) {
+			this.unSelectAllEditors();
 		}
 
 		// Update model and make sure to continue to use the editor we get from
