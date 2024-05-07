@@ -641,6 +641,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		return new RunOnceScheduler(
 			() => {
 				this.displayedStore.clear();
+				this.oldDecorations.clear();
 			},
 			100
 		);
@@ -805,7 +806,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		if (!cts.token.isCancellationRequested) {
 			this.oldDecorations.set(allDecorations);
-			this.displayedStore.add(toDisposable(() => this.oldDecorations.clear()));
 		}
 	}
 
