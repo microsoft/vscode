@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getActiveDocument } from 'vs/base/browser/dom';
+import { Dimension, getActiveDocument, getActiveWindow } from 'vs/base/browser/dom';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { codiconsLibrary } from 'vs/base/common/codiconsLibrary';
 import { Lazy } from 'vs/base/common/lazy';
@@ -50,7 +50,12 @@ export class TerminalIconPicker extends Disposable {
 		});
 	}
 
-	async pickIcons(): Promise<ThemeIcon | undefined> {
+	async pickIcons(instanceId: number): Promise<ThemeIcon | undefined> {
+		let target = getActiveDocument().body;
+		const terminalTab = getActiveDocument().getElementById(`terminal-tab-instance-${instanceId}`);
+		if (terminalTab) {
+			target = terminalTab;
+		}
 		const dimension = new Dimension(486, 260);
 		return new Promise<ThemeIcon | undefined>(resolve => {
 			this._register(this._iconSelectBox.onDidSelect(e => {
@@ -60,9 +65,9 @@ export class TerminalIconPicker extends Disposable {
 			this._iconSelectBox.clearInput();
 			const hoverWidget = this._hoverService.showHover({
 				content: this._iconSelectBox.domNode,
-				target: getActiveDocument().body,
+				target: target,
 				position: {
-					hoverPosition: HoverPosition.BELOW,
+					hoverPosition: HoverPosition.LEFT
 				},
 				persistence: {
 					sticky: true,
@@ -76,6 +81,10 @@ export class TerminalIconPicker extends Disposable {
 			}
 			this._iconSelectBox.layout(dimension);
 			this._iconSelectBox.focus();
+			// Force a rerender to make the position correct
+			setTimeout(() => {
+				getActiveWindow().dispatchEvent(new Event('resize'));
+			}, 10);
 		});
 	}
 }
