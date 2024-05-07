@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -18,10 +17,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
@@ -32,7 +27,7 @@ import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/act
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { registerQuickChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
-import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -43,14 +38,11 @@ import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/b
 import 'vs/workbench/contrib/chat/browser/contrib/chatHistoryVariables';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
 import { ChatAgentLocation, ChatAgentService, IChatAgentService, IChatAgentNameService, ChatAgentNameService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { ILanguageModelsService, LanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ILanguageModelStatsService, LanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
@@ -59,6 +51,9 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/chatColors';
 import { ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { ChatResponseAccessibleView } from 'vs/workbench/contrib/chat/browser/chatResponseAccessibleView';
+import { ChatAccessibilityHelp } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -143,89 +138,8 @@ class ChatResolverContribution extends Disposable {
 	}
 }
 
-class ChatAccessibleViewContribution extends Disposable {
-	static ID: 'chatAccessibleViewContribution';
-	constructor() {
-		super();
-		this._register(AccessibleViewAction.addImplementation(100, 'panelChat', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const widgetService = accessor.get(IChatWidgetService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-			return renderAccessibleView(accessibleViewService, widgetService, codeEditorService, true);
-			function renderAccessibleView(accessibleViewService: IAccessibleViewService, widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean): boolean {
-				const widget = widgetService.lastFocusedWidget;
-				if (!widget) {
-					return false;
-				}
-				const chatInputFocused = initialRender && !!codeEditorService.getFocusedCodeEditor();
-				if (initialRender && chatInputFocused) {
-					widget.focusLastMessage();
-				}
-
-				if (!widget) {
-					return false;
-				}
-
-				const verifiedWidget: IChatWidget = widget;
-				const focusedItem = verifiedWidget.getFocus();
-
-				if (!focusedItem) {
-					return false;
-				}
-
-				widget.focus(focusedItem);
-				const isWelcome = focusedItem instanceof ChatWelcomeMessageModel;
-				let responseContent = isResponseVM(focusedItem) ? focusedItem.response.asString() : undefined;
-				if (isWelcome) {
-					const welcomeReplyContents = [];
-					for (const content of focusedItem.content) {
-						if (Array.isArray(content)) {
-							welcomeReplyContents.push(...content.map(m => m.message));
-						} else {
-							welcomeReplyContents.push((content as IMarkdownString).value);
-						}
-					}
-					responseContent = welcomeReplyContents.join('\n');
-				}
-				if (!responseContent && 'errorDetails' in focusedItem && focusedItem.errorDetails) {
-					responseContent = focusedItem.errorDetails.message;
-				}
-				if (!responseContent) {
-					return false;
-				}
-				const responses = verifiedWidget.viewModel?.getItems().filter(i => isResponseVM(i));
-				const length = responses?.length;
-				const responseIndex = responses?.findIndex(i => i === focusedItem);
-
-				accessibleViewService.show({
-					id: AccessibleViewProviderId.Chat,
-					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-					provideContent(): string { return responseContent!; },
-					onClose() {
-						verifiedWidget.reveal(focusedItem);
-						if (chatInputFocused) {
-							verifiedWidget.focusInput();
-						} else {
-							verifiedWidget.focus(focusedItem);
-						}
-					},
-					next() {
-						verifiedWidget.moveFocus(focusedItem, 'next');
-						alertFocusChange(responseIndex, length, 'next');
-						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
-					},
-					previous() {
-						verifiedWidget.moveFocus(focusedItem, 'previous');
-						alertFocusChange(responseIndex, length, 'previous');
-						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
-					},
-					options: { type: AccessibleViewType.View }
-				});
-				return true;
-			}
-		}, CONTEXT_IN_CHAT_SESSION));
-	}
-}
+AccessibleViewRegistry.register(new ChatResponseAccessibleView());
+AccessibleViewRegistry.register(new ChatAccessibilityHelp());
 
 class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
@@ -318,7 +232,6 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
-workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);

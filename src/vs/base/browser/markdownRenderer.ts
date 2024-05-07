@@ -35,7 +35,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRendererSync?: (languageId: string, value: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
-	readonly disallowRemoteImages?: boolean;
+	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -276,9 +276,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 				img.setAttribute('src', _href(href, true));
 
-				if (options.disallowRemoteImages) {
-					const uriScheme = URI.parse(href).scheme;
-					if (uriScheme !== Schemas.file && uriScheme !== Schemas.data) {
+				if (options.remoteImageIsAllowed) {
+					const uri = URI.parse(href);
+					if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.remoteImageIsAllowed(uri)) {
 						img.replaceWith(DOM.$('', undefined, img.outerHTML));
 					}
 				}
