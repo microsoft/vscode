@@ -1244,9 +1244,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.breakpoints;
 			},
 			get activeStackItem() {
-				if (!isProposedApiEnabled(extension, 'debugFocus')) {
-					return undefined;
-				}
 				return extHostDebugService.activeStackItem;
 			},
 			registerDebugVisualizationProvider(id, provider) {
@@ -1273,7 +1270,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostDebugService.onDidChangeBreakpoints)(listener, thisArgs, disposables);
 			},
 			onDidChangeActiveStackItem(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'debugFocus');
 				return _asExtensionEvent(extHostDebugService.onDidChangeActiveStackItem)(listener, thisArg, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, triggerKind?: vscode.DebugConfigurationProviderTriggerKind) {
