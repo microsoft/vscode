@@ -876,12 +876,12 @@ class TextToSpeechSessions {
 		this.stop();
 
 		const disposables = new DisposableStore();
-		const synthesisDone = new DeferredPromise<void>();
+		const done = new DeferredPromise<void>();
 
 		const activeSession = this.activeSession = new CancellationTokenSource();
 		disposables.add(activeSession.token.onCancellationRequested(() => {
 			disposables.dispose();
-			synthesisDone.complete();
+			done.complete();
 		}));
 
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
@@ -892,16 +892,16 @@ class TextToSpeechSessions {
 				case TextToSpeechStatus.Started:
 					this.progressService.withProgress({
 						location: ProgressLocation.Window,
-						title: localize('synthesizing', "Reading out aloud..."),
-						command: StopSynthesis.ID,
+						title: localize('readingOutLoud', "Reading out aloud..."),
+						command: StopReadAloud.ID,
 						type: 'loading'
-					}, () => synthesisDone.p);
+					}, () => done.p);
 					break;
 
 				// Text to Speech: Stopped
 				case TextToSpeechStatus.Stopped:
 				case TextToSpeechStatus.Error:
-					synthesisDone.complete();
+					done.complete();
 					break;
 			}
 		}));
@@ -941,14 +941,14 @@ export class ReadChatItemAloud extends Action2 {
 	}
 }
 
-export class StopSynthesis extends Action2 {
+export class StopReadAloud extends Action2 {
 
-	static readonly ID = 'workbench.action.speech.stopSynthesis';
+	static readonly ID = 'workbench.action.speech.stopReadAloud';
 
 	constructor() {
 		super({
-			id: StopSynthesis.ID,
-			title: localize2('workbench.action.speech.stopSynthesize', "Stop Reading Aloud"),
+			id: StopReadAloud.ID,
+			title: localize2('workbench.action.speech.stopReadAloud', "Stop Reading Aloud"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: TextToSpeechInProgress,
