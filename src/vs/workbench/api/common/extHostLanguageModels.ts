@@ -186,11 +186,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
 		});
 
-		if (data.provider.provideLanguageModelResponse) {
-			return data.provider.provideLanguageModelResponse(messages.map(typeConvert.LanguageModelChatMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
-		} else {
-			return data.provider.provideLanguageModelResponse2(messages.map(typeConvert.LanguageModelMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
-		}
+		return data.provider.provideLanguageModelResponse(
+			messages.map(typeConvert.LanguageModelChatMessage.to),
+			options,
+			ExtensionIdentifier.toKey(from),
+			progress,
+			token
+		);
 	}
 
 
@@ -324,10 +326,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return res.apiObject;
 	}
 
-	private _convertMessages(extension: IExtensionDescription, messages: (vscode.LanguageModelChatMessage2 | vscode.LanguageModelChatMessage)[]) {
+	private _convertMessages(extension: IExtensionDescription, messages: vscode.LanguageModelChatMessage[]) {
 		const internalMessages: IChatMessage[] = [];
 		for (const message of messages) {
-			if (message instanceof extHostTypes.LanguageModelChatMessage2) {
+			if (message instanceof extHostTypes.LanguageModelChatMessage) {
 				if (message.role as number === extHostTypes.LanguageModelChatMessageRole.System) {
 					checkProposedApiEnabled(extension, 'languageModelSystem');
 				}
@@ -336,7 +338,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				if (message instanceof extHostTypes.LanguageModelChatSystemMessage) {
 					checkProposedApiEnabled(extension, 'languageModelSystem');
 				}
-				internalMessages.push(typeConvert.LanguageModelMessage.from(message));
+				internalMessages.push(typeConvert.LanguageModelChatMessage.from(message));
 			}
 		}
 		return internalMessages;
@@ -410,7 +412,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return local.provider.provideTokenCount(value, token);
 		}
 
-		return this._proxy.$countTokens(data.identifier, (typeof value === 'string' ? value : typeConvert.LanguageModelMessage.from(value)), token);
+		return this._proxy.$countTokens(data.identifier, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage.from(value)), token);
 	}
 
 	getLanguageModelInfo(languageModelId: string): vscode.LanguageModelInformation | undefined {
