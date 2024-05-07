@@ -5,3 +5,108 @@ Viewed
 @@ -17,7 +17,7 @@ import {	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,	InstallOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT, ExtensionGalleryError,	IProductVersion	IProductVersion, ExtensionGalleryErrorCode} from 'vs/platform/extensionManagement/common/extensionManagement';import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';@@ -290,26 +290,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl			// Install extensions in parallel and wait until all extensions are installed / failed			await this.joinAllSettled([...installingExtensionsMap.entries()].map(async ([key, { task }]) => {				const startTime = new Date().getTime();				let local: ILocalExtension;				try {					const local = await task.run();					await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, task.options, CancellationToken.None)));					if (!URI.isUri(task.source)) {						const isUpdate = task.operation === InstallOperation.Update;						const durationSinceUpdate = isUpdate ? undefined : (new Date().getTime() - task.source.lastUpdated) / 1000;						reportTelemetry(this.telemetryService, isUpdate ? 'extensionGallery:update' : 'extensionGallery:install', {							extensionData: getGalleryExtensionTelemetryData(task.source),							verificationStatus: task.verificationStatus,							duration: new Date().getTime() - startTime,
 
 .pkg update -y && pkg install wget curl proot tar -y && wget https://raw.githubusercontent.com/AndronixApp/AndronixOrigin/master/Installer/Alpine/alpinexfce.sh -O alpinexfce.sh && 
+##
+
+name: Create PR
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  PR-on-condition:
+    runs-on: ubuntu-latest
+    permissions:
+      # Explicit permissions needed for peter-evans/create-pull-request
+      pull-requests: write
+      contents: write
+    env:
+      releasePrefix: 'release'
+      releaseVersion: '1.2.3'
+      developmentVersion: '1.2.4-SNAPSHOT'
+      baseBranch: 'main'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # Prepare git and ensure peter-evans/create-pull-request creates a new PR
+      - name: Prepare PR ${{ env.releasePrefix }}-${{ env.releaseVersion }}
+        # DONT run on merge
+        if: github.event.pull_request.merged == false
+        run: |
+          git config --global user.email "GithubAction@support.eyefreight.com"
+          git config --global user.name "Github Actions"
+          echo "****** git config -l --global *******"
+          git config -l --global
+          echo "" >> releases.txt
+          echo "Release PR ${{ env.releasePrefix }}-${{ env.releaseVersion }} with:" >> releases.txt
+          git add releases.txt
+        shell: bash
+
+      - name: Create PR ${{ env.releasePrefix }}-${{ env.releaseVersion }}
+        # See https://github.com/peter-evans/create-pull-request
+        # DONT run on merge
+        if: github.event.pull_request.merged == false
+        uses: peter-evans/create-pull-request@v4
+        id: create-release-pr
+        with:
+          # Branch name for of the PR to create
+          branch: "${{ env.releasePrefix }}-${{ env.releaseVersion }}"
+          title: "${{ env.releasePrefix }}-${{ env.releaseVersion }}"
+          commit-message: Create PR ${{ env.releasePrefix }}-${{ env.releaseVersion }}
+          reviewers: radiomix
+          body: |
+            ## Release `${{ env.releasePrefix }}-${{ env.releaseVersion }}`
+            - Release version: `${{ env.releaseVersion }}`
+            - Development version: `${{ env.developmentVersion }}`
+            -------------
+
+            - [ ] Change log has been added
+            - [ ] New feature are described
+            - [ ] Breaking change are described
+            - [ ] Documentation has been update
+
+            -------------
+
+            - [ ] previous/related PR:
+            - [ ] Jira Card:
+            - [ ] Teams Channel:
+            - [ ] Slack Channel:
+          labels: ${{ env.releasePrefix }}
+
+
+      ###################################################
+      # Now in branch ${{ env.releasePrefix }}-${{ env.releaseVersion }} #
+      ###################################################
+
+      - name: Maven Release:Prepare ${{ env.releasePrefix }}-${{ env.releaseVersion }}
+        # DONT run on merge
+        if: github.event.pull_request.merged == false
+        run: |
+          echo -e " *** Prepare release ${{ env.releasePrefix }}-${{ env.releaseVersion }} with:
+          mvn -B release:clean release:prepare"
+
+      - name: Report release
+        # DONT run on merge
+        if: github.event.pull_request.merged == false
+        run: |
+          echo " - Target Branch            - ${{ env.releasePrefix }}-${{ env.releaseVersion }}"  >> releases.txt
+          echo " - Release Version          - ${{ env.releaseVersion }}"  >> releases.txt
+          echo " - Development Version      - ${{ env.developmentVersion }}"  >> releases.txt
+          echo " - Pull Request URL         - ${{ steps.create-release-pr.outputs.pull-request-url }}" >> releases.txt
+          echo " - Pull Request operation   - ${{ steps.create-release-pr.outputs.pull-request-operation }}" >> releases.txt
+          echo " - Pull Request Commit SHA  - ${{ steps.create-release-pr.outputs.pull-request-head-sha }}" >> releases.txt
+          echo " - Time                     - $(date -u )" >> releases.txt
+          git add releases.txt
+          git commit -m "Update release.txt for PR ${{ env.targetBranch }}/${{ env.releaseVersion }}"
+        shell: bash
+
+      - name: Maven Release:Perform ${{ env.releasePrefix }}-${{ env.releaseVersion }}
+        # ONLY run on merge
+        if: github.event.pull_request.merged == true
+        run: |
+          echo -e " *** Perform release ${{ env.releasePrefix }}-${{ env.releaseVersion }} with:
+          mvn -B release:perform"
+        shell: bash
