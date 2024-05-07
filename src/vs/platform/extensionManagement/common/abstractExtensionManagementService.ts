@@ -17,7 +17,7 @@ import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
 	InstallOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT, ExtensionGalleryError,
-	IProductVersion, ExtensionGalleryErrorCode
+	IProductVersion
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -290,10 +290,26 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			// Install extensions in parallel and wait until all extensions are installed / failed
 			await this.joinAllSettled([...installingExtensionsMap.entries()].map(async ([key, { task }]) => {
 				const startTime = new Date().getTime();
-				let local: ILocalExtension;
 				try {
-					local = await task.run();
-					await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, task.options, CancellationToken.None)), ExtensionManagementErrorCode.PostInstall);
+					const local = await task.run();
+					await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, task.options, CancellationToken.None)));
+					if (!URI.isUri(task.source)) {
+						const isUpdate = task.operation === InstallOperation.Update;
+						const durationSinceUpdate = isUpdate ? undefined : (new Date().getTime() - task.source.lastUpdated) / 1000;
+						reportTelemetry(this.telemetryService, isUpdate ? 'extensionGallery:update' : 'extensionGallery:install', {
+							extensionData: getGalleryExtensionTelemetryData(task.source),
+							verificationStatus: task.verificationStatus,
+							duration: new Date().getTime() - startTime,
+							durationSinceUpdate
+						});
+						// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
+						if (isWeb && task.operation !== InstallOperation.Update) {
+							try {
+								await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
+							} catch (error) { /* ignore */ }
+						}
+					}
+					installExtensionResultsMap.set(key, { local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.profileLocation, applicationScoped: local.isApplicationScoped });
 				} catch (e) {
 					const error = toExtensionManagementError(e);
 					if (!URI.isUri(task.source)) {
@@ -303,23 +319,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					this.logService.error('Error while installing the extension', task.identifier.id, getErrorMessage(error));
 					throw error;
 				}
-				if (!URI.isUri(task.source)) {
-					const isUpdate = task.operation === InstallOperation.Update;
-					const durationSinceUpdate = isUpdate ? undefined : (new Date().getTime() - task.source.lastUpdated) / 1000;
-					reportTelemetry(this.telemetryService, isUpdate ? 'extensionGallery:update' : 'extensionGallery:install', {
-						extensionData: getGalleryExtensionTelemetryData(task.source),
-						verificationStatus: task.verificationStatus,
-						duration: new Date().getTime() - startTime,
-						durationSinceUpdate
-					});
-					// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
-					if (isWeb && task.operation !== InstallOperation.Update) {
-						try {
-							await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
-						} catch (error) { /* ignore */ }
-					}
-				}
-				installExtensionResultsMap.set(key, { local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.profileLocation, applicationScoped: local.isApplicationScoped });
 			}));
 
 			if (alreadyRequestedInstallations.length) {
@@ -429,35 +428,36 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return true;
 	}
 
-	private async joinAllSettled<T>(promises: Promise<T>[], errorCode?: ExtensionManagementErrorCode): Promise<T[]> {
+	private async joinAllSettled<T>(promises: Promise<T>[]): Promise<T[]> {
 		const results: T[] = [];
-		const errors: ExtensionManagementError[] = [];
+		const errors: any[] = [];
 		const promiseResults = await Promise.allSettled(promises);
 		for (const r of promiseResults) {
 			if (r.status === 'fulfilled') {
 				results.push(r.value);
 			} else {
-				errors.push(toExtensionManagementError(r.reason, errorCode));
+				errors.push(r.reason);
 			}
 		}
 
-		if (!errors.length) {
-			return results;
-		}
-
 		// Throw if there are errors
-		if (errors.length === 1) {
-			throw errors[0];
+		if (errors.length) {
+			if (errors.length === 1) {
+				throw errors[0];
+			}
+
+			let error = new ExtensionManagementError('', ExtensionManagementErrorCode.Unknown);
+			for (const current of errors) {
+				const code = current instanceof ExtensionManagementError ? current.code : ExtensionManagementErrorCode.Unknown;
+				error = new ExtensionManagementError(
+					current.message ? `${current.message}, ${error.message}` : error.message,
+					code !== ExtensionManagementErrorCode.Unknown && code !== ExtensionManagementErrorCode.Internal ? code : error.code
+				);
+			}
+			throw error;
 		}
 
-		let error = new ExtensionManagementError('', ExtensionManagementErrorCode.Unknown);
-		for (const current of errors) {
-			error = new ExtensionManagementError(
-				error.message ? `${error.message}, ${current.message}` : current.message,
-				current.code !== ExtensionManagementErrorCode.Unknown && current.code !== ExtensionManagementErrorCode.Internal ? current.code : error.code
-			);
-		}
-		throw error;
+		return results;
 	}
 
 	private async getAllDepsAndPackExtensions(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean, profile: URI | undefined, productVersion: IProductVersion): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
@@ -787,18 +787,18 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	protected abstract copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
 }
 
-export function toExtensionManagementError(error: Error, code?: ExtensionManagementErrorCode): ExtensionManagementError {
+export function toExtensionManagementError(error: Error): ExtensionManagementError {
 	if (error instanceof ExtensionManagementError) {
 		return error;
 	}
-	let extensionManagementError: ExtensionManagementError;
 	if (error instanceof ExtensionGalleryError) {
-		extensionManagementError = new ExtensionManagementError(error.message, error.code === ExtensionGalleryErrorCode.DownloadFailedWriting ? ExtensionManagementErrorCode.DownloadFailedWriting : ExtensionManagementErrorCode.Gallery);
-	} else {
-		extensionManagementError = new ExtensionManagementError(error.message, isCancellationError(error) ? ExtensionManagementErrorCode.Cancelled : (code ?? ExtensionManagementErrorCode.Internal));
+		const e = new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Gallery);
+		e.stack = error.stack;
+		return e;
 	}
-	extensionManagementError.stack = error.stack;
-	return extensionManagementError;
+	const e = new ExtensionManagementError(error.message, isCancellationError(error) ? ExtensionManagementErrorCode.Cancelled : ExtensionManagementErrorCode.Internal);
+	e.stack = error.stack;
+	return e;
 }
 
 function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: ExtensionManagementError | ExtensionGalleryError }): void {
