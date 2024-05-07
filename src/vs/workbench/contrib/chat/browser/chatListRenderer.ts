@@ -956,8 +956,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation): IMarkdownRenderResult | undefined {
 		const store = new DisposableStore();
 		const confirmationWidget = store.add(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, [
-			{ label: localize('allow', "Allow"), data: confirmation.data },
-			{ label: localize('deny', "Deny"), data: confirmation.data, isSecondary: true },
+			{ label: localize('accept', "Accept"), data: confirmation.data },
+			{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
 		]));
 
 		store.add(confirmationWidget.onDidClick(e => {
