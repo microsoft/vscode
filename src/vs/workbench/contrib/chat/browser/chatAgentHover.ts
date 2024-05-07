@@ -25,7 +25,6 @@ export class ChatAgentHover extends Disposable {
 	private readonly icon: HTMLElement;
 	private readonly name: HTMLElement;
 	private readonly extensionName: HTMLElement;
-	private readonly verifiedBadge: HTMLElement;
 	private readonly publisherName: HTMLElement;
 	private readonly description: HTMLElement;
 
@@ -64,13 +63,12 @@ export class ChatAgentHover extends Disposable {
 
 		hoverElement.separator.textContent = '|';
 
-		this.verifiedBadge = dom.$('span.extension-verified-publisher', undefined, renderIcon(verifiedPublisherIcon));
-		this.verifiedBadge.style.display = 'none';
+		const verifiedBadge = dom.$('span.extension-verified-publisher', undefined, renderIcon(verifiedPublisherIcon));
 
 		this.publisherName = dom.$('span.chat-agent-hover-publisher-name');
 		dom.append(
 			hoverElement.publisher,
-			this.verifiedBadge,
+			verifiedBadge,
 			this.publisherName);
 
 		const label = localize('marketplaceLabel', "View in Marketplace") + '.';
@@ -106,22 +104,31 @@ export class ChatAgentHover extends Disposable {
 			this.icon.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 		}
 
+		this.domNode.classList.toggle('noExtensionName', !!agent.isDynamic);
+
 		this.name.textContent = `@${agent.name}`;
 		this.extensionName.textContent = agent.extensionDisplayName;
-		this.publisherName.textContent = agent.extensionPublisherDisplayName ?? agent.extensionPublisherId;
+		this.publisherName.textContent = agent.publisherDisplayName ?? agent.extensionPublisherId;
 
-		const description = agent.description && !agent.description.endsWith('.') ?
-			`${agent.description}. ` :
-			(agent.description || '');
+		let description = agent.description ?? '';
+		if (description) {
+			if (!description.match(/\. *$/)) {
+				description += '.';
+			}
+		}
+
 		this.description.textContent = description;
 
-		const cancel = this._register(new CancellationTokenSource());
-		this.extensionService.getExtensions([{ id: agent.extensionId.value }], cancel.token).then(extensions => {
-			cancel.dispose();
-			const extension = extensions[0];
-			if (extension?.publisherDomain?.verified) {
-				this.verifiedBadge.style.display = '';
-			}
-		});
+		this.domNode.classList.toggle('verifiedPublisher', false);
+		if (!agent.isDynamic) {
+			const cancel = this._register(new CancellationTokenSource());
+			this.extensionService.getExtensions([{ id: agent.extensionId.value }], cancel.token).then(extensions => {
+				cancel.dispose();
+				const extension = extensions[0];
+				if (extension?.publisherDomain?.verified) {
+					this.domNode.classList.toggle('verifiedPublisher', true);
+				}
+			});
+		}
 	}
 }
