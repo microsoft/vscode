@@ -14,8 +14,8 @@
 // (https://github.com/microsoft/vscode/issues/126399)
 delete process.env['VSCODE_CWD'];
 
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
+const bootstrap = require('./bootstrap.cjs');
+const bootstrapNode = require('./bootstrap-node.cjs');
 const product = require('../product.json');
 
 // Enable portable support
@@ -29,4 +29,4 @@ bootstrap.enableASARSupport();
 process.env['VSCODE_CLI'] = '1';
 
 // Load CLI through AMD loader
-require('./bootstrap-amd').load('vs/code/node/cli');
+require('./bootstrap-amd.cjs').load('vs/code/node/cli');

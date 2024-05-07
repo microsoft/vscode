@@ -34,6 +34,9 @@ const bootstrapNode = require('./bootstrap-node.cjs');
 import { Menu, app, crashReporter, protocol } from 'electron';
 
 
+/**
+ * @type {any}
+ */
 const product = require('../product.json');
 
 // Enable portable support
