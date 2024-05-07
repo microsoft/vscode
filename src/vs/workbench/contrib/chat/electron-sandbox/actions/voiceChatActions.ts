@@ -893,7 +893,8 @@ class TextToSpeechSessions {
 					this.progressService.withProgress({
 						location: ProgressLocation.Window,
 						title: localize('synthesizing', "Reading out aloud..."),
-						command: StopSynthesis.ID
+						command: StopSynthesis.ID,
+						type: 'loading'
 					}, () => synthesisDone.p);
 					break;
 
