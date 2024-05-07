@@ -116,10 +116,16 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The version of the language model.
+		 * Opaque version string of the model. This is defined by the extension contributing the language model
+		 * and subject to change while the identifier is stable.
 		 */
-		// TODO@API drop this for now?
 		readonly version: string;
+
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbe`, `gpt4`, `phi2`, or `llama`
+		 * but they are defined by extensions contributing languages and subject to change.
+		 */
+		family: string;
 
 		/**
 		 * The number of available tokens that can be used when sending requests
@@ -129,8 +135,131 @@ declare module 'vscode' {
 		 *
 		 * @see {@link lm.sendChatRequest}
 		 */
+		// TODO@API CAPI only defines prompt_token_count which IMO is just input-tokens
 		readonly contextLength: number;
 	}
+
+	// ---------------------------
+	//  Language Model Object (V1)
+
+	export interface LanguageModelInformation2 {
+		/**
+		 * Human-readable name of the language model.
+		 */
+		name: string;
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbe`, `gpt4`, `phi2`, or `llama`
+		 * but they are defined by extensions contributing languages and subject to change.
+		 */
+		family: string;
+		/**
+		 * Opaque version string of the model. This is defined by the extension contributing the language model
+		 * and subject to change while the identifier is stable.
+		 */
+		version: string;
+	}
+
+	export interface LanguageModel {
+
+		// TODO@API no id-property needed
+		readonly id: string;
+
+		readonly info: LanguageModelInformation2;
+
+		sendChatRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+
+		// maybe optional
+		computeTokenLength(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number | undefined>;
+	}
+
+	export namespace lm {
+
+		// TODO@API cannot enforce unique language model families, e.g how do we tell `openai.gpt4` apart from `copilot.gpt4`
+		export function getLanguageModel(family: string): LanguageModel[] | undefined;
+
+		export const languageModels2: LanguageModel[];
+	}
+	// ---------------------------
+
+
+	// ---------------------------
+	//  Language Model Object (V2)
+	// (+) can pick by id or family
+	// (++) makes it harder to hardcode an identifier of a model in source code
+
+	export interface LanguageModelInformation2 {
+		/**
+		 * Opaque identifier of the language model.
+		 */
+		readonly id: string;
+		/**
+		 * Human-readable name of the language model.
+		 */
+		name: string;
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 * but they are defined by extensions contributing languages and subject to change.
+		 */
+		family: string;
+		/**
+		 * Opaque version string of the model. This is defined by the extension contributing the language model
+		 * and subject to change while the identifier is stable.
+		 */
+		version: string;
+	}
+
+	export interface LanguageModel3 {
+		/**
+		 * Opaque identifier of the language model.
+		 */
+		readonly id: string;
+		vendor?: string;
+		/**
+		 * Human-readable name of the language model.
+		 */
+		name: string;
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 * but they are defined by extensions contributing languages and subject to change.
+		 */
+		family: string;
+		/**
+		 * Opaque version string of the model. This is defined by the extension contributing the language model
+		 * and subject to change while the identifier is stable.
+		 */
+		version: string;
+
+
+		// TODO@API
+		// max_prompt_tokens vs output_tokens vs context_size
+		contextSize: number;
+
+		sendChatRequest2(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+
+		computeTokenLength(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number | undefined>;
+	}
+
+	export namespace lm {
+
+		// export const languageModels3: readonly LanguageModelInformation2[];
+
+		// export const onDidChangeLanguageModels3: Event<{ readonly added: readonly LanguageModelInformation2[]; readonly removed: readonly LanguageModelInformation2[] }>;
+
+		// export const onDidChangeLanguageModels3: Event<void>;
+
+		// (++) lazy activation
+		// (++) give specific LM to some extension
+		// // variant A
+		// export function fetchLanguageModel(selector: { id?: string; family?: string; version?: string }): Thenable<LanguageModelInformation2[] | undefined>;
+
+		// // variant B
+		export function fetchLanguageModel(selector: { vendor: string; family?: string; version?: string; id?: string }): Thenable<LanguageModel3[] | undefined>;
+
+		// export function sendChatRequest2(languageModel: LanguageModelInformation2, messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+
+		// export function computeTokenLength(languageModel: LanguageModelInformation2, text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number | undefined>;
+	}
+	// ---------------------------
 
 	/**
 	 * An event describing the change in the set of available language models.
