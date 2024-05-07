@@ -32,7 +32,7 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        extensionPublisherDisplayName: "",
+        publisherDisplayName: "",
         extensionDisplayName: "",
         extensionPublisherId: "",
         locations: [ "panel" ],

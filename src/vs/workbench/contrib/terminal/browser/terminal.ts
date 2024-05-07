@@ -690,6 +690,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
+	onDidChangeShellType: Event<TerminalShellType>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.

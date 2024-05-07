@@ -318,7 +318,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				id: _bridgeAgentId,
 				name: 'editor',
 				extensionId: nullExtensionDescription.identifier,
-				extensionPublisherDisplayName: '',
+				publisherDisplayName: '',
 				extensionDisplayName: '',
 				extensionPublisherId: '',
 				isDefault: true,
