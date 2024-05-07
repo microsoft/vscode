@@ -10,7 +10,7 @@
 // Minimum TypeScript Version: 4.5
 
 export as namespace DOMPurify;
-export = DOMPurify;
+export default DOMPurify;
 
 declare const DOMPurify: createDOMPurifyI;
 

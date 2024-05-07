@@ -5,7 +5,7 @@
 
 export as namespace semver;
 
-export = semver;
+export default semver;
 
 declare namespace semver {
 
