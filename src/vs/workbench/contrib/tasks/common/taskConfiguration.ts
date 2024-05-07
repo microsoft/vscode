@@ -1465,15 +1465,15 @@ namespace ConfiguringTask {
 		let taskSource: Tasks.FileBasedTaskSource;
 		switch (source) {
 			case TaskConfigSource.User: {
-				taskSource = Object.assign({}, { kind: Tasks.TaskSourceKind.User, config: configElement, label }) satisfies Tasks.IUserTaskSource;
+				taskSource = { kind: Tasks.TaskSourceKind.User, config: configElement, label };
 				break;
 			}
 			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Object.assign({}, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement, label }) satisfies Tasks.WorkspaceFileTaskSource;
+				taskSource = { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement, label };
 				break;
 			}
 			default: {
-				taskSource = Object.assign({}, { kind: Tasks.TaskSourceKind.Workspace, config: configElement, label }) satisfies Tasks.IWorkspaceTaskSource;
+				taskSource = { kind: Tasks.TaskSourceKind.Workspace, config: configElement, label };
 				break;
 			}
 		}
@@ -1538,15 +1538,15 @@ namespace CustomTask {
 		let taskSource: Tasks.FileBasedTaskSource;
 		switch (source) {
 			case TaskConfigSource.User: {
-				taskSource = Object.assign({}, { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder }, label }) satisfies Tasks.IUserTaskSource;
+				taskSource = { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder }, label };
 				break;
 			}
 			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Object.assign({}, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace }, label }) satisfies Tasks.WorkspaceFileTaskSource;
+				taskSource = { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace }, label };
 				break;
 			}
 			default: {
-				taskSource = Object.assign({}, { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder }, label }) satisfies Tasks.IWorkspaceTaskSource;
+				taskSource = { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder }, label };
 				break;
 			}
 		}
