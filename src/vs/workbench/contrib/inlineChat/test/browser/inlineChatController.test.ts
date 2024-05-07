@@ -29,7 +29,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
