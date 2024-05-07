@@ -816,9 +816,6 @@ class TextToSpeechSessions {
 
 		const activeSession = this.activeSession = new CancellationTokenSource();
 
-		const disposables = new DisposableStore();
-		disposables.add(activeSession.token.onCancellationRequested(() => disposables.dispose()));
-
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
 		session.synthesize(text);
 	}
@@ -845,7 +842,7 @@ export class ReadChatItemAloud extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: any[]) {
 		const item = args[0];
 		if (!isRequestVM(item) && !isResponseVM(item)) {
 			return;
@@ -1146,7 +1143,7 @@ registerThemingParticipant((theme, collector) => {
 		activeRecordingDimmedColor = theme.getColor(contrastBorder);
 	}
 
-	// Show a "microphone" or "pulse" icon when SST or TTS is in progress that glows via outline.
+	// Show a "microphone" or "pulse" icon when speech-to-text or text-to-speech is in progress that glows via outline.
 	collector.addRule(`
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled),
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
