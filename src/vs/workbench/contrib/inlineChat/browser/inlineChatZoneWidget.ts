@@ -104,8 +104,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 
 	protected override _doLayout(heightInPixel: number): void {
-		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
-		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation(this._indentationWidth));
+		const width = Math.min(640, this._availableSpaceGivenIndentation(this._indentationWidth));
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.layout(this._dimension);
 	}

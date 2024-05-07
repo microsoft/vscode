@@ -394,7 +394,7 @@ class ManageAuthorizedExtensionURIsAction extends Action2 {
 		const storageService = accessor.get(IStorageService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const storage = new UserTrustedExtensionIdStorage(storageService);
-		const items = storage.extensions.map(label => ({ label, picked: true } as IQuickPickItem));
+		const items = storage.extensions.map((label): IQuickPickItem => ({ label, picked: true }));
 
 		if (items.length === 0) {
 			await quickInputService.pick([{ label: localize('no', 'There are currently no authorized extension URIs.') }]);

@@ -7,6 +7,8 @@ import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { toAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./postEditWidget';
@@ -16,10 +18,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { DocumentDropEdit, DocumentPasteEdit } from 'vs/editor/common/languages';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { createCombinedWorkspaceEdit } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
+import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 
 interface EditSet<Edit extends DocumentPasteEdit | DocumentDropEdit> {
@@ -143,6 +147,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		private readonly _showCommand: ShowCommand,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -163,7 +168,34 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 			return;
 		}
 
-		const resolvedEdit = await resolve(edit, token);
+		const onDidSelectEdit = async (newEditIndex: number) => {
+			const model = this._editor.getModel();
+			if (!model) {
+				return;
+			}
+
+			await model.undo();
+			this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, resolve, token);
+		};
+
+		const handleError = (e: Error, message: string) => {
+			if (isCancellationError(e)) {
+				return;
+			}
+
+			this._notificationService.error(message);
+			if (canShowWidget) {
+				this.show(ranges[0], edits, onDidSelectEdit);
+			}
+		};
+
+		let resolvedEdit: T;
+		try {
+			resolvedEdit = await resolve(edit, token);
+		} catch (e) {
+			return handleError(e, localize('resolveError', "Error resolving edit '{0}':\n{1}", edit.title, toErrorMessage(e)));
+		}
+
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -183,6 +215,8 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		try {
 			editResult = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor, token });
 			editRange = model.getDecorationRange(editTrackingDecoration[0]);
+		} catch (e) {
+			return handleError(e, localize('applyError', "Error applying edit '{0}':\n{1}", edit.title, toErrorMessage(e)));
 		} finally {
 			model.deltaDecorations(editTrackingDecoration, []);
 		}
@@ -192,15 +226,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		}
 
 		if (canShowWidget && editResult.isApplied && edits.allEdits.length > 1) {
-			this.show(editRange ?? primaryRange, edits, async (newEditIndex) => {
-				const model = this._editor.getModel();
-				if (!model) {
-					return;
-				}
-
-				await model.undo();
-				this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, resolve, token);
-			});
+			this.show(editRange ?? primaryRange, edits, onDidSelectEdit);
 		}
 	}
 
