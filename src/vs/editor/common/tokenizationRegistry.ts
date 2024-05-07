@@ -6,13 +6,13 @@
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent, ILazyTokenizationSupport } from 'vs/editor/common/languages';
+import { ITokenizationRegistry, ITokenizationSupportChangedEvent, ILazyTokenizationSupport } from 'vs/editor/common/languages';
 import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
 
-export class TokenizationRegistry implements ITokenizationRegistry {
+export class TokenizationRegistry<TSupport> implements ITokenizationRegistry<TSupport> {
 
-	private readonly _tokenizationSupports = new Map<string, ITokenizationSupport>();
-	private readonly _factories = new Map<string, TokenizationSupportFactoryData>();
+	private readonly _tokenizationSupports = new Map<string, TSupport>();
+	private readonly _factories = new Map<string, TokenizationSupportFactoryData<TSupport>>();
 
 	private readonly _onDidChange = new Emitter<ITokenizationSupportChangedEvent>();
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
@@ -30,7 +30,7 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 		});
 	}
 
-	public register(languageId: string, support: ITokenizationSupport): IDisposable {
+	public register(languageId: string, support: TSupport): IDisposable {
 		this._tokenizationSupports.set(languageId, support);
 		this.handleChange([languageId]);
 		return toDisposable(() => {
@@ -42,11 +42,11 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 		});
 	}
 
-	public get(languageId: string): ITokenizationSupport | null {
+	public get(languageId: string): TSupport | null {
 		return this._tokenizationSupports.get(languageId) || null;
 	}
 
-	public registerFactory(languageId: string, factory: ILazyTokenizationSupport): IDisposable {
+	public registerFactory(languageId: string, factory: ILazyTokenizationSupport<TSupport>): IDisposable {
 		this._factories.get(languageId)?.dispose();
 		const myData = new TokenizationSupportFactoryData(this, languageId, factory);
 		this._factories.set(languageId, myData);
@@ -60,7 +60,7 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 		});
 	}
 
-	public async getOrCreate(languageId: string): Promise<ITokenizationSupport | null> {
+	public async getOrCreate(languageId: string): Promise<TSupport | null> {
 		// check first if the support is already set
 		const tokenizationSupport = this.get(languageId);
 		if (tokenizationSupport) {
@@ -112,7 +112,7 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 	}
 }
 
-class TokenizationSupportFactoryData extends Disposable {
+class TokenizationSupportFactoryData<TSupport> extends Disposable {
 
 	private _isDisposed: boolean = false;
 	private _resolvePromise: Promise<void> | null = null;
@@ -123,9 +123,9 @@ class TokenizationSupportFactoryData extends Disposable {
 	}
 
 	constructor(
-		private readonly _registry: TokenizationRegistry,
+		private readonly _registry: TokenizationRegistry<TSupport>,
 		private readonly _languageId: string,
-		private readonly _factory: ILazyTokenizationSupport,
+		private readonly _factory: ILazyTokenizationSupport<TSupport>,
 	) {
 		super();
 	}

@@ -83,6 +83,14 @@ export class EncodedTokenizationResult {
 }
 
 /**
+ * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
+ * @internal
+ */
+export interface IMockTreeSitterTokenizationSupport {
+
+}
+
+/**
  * @internal
  */
 export interface ITokenizationSupport {
@@ -2090,14 +2098,14 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
-export interface ILazyTokenizationSupport {
-	get tokenizationSupport(): Promise<ITokenizationSupport | null>;
+export interface ILazyTokenizationSupport<TSupport> {
+	get tokenizationSupport(): Promise<TSupport | null>;
 }
 
 /**
  * @internal
  */
-export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport {
+export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport<ITokenizationSupport> {
 	private _tokenizationSupport: Promise<ITokenizationSupport & IDisposable | null> | null = null;
 
 	constructor(private readonly createSupport: () => Promise<ITokenizationSupport & IDisposable | null>) {
@@ -2124,7 +2132,7 @@ export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSu
 /**
  * @internal
  */
-export interface ITokenizationRegistry {
+export interface ITokenizationRegistry<TSupport> {
 
 	/**
 	 * An event triggered when:
@@ -2142,24 +2150,24 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a tokenization support.
 	 */
-	register(languageId: string, support: ITokenizationSupport): IDisposable;
+	register(languageId: string, support: TSupport): IDisposable;
 
 	/**
 	 * Register a tokenization support factory.
 	 */
-	registerFactory(languageId: string, factory: ILazyTokenizationSupport): IDisposable;
+	registerFactory(languageId: string, factory: ILazyTokenizationSupport<TSupport>): IDisposable;
 
 	/**
 	 * Get or create the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	getOrCreate(languageId: string): Promise<ITokenizationSupport | null>;
+	getOrCreate(languageId: string): Promise<TSupport | null>;
 
 	/**
 	 * Get the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	get(languageId: string): ITokenizationSupport | null;
+	get(languageId: string): TSupport | null;
 
 	/**
 	 * Returns false if a factory is still pending.
@@ -2179,8 +2187,12 @@ export interface ITokenizationRegistry {
 /**
  * @internal
  */
-export const TokenizationRegistry: ITokenizationRegistry = new TokenizationRegistryImpl();
+export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> = new TokenizationRegistryImpl();
 
+/**
+ * @internal
+ */
+export const TreeSitterTokenizationRegistry: ITokenizationRegistry<IMockTreeSitterTokenizationSupport> = new TokenizationRegistryImpl();
 
 /**
  * @internal

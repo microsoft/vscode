@@ -15,7 +15,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IAttachedView } from 'vs/editor/common/model';
@@ -23,6 +23,7 @@ import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTe
 import { AttachedViews, IAttachedViewState, TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
+import { TreeSitterTokens } from 'vs/editor/common/model/treeSitterTokens';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -31,6 +32,10 @@ import { ContiguousTokensStore } from 'vs/editor/common/tokens/contiguousTokensS
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+// Setting value will be an array of language IDs that will prefer tree sitter tokenization over textmate when they both exist.
+const TOKENIZATION_PROVIDER_SETTING = 'editor.experimental.preferTreeSitter';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
@@ -44,7 +49,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	private readonly grammarTokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
+	private grammarTokens: GrammarTokens | undefined;
+	private treeSitterTokens: TreeSitterTokens | undefined;
 
 	constructor(
 		private readonly _languageService: ILanguageService,
@@ -53,6 +59,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		private readonly _bracketPairsTextModelPart: BracketPairsTextModelPart,
 		private _languageId: string,
 		private readonly _attachedViews: AttachedViews,
+		private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -62,6 +69,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			}
 		}));
 
+		this.createPreferredTokenProvider();
+	}
+
+	private createGrammarTokens() {
+		this.grammarTokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
 		this._register(this.grammarTokens.onDidChangeTokens(e => {
 			this._emitModelTokensChangedEvent(e);
 		}));
@@ -69,6 +81,31 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._register(this.grammarTokens.onDidChangeBackgroundTokenizationState(e => {
 			this._bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
 		}));
+	}
+
+	private createTreeSitterTokens() {
+		this.treeSitterTokens = this._register(new TreeSitterTokens(this._languageService.languageIdCodec));
+	}
+
+	private createPreferredTokenProvider() {
+		const preferTreeSitter: string[] = this._configurationService.getValue<string[] | undefined>(TOKENIZATION_PROVIDER_SETTING) ?? [];
+		if (preferTreeSitter.includes(this._languageId) && TreeSitterTokenizationRegistry.get(this._languageId)) {
+			if (this.treeSitterTokens) {
+				this.treeSitterTokens.resetTokenization(true);
+			} else {
+				this.grammarTokens?.dispose();
+				this.grammarTokens = undefined;
+				this.createTreeSitterTokens();
+			}
+		} else {
+			if (this.grammarTokens) {
+				this.grammarTokens.resetTokenization(true);
+			} else {
+				this.treeSitterTokens?.dispose();
+				this.treeSitterTokens = undefined;
+				this.createGrammarTokens();
+			}
+		}
 	}
 
 	_hasListeners(): boolean {
@@ -94,11 +131,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			}
 		}
 
-		this.grammarTokens.handleDidChangeContent(e);
+		this.grammarTokens?.handleDidChangeContent(e);
 	}
 
 	public handleDidChangeAttached(): void {
-		this.grammarTokens.handleDidChangeAttached();
+		this.grammarTokens?.handleDidChangeAttached();
 	}
 
 	/**
@@ -106,7 +143,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	 */
 	public getLineTokens(lineNumber: number): LineTokens {
 		this.validateLineNumber(lineNumber);
-		const syntacticTokens = this.grammarTokens.getLineTokens(lineNumber);
+		const syntacticTokens = (this.treeSitterTokens?.getLineTokens(lineNumber) ?? this.grammarTokens?.getLineTokens(lineNumber))!;
 		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
 	}
 
@@ -126,43 +163,43 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public get hasTokens(): boolean {
-		return this.grammarTokens.hasTokens;
+		return !!this.grammarTokens?.hasTokens;
 	}
 
 	public resetTokenization() {
-		this.grammarTokens.resetTokenization();
+		this.grammarTokens?.resetTokenization();
 	}
 
 	public get backgroundTokenizationState() {
-		return this.grammarTokens.backgroundTokenizationState;
+		return this.grammarTokens?.backgroundTokenizationState ?? BackgroundTokenizationState.InProgress;
 	}
 
 	public forceTokenization(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
-		this.grammarTokens.forceTokenization(lineNumber);
+		this.grammarTokens?.forceTokenization(lineNumber);
 	}
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
-		return this.grammarTokens.hasAccurateTokensForLine(lineNumber);
+		return !!this.grammarTokens?.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
-		return this.grammarTokens.isCheapToTokenize(lineNumber);
+		return !!this.grammarTokens?.isCheapToTokenize(lineNumber);
 	}
 
 	public tokenizeIfCheap(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
-		this.grammarTokens.tokenizeIfCheap(lineNumber);
+		this.grammarTokens?.tokenizeIfCheap(lineNumber);
 	}
 
 	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
-		return this.grammarTokens.getTokenTypeIfInsertingCharacter(lineNumber, column, character);
+		return this.grammarTokens?.getTokenTypeIfInsertingCharacter(lineNumber, column, character) ?? StandardTokenType.Other;
 	}
 
 	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
-		return this.grammarTokens.tokenizeLineWithEdit(position, length, newText);
+		return this.grammarTokens?.tokenizeLineWithEdit(position, length, newText) ?? null;
 	}
 
 	// #endregion
@@ -327,7 +364,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._languageId = languageId;
 
 		this._bracketPairsTextModelPart.handleDidChangeLanguage(e);
-		this.grammarTokens.resetTokenization();
+		this.createPreferredTokenProvider();
 		this._onDidChangeLanguage.fire(e);
 		this._onDidChangeLanguageConfiguration.fire({});
 	}
