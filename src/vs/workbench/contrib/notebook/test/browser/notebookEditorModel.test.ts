@@ -13,6 +13,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, IOutputDto, NotebookData, NotebookSetting, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -242,12 +243,45 @@ suite('NotebookFileWorkingCopyModel', function () {
 		assert.strictEqual(callCount, 1);
 
 	});
+
+	test('Notebook model will not return a save delegate if the serializer has not been retreived', async function () {
+		const notebook = instantiationService.createInstance(NotebookTextModel,
+			'notebook',
+			URI.file('test'),
+			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
+			{},
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false, }
+		);
+		disposables.add(notebook);
+
+		const serializer = new class extends mock<INotebookSerializer>() {
+			override save(): Promise<IFileStatWithMetadata> {
+				return Promise.resolve({ name: 'savedFile' } as IFileStatWithMetadata);
+			}
+		};
+
+		const notebookService = mockNotebookService(notebook, serializer);
+		const model = disposables.add(new NotebookFileWorkingCopyModel(
+			notebook,
+			notebookService,
+			configurationService
+		));
+
+		const notExist = model.getSaveDelegate();
+		const saveDelegate = model.getSaveDelegate();
+		const result = await saveDelegate!({} as any, {} as any);
+
+		assert.strictEqual(notExist, undefined);
+		assert.strictEqual(typeof (saveDelegate), 'function');
+		assert.strictEqual(result.name, 'savedFile');
+	});
 });
 
 function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: INotebookSerializer) {
 	return new class extends mock<INotebookService>() {
+		private cachedProvider: SimpleNotebookProviderInfo | undefined;
 		override async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
-			return new SimpleNotebookProviderInfo(
+			this.cachedProvider = new SimpleNotebookProviderInfo(
 				notebook.viewType,
 				notebookSerializer,
 				{
@@ -255,6 +289,10 @@ function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: IN
 					location: undefined
 				}
 			);
+			return this.cachedProvider;
+		}
+		override cachedNotebookDataProvider(viewType: string): SimpleNotebookProviderInfo | undefined {
+			return this.cachedProvider;
 		}
 	};
 }

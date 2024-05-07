@@ -228,16 +228,6 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		}
 	}
 
-	private serializerPromise: Promise<INotebookSerializer> | undefined;
-	private async cacheNotebookSerializer() {
-		if (!this.serializerPromise) {
-			this.serializerPromise = this.getNotebookSerializer();
-		}
-
-		await this.serializerPromise;
-		this.serializerPromise = undefined;
-	}
-
 	getSaveDelegate() {
 		if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
 			return undefined;
@@ -257,7 +247,8 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			};
 		}
 
-		// cache for next call
+		// We can't asyncronously fetch the serializer because this method must be synchronous,
+		// but we should asyncronously fetch the serializer for future calls
 		this.cacheNotebookSerializer();
 		return undefined;
 	}
@@ -334,6 +325,15 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		}
 
 		return info.serializer;
+	}
+
+	private serializerPromise: Promise<INotebookSerializer> | undefined;
+	private async cacheNotebookSerializer() {
+		if (!this.serializerPromise) {
+			this.serializerPromise = this.getNotebookSerializer();
+		}
+
+		return this.serializerPromise;
 	}
 
 	get versionId() {
