@@ -54,8 +54,6 @@ export class SnapshotContext {
 		const relevantIndex = parts.indexOf("out");
 		const relevantParts = parts.slice(relevantIndex, -1);
 
-		console.log({ srcString: src.toString(), src: src.fsPath, parts });
-
 		this.namePrefix = sanitizeName(test.fullTitle()) + ".";
 		this.snapshotsDir = URI.joinPath(src, ...relevantParts, "__snapshots__");
 	}
@@ -70,8 +68,6 @@ export class SnapshotContext {
 		this.usedNames.add(fileName);
 
 		const fpath = URI.joinPath(this.snapshotsDir, fileName).fsPath;
-		console.log({ fpath });
-		console.log("before read");
 		const actual = formatValue(value);
 		let expected: string;
 		try {
@@ -84,7 +80,6 @@ export class SnapshotContext {
 		}
 
 		if (normalizeCrlf(expected) !== normalizeCrlf(actual)) {
-			console.log("before write, err");
 			await __writeFileInTests(fpath + ".actual", actual);
 			const err: any = new Error(
 				`Snapshot #${nameOrIndex} does not match expected output`
@@ -103,7 +98,6 @@ export class SnapshotContext {
 	}
 
 	public async removeOldSnapshots() {
-		console.log("remove old");
 		const contents = await __readDirInTests(this.snapshotsDir.fsPath);
 		const toDelete = contents.filter(
 			(f) => f.startsWith(this.namePrefix) && !this.usedNames.has(f)
