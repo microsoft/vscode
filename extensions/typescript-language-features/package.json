@@ -141,6 +141,10 @@
         "url": "./schemas/jsconfig.schema.json"
       },
       {
+        "fileMatch": ".swcrc",
+        "url": "https://swc.rs/schema.json"
+      },
+      {
         "fileMatch": "typedoc.json",
         "url": "https://typedoc.org/schema.json"
       }
