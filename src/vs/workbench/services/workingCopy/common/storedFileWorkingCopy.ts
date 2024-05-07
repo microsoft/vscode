@@ -78,6 +78,8 @@ export interface IStoredFileWorkingCopyModel extends IFileWorkingCopyModel {
 	 * writing that to the model's resource.
 	 */
 	save?(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
+
+	saveDelegate(): ((options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata>) | undefined;
 }
 
 export interface IStoredFileWorkingCopyModelContentChangedEvent {
@@ -1018,8 +1020,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					let stat: IFileStatWithMetadata;
 
 					// Delegate to working copy model save method if any
-					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
-						stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+					const saveDelegate = resolvedFileWorkingCopy.model.saveDelegate();
+					if (saveDelegate) {
+						stat = await saveDelegate(writeFileOptions, saveCancellation.token);
 					}
 
 					// Otherwise ask for a snapshot and save via file services

@@ -27,6 +27,9 @@ import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorking
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
+
+type saveFunction = (options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata>;
+
 //#region --- simple content provider
 
 export class SimpleNotebookEditorModel extends EditorModel implements INotebookEditorModel {
@@ -241,6 +244,26 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				return stat;
 			};
 		}
+	}
+
+	saveDelegate(): saveFunction | undefined {
+		const serializer = this._notebookService.currentNotebookDataProvider(this._notebookModel.viewType)?.serializer;
+
+		if (serializer) {
+			return async (options: IWriteFileOptions, token: CancellationToken) => {
+
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
+				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
+				return stat;
+			};
+		}
+
+		// cache for next call
+		this.getNotebookSerializer();
+		return undefined;
 	}
 
 	override dispose(): void {

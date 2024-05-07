@@ -650,6 +650,10 @@ export class NotebookService extends Disposable implements INotebookService {
 		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
 	}
 
+	currentNotebookDataProvider(viewType: string): SimpleNotebookProviderInfo | undefined {
+		return this._notebookProviders.get(viewType);
+	}
+
 	async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
 		const selected = this.notebookProviderInfoStore.get(viewType);
 		if (!selected) {
