@@ -36,7 +36,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, isEditorGroup, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorReplacement, isEditorGroup, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -882,63 +882,84 @@ function registerCloseEditorCommands() {
 		when: undefined,
 		primary: undefined,
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
 			const editorService = accessor.get(IEditorService);
 			const editorResolverService = accessor.get(IEditorResolverService);
 			const telemetryService = accessor.get(ITelemetryService);
 
-			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+			const { editors, groups } = getEditorsContext(accessor, resourceOrContext, context);
+			const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
 
-			if (!editor) {
-				return;
-			}
-			const untypedEditor = editor.toUntyped();
+			for (const editorContext of editors) {
+				const group = groups.find(group => group?.id === editorContext.groupId);
+				if (!group || editorContext.editorIndex === undefined) {
+					continue;
+				}
 
-			// Resolver can only resolve untyped editors
-			if (!untypedEditor) {
-				return;
-			}
-			untypedEditor.options = { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK };
-			const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
-			if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
-				return;
-			}
+				const editor = group.getEditorByIndex(editorContext.editorIndex);
+				if (!editor) {
+					return;
+				}
+				const untypedEditor = editor.toUntyped();
 
-			// Replace editor with resolved one
-			await resolvedEditor.group.replaceEditors([
-				{
+				// Resolver can only resolve untyped editors
+				if (!untypedEditor) {
+					return;
+				}
+				untypedEditor.options = { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK };
+				const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
+				if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+					return;
+				}
+
+				if (!editorReplacements.has(group)) {
+					editorReplacements.set(group, []);
+				}
+
+				editorReplacements.get(group)?.push({
 					editor: editor,
 					replacement: resolvedEditor.editor,
 					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
 					options: resolvedEditor.options
-				}
-			]);
+				});
 
-			type WorkbenchEditorReopenClassification = {
-				owner: 'rebornix';
-				comment: 'Identify how a document is reopened';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
-				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
-				to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
-			};
+				// Telemetry
 
-			type WorkbenchEditorReopenEvent = {
-				scheme: string;
-				ext: string;
-				from: string;
-				to: string;
-			};
+				type WorkbenchEditorReopenClassification = {
+					owner: 'rebornix';
+					comment: 'Identify how a document is reopened';
+					scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
+					ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
+					from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
+					to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
+				};
 
-			telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
-				scheme: editor.resource?.scheme ?? '',
-				ext: editor.resource ? extname(editor.resource) : '',
-				from: editor.editorId ?? '',
-				to: resolvedEditor.editor.editorId ?? ''
-			});
+				type WorkbenchEditorReopenEvent = {
+					scheme: string;
+					ext: string;
+					from: string;
+					to: string;
+				};
+
+				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
+					scheme: editor.resource?.scheme ?? '',
+					ext: editor.resource ? extname(editor.resource) : '',
+					from: editor.editorId ?? '',
+					to: resolvedEditor.editor.editorId ?? ''
+				});
+			}
+
+			// Replace editor with resolved one
+			let group: IEditorGroup | undefined, replacements: IEditorReplacement[] | undefined;
+			for ([group, replacements] of editorReplacements) {
+				await group.replaceEditors(replacements);
+			}
+
+			if (!group || !replacements) {
+				return;
+			}
 
 			// Make sure it becomes active too
-			await resolvedEditor.group.openEditor(resolvedEditor.editor);
+			await group?.openEditor(replacements[0].replacement);
 		}
 	});
 
