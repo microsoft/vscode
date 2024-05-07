@@ -146,7 +146,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const copyPathCommand = {
 	id: COPY_PATH_COMMAND_ID,
-	title: nls.localize('copyPath', "Copy Path"),
+	title: nls.localize('copyPath', "Copy Path")
 };
 
 const copyRelativePathCommand = {

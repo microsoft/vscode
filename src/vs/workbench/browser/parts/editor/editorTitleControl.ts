@@ -167,10 +167,6 @@ export class EditorTitleControl extends Themable {
 		this.editorTabsControl.setEditorSelections(editors, selected);
 	}
 
-	clearEditorSelections(): void {
-		this.editorTabsControl.clearEditorSelections();
-	}
-
 	updateEditorLabel(editor: EditorInput): void {
 		return this.editorTabsControl.updateEditorLabel(editor);
 	}

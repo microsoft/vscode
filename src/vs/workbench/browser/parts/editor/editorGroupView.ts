@@ -324,9 +324,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		};
 
 		this._register(this.onDidModelChange(e => updateGroupContextKeys(e)));
-		this._register(this.onDidChangeSelection(selectedEditor => {
-			multipleEditorsSelectedContext.set(selectedEditor.length > 1);
-			twoEditorsSelectedContext.set(selectedEditor.length === 2);
+		this._register(this.onDidChangeSelection(selectedEditors => {
+			multipleEditorsSelectedContext.set(selectedEditors.length > 1);
+			twoEditorsSelectedContext.set(selectedEditors.length === 2);
 		}));
 
 		// Track the active editor and update context key that reflects
@@ -904,6 +904,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('active', isActive);
 		this.element.classList.toggle('inactive', !isActive);
 
+		// Only active group can have selected editors
 		if (!isActive) {
 			this.unSelectAllEditors();
 		}
@@ -972,7 +973,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private selectedEditors: EditorInput[] = [];
 	private selectedEditorAnchors: EditorInput[] = [];
-	selectEditor(editor: EditorInput): void {
+	selectEditor(editor: EditorInput | undefined = this.activeEditor || undefined): void {
+		if (!editor) {
+			return;
+		}
+
 		const addedSelection = this.doSelectEditor(editor);
 		if (!addedSelection) {
 			return;
@@ -1003,7 +1008,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		this.selectedEditors.push(editor);
-		this._onDidChangeSelection.fire(this.selectedEditors);
 		return true;
 	}
 
@@ -1016,12 +1020,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const hadAnchor = this.selectedEditorAnchors.length > 0;
 		const anchorEditor = hadAnchor ? this.selectedEditorAnchors[this.selectedEditorAnchors.length - 1] : this.activeEditor;
 		if (!anchorEditor) {
-			return;
+			throw new BugIndicatingError();
 		}
 
 		const anchorIndex = this.model.indexOf(anchorEditor);
+		if (anchorIndex === -1) {
+			throw new BugIndicatingError();
+		}
 
-		// Unselect editors on other side of anchor
+		// Unselect editors on other side of anchor in relation to the target
 		let currentIndex = anchorIndex;
 		while (hadAnchor && currentIndex >= 0 && currentIndex <= this.model.count - 1) {
 			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
@@ -1051,11 +1058,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidChangeSelection.fire(this.selectedEditors);
 	}
 
-	unSelectEditor(editor: EditorInput): void {
+	unSelectEditor(editor: EditorInput | undefined = this.activeEditor || undefined): void {
+		if (!editor) {
+			return;
+		}
+
 		this.selectedEditors = this.selectedEditors.filter(selectedEditor => selectedEditor !== editor);
 		this.selectedEditorAnchors = this.selectedEditorAnchors.filter(selectedEditor => selectedEditor !== editor);
 
-		// Make sure active editor is part of selection
+		// Make sure active editor is part of remaining selections
 		if (this.selectedEditors.length > 0 && this.activeEditor === editor) {
 			this.openEditor(this.selectedEditors[0], { activation: EditorActivation.ACTIVATE }, { skipTitleUpdate: true });
 		}
@@ -1065,10 +1076,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	unSelectAllEditors(): void {
+		const previouslySelected = this.selectedEditors;
 		this.selectedEditors = [];
 		this.selectedEditorAnchors = [];
-		this._onDidChangeSelection.fire(this.selectedEditors);
-		this.titleControl.clearEditorSelections();
+		this.titleControl.setEditorSelections(previouslySelected, false);
+		this._onDidChangeSelection.fire([]);
 	}
 
 	isSelected(editor: EditorInput): boolean {
@@ -1298,6 +1310,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Show editor
 		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
 
+		// When setting an editor active which is not part of a selection, make sure to unselect all
+		if (!!openEditorOptions.active && this.getSelectedEditors().length > 0 && !this.isSelected(openedEditor)) {
+			this.unSelectAllEditors();
+		}
+
 		// Finally make sure the group is active or restored as instructed
 		if (activateGroup) {
 			this.groupsView.activateGroup(this);
@@ -1436,8 +1453,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			target.titleControl.openEditors(Array.from(movedEditors));
 			this.titleControl.closeEditors(Array.from(movedEditors));
 		}
-
-		this.unSelectAllEditors();
 
 		return !moveFailed;
 	}

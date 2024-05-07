@@ -928,11 +928,11 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isSticky(_editor: EditorInput): boolean { return false; }
 	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
-	selectEditor(editor: EditorInput): void { }
-	selectEditorsUntil(editor: EditorInput): void { }
-	unSelectEditor(editor: EditorInput): void { }
+	selectEditor(_editor: EditorInput): void { }
+	selectEditorsUntil(_editor: EditorInput): void { }
+	unSelectEditor(_editor: EditorInput): void { }
 	unSelectAllEditors(): void { }
-	isSelected(editor: EditorInput): boolean { return false; }
+	isSelected(_editor: EditorInput): boolean { return false; }
 	getSelectedEditors(): EditorInput[] { return []; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): boolean { return true; }

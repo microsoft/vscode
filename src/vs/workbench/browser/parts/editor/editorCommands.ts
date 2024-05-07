@@ -886,19 +886,10 @@ function registerCloseEditorCommands() {
 			const editorResolverService = accessor.get(IEditorResolverService);
 			const telemetryService = accessor.get(ITelemetryService);
 
-			const { editors, groups } = getEditorsContext(accessor, resourceOrContext, context);
+			const editorsAndGroup = getEditorsFromContext(accessor, resourceOrContext, context);
 			const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
 
-			for (const editorContext of editors) {
-				const group = groups.find(group => group?.id === editorContext.groupId);
-				if (!group || editorContext.editorIndex === undefined) {
-					continue;
-				}
-
-				const editor = group.getEditorByIndex(editorContext.editorIndex);
-				if (!editor) {
-					return;
-				}
+			for (const { editor, group } of editorsAndGroup) {
 				const untypedEditor = editor.toUntyped();
 
 				// Resolver can only resolve untyped editors

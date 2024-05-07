@@ -767,11 +767,34 @@ export interface IEditorGroup {
 	 */
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
 
-	selectEditor(editor: EditorInput): void;
+	/**
+	 * Selects the editor in the group. If the editor is not specified, selects the active editor.
+	 */
+	selectEditor(editor?: EditorInput): void;
+
+	/**
+	 * Selects the editor from the last selected editor until the provided editor.
+	 */
 	selectEditorsUntil(editor: EditorInput): void;
+
+	/**
+	 * Unselects the editor in the group. If the editor is not specified, unselects the active editor.
+	 */
 	unSelectEditor(editor: EditorInput): void;
+
+	/**
+	 * Unselects all editors in the group
+	 */
 	unSelectAllEditors(): void;
+
+	/**
+	 * Whether the editor is selected in the group.
+	 */
 	isSelected(editor: EditorInput): boolean;
+
+	/**
+	 * Returns all selected editors in the group.
+	 */
 	getSelectedEditors(): EditorInput[];
 
 	/**

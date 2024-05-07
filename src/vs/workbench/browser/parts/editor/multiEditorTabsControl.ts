@@ -686,10 +686,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabSelections();
 	}
 
-	clearEditorSelections(): void {
-		this.redrawTabSelections();
-	}
-
 	private redrawTabSelections(): void {
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
@@ -878,7 +874,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 				}
 
-				return;
+				return undefined;
 			}
 
 			if (this.originatesFromTabActionBar(e)) {
@@ -902,7 +898,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 			}
 
-			return;
+			return undefined;
 		};
 
 		const showContextMenu = (e: Event) => {
@@ -1074,10 +1070,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				const selectedEditors = this.groupView.getSelectedEditors();
 
 				const draggedEditors = [];
-				let isMultiSelected = false;
-				if (this.groupView.isSelected(editor) && selectedEditors.length > 1) {
+				const isMultiSelected = this.groupView.isSelected(editor) && selectedEditors.length > 1;
+				if (isMultiSelected) {
 					draggedEditors.push(...selectedEditors);
-					isMultiSelected = true;
 				} else {
 					draggedEditors.push(editor);
 				}
