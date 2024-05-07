@@ -126,7 +126,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		this._onDidChangeHasSpeechProvider.fire();
 	}
 
-	//#region Transcription
+	//#region Speech to Text
 
 	private readonly _onDidStartSpeechToTextSession = this._register(new Emitter<void>());
 	readonly onDidStartSpeechToTextSession = this._onDidStartSpeechToTextSession.event;
@@ -240,7 +240,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	//#endregion
 
-	//#region Synthesizer
+	//#region Text to Speech
 
 	private readonly _onDidStartTextToSpeechSession = this._register(new Emitter<void>());
 	readonly onDidStartTextToSpeechSession = this._onDidStartTextToSpeechSession.event;
