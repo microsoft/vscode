@@ -33,6 +33,10 @@ export class TestStoredFileWorkingCopyModel extends Disposable implements IStore
 		super();
 	}
 
+	getSaveDelegate() {
+		return undefined;
+	}
+
 	fireContentChangeEvent(event: IStoredFileWorkingCopyModelContentChangedEvent): void {
 		this._onDidChangeContent.fire(event);
 	}

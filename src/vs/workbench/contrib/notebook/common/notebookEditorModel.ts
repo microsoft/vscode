@@ -14,7 +14,7 @@ import { filter } from 'vs/base/common/objects';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWriteFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IWriteFileOptions } from 'vs/platform/files/common/files';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -26,9 +26,6 @@ import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/commo
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-
-
-type saveFunction = (options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata>;
 
 //#region --- simple content provider
 
@@ -193,7 +190,6 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	readonly onWillDispose: Event<void>;
 
 	readonly configuration: IFileWorkingCopyModelConfiguration | undefined = undefined;
-	save: ((options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata>) | undefined;
 
 	constructor(
 		private readonly _notebookModel: NotebookTextModel,
@@ -230,24 +226,24 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				backupDelay: 10000
 			};
 		}
-
-		// Override save behavior to avoid transferring the buffer across the wire 3 times
-		if (saveWithReducedCommunication) {
-			this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
-				const serializer = await this.getNotebookSerializer();
-
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-
-				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
-				return stat;
-			};
-		}
 	}
 
-	saveDelegate(): saveFunction | undefined {
-		const serializer = this._notebookService.currentNotebookDataProvider(this._notebookModel.viewType)?.serializer;
+	private serializerPromise: Promise<INotebookSerializer> | undefined;
+	private async cacheNotebookSerializer() {
+		if (!this.serializerPromise) {
+			this.serializerPromise = this.getNotebookSerializer();
+		}
+
+		await this.serializerPromise;
+		this.serializerPromise = undefined;
+	}
+
+	getSaveDelegate() {
+		if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
+			return undefined;
+		}
+
+		const serializer = this._notebookService.cachedNotebookDataProvider(this._notebookModel.viewType)?.serializer;
 
 		if (serializer) {
 			return async (options: IWriteFileOptions, token: CancellationToken) => {
@@ -262,7 +258,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		}
 
 		// cache for next call
-		this.getNotebookSerializer();
+		this.cacheNotebookSerializer();
 		return undefined;
 	}
 
