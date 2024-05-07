@@ -89,7 +89,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	font-family: var(--monaco-monospace-font);
-	white-space: pre;
 }
 
 .monaco-workbench.mac .debug-pane .monaco-list-row .expression,
