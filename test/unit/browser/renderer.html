@@ -154,6 +154,10 @@
 						headers: { "Content-Type": "application/json" },
 					});
 
+					if (!res.ok) {
+						throw new Error(`remote method error, status: ${res.status}`);
+					}
+
 					return res.json();
 				};
 			}
