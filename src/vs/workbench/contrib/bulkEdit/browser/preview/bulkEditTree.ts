@@ -32,6 +32,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // --- VIEW MODEL
 
@@ -205,6 +206,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	hasChildren(element: BulkFileOperations | BulkEditElement): boolean {
@@ -241,7 +243,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				textModel = ref.object.textEditorModel;
 				textModelDisposable = ref;
 			} catch {
-				textModel = new TextModel('', PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService);
+				textModel = new TextModel('', PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService, this._configurationService);
 				textModelDisposable = textModel;
 			}
 

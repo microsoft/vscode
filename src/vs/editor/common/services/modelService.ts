@@ -322,6 +322,7 @@ export class ModelService extends Disposable implements IModelService {
 			this._undoRedoService,
 			this._languageService,
 			this._languageConfigurationService,
+			this._configurationService
 		);
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;

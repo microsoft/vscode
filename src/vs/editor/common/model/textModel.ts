@@ -43,6 +43,7 @@ import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPai
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
@@ -299,6 +300,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -334,6 +336,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._bracketPairs,
 			languageId,
 			this._attachedViews,
+			configurationService
 		);
 
 		const bufferLineCount = this._buffer.getLineCount();

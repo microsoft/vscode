@@ -37,6 +37,7 @@ import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platf
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class DecorationsManager implements IDisposable {
 
@@ -228,6 +229,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
 
@@ -315,7 +317,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		};
 		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, {}, this.editor);
 		dom.hide(this._previewContainer);
-		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService);
+		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService, this._configurationService);
 
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
