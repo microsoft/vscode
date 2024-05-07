@@ -68,12 +68,20 @@ class ChatAgentResponseStream {
 				}
 			}
 
-			const _report = (progress: Dto<IChatProgress>) => {
+			const _report = (progress: Dto<IChatProgress>, task?: () => Thenable<string | void>) => {
 				// Measure the time to the first progress update with real markdown content
 				if (typeof this._firstProgress === 'undefined' && 'content' in progress) {
 					this._firstProgress = this._stopWatch.elapsed();
 				}
-				this._proxy.$handleProgressChunk(this._request.requestId, progress);
+
+				this._proxy.$handleProgressChunk(this._request.requestId, progress)
+					.then((handle) => {
+						if (typeof handle === 'number' && task) {
+							task().then((res) => {
+								this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
+							});
+						}
+					});
 			};
 
 			this._apiObject = {
@@ -116,11 +124,11 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				progress(value) {
+				progress(value, task?: (() => Thenable<string | void>)) {
 					throwIfDone(this.progress);
-					const part = new extHostTypes.ChatResponseProgressPart(value);
-					const dto = typeConvert.ChatResponseProgressPart.from(part);
-					_report(dto);
+					const part = new extHostTypes.ChatResponseProgressPart2(value, task);
+					const dto = task ? typeConvert.ChatTask.from(part) : typeConvert.ChatResponseProgressPart.from(part);
+					_report(dto, task);
 					return this;
 				},
 				warning(value) {
