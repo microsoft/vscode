@@ -59,23 +59,6 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
 }
 
-export const enum AccessibleViewProviderId {
-	Terminal = 'terminal',
-	TerminalChat = 'terminal-chat',
-	TerminalHelp = 'terminal-help',
-	DiffEditor = 'diffEditor',
-	Chat = 'panelChat',
-	InlineChat = 'inlineChat',
-	InlineCompletions = 'inlineCompletions',
-	KeybindingsEditor = 'keybindingsEditor',
-	Notebook = 'notebook',
-	Editor = 'editor',
-	Hover = 'hover',
-	Notification = 'notification',
-	EmptyEditorHint = 'emptyEditorHint',
-	Comments = 'comments'
-}
-
 const baseVerbosityProperty: IConfigurationPropertySchema = {
 	type: 'boolean',
 	default: true,

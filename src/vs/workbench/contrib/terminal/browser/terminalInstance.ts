@@ -341,6 +341,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
 	private readonly _onDidSendText = this._register(new Emitter<string>());
 	readonly onDidSendText = this._onDidSendText.event;
+	private readonly _onDidChangeShellType = this._register(new Emitter<TerminalShellType>());
+	readonly onDidChangeShellType = this._onDidChangeShellType.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -582,7 +584,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermReadyPromise.then(xterm => {
 				contribution.xtermReady?.(xterm);
 			});
-			this.onDisposed(() => {
+			this._register(this.onDisposed(() => {
 				contribution.dispose();
 				this._contributions.delete(desc.id);
 				// Just in case to prevent potential future memory leaks due to cyclic dependency.
@@ -592,7 +594,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if ('_instance' in contribution) {
 					delete contribution._instance;
 				}
-			});
+			}));
 		}
 	}
 
@@ -993,7 +995,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 								run: () => {
 									this._preferencesService.openSettings({ jsonEditor: false, query: `@id:${TerminalSettingId.CommandsToSkipShell},${TerminalSettingId.SendKeybindingsToShell},${TerminalSettingId.AllowChords}` });
 								}
-							} as IPromptChoice
+							} satisfies IPromptChoice
 						]
 					);
 					this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
@@ -1896,9 +1898,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	setShellType(shellType: TerminalShellType | undefined) {
-		this._shellType = shellType;
+		if (this._shellType === shellType) {
+			return;
+		}
 		if (shellType) {
+			this._shellType = shellType;
 			this._terminalShellTypeContextKey.set(shellType?.toString());
+			this._onDidChangeShellType.fire(shellType);
 		}
 	}
 

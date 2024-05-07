@@ -205,7 +205,14 @@ export class CodeCell extends Disposable {
 
 			if (model && this.templateData.editor) {
 				this._reigsterModelListeners(model);
+
+				// set model can trigger view update, which can lead to dispose of this cell
 				this.templateData.editor.setModel(model);
+
+				if (this._isDisposed) {
+					return;
+				}
+
 				model.updateOptions({
 					indentSize: this._cellEditorOptions.indentSize,
 					tabSize: this._cellEditorOptions.tabSize,

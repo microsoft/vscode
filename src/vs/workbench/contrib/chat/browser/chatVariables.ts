@@ -47,18 +47,20 @@ export class ChatVariablesService implements IChatVariablesService {
 							}
 							progress(item);
 						};
-						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(values => {
-							resolvedVariables[i] = { name: part.variableName, range: part.range, values: values ?? [], references };
+						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
+							if (value) {
+								resolvedVariables[i] = { name: part.variableName, range: part.range, value, references };
+							}
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { name: part.referenceText, range: part.range, values: part.data };
+					resolvedVariables[i] = { name: part.referenceText, range: part.range, value: part.data };
 				}
 			});
 
 		await Promise.allSettled(jobs);
 
-		resolvedVariables = coalesce(resolvedVariables);
+		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
 
 		// "reverse", high index first so that replacement is simple
 		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
@@ -68,13 +70,13 @@ export class ChatVariablesService implements IChatVariablesService {
 		};
 	}
 
-	async resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[]> {
+	async resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined> {
 		const data = this._resolver.get(variableName.toLowerCase());
 		if (!data) {
-			return Promise.resolve([]);
+			return undefined;
 		}
 
-		return (await data.resolver(promptText, undefined, model, progress, token)) ?? [];
+		return (await data.resolver(promptText, undefined, model, progress, token));
 	}
 
 	hasVariable(name: string): boolean {
