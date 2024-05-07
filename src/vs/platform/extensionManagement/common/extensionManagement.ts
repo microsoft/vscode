@@ -407,7 +407,21 @@ export interface DidUninstallExtensionEvent {
 	readonly workspaceScoped?: boolean;
 }
 
-export enum ExtensionManagementErrorCode {
+export const enum ExtensionGalleryErrorCode {
+	Timeout = 'Timeout',
+	Cancelled = 'Cancelled',
+	Failed = 'Failed',
+	DownloadFailedWriting = 'DownloadFailedWriting',
+}
+
+export class ExtensionGalleryError extends Error {
+	constructor(message: string, readonly code: ExtensionGalleryErrorCode) {
+		super(message);
+		this.name = code;
+	}
+}
+
+export const enum ExtensionManagementErrorCode {
 	Unsupported = 'Unsupported',
 	Deprecated = 'Deprecated',
 	Malicious = 'Malicious',
@@ -417,11 +431,18 @@ export enum ExtensionManagementErrorCode {
 	Invalid = 'Invalid',
 	Download = 'Download',
 	DownloadSignature = 'DownloadSignature',
+	DownloadFailedWriting = ExtensionGalleryErrorCode.DownloadFailedWriting,
 	UpdateMetadata = 'UpdateMetadata',
 	Extract = 'Extract',
 	Scanning = 'Scanning',
+	ScanningExtension = 'ScanningExtension',
+	ReadUninstalled = 'ReadUninstalled',
+	UnsetUninstalled = 'UnsetUninstalled',
 	Delete = 'Delete',
 	Rename = 'Rename',
+	IntializeDefaultProfile = 'IntializeDefaultProfile',
+	AddToProfile = 'AddToProfile',
+	PostInstall = 'PostInstall',
 	CorruptZip = 'CorruptZip',
 	IncompleteZip = 'IncompleteZip',
 	Signature = 'Signature',
@@ -434,19 +455,6 @@ export enum ExtensionManagementErrorCode {
 
 export class ExtensionManagementError extends Error {
 	constructor(message: string, readonly code: ExtensionManagementErrorCode) {
-		super(message);
-		this.name = code;
-	}
-}
-
-export enum ExtensionGalleryErrorCode {
-	Timeout = 'Timeout',
-	Cancelled = 'Cancelled',
-	Failed = 'Failed'
-}
-
-export class ExtensionGalleryError extends Error {
-	constructor(message: string, readonly code: ExtensionGalleryErrorCode) {
 		super(message);
 		this.name = code;
 	}
