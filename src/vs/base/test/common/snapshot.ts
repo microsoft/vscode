@@ -60,6 +60,7 @@ export class SnapshotContext {
 		this.usedNames.add(fileName);
 
 		const fpath = URI.joinPath(this.snapshotsDir, fileName).fsPath;
+		console.log({ fpath })
 		const actual = formatValue(value);
 		let expected: string;
 		try {
