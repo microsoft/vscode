@@ -189,10 +189,17 @@ async function createServer() {
 			req.on('end', () => resolve(JSON.parse(Buffer.concat(body).toString())));
 			req.on('error', reject);
 		});
+		try {
+			const result = await fn(...params);
+			response.writeHead(200, { 'Content-Type': 'application/json' });
+			response.end(JSON.stringify(result));
+		} catch (error) {
+			response.writeHead(500, { 'Content-Type': 'application/json' });
+			response.end(JSON.stringify({
+				error: `${error}`
+			}));
 
-		const result = await fn(...params);
-		response.writeHead(200, { 'Content-Type': 'application/json' });
-		response.end(JSON.stringify(result));
+		}
 	};
 
 	const server = http.createServer((request, response) => {
