@@ -19,9 +19,7 @@ declare module 'vscode' {
 
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
-		provideLanguageModelResponse?(messages: LanguageModelChatMessage2[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
-
-		provideLanguageModelResponse2(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse(messages: LanguageModelChatMessage2[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 
 		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
 	}

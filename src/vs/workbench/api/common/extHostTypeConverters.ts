@@ -2244,9 +2244,9 @@ export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage2 {
 		switch (message.role) {
-			case chatProvider.ChatMessageRole.System: return new types.LanguageModelChatMessage2(<number>types.LanguageModelChatMessageRole.System, message.content);
-			case chatProvider.ChatMessageRole.User: return new types.LanguageModelChatMessage2(<number>types.LanguageModelChatMessageRole.User, message.content);
-			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelChatMessage2(<number>types.LanguageModelChatMessageRole.Assistant, message.content);
+			case chatProvider.ChatMessageRole.System: return new types.LanguageModelChatMessage(<number>types.LanguageModelChatMessageRole.System, message.content);
+			case chatProvider.ChatMessageRole.User: return new types.LanguageModelChatMessage(<number>types.LanguageModelChatMessageRole.User, message.content);
+			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelChatMessage(<number>types.LanguageModelChatMessageRole.Assistant, message.content);
 		}
 	}
 
@@ -2255,32 +2255,6 @@ export namespace LanguageModelChatMessage {
 			case types.LanguageModelChatMessageRole.System: return { role: chatProvider.ChatMessageRole.System, content: message.content };
 			case types.LanguageModelChatMessageRole.User: return { role: chatProvider.ChatMessageRole.User, content: message.content };
 			case types.LanguageModelChatMessageRole.Assistant: return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
-		}
-	}
-}
-
-/**
- * @deprecated
- */
-export namespace LanguageModelMessage {
-
-	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
-		switch (message.role) {
-			case chatProvider.ChatMessageRole.System: return new types.LanguageModelChatSystemMessage(message.content);
-			case chatProvider.ChatMessageRole.User: return new types.LanguageModelChatUserMessage(message.content);
-			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelChatAssistantMessage(message.content);
-		}
-	}
-
-	export function from(message: vscode.LanguageModelChatMessage): chatProvider.IChatMessage {
-		if (message instanceof types.LanguageModelChatSystemMessage) {
-			return { role: chatProvider.ChatMessageRole.System, content: message.content };
-		} else if (message instanceof types.LanguageModelChatUserMessage) {
-			return { role: chatProvider.ChatMessageRole.User, content: message.content };
-		} else if (message instanceof types.LanguageModelChatAssistantMessage) {
-			return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
-		} else {
-			throw new Error('Invalid LanguageModelMessage');
 		}
 	}
 }
