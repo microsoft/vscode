@@ -25,7 +25,7 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatVariables);
 	}
 
-	async $resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined> {
+	async $resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue | undefined> {
 		const item = this._resolver.get(handle);
 		if (!item) {
 			return undefined;
@@ -35,13 +35,15 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 				checkProposedApiEnabled(item.extension, 'chatParticipantAdditions');
 				const stream = new ChatVariableResolverResponseStream(requestId, this._proxy);
 				const value = await item.resolver.resolve2(item.data.name, { prompt: messageText }, stream.apiObject, token);
-				if (value) {
-					return value.map(typeConvert.ChatVariable.from);
+
+				// Temp, ignoring other returned values to convert the array into a single value
+				if (value && value[0]) {
+					return value[0].value;
 				}
 			} else {
 				const value = await item.resolver.resolve(item.data.name, { prompt: messageText }, token);
-				if (value) {
-					return value.map(typeConvert.ChatVariable.from);
+				if (value && value[0]) {
+					return value[0].value;
 				}
 			}
 		} catch (err) {

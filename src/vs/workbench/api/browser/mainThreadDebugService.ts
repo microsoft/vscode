@@ -19,6 +19,7 @@ import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Event } from 'vs/base/common/event';
+import { isDefined } from 'vs/base/common/types';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -210,18 +211,16 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 		for (const dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
-				const rawbps = dto.lines.map(l =>
-					<IBreakpointData>{
-						id: l.id,
-						enabled: l.enabled,
-						lineNumber: l.line + 1,
-						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
-						condition: l.condition,
-						hitCondition: l.hitCondition,
-						logMessage: l.logMessage,
-						mode: l.mode,
-					}
-				);
+				const rawbps = dto.lines.map((l): IBreakpointData => ({
+					id: l.id,
+					enabled: l.enabled,
+					lineNumber: l.line + 1,
+					column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
+					condition: l.condition,
+					hitCondition: l.hitCondition,
+					logMessage: l.logMessage,
+					mode: l.mode,
+				}));
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id, dto.mode);
@@ -248,7 +247,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, handle: number): Promise<void> {
 
-		const provider = <IDebugConfigurationProvider>{
+		const provider: IDebugConfigurationProvider = {
 			type: debugType,
 			triggerKind: providerTriggerKind
 		};
@@ -283,7 +282,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $registerDebugAdapterDescriptorFactory(debugType: string, handle: number): Promise<void> {
 
-		const provider = <IDebugAdapterDescriptorFactory>{
+		const provider: IDebugAdapterDescriptorFactory = {
 			type: debugType,
 			createDebugAdapterDescriptor: session => {
 				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session)));
@@ -435,8 +434,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto> {
 		return bps.map(bp => {
 			if ('name' in bp) {
-				const fbp = <IFunctionBreakpoint>bp;
-				return <IFunctionBreakpointDto>{
+				const fbp: IFunctionBreakpoint = bp;
+				return {
 					type: 'function',
 					id: fbp.getId(),
 					enabled: fbp.enabled,
@@ -444,9 +443,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					hitCondition: fbp.hitCondition,
 					logMessage: fbp.logMessage,
 					functionName: fbp.name
-				};
+				} satisfies IFunctionBreakpointDto;
 			} else if ('src' in bp) {
-				const dbp = <IDataBreakpoint>bp;
+				const dbp: IDataBreakpoint = bp;
 				return {
 					type: 'data',
 					id: dbp.getId(),
@@ -459,9 +458,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					label: dbp.description,
 					canPersist: dbp.canPersist
 				} satisfies IDataBreakpointDto;
-			} else {
-				const sbp = <IBreakpoint>bp;
-				return <ISourceBreakpointDto>{
+			} else if ('uri' in bp) {
+				const sbp: IBreakpoint = bp;
+				return {
 					type: 'source',
 					id: sbp.getId(),
 					enabled: sbp.enabled,
@@ -471,9 +470,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					uri: sbp.uri,
 					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
 					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0,
-				};
+				} satisfies ISourceBreakpointDto;
+			} else {
+				return undefined;
 			}
-		});
+		}).filter(isDefined);
 	}
 }
 
