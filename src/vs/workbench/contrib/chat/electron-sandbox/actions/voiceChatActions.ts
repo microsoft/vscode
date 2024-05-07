@@ -875,14 +875,13 @@ class TextToSpeechSessions {
 	async start(text: string): Promise<void> {
 		this.stop();
 
-		const disposables = new DisposableStore();
-		const done = new DeferredPromise<void>();
-
 		const activeSession = this.activeSession = new CancellationTokenSource();
-		disposables.add(activeSession.token.onCancellationRequested(() => {
-			disposables.dispose();
-			done.complete();
-		}));
+
+		const disposables = new DisposableStore();
+		disposables.add(activeSession.token.onCancellationRequested(() => disposables.dispose()));
+
+		const done = new DeferredPromise<void>();
+		disposables.add(toDisposable(() => done.complete()));
 
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
 		disposables.add(session.onDidChange(e => {
