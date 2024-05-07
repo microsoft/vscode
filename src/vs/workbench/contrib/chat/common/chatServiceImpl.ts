@@ -488,7 +488,7 @@ export class ChatService extends Disposable implements IChatService {
 			request = `${chatAgentLeader}${agent.name} ${request}`;
 		}
 
-		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location, options?.parserContext);
+		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location, parserContext);
 		return parsedRequest;
 	}
 
