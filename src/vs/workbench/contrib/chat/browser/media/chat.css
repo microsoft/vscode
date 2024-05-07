@@ -413,10 +413,9 @@
 .chat-notification-widget .chat-info-codicon,
 .chat-notification-widget .chat-error-codicon,
 .chat-notification-widget .chat-warning-codicon {
-	margin-left: 3px;
 	display: flex;
 	align-items: start;
-	gap: 6px;
+	gap: 8px;
 }
 
 .interactive-item-container .value .chat-notification-widget .rendered-markdown p {
@@ -627,6 +626,10 @@
 	border-radius: 4px;
 	margin-bottom: 8px;
 	padding: 4px;
+}
+
+.interactive-item-container .chat-notification-widget {
+	padding: 8px 12px;
 }
 
 .interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
