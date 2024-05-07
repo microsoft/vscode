@@ -229,7 +229,7 @@ export class CodeLensContribution implements IEditorContribution {
 			this._resolveCodeLensesPromise?.cancel();
 			this._resolveCodeLensesPromise = undefined;
 		}));
-		this._localToDispose.add(this._editor.onDidFocusEditorWidget(() => {
+		this._localToDispose.add(this._editor.onDidFocusEditorText(() => {
 			scheduler.schedule();
 		}));
 		this._localToDispose.add(this._editor.onDidBlurEditorText(() => {

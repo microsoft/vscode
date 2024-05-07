@@ -210,7 +210,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		}
 
 		await this.proxy.$runTests({
-			preserveFocus: (req as vscode.TestRunRequest2).preserveFocus ?? true,
+			preserveFocus: req.preserveFocus ?? true,
 			targets: [{
 				testIds: req.include?.map(t => TestId.fromExtHostTestItem(t, controller.collection.root.id).toString()) ?? [controller.collection.root.id],
 				profileGroup: profileGroupToBitset[profile.kind],
@@ -746,7 +746,7 @@ export class TestRunCoordinator {
 			exclude: request.exclude?.map(t => TestId.fromExtHostTestItem(t, collection.root.id).toString()) ?? [],
 			id: dto.id,
 			include: request.include?.map(t => TestId.fromExtHostTestItem(t, collection.root.id).toString()) ?? [collection.root.id],
-			preserveFocus: (request as vscode.TestRunRequest2).preserveFocus ?? true,
+			preserveFocus: request.preserveFocus ?? true,
 			persist
 		});
 

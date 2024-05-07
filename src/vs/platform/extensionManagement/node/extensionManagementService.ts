@@ -451,20 +451,28 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI, productVersion: IProductVersion): Promise<ILocalExtension[]> {
-		const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation, productVersion };
-		let scannedExtensions: IScannedExtension[] = [];
-		if (type === null || type === ExtensionType.System) {
-			scannedExtensions.push(...await this.extensionsScannerService.scanAllExtensions({ includeInvalid: true }, userScanOptions, false));
-		} else if (type === ExtensionType.User) {
-			scannedExtensions.push(...await this.extensionsScannerService.scanUserExtensions(userScanOptions));
+		try {
+			const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation, productVersion };
+			let scannedExtensions: IScannedExtension[] = [];
+			if (type === null || type === ExtensionType.System) {
+				scannedExtensions.push(...await this.extensionsScannerService.scanAllExtensions({ includeInvalid: true }, userScanOptions, false));
+			} else if (type === ExtensionType.User) {
+				scannedExtensions.push(...await this.extensionsScannerService.scanUserExtensions(userScanOptions));
+			}
+			scannedExtensions = type !== null ? scannedExtensions.filter(r => r.type === type) : scannedExtensions;
+			return await Promise.all(scannedExtensions.map(extension => this.toLocalExtension(extension)));
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.Scanning);
 		}
-		scannedExtensions = type !== null ? scannedExtensions.filter(r => r.type === type) : scannedExtensions;
-		return Promise.all(scannedExtensions.map(extension => this.toLocalExtension(extension)));
 	}
 
 	async scanAllUserExtensions(excludeOutdated: boolean): Promise<ILocalExtension[]> {
-		const scannedExtensions = await this.extensionsScannerService.scanUserExtensions({ includeAllVersions: !excludeOutdated, includeInvalid: true });
-		return Promise.all(scannedExtensions.map(extension => this.toLocalExtension(extension)));
+		try {
+			const scannedExtensions = await this.extensionsScannerService.scanUserExtensions({ includeAllVersions: !excludeOutdated, includeInvalid: true });
+			return await Promise.all(scannedExtensions.map(extension => this.toLocalExtension(extension)));
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.Scanning);
+		}
 	}
 
 	async scanUserExtensionAtLocation(location: URI): Promise<ILocalExtension | null> {
@@ -496,7 +504,11 @@ export class ExtensionsScanner extends Disposable {
 		}
 
 		if (exists) {
-			await this.extensionsScannerService.updateMetadata(extensionLocation, metadata);
+			try {
+				await this.extensionsScannerService.updateMetadata(extensionLocation, metadata);
+			} catch (error) {
+				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
+			}
 		} else {
 			try {
 				// Extract
@@ -513,10 +525,14 @@ export class ExtensionsScanner extends Disposable {
 							errorCode = ExtensionManagementErrorCode.IncompleteZip;
 						}
 					}
-					throw new ExtensionManagementError(e.message, errorCode);
+					throw toExtensionManagementError(e, errorCode);
 				}
 
-				await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
+				try {
+					await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
+				} catch (error) {
+					throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
+				}
 
 				// Rename
 				try {
@@ -558,16 +574,24 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
-		if (profileLocation) {
-			await this.extensionsProfileScannerService.updateMetadata([[local, metadata]], profileLocation);
-		} else {
-			await this.extensionsScannerService.updateMetadata(local.location, metadata);
+		try {
+			if (profileLocation) {
+				await this.extensionsProfileScannerService.updateMetadata([[local, metadata]], profileLocation);
+			} else {
+				await this.extensionsScannerService.updateMetadata(local.location, metadata);
+			}
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
 		}
 		return this.scanLocalExtension(local.location, local.type, profileLocation);
 	}
 
-	getUninstalledExtensions(): Promise<IStringDictionary<boolean>> {
-		return this.withUninstalledExtensions();
+	async getUninstalledExtensions(): Promise<IStringDictionary<boolean>> {
+		try {
+			return await this.withUninstalledExtensions();
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.ReadUninstalled);
+		}
 	}
 
 	async setUninstalled(...extensions: IExtension[]): Promise<void> {
@@ -580,7 +604,11 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async setInstalled(extensionKey: ExtensionKey): Promise<void> {
-		await this.withUninstalledExtensions(uninstalled => delete uninstalled[extensionKey.toString()]);
+		try {
+			await this.withUninstalledExtensions(uninstalled => delete uninstalled[extensionKey.toString()]);
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UnsetUninstalled);
+		}
 	}
 
 	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
@@ -630,7 +658,7 @@ export class ExtensionsScanner extends Disposable {
 		this.logService.info(`Deleted ${type} extension from disk`, id, location.fsPath);
 	}
 
-	private async withUninstalledExtensions(updateFn?: (uninstalled: IStringDictionary<boolean>) => void): Promise<IStringDictionary<boolean>> {
+	private withUninstalledExtensions(updateFn?: (uninstalled: IStringDictionary<boolean>) => void): Promise<IStringDictionary<boolean>> {
 		return this.uninstalledFileLimiter.queue(async () => {
 			let raw: string | undefined;
 			try {
@@ -666,24 +694,28 @@ export class ExtensionsScanner extends Disposable {
 		try {
 			await pfs.Promises.rename(extractPath, renamePath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
-			throw new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || ExtensionManagementErrorCode.Rename);
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.Rename);
 		}
 	}
 
 	private async scanLocalExtension(location: URI, type: ExtensionType, profileLocation?: URI): Promise<ILocalExtension> {
-		if (profileLocation) {
-			const scannedExtensions = await this.extensionsScannerService.scanUserExtensions({ profileLocation });
-			const scannedExtension = scannedExtensions.find(e => this.uriIdentityService.extUri.isEqual(e.location, location));
-			if (scannedExtension) {
-				return this.toLocalExtension(scannedExtension);
+		try {
+			if (profileLocation) {
+				const scannedExtensions = await this.extensionsScannerService.scanUserExtensions({ profileLocation });
+				const scannedExtension = scannedExtensions.find(e => this.uriIdentityService.extUri.isEqual(e.location, location));
+				if (scannedExtension) {
+					return await this.toLocalExtension(scannedExtension);
+				}
+			} else {
+				const scannedExtension = await this.extensionsScannerService.scanExistingExtension(location, type, { includeInvalid: true });
+				if (scannedExtension) {
+					return await this.toLocalExtension(scannedExtension);
+				}
 			}
-		} else {
-			const scannedExtension = await this.extensionsScannerService.scanExistingExtension(location, type, { includeInvalid: true });
-			if (scannedExtension) {
-				return this.toLocalExtension(scannedExtension);
-			}
+			throw new ExtensionManagementError(nls.localize('cannot read', "Cannot read the extension from {0}", location.path), ExtensionManagementErrorCode.ScanningExtension);
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.ScanningExtension);
 		}
-		throw new Error(nls.localize('cannot read', "Cannot read the extension from {0}", location.path));
 	}
 
 	private async toLocalExtension(extension: IScannedExtension): Promise<ILocalExtension> {
@@ -821,9 +853,17 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 		const [local, metadata] = await this.install(token);
 		this._profileLocation = local.isBuiltin || local.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : this.options.profileLocation;
 		if (this.uriIdentityService.extUri.isEqual(this.userDataProfilesService.defaultProfile.extensionsResource, this._profileLocation)) {
-			await this.extensionsScannerService.initializeDefaultProfileExtensions();
+			try {
+				await this.extensionsScannerService.initializeDefaultProfileExtensions();
+			} catch (error) {
+				throw toExtensionManagementError(error, ExtensionManagementErrorCode.IntializeDefaultProfile);
+			}
 		}
-		await this.extensionsProfileScannerService.addExtensionsToProfile([[local, metadata]], this._profileLocation, !local.isValid);
+		try {
+			await this.extensionsProfileScannerService.addExtensionsToProfile([[local, metadata]], this._profileLocation, !local.isValid);
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.AddToProfile);
+		}
 		return local;
 	}
 
@@ -840,8 +880,8 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 	}
 
 	protected async unsetIfUninstalled(extensionKey: ExtensionKey): Promise<ILocalExtension | undefined> {
-		const isUninstalled = await this.isUninstalled(extensionKey);
-		if (!isUninstalled) {
+		const uninstalled = await this.extensionsScanner.getUninstalledExtensions();
+		if (!uninstalled[extensionKey.toString()]) {
 			return undefined;
 		}
 
@@ -852,11 +892,6 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 
 		const userExtensions = await this.extensionsScanner.scanAllUserExtensions(true);
 		return userExtensions.find(i => ExtensionKey.create(i).equals(extensionKey));
-	}
-
-	private async isUninstalled(extensionId: ExtensionKey): Promise<boolean> {
-		const uninstalled = await this.extensionsScanner.getUninstalledExtensions();
-		return !!uninstalled[extensionId.toString()];
 	}
 
 	protected abstract install(token: CancellationToken): Promise<[ILocalExtension, Metadata]>;
@@ -882,13 +917,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 	}
 
 	protected async install(token: CancellationToken): Promise<[ILocalExtension, Metadata]> {
-		let installed;
-		try {
-			installed = await this.extensionsScanner.scanExtensions(null, this.options.profileLocation, this.options.productVersion);
-		} catch (error) {
-			throw new ExtensionManagementError(error, ExtensionManagementErrorCode.Scanning);
-		}
-
+		const installed = await this.extensionsScanner.scanExtensions(null, this.options.profileLocation, this.options.productVersion);
 		const existingExtension = installed.find(i => areSameExtensions(i.identifier, this.gallery.identifier));
 		if (existingExtension) {
 			this._operation = InstallOperation.Update;
@@ -915,64 +944,56 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		};
 
 		if (existingExtension && existingExtension.type !== ExtensionType.System && existingExtension.manifest.version === this.gallery.version) {
-			try {
-				const local = await this.extensionsScanner.updateMetadata(existingExtension, metadata);
-				return [local, metadata];
-			} catch (error) {
-				throw new ExtensionManagementError(getErrorMessage(error), ExtensionManagementErrorCode.UpdateMetadata);
-			}
+			const local = await this.extensionsScanner.updateMetadata(existingExtension, metadata);
+			return [local, metadata];
 		}
 
-		try {
-			return await this.downloadAndInstallExtension(metadata, token);
-		} catch (error) {
-			if (error instanceof ExtensionManagementError && (error.code === ExtensionManagementErrorCode.CorruptZip || error.code === ExtensionManagementErrorCode.IncompleteZip)) {
-				this.logService.info(`Downloaded VSIX is invalid. Trying to download and install again...`, this.gallery.identifier.id);
-				type RetryInstallingInvalidVSIXClassification = {
-					owner: 'sandy081';
-					comment: 'Event reporting the retry of installing an invalid VSIX';
-					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension Id' };
-					succeeded?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Success value' };
-				};
-				type RetryInstallingInvalidVSIXEvent = {
-					extensionId: string;
-					succeeded: boolean;
-				};
-				try {
-					const result = await this.downloadAndInstallExtension(metadata, token);
-					this.telemetryService.publicLog2<RetryInstallingInvalidVSIXEvent, RetryInstallingInvalidVSIXClassification>('extensiongallery:install:retry', {
-						extensionId: this.gallery.identifier.id,
-						succeeded: true
-					});
-					return result;
-				} catch (error) {
-					this.telemetryService.publicLog2<RetryInstallingInvalidVSIXEvent, RetryInstallingInvalidVSIXClassification>('extensiongallery:install:retry', {
-						extensionId: this.gallery.identifier.id,
-						succeeded: false
-					});
-					throw error;
-				}
-			} else {
-				throw error;
-			}
-		}
-	}
-
-	private async downloadAndInstallExtension(metadata: Metadata, token: CancellationToken): Promise<[ILocalExtension, Metadata]> {
-		const { location, verificationStatus } = await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature);
+		const { verificationStatus, location } = await this.download(metadata, token);
 		try {
 			this._verificationStatus = verificationStatus;
-			this.validateManifest(location.fsPath);
+			await this.validateManifest(location.fsPath);
 			const local = await this.extractExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, false, token);
 			return [local, metadata];
 		} catch (error) {
 			try {
 				await this.extensionsDownloader.delete(location);
-			} catch (error) {
+			} catch (e) {
 				/* Ignore */
-				this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(error));
+				this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(e));
 			}
 			throw error;
+		}
+	}
+
+	private async download(metadata: Metadata, token: CancellationToken): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
+		try {
+			return await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature);
+		} catch (error) {
+			this.logService.info(`Failed downloading. Retry again...`, this.gallery.identifier.id);
+			type RetryDownloadingVSIXClassification = {
+				owner: 'sandy081';
+				comment: 'Event reporting the retry of downloading the VSIX';
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension Id' };
+				succeeded?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Success value' };
+			};
+			type RetryDownloadingVSIXEvent = {
+				extensionId: string;
+				succeeded: boolean;
+			};
+			try {
+				const result = await this.download(metadata, token);
+				this.telemetryService.publicLog2<RetryDownloadingVSIXEvent, RetryDownloadingVSIXClassification>('extensiongallery:download:retry', {
+					extensionId: this.gallery.identifier.id,
+					succeeded: true
+				});
+				return result;
+			} catch (error) {
+				this.telemetryService.publicLog2<RetryDownloadingVSIXEvent, RetryDownloadingVSIXClassification>('extensiongallery:download:retry', {
+					extensionId: this.gallery.identifier.id,
+					succeeded: false
+				});
+				throw error;
+			}
 		}
 	}
 
@@ -980,7 +1001,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		try {
 			await getManifest(zipPath);
 		} catch (error) {
-			throw new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Invalid);
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.Invalid);
 		}
 	}
 

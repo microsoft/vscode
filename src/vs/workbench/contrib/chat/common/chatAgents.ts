@@ -60,10 +60,13 @@ export interface IChatAgentData {
 	description?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
-	extensionPublisherDisplayName?: string;
+	/** This is the extension publisher id, or, in the case of a dynamically registered participant (remote agent), whatever publisher name we have for it */
+	publisherDisplayName?: string;
 	extensionDisplayName: string;
 	/** The agent invoked when no agent is specified */
 	isDefault?: boolean;
+	/** This agent is not contributed in package.json, but is registered dynamically */
+	isDynamic?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	defaultImplicitVariables?: string[];
@@ -236,6 +239,7 @@ export class ChatAgentService implements IChatAgentService {
 	}
 
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable {
+		data.isDynamic = true;
 		const agent = { data, impl: agentImpl };
 		this._agents.push(agent);
 		this._onDidChangeAgents.fire(new MergedChatAgent(data, agentImpl));
@@ -327,7 +331,7 @@ export class MergedChatAgent implements IChatAgent {
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
-	get extensionPublisherDisplayName() { return this.data.extensionPublisherDisplayName; }
+	get extensionPublisherDisplayName() { return this.data.publisherDisplayName; }
 	get extensionDisplayName(): string { return this.data.extensionDisplayName; }
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }

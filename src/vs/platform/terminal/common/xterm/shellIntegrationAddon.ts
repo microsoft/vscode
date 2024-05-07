@@ -484,10 +484,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal) {
 			return;
 		}
-		const lastPromptLine = prompt.substring(prompt.lastIndexOf('\n')).trim();
-		const promptTerminator = lastPromptLine.substring(lastPromptLine.lastIndexOf(' ')).trim();
+		const lastPromptLine = prompt.substring(prompt.lastIndexOf('\n') + 1);
+		const promptTerminator = lastPromptLine.substring(lastPromptLine.lastIndexOf(' '));
 		if (promptTerminator) {
-			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator);
+			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator, lastPromptLine);
 		}
 	}
 

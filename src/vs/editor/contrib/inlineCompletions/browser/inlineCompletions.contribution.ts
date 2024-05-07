@@ -7,7 +7,9 @@ import { EditorContributionInstantiation, registerEditorAction, registerEditorCo
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { TriggerInlineSuggestionAction, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction, AcceptNextWordOfInlineCompletion, AcceptInlineCompletion, HideInlineCompletion, ToggleAlwaysShowInlineSuggestionToolbar, AcceptNextLineOfInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/commands';
 import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/browser/hoverParticipant';
+import { InlineCompletionsAccessibleView } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsAccessibleView';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 
 registerEditorContribution(InlineCompletionsController.ID, InlineCompletionsController, EditorContributionInstantiation.Eventually);
@@ -22,3 +24,5 @@ registerEditorAction(HideInlineCompletion);
 registerAction2(ToggleAlwaysShowInlineSuggestionToolbar);
 
 HoverParticipantRegistry.register(InlineCompletionsHoverParticipant);
+
+AccessibleViewRegistry.register(new InlineCompletionsAccessibleView());

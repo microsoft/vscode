@@ -43,11 +43,11 @@ import { IWorkbenchLayoutService, LayoutSettings, Position } from 'vs/workbench/
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export const ViewsSubMenu = new MenuId('Views');
-MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	submenu: ViewsSubMenu,
 	title: nls.localize('views', "Views"),
 	order: 1,
-});
+} satisfies ISubmenuItem);
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
 	mergeViewWithContainerWhenSingleView: boolean;
