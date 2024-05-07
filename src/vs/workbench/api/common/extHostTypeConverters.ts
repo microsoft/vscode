@@ -2052,7 +2052,7 @@ export namespace TestCoverage {
 		}
 	}
 
-	export function fromFile(id: string, coverage: vscode.FileCoverage): IFileCoverage.Serialized {
+	export function fromFile(controllerId: string, id: string, coverage: vscode.FileCoverage): IFileCoverage.Serialized {
 		types.validateTestCoverageCount(coverage.statementCoverage);
 		types.validateTestCoverageCount(coverage.branchCoverage);
 		types.validateTestCoverageCount(coverage.declarationCoverage);
@@ -2063,6 +2063,8 @@ export namespace TestCoverage {
 			statement: fromCoverageCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoverageCount(coverage.branchCoverage),
 			declaration: coverage.declarationCoverage && fromCoverageCount(coverage.declarationCoverage),
+			testId: coverage instanceof types.FileCoverage && coverage.testItem ?
+				TestId.fromExtHostTestItem(coverage.testItem, controllerId).toString() : undefined,
 		};
 	}
 }
