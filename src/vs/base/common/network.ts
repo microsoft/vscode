@@ -322,6 +322,7 @@ class FileAccessImpl {
 
 	private toUri(uriOrModule: URI | string): URI {
 		if (uriOrModule === '') {
+			console.log({ root })
 			return URI.parse(root)
 		}
 		if (URI.isUri(uriOrModule)) {
