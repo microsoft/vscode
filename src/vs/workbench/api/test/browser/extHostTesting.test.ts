@@ -658,6 +658,7 @@ suite('ExtHost Testing', () => {
 				include: undefined,
 				exclude: [single.root.children.get('id-b')!],
 				profile: configuration,
+				preserveFocus: false,
 			};
 
 			dto = TestRunDto.fromInternal({
@@ -752,7 +753,7 @@ suite('ExtHost Testing', () => {
 					exclude: [new TestId(['ctrlId', 'id-b']).toString()],
 					persist: false,
 					continuous: false,
-					preserveFocus: true,
+					preserveFocus: false,
 				}]
 			]);
 
@@ -867,6 +868,7 @@ suite('ExtHost Testing', () => {
 				profile: configuration,
 				include: [single.root.children.get('id-a')!],
 				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
+				preserveFocus: false,
 			}, 'hello world', false);
 
 			task.passed(single.root.children.get('id-a')!.children.get('id-aa')!);

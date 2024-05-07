@@ -1679,7 +1679,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
-			TestRunRequest2: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
@@ -1733,7 +1732,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatLocation: extHostTypes.ChatLocation,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
-			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
+			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
+			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage, // TODO@jrieken REMOVE
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,// TODO@jrieken REMOVE
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,// TODO@jrieken REMOVE
 			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,// TODO@jrieken REMOVE
