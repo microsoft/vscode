@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
-import { FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { Lazy } from "vs/base/common/lazy";
+import { FileAccess } from "vs/base/common/network";
+import { URI } from "vs/base/common/uri";
 
 declare const __readFileInTests: (path: string) => Promise<string>;
-declare const __writeFileInTests: (path: string, contents: string) => Promise<void>;
+declare const __writeFileInTests: (
+	path: string,
+	contents: string
+) => Promise<void>;
 declare const __readDirInTests: (path: string) => Promise<string[]>;
 declare const __unlinkInTests: (path: string) => Promise<void>;
 declare const __mkdirPInTests: (path: string) => Promise<void>;
 
 // setup on import so assertSnapshot has the current context without explicit passing
 let context: Lazy<SnapshotContext> | undefined;
-const sanitizeName = (name: string) => name.replace(/[^a-z0-9_-]/gi, '_');
-const normalizeCrlf = (str: string) => str.replace(/\r\n/g, '\n');
+const sanitizeName = (name: string) => name.replace(/[^a-z0-9_-]/gi, "_");
+const normalizeCrlf = (str: string) => str.replace(/\r\n/g, "\n");
 
 export interface ISnapshotOptions {
 	/** Name for snapshot file, rather than an incremented number */
@@ -37,31 +40,38 @@ export class SnapshotContext {
 
 	constructor(private readonly test: Mocha.Test | undefined) {
 		if (!test) {
-			throw new Error('assertSnapshot can only be used in a test');
+			throw new Error("assertSnapshot can only be used in a test");
 		}
 
 		if (!test.file) {
-			throw new Error('currentTest.file is not set, please open an issue with the test you\'re trying to run');
+			throw new Error(
+				"currentTest.file is not set, please open an issue with the test you're trying to run"
+			);
 		}
 
-		const src = FileAccess.asFileUri('');
+		const src = FileAccess.asFileUri("");
 		const parts = test.file.split(/[/\\]/g);
+		const relevantIndex = parts.indexOf("out");
+		const relevantParts = parts.slice(relevantIndex, -1);
 
-		console.log({ srcString: src.toString(), src: src.fsPath, parts })
+		console.log({ srcString: src.toString(), src: src.fsPath, parts });
 
-		this.namePrefix = sanitizeName(test.fullTitle()) + '.';
-		this.snapshotsDir = URI.joinPath(src, ...[...parts.slice(0, -1), '__snapshots__']);
+		this.namePrefix = sanitizeName(test.fullTitle()) + ".";
+		this.snapshotsDir = URI.joinPath(src, ...relevantParts, "__snapshots__");
 	}
 
 	public async assert(value: any, options?: ISnapshotOptions) {
 		const originalStack = new Error().stack!; // save to make the stack nicer on failure
-		const nameOrIndex = (options?.name ? sanitizeName(options.name) : this.nextIndex++);
-		const fileName = this.namePrefix + nameOrIndex + '.' + (options?.extension || 'snap');
+		const nameOrIndex = options?.name
+			? sanitizeName(options.name)
+			: this.nextIndex++;
+		const fileName =
+			this.namePrefix + nameOrIndex + "." + (options?.extension || "snap");
 		this.usedNames.add(fileName);
 
 		const fpath = URI.joinPath(this.snapshotsDir, fileName).fsPath;
-		console.log({ fpath })
-		console.log('before read')
+		console.log({ fpath });
+		console.log("before read");
 		const actual = formatValue(value);
 		let expected: string;
 		try {
@@ -74,85 +84,111 @@ export class SnapshotContext {
 		}
 
 		if (normalizeCrlf(expected) !== normalizeCrlf(actual)) {
-			console.log('before write, err')
-			await __writeFileInTests(fpath + '.actual', actual);
-			const err: any = new Error(`Snapshot #${nameOrIndex} does not match expected output`);
+			console.log("before write, err");
+			await __writeFileInTests(fpath + ".actual", actual);
+			const err: any = new Error(
+				`Snapshot #${nameOrIndex} does not match expected output`
+			);
 			err.expected = expected;
 			err.actual = actual;
 			err.snapshotPath = fpath;
 			err.stack = (err.stack as string)
-				.split('\n')
+				.split("\n")
 				// remove all frames from the async stack and keep the original caller's frame
 				.slice(0, 1)
-				.concat(originalStack.split('\n').slice(3))
-				.join('\n');
+				.concat(originalStack.split("\n").slice(3))
+				.join("\n");
 			throw err;
 		}
 	}
 
 	public async removeOldSnapshots() {
-		console.log('remove old')
+		console.log("remove old");
 		const contents = await __readDirInTests(this.snapshotsDir.fsPath);
-		const toDelete = contents.filter(f => f.startsWith(this.namePrefix) && !this.usedNames.has(f));
+		const toDelete = contents.filter(
+			(f) => f.startsWith(this.namePrefix) && !this.usedNames.has(f)
+		);
 		if (toDelete.length) {
-			console.info(`Deleting ${toDelete.length} old snapshots for ${this.test?.fullTitle()}`);
+			console.info(
+				`Deleting ${
+					toDelete.length
+				} old snapshots for ${this.test?.fullTitle()}`
+			);
 		}
 
-		await Promise.all(toDelete.map(f => __unlinkInTests(URI.joinPath(this.snapshotsDir, f).fsPath)));
+		await Promise.all(
+			toDelete.map((f) =>
+				__unlinkInTests(URI.joinPath(this.snapshotsDir, f).fsPath)
+			)
+		);
 	}
 }
 
-const debugDescriptionSymbol = Symbol.for('debug.description');
+const debugDescriptionSymbol = Symbol.for("debug.description");
 
 function formatValue(value: unknown, level = 0, seen: unknown[] = []): string {
 	switch (typeof value) {
-		case 'bigint':
-		case 'boolean':
-		case 'number':
-		case 'symbol':
-		case 'undefined':
+		case "bigint":
+		case "boolean":
+		case "number":
+		case "symbol":
+		case "undefined":
 			return String(value);
-		case 'string':
+		case "string":
 			return level === 0 ? value : JSON.stringify(value);
-		case 'function':
+		case "function":
 			return `[Function ${value.name}]`;
-		case 'object': {
+		case "object": {
 			if (value === null) {
-				return 'null';
+				return "null";
 			}
 			if (value instanceof RegExp) {
 				return String(value);
 			}
 			if (seen.includes(value)) {
-				return '[Circular]';
+				return "[Circular]";
 			}
-			if (debugDescriptionSymbol in value && typeof (value as any)[debugDescriptionSymbol] === 'function') {
+			if (
+				debugDescriptionSymbol in value &&
+				typeof (value as any)[debugDescriptionSymbol] === "function"
+			) {
 				return (value as any)[debugDescriptionSymbol]();
 			}
-			const oi = '  '.repeat(level);
-			const ci = '  '.repeat(level + 1);
+			const oi = "  ".repeat(level);
+			const ci = "  ".repeat(level + 1);
 			if (Array.isArray(value)) {
-				const children = value.map(v => formatValue(v, level + 1, [...seen, value]));
-				const multiline = children.some(c => c.includes('\n')) || children.join(', ').length > 80;
-				return multiline ? `[\n${ci}${children.join(`,\n${ci}`)}\n${oi}]` : `[ ${children.join(', ')} ]`;
+				const children = value.map((v) =>
+					formatValue(v, level + 1, [...seen, value])
+				);
+				const multiline =
+					children.some((c) => c.includes("\n")) ||
+					children.join(", ").length > 80;
+				return multiline
+					? `[\n${ci}${children.join(`,\n${ci}`)}\n${oi}]`
+					: `[ ${children.join(", ")} ]`;
 			}
 
 			let entries;
-			let prefix = '';
+			let prefix = "";
 			if (value instanceof Map) {
-				prefix = 'Map ';
+				prefix = "Map ";
 				entries = [...value.entries()];
 			} else if (value instanceof Set) {
-				prefix = 'Set ';
+				prefix = "Set ";
 				entries = [...value.entries()];
 			} else {
 				entries = Object.entries(value);
 			}
 
-			const lines = entries.map(([k, v]) => `${k}: ${formatValue(v, level + 1, [...seen, value])}`);
-			return prefix + (lines.length > 1
-				? `{\n${ci}${lines.join(`,\n${ci}`)}\n${oi}}`
-				: `{ ${lines.join(',\n')} }`);
+			const lines = entries.map(
+				([k, v]) => `${k}: ${formatValue(v, level + 1, [...seen, value])}`
+			);
+			return (
+				prefix +
+				(lines.length > 1
+					? `{\n${ci}${lines.join(`,\n${ci}`)}\n${oi}}`
+					: `{ ${lines.join(",\n")} }`)
+			);
 		}
 		default:
 			throw new Error(`Unknown type ${value}`);
@@ -164,7 +200,7 @@ setup(function () {
 	context = new Lazy(() => new SnapshotContext(currentTest));
 });
 teardown(async function () {
-	if (this.currentTest?.state === 'passed') {
+	if (this.currentTest?.state === "passed") {
 		await context?.rawValue?.removeOldSnapshots();
 	}
 	context = undefined;
@@ -182,9 +218,12 @@ teardown(async function () {
  * in a `__snapshots__` directory next to the test file, which is expected to
  * be the first `.test.js` file in the callstack.
  */
-export function assertSnapshot(value: any, options?: ISnapshotOptions): Promise<void> {
+export function assertSnapshot(
+	value: any,
+	options?: ISnapshotOptions
+): Promise<void> {
 	if (!context) {
-		throw new Error('assertSnapshot can only be used in a test');
+		throw new Error("assertSnapshot can only be used in a test");
 	}
 
 	return context.value.assert(value, options);
