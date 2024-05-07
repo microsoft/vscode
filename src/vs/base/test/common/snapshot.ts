@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from "vs/base/common/lazy";
-import { FileAccess } from "vs/base/common/network";
-import { URI } from "vs/base/common/uri";
+import { Lazy } from 'vs/base/common/lazy';
+import { FileAccess } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 declare const __readFileInTests: (path: string) => Promise<string>;
 declare const __writeFileInTests: (
@@ -18,8 +18,8 @@ declare const __mkdirPInTests: (path: string) => Promise<void>;
 
 // setup on import so assertSnapshot has the current context without explicit passing
 let context: Lazy<SnapshotContext> | undefined;
-const sanitizeName = (name: string) => name.replace(/[^a-z0-9_-]/gi, "_");
-const normalizeCrlf = (str: string) => str.replace(/\r\n/g, "\n");
+const sanitizeName = (name: string) => name.replace(/[^a-z0-9_-]/gi, '_');
+const normalizeCrlf = (str: string) => str.replace(/\r\n/g, '\n');
 
 export interface ISnapshotOptions {
 	/** Name for snapshot file, rather than an incremented number */
@@ -40,22 +40,22 @@ export class SnapshotContext {
 
 	constructor(private readonly test: Mocha.Test | undefined) {
 		if (!test) {
-			throw new Error("assertSnapshot can only be used in a test");
+			throw new Error('assertSnapshot can only be used in a test');
 		}
 
 		if (!test.file) {
 			throw new Error(
-				"currentTest.file is not set, please open an issue with the test you're trying to run"
+				'currentTest.file is not set, please open an issue with the test you\'re trying to run'
 			);
 		}
 
-		const src = FileAccess.asFileUri("");
+		const src = FileAccess.asFileUri('');
 		const parts = test.file.split(/[/\\]/g);
-		const relevantIndex = parts.indexOf("out");
+		const relevantIndex = parts.indexOf('out');
 		const relevantParts = parts.slice(relevantIndex, -1);
 
-		this.namePrefix = sanitizeName(test.fullTitle()) + ".";
-		this.snapshotsDir = URI.joinPath(src, ...relevantParts, "__snapshots__");
+		this.namePrefix = sanitizeName(test.fullTitle()) + '.';
+		this.snapshotsDir = URI.joinPath(src, ...relevantParts, '__snapshots__');
 	}
 
 	public async assert(value: any, options?: ISnapshotOptions) {
@@ -64,7 +64,7 @@ export class SnapshotContext {
 			? sanitizeName(options.name)
 			: this.nextIndex++;
 		const fileName =
-			this.namePrefix + nameOrIndex + "." + (options?.extension || "snap");
+			this.namePrefix + nameOrIndex + '.' + (options?.extension || 'snap');
 		this.usedNames.add(fileName);
 
 		const fpath = URI.joinPath(this.snapshotsDir, fileName).fsPath;
@@ -80,7 +80,7 @@ export class SnapshotContext {
 		}
 
 		if (normalizeCrlf(expected) !== normalizeCrlf(actual)) {
-			await __writeFileInTests(fpath + ".actual", actual);
+			await __writeFileInTests(fpath + '.actual', actual);
 			const err: any = new Error(
 				`Snapshot #${nameOrIndex} does not match expected output`
 			);
@@ -88,11 +88,11 @@ export class SnapshotContext {
 			err.actual = actual;
 			err.snapshotPath = fpath;
 			err.stack = (err.stack as string)
-				.split("\n")
+				.split('\n')
 				// remove all frames from the async stack and keep the original caller's frame
 				.slice(0, 1)
-				.concat(originalStack.split("\n").slice(3))
-				.join("\n");
+				.concat(originalStack.split('\n').slice(3))
+				.join('\n');
 			throw err;
 		}
 	}
@@ -104,8 +104,7 @@ export class SnapshotContext {
 		);
 		if (toDelete.length) {
 			console.info(
-				`Deleting ${
-					toDelete.length
+				`Deleting ${toDelete.length
 				} old snapshots for ${this.test?.fullTitle()}`
 			);
 		}
@@ -118,57 +117,57 @@ export class SnapshotContext {
 	}
 }
 
-const debugDescriptionSymbol = Symbol.for("debug.description");
+const debugDescriptionSymbol = Symbol.for('debug.description');
 
 function formatValue(value: unknown, level = 0, seen: unknown[] = []): string {
 	switch (typeof value) {
-		case "bigint":
-		case "boolean":
-		case "number":
-		case "symbol":
-		case "undefined":
+		case 'bigint':
+		case 'boolean':
+		case 'number':
+		case 'symbol':
+		case 'undefined':
 			return String(value);
-		case "string":
+		case 'string':
 			return level === 0 ? value : JSON.stringify(value);
-		case "function":
+		case 'function':
 			return `[Function ${value.name}]`;
-		case "object": {
+		case 'object': {
 			if (value === null) {
-				return "null";
+				return 'null';
 			}
 			if (value instanceof RegExp) {
 				return String(value);
 			}
 			if (seen.includes(value)) {
-				return "[Circular]";
+				return '[Circular]';
 			}
 			if (
 				debugDescriptionSymbol in value &&
-				typeof (value as any)[debugDescriptionSymbol] === "function"
+				typeof (value as any)[debugDescriptionSymbol] === 'function'
 			) {
 				return (value as any)[debugDescriptionSymbol]();
 			}
-			const oi = "  ".repeat(level);
-			const ci = "  ".repeat(level + 1);
+			const oi = '  '.repeat(level);
+			const ci = '  '.repeat(level + 1);
 			if (Array.isArray(value)) {
 				const children = value.map((v) =>
 					formatValue(v, level + 1, [...seen, value])
 				);
 				const multiline =
-					children.some((c) => c.includes("\n")) ||
-					children.join(", ").length > 80;
+					children.some((c) => c.includes('\n')) ||
+					children.join(', ').length > 80;
 				return multiline
 					? `[\n${ci}${children.join(`,\n${ci}`)}\n${oi}]`
-					: `[ ${children.join(", ")} ]`;
+					: `[ ${children.join(', ')} ]`;
 			}
 
 			let entries;
-			let prefix = "";
+			let prefix = '';
 			if (value instanceof Map) {
-				prefix = "Map ";
+				prefix = 'Map ';
 				entries = [...value.entries()];
 			} else if (value instanceof Set) {
-				prefix = "Set ";
+				prefix = 'Set ';
 				entries = [...value.entries()];
 			} else {
 				entries = Object.entries(value);
@@ -181,7 +180,7 @@ function formatValue(value: unknown, level = 0, seen: unknown[] = []): string {
 				prefix +
 				(lines.length > 1
 					? `{\n${ci}${lines.join(`,\n${ci}`)}\n${oi}}`
-					: `{ ${lines.join(",\n")} }`)
+					: `{ ${lines.join(',\n')} }`)
 			);
 		}
 		default:
@@ -194,7 +193,7 @@ setup(function () {
 	context = new Lazy(() => new SnapshotContext(currentTest));
 });
 teardown(async function () {
-	if (this.currentTest?.state === "passed") {
+	if (this.currentTest?.state === 'passed') {
 		await context?.rawValue?.removeOldSnapshots();
 	}
 	context = undefined;
@@ -217,7 +216,7 @@ export function assertSnapshot(
 	options?: ISnapshotOptions
 ): Promise<void> {
 	if (!context) {
-		throw new Error("assertSnapshot can only be used in a test");
+		throw new Error('assertSnapshot can only be used in a test');
 	}
 
 	return context.value.assert(value, options);
