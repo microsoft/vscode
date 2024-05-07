@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostSpeechShape, IMainContext, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -31,6 +31,8 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			return;
 		}
 
+		const disposables = new DisposableStore();
+
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
@@ -39,7 +41,15 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			return;
 		}
 
-		speechToTextSession.onDidChange(e => this.proxy.$emitSpeechToTextEvent(session, e));
+		disposables.add(speechToTextSession.onDidChange(e => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			this.proxy.$emitSpeechToTextEvent(session, e);
+		}));
+
+		disposables.add(cts.token.onCancellationRequested(() => disposables.dispose()));
 	}
 
 	async $cancelSpeechToTextSession(session: number): Promise<void> {
@@ -53,6 +63,8 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			return;
 		}
 
+		const disposables = new DisposableStore();
+
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
@@ -63,7 +75,15 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 
 		this.synthesizers.set(session, textToSpeech);
 
-		textToSpeech.onDidChange(e => this.proxy.$emitTextToSpeechEvent(session, e));
+		disposables.add(textToSpeech.onDidChange(e => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			this.proxy.$emitTextToSpeechEvent(session, e);
+		}));
+
+		disposables.add(cts.token.onCancellationRequested(() => disposables.dispose()));
 	}
 
 	async $synthesizeSpeech(session: number, text: string): Promise<void> {
@@ -82,6 +102,8 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			return;
 		}
 
+		const disposables = new DisposableStore();
+
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
@@ -90,7 +112,15 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			return;
 		}
 
-		keywordRecognitionSession.onDidChange(e => this.proxy.$emitKeywordRecognitionEvent(session, e));
+		disposables.add(keywordRecognitionSession.onDidChange(e => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			this.proxy.$emitKeywordRecognitionEvent(session, e);
+		}));
+
+		disposables.add(cts.token.onCancellationRequested(() => disposables.dispose()));
 	}
 
 	async $cancelKeywordRecognitionSession(session: number): Promise<void> {

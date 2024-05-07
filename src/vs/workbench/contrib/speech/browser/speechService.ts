@@ -142,10 +142,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 	async createSpeechToTextSession(token: CancellationToken, context: string = 'speech'): Promise<ISpeechToTextSession> {
 		const provider = await this.getProvider();
 
-		const cts = new CancellationTokenSource(token);
-
 		const language = speechLanguageConfigToLanguage(this.configurationService.getValue<unknown>(SPEECH_LANGUAGE_CONFIG));
-		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(cts.token, typeof language === 'string' ? { language } : undefined);
+		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token, typeof language === 'string' ? { language } : undefined);
 
 		const sessionStart = Date.now();
 		let sessionRecognized = false;
@@ -153,9 +151,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 		let sessionContentLength = 0;
 
 		const disposables = new DisposableStore();
-		disposables.add(toDisposable(() => cts.dispose(true)));
 
-		const onSessionStoppedOrCanceled = (canceled: boolean) => {
+		const onSessionStoppedOrCanceled = () => {
 			if (session === this._activeSpeechToTextSession) {
 				this._activeSpeechToTextSession = undefined;
 				this.speechToTextInProgress.reset();
@@ -189,14 +186,12 @@ export class SpeechService extends Disposable implements ISpeechService {
 				});
 			}
 
-			if (canceled) {
-				disposables.dispose();
-			}
+			disposables.dispose();
 		};
 
-		disposables.add(cts.token.onCancellationRequested(() => onSessionStoppedOrCanceled(true)));
-		if (cts.token.isCancellationRequested) {
-			onSessionStoppedOrCanceled(true);
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+		if (token.isCancellationRequested) {
+			onSessionStoppedOrCanceled();
 		}
 
 		disposables.add(session.onDidChange(e => {
@@ -216,7 +211,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
-					onSessionStoppedOrCanceled(false);
+					onSessionStoppedOrCanceled();
 					break;
 				case SpeechToTextStatus.Error:
 					this.logService.error(`Speech provider error in speech to text session: ${e.text}`);
@@ -261,17 +256,14 @@ export class SpeechService extends Disposable implements ISpeechService {
 	async createTextToSpeechSession(token: CancellationToken, context: string = 'speech'): Promise<ITextToSpeechSession> {
 		const provider = await this.getProvider();
 
-		const cts = new CancellationTokenSource(token);
-
-		const session = this._activeTextToSpeechSession = provider.createTextToSpeechSession(cts.token);
+		const session = this._activeTextToSpeechSession = provider.createTextToSpeechSession(token);
 
 		const sessionStart = Date.now();
 		let sessionError = false;
 
 		const disposables = new DisposableStore();
-		disposables.add(toDisposable(() => cts.dispose(true)));
 
-		const onSessionStoppedOrCanceled = (canceled: boolean) => {
+		const onSessionStoppedOrCanceled = () => {
 			if (session === this._activeTextToSpeechSession) {
 				this._activeTextToSpeechSession = undefined;
 				this.textToSpeechInProgress.reset();
@@ -296,14 +288,12 @@ export class SpeechService extends Disposable implements ISpeechService {
 				});
 			}
 
-			if (canceled) {
-				disposables.dispose();
-			}
+			disposables.dispose();
 		};
 
-		disposables.add(cts.token.onCancellationRequested(() => onSessionStoppedOrCanceled(true)));
-		if (cts.token.isCancellationRequested) {
-			onSessionStoppedOrCanceled(true);
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+		if (token.isCancellationRequested) {
+			onSessionStoppedOrCanceled();
 		}
 
 		disposables.add(session.onDidChange(e => {
@@ -315,7 +305,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 					}
 					break;
 				case TextToSpeechStatus.Stopped:
-					onSessionStoppedOrCanceled(false);
+					onSessionStoppedOrCanceled();
 					break;
 				case TextToSpeechStatus.Error:
 					this.logService.error(`Speech provider error in text to speech session: ${e.text}`);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent, ITextToSpeechEvent } from 'vs/workbench/contrib/speech/common/speechService';
@@ -54,17 +54,19 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 					};
 				}
 
+				const disposables = new DisposableStore();
 				const session = Math.random();
 
 				this.proxy.$createSpeechToTextSession(handle, session, options?.language);
 
-				const onDidChange = new Emitter<ISpeechToTextEvent>();
+				const onDidChange = disposables.add(new Emitter<ISpeechToTextEvent>());
 				this.speechToTextSessions.set(session, { onDidChange });
 
-				token.onCancellationRequested(() => {
+				disposables.add(token.onCancellationRequested(() => {
 					this.proxy.$cancelSpeechToTextSession(session);
 					this.speechToTextSessions.delete(session);
-				});
+					disposables.dispose();
+				}));
 
 				return {
 					onDidChange: onDidChange.event
@@ -78,20 +80,22 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 					};
 				}
 
+				const disposables = new DisposableStore();
 				const session = Math.random();
 
 				this.proxy.$createTextToSpeechSession(handle, session);
 
-				const onDidChange = new Emitter<ITextToSpeechEvent>();
+				const onDidChange = disposables.add(new Emitter<ITextToSpeechEvent>());
 				this.textToSpeechSessions.set(session, {
 					onDidChange,
 					synthesize: text => this.proxy.$synthesizeSpeech(session, text)
 				});
 
-				token.onCancellationRequested(() => {
+				disposables.add(token.onCancellationRequested(() => {
 					this.proxy.$cancelTextToSpeechSession(session);
 					this.textToSpeechSessions.delete(session);
-				});
+					disposables.dispose();
+				}));
 
 				return {
 					onDidChange: onDidChange.event,
@@ -105,17 +109,19 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 					};
 				}
 
+				const disposables = new DisposableStore();
 				const session = Math.random();
 
 				this.proxy.$createKeywordRecognitionSession(handle, session);
 
-				const onDidChange = new Emitter<IKeywordRecognitionEvent>();
+				const onDidChange = disposables.add(new Emitter<IKeywordRecognitionEvent>());
 				this.keywordRecognitionSessions.set(session, { onDidChange });
 
-				token.onCancellationRequested(() => {
+				disposables.add(token.onCancellationRequested(() => {
 					this.proxy.$cancelKeywordRecognitionSession(session);
 					this.keywordRecognitionSessions.delete(session);
-				});
+					disposables.dispose();
+				}));
 
 				return {
 					onDidChange: onDidChange.event
