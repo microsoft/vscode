@@ -4430,7 +4430,7 @@ export enum LanguageModelChatMessageRole {
 	System = 3
 }
 
-export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
+export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
@@ -4443,14 +4443,20 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 	}
 }
 
+/**
+ * @deprecated
+ */
 export class LanguageModelChatSystemMessage {
 	content: string;
-
 	constructor(content: string) {
 		this.content = content;
 	}
 }
 
+
+/**
+ * @deprecated
+ */
 export class LanguageModelChatUserMessage {
 	content: string;
 	name: string | undefined;
@@ -4461,6 +4467,9 @@ export class LanguageModelChatUserMessage {
 	}
 }
 
+/**
+ * @deprecated
+ */
 export class LanguageModelChatAssistantMessage {
 	content: string;
 	name?: string;
