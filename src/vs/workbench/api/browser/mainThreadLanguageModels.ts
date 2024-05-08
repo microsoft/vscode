@@ -84,11 +84,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
-	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined> {
-
-		return this._chatProviderService.lookupLanguageModel(providerId);
-	}
-
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
 		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
 
