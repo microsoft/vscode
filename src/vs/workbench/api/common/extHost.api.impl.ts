@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
@@ -1428,28 +1428,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: lm
 		const lm: typeof vscode.lm = {
-			get languageModels() {
+			selectChatModels: (selector) => {
 				checkProposedApiEnabled(extension, 'languageModels');
-				return extHostLanguageModels.getLanguageModelIds();
+				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
-			onDidChangeLanguageModels: (listener, thisArgs?, disposables?) => {
+			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
-			},
-			sendChatRequest(languageModel: string, messages: (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[], options?: vscode.LanguageModelChatRequestOptions, token?: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				token ??= CancellationToken.None;
-				options ??= {};
-				return extHostLanguageModels.sendChatRequest(extension, languageModel, messages, options, token);
-			},
-			computeTokenLength(languageModel: string, text: string | vscode.LanguageModelChatMessage, token?: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				token ??= CancellationToken.None;
-				return extHostLanguageModels.computeTokenLength(languageModel, text, token);
-			},
-			getLanguageModelInformation(languageModel: string) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				return extHostLanguageModels.getLanguageModelInfo(languageModel);
 			},
 			// --- embeddings
 			get embeddingModels() {
