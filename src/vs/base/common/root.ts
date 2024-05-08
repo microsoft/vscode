@@ -18,6 +18,13 @@ const getRelativeRoot = () => {
 	return new URL("../../../../", import.meta.url).toString();
 }
 
+
+/**
+ * absolute path of the root folder, used in node
+ */
 export const root = getRoot();
 
+/**
+ * relative path to the root folder, used in browser
+ */
 export const relativeRoot = getRelativeRoot()
