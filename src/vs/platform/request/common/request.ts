@@ -156,7 +156,8 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				restricted: true
 			},
 			'http.noProxy': {
-				type: 'string',
+				type: 'object',
+				items: { type: 'string' },
 				markdownDescription: localize('noProxy', "The noProxy variable specifies domain names, separated by commas, for which proxy settings should be ignored for HTTP/HTTPS requests made by extensions."),
 				restricted: true
 			},
