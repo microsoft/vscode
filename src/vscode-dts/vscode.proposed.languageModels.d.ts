@@ -67,12 +67,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * @deprecated
-	 */
-	// TODO@API remove
-	export type LanguageModelChatMessage2 = LanguageModelChatMessage;
-
-	/**
 	 * Represents a message in a chat. Can assume different roles, like user or assistant.
 	 */
 	export class LanguageModelChatMessage {

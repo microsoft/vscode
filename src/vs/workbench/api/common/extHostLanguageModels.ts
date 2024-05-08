@@ -266,7 +266,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 	}
 
-	async sendChatRequest(extension: IExtensionDescription, languageModelId: string, messages: (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
+	async sendChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
 
 		const internalMessages: IChatMessage[] = this._convertMessages(extension, messages);
 
