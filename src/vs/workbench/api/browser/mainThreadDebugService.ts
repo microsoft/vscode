@@ -223,7 +223,14 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				}));
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
-				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id, dto.mode);
+				this.debugService.addFunctionBreakpoint({
+					name: dto.functionName,
+					mode: dto.mode,
+					condition: dto.condition,
+					hitCondition: dto.hitCondition,
+					enabled: dto.enabled,
+					logMessage: dto.logMessage
+				}, dto.id);
 			} else if (dto.type === 'data') {
 				this.debugService.addDataBreakpoint({
 					description: dto.label,
