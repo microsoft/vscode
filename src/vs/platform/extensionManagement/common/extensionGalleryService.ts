@@ -1029,28 +1029,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		this.logService.trace('ExtensionGalleryService#download', extension.identifier.id);
 		const data = getGalleryExtensionTelemetryData(extension);
 		const startTime = new Date().getTime();
-
-		const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
-		const downloadAsset = operationParam ? {
-			uri: `${extension.assets.download.uri}${URI.parse(extension.assets.download.uri).query ? '&' : '?'}${operationParam}=true`,
-			fallbackUri: `${extension.assets.download.fallbackUri}${URI.parse(extension.assets.download.fallbackUri).query ? '&' : '?'}${operationParam}=true`
-		} : extension.assets.download;
-
-		const headers: IHeaders | undefined = extension.queryContext?.[ACTIVITY_HEADER_NAME] ? { [ACTIVITY_HEADER_NAME]: extension.queryContext[ACTIVITY_HEADER_NAME] } : undefined;
-		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, headers ? { headers } : undefined);
-
-		try {
-			await this.fileService.writeFile(location, context.stream);
-		} catch (error) {
-			try {
-				await this.fileService.del(location);
-			} catch (e) {
-				/* ignore */
-				this.logService.warn(`Error while deleting the file ${location.toString()}`, getErrorMessage(e));
-			}
-			throw new ExtensionGalleryError(getErrorMessage(error), ExtensionGalleryErrorCode.DownloadFailedWriting);
-		}
-
 		/* __GDPR__
 			"galleryService:downloadVSIX" : {
 				"owner": "sandy081",
@@ -1060,7 +1038,18 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				]
 			}
 		*/
-		this.telemetryService.publicLog('galleryService:downloadVSIX', { ...data, duration: new Date().getTime() - startTime });
+		const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', { ...data, duration });
+
+		const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
+		const downloadAsset = operationParam ? {
+			uri: `${extension.assets.download.uri}${URI.parse(extension.assets.download.uri).query ? '&' : '?'}${operationParam}=true`,
+			fallbackUri: `${extension.assets.download.fallbackUri}${URI.parse(extension.assets.download.fallbackUri).query ? '&' : '?'}${operationParam}=true`
+		} : extension.assets.download;
+
+		const headers: IHeaders | undefined = extension.queryContext?.[ACTIVITY_HEADER_NAME] ? { [ACTIVITY_HEADER_NAME]: extension.queryContext[ACTIVITY_HEADER_NAME] } : undefined;
+		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, headers ? { headers } : undefined);
+		await this.fileService.writeFile(location, context.stream);
+		log(new Date().getTime() - startTime);
 	}
 
 	async downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void> {
@@ -1071,18 +1060,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		this.logService.trace('ExtensionGalleryService#downloadSignatureArchive', extension.identifier.id);
 
 		const context = await this.getAsset(extension.identifier.id, extension.assets.signature, AssetType.Signature);
-		try {
-			await this.fileService.writeFile(location, context.stream);
-		} catch (error) {
-			try {
-				await this.fileService.del(location);
-			} catch (e) {
-				/* ignore */
-				this.logService.warn(`Error while deleting the file ${location.toString()}`, getErrorMessage(e));
-			}
-			throw new ExtensionGalleryError(getErrorMessage(error), ExtensionGalleryErrorCode.DownloadFailedWriting);
-		}
-
+		await this.fileService.writeFile(location, context.stream);
 	}
 
 	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
