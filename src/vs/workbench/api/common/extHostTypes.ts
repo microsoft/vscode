@@ -4374,6 +4374,15 @@ export class ChatResponseProgressPart {
 	}
 }
 
+export class ChatResponseProgressPart2 {
+	value: string;
+	task?: () => Thenable<string | void>;
+	constructor(value: string, task?: () => Thenable<string | void>) {
+		this.value = value;
+		this.task = task;
+	}
+}
+
 export class ChatResponseWarningPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
