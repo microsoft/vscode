@@ -27,7 +27,7 @@ import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeSer
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
+import { Barrier, disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
@@ -2284,6 +2284,8 @@ class SCMInputWidget {
 	private repositoryIdContextKey: IContextKey<string | undefined>;
 	private readonly repositoryDisposables = new DisposableStore();
 
+	private setInputBarrier: Barrier | undefined;
+
 	private validation: IInputValidation | undefined;
 	private validationContextView: IOpenContextView | undefined;
 	private validationHasFocus: boolean = false;
@@ -2304,6 +2306,8 @@ class SCMInputWidget {
 		if (input === this.input) {
 			return;
 		}
+
+		this.setInputBarrier = new Barrier();
 
 		this.clearValidation();
 		this.element.classList.remove('synthetic-focus');
@@ -2432,6 +2436,9 @@ class SCMInputWidget {
 
 		// Toolbar
 		this.toolbar.setInput(input);
+
+		// Open barrier
+		this.setInputBarrier.open();
 	}
 
 	get selections(): Selection[] | null {
@@ -2616,12 +2623,15 @@ class SCMInputWidget {
 		}
 	}
 
-	focus(): void {
+	async focus(): Promise<void> {
 		if (this.lastLayoutWasTrash) {
 			this.lastLayoutWasTrash = false;
 			this.shouldFocusAfterLayout = true;
 			return;
 		}
+
+		// Wait for barrier
+		await this.setInputBarrier?.wait();
 
 		this.inputEditor.focus();
 		this.element.classList.add('synthetic-focus');
@@ -2804,6 +2814,7 @@ export class SCMViewPane extends ViewPane {
 	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
 
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
+	private visibilityBarrier: Barrier | undefined;
 	private readonly visibilityDisposables = new DisposableStore();
 
 	private readonly treeOperationSequencer = new Sequencer();
@@ -2929,6 +2940,7 @@ export class SCMViewPane extends ViewPane {
 
 		this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
+				this.visibilityBarrier = new Barrier();
 				await this.tree.setInput(this.scmViewService, viewState);
 
 				Event.filter(this.configurationService.onDidChangeConfiguration,
@@ -2961,10 +2973,14 @@ export class SCMViewPane extends ViewPane {
 					this.tree.scrollTop = this.treeScrollTop;
 					this.treeScrollTop = undefined;
 				}
+
+				// Open barrier
+				this.visibilityBarrier?.open();
 			} else {
 				this.visibilityDisposables.clear();
 				this.onDidChangeVisibleRepositories({ added: Iterable.empty(), removed: [...this.items.keys()] });
 				this.treeScrollTop = this.tree.scrollTop;
+				this.visibilityBarrier = undefined;
 			}
 
 			this.updateRepositoryCollapseAllContextKeys();
@@ -3489,11 +3505,14 @@ export class SCMViewPane extends ViewPane {
 		return this.scmViewService.visibleRepositories.length === 1 ? this.scmViewService.visibleRepositories[0].provider : undefined;
 	}
 
-	override focus(): void {
+	override async focus(): Promise<void> {
 		super.focus();
 
 		if (this.isExpanded()) {
 			if (this.tree.getFocus().length === 0) {
+				// Wait for barrier
+				await this.visibilityBarrier?.wait();
+
 				for (const repository of this.scmViewService.visibleRepositories) {
 					const widgets = this.inputRenderer.getRenderedInputWidget(repository.input);
 
