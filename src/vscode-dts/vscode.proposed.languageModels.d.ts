@@ -47,8 +47,6 @@ declare module 'vscode' {
 			role: LanguageModelChatMessageRole.Assistant;
 			content: AsyncIterable<string>;
 		};
-
-
 	}
 
 	/**
@@ -95,12 +93,6 @@ declare module 'vscode' {
 		constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
 	}
 
-	// ---------------------------
-	//  Language Model Object (V2)
-	// (+) can pick by id or family
-	// (++) makes it harder to hardcode an identifier of a model in source code
-
-
 	// TODO@API name LanguageModelChatEndpoint
 	export interface LanguageModelChat {
 		/**
@@ -130,6 +122,8 @@ declare module 'vscode' {
 
 		// TODO@API
 		// max_prompt_tokens vs output_tokens vs context_size
+		// readonly inputTokens: number;
+		// readonly outputTokens: number;
 		readonly contextSize: number;
 
 		/**
@@ -174,9 +168,13 @@ declare module 'vscode' {
 
 
 	export interface LanguageModelChatSelector {
-		vendor?: string; // TODO@API make required?
+		// TODO@API make required?
+		vendor?: string;
+
 		family?: string;
+
 		version?: string;
+
 		id?: string;
 		// TODO@API tokens? min/max etc
 	}
@@ -250,12 +248,10 @@ declare module 'vscode' {
 		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models
 		 * and extension must handle these cases, esp when no chat model exists.
 		 *
-		 * @param selector A chat model selector.
+		 * @param selector A chat model selector. When omitted all chat models are returned.
 		 * @returns An array of chat models or `undefined` when no chat model was selected.
 		 */
-		// (++) lazy activation
-		// (++) give specific LM to some extension
-		export function selectChatModels(selector: LanguageModelChatSelector): Thenable<LanguageModelChat[] | undefined>;
+		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[] | undefined>;
 	}
 
 	/**
