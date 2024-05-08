@@ -6,7 +6,7 @@
 import { toLocalISOString } from 'vs/base/common/date';
 import { memoize } from 'vs/base/common/decorators';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { dirname, join, normalize, resolve } from 'vs/base/common/path';
+import { join, normalize, resolve } from 'vs/base/common/path';
 import { env } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
