@@ -29,7 +29,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { CellFoldingState, CellRevealType, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookEditor, INotebookEditorOptions, INotebookEditorPane, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
+import { INotebookCellOutlineDataSource, NotebookCellOutlineDataSource } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSource';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -51,7 +51,7 @@ import { IOutlinePane } from 'vs/workbench/contrib/outline/browser/outline';
 import { Codicon } from 'vs/base/common/codicons';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { NotebookOutlineConstants } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
-import { INotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
+import { INotebookCellOutlineDataSourceFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSourceFactory';
 
 class NotebookOutlineTemplate {
 
@@ -287,14 +287,14 @@ class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntr
 export class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 	constructor(
-		private _getEntries: () => OutlineEntry[],
+		private readonly notebookCellOutlineDataSourceRef: IReference<INotebookCellOutlineDataSource> | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
 	getQuickPickElements(): IQuickPickOutlineElement<OutlineEntry>[] {
 		const bucket: OutlineEntry[] = [];
-		for (const entry of this._getEntries()) {
+		for (const entry of this.notebookCellOutlineDataSourceRef?.object?.entries ?? []) {
 			entry.asFlatList(bucket);
 		}
 		const result: IQuickPickOutlineElement<OutlineEntry>[] = [];
@@ -334,92 +334,12 @@ export class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEn
 
 export class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutline, OutlineEntry> {
 	constructor(
-		private _getEntries: () => OutlineEntry[],
+		private readonly outlineDataSourceRef: IReference<INotebookCellOutlineDataSource> | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
-	*getChildren(element: NotebookCellOutline | OutlineEntry): Iterable<OutlineEntry> {
-		const showCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
-		const showCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
-		const showMarkdownHeadersOnly = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
-
-		const isOutline = element instanceof NotebookCellOutline;
-		const entries = isOutline ? this._getEntries() : element.children;
-
-		for (const entry of entries) {
-			if (entry.cell.cellKind === CellKind.Markup) {
-				if (!showMarkdownHeadersOnly) {
-					yield entry;
-				} else if (entry.level < NotebookOutlineConstants.NonHeaderOutlineLevel) {
-					yield entry;
-				}
-
-			} else if (showCodeCells && entry.cell.cellKind === CellKind.Code) {
-				if (showCodeCellSymbols) {
-					yield entry;
-				} else if (entry.level === NotebookOutlineConstants.NonHeaderOutlineLevel) {
-					yield entry;
-				}
-			}
-		}
-	}
-}
-
-export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<OutlineEntry> {
-	constructor(
-		private _getActiveElement: () => OutlineEntry | undefined,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-	) { }
-
-	getBreadcrumbElements(): readonly OutlineEntry[] {
-		const result: OutlineEntry[] = [];
-		const showCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.breadcrumbsShowCodeCells);
-		let candidate = this._getActiveElement();
-		while (candidate) {
-			if (showCodeCells || candidate.cell.cellKind !== CellKind.Code) {
-				result.unshift(candidate);
-			}
-			candidate = candidate.parent;
-		}
-		return result;
-	}
-}
-
-class NotebookComparator implements IOutlineComparator<OutlineEntry> {
-
-	private readonly _collator = new DOM.WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
-
-	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
-		return a.index - b.index;
-	}
-	compareByType(a: OutlineEntry, b: OutlineEntry): number {
-		return a.cell.cellKind - b.cell.cellKind || this._collator.value.compare(a.label, b.label);
-	}
-	compareByName(a: OutlineEntry, b: OutlineEntry): number {
-		return this._collator.value.compare(a.label, b.label);
-	}
-}
-
-export class NotebookCellOutline implements IOutline<OutlineEntry> {
-
-	private readonly _dispoables = new DisposableStore();
-
-	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
-
-	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
-
-	get entries(): OutlineEntry[] {
-		return this._outlineProviderReference?.object?.entries ?? [];
-	}
-
-	private readonly _entriesDisposables = new DisposableStore();
-
-	readonly config: IOutlineListConfig<OutlineEntry>;
-
-	readonly outlineKind = 'notebookCells';
-
-	get activeElement(): OutlineEntry | undefined {
-		const newActive = this._outlineProviderReference?.object?.activeElement;
+	public getActiveEntry(): OutlineEntry | undefined {
+		const newActive = this.outlineDataSourceRef?.object?.activeElement;
 		if (!newActive) {
 			return undefined;
 		}
@@ -465,17 +385,100 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		return false;
 	}
 
-	// same as get activeElement(), but will bypass the filters in favor of filter in breadcrumb data source
-	get activeBreadcrumbsElement(): OutlineEntry | undefined {
-		return this._outlineProviderReference?.object?.activeElement;
+	*getChildren(element: NotebookCellOutline | OutlineEntry): Iterable<OutlineEntry> {
+		const showCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
+		const showCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+		const showMarkdownHeadersOnly = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
+
+		const isOutline = element instanceof NotebookCellOutline;
+		const entries = isOutline ? this.outlineDataSourceRef?.object?.entries ?? [] : element.children;
+
+		for (const entry of entries) {
+			if (entry.cell.cellKind === CellKind.Markup) {
+				if (!showMarkdownHeadersOnly) {
+					yield entry;
+				} else if (entry.level < NotebookOutlineConstants.NonHeaderOutlineLevel) {
+					yield entry;
+				}
+
+			} else if (showCodeCells && entry.cell.cellKind === CellKind.Code) {
+				if (showCodeCellSymbols) {
+					yield entry;
+				} else if (entry.level === NotebookOutlineConstants.NonHeaderOutlineLevel) {
+					yield entry;
+				}
+			}
+		}
+	}
+}
+
+export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<OutlineEntry> {
+	constructor(
+		private readonly outlineDataSourceRef: IReference<INotebookCellOutlineDataSource> | undefined,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) { }
+
+	getBreadcrumbElements(): readonly OutlineEntry[] {
+		const result: OutlineEntry[] = [];
+		const showCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.breadcrumbsShowCodeCells);
+		let candidate = this.outlineDataSourceRef?.object?.activeElement;
+		while (candidate) {
+			if (showCodeCells || candidate.cell.cellKind !== CellKind.Code) {
+				result.unshift(candidate);
+			}
+			candidate = candidate.parent;
+		}
+		return result;
+	}
+}
+
+class NotebookComparator implements IOutlineComparator<OutlineEntry> {
+
+	private readonly _collator = new DOM.WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
+
+	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
+		return a.index - b.index;
+	}
+	compareByType(a: OutlineEntry, b: OutlineEntry): number {
+		return a.cell.cellKind - b.cell.cellKind || this._collator.value.compare(a.label, b.label);
+	}
+	compareByName(a: OutlineEntry, b: OutlineEntry): number {
+		return this._collator.value.compare(a.label, b.label);
+	}
+}
+
+export class NotebookCellOutline implements IOutline<OutlineEntry> {
+	private readonly _disposables = new DisposableStore();
+
+	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
+
+	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
+
+	get entries(): OutlineEntry[] {
+		return this._outlineDataSourceReference?.object?.entries ?? [];
 	}
 
-	private _outlineProviderReference: IReference<NotebookCellOutlineProvider> | undefined;
+	private readonly _entriesDisposables = new DisposableStore();
+
+	readonly config: IOutlineListConfig<OutlineEntry>;
+
+	readonly outlineKind = 'notebookCells';
+
+	get activeElement(): OutlineEntry | undefined {
+		if (this._target === OutlineTarget.OutlinePane) {
+			return (this.config.treeDataSource as NotebookOutlinePaneProvider).getActiveEntry();
+		} else {
+			console.error('activeElement should not be called outside of the OutlinePane');
+			return undefined;
+		}
+	}
+
+	private _outlineDataSourceReference: IReference<NotebookCellOutlineDataSource> | undefined;
 	private readonly _localDisposables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: INotebookEditorPane,
-		_target: OutlineTarget,
+		private readonly _target: OutlineTarget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -483,30 +486,30 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const installSelectionListener = () => {
 			const notebookEditor = _editor.getControl();
 			if (!notebookEditor?.hasModel()) {
-				this._outlineProviderReference?.dispose();
-				this._outlineProviderReference = undefined;
+				this._outlineDataSourceReference?.dispose();
+				this._outlineDataSourceReference = undefined;
 				this._localDisposables.clear();
 			} else {
-				this._outlineProviderReference?.dispose();
+				this._outlineDataSourceReference?.dispose();
 				this._localDisposables.clear();
-				this._outlineProviderReference = instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineProviderFactory).getOrCreate(notebookEditor, _target));
-				this._localDisposables.add(this._outlineProviderReference.object.onDidChange(e => {
+				this._outlineDataSourceReference = instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineDataSourceFactory).getOrCreate(notebookEditor));
+				this._localDisposables.add(this._outlineDataSourceReference.object.onDidChange(e => {
 					this._onDidChange.fire(e);
 				}));
 			}
 		};
 
-		this._dispoables.add(_editor.onDidChangeModel(() => {
+		this._disposables.add(_editor.onDidChangeModel(() => {
 			installSelectionListener();
 		}));
 
 		installSelectionListener();
 		const delegate = new NotebookOutlineVirtualDelegate();
-		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer, this._editor.getControl(), _target)];
+		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer, this._editor.getControl(), this._target)];
 		const comparator = new NotebookComparator();
 
 		const options: IWorkbenchDataTreeOptions<OutlineEntry, FuzzyScore> = {
-			collapseByDefault: _target === OutlineTarget.Breadcrumbs || (_target === OutlineTarget.OutlinePane && _configurationService.getValue(OutlineConfigKeys.collapseItems) === OutlineConfigCollapseItemsValues.Collapsed),
+			collapseByDefault: this._target === OutlineTarget.Breadcrumbs || (this._target === OutlineTarget.OutlinePane && _configurationService.getValue(OutlineConfigKeys.collapseItems) === OutlineConfigCollapseItemsValues.Collapsed),
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			accessibilityProvider: new NotebookOutlineAccessibility(),
@@ -515,9 +518,9 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		};
 
 		this.config = {
-			treeDataSource: instantiationService.createInstance(NotebookOutlinePaneProvider, () => (this.entries ?? [])),
-			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, () => (this.entries ?? [])),
-			breadcrumbsDataSource: instantiationService.createInstance(NotebookBreadcrumbsProvider, () => (this.activeBreadcrumbsElement)),
+			treeDataSource: instantiationService.createInstance(NotebookOutlinePaneProvider, this._outlineDataSourceReference),
+			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, this._outlineDataSourceReference),
+			breadcrumbsDataSource: instantiationService.createInstance(NotebookBreadcrumbsProvider, this._outlineDataSourceReference),
 			delegate,
 			renderers,
 			comparator,
@@ -525,15 +528,23 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		};
 	}
 
-	async setFullSymbols(cancelToken: CancellationToken) {
-		await this._outlineProviderReference?.object?.setFullSymbols(cancelToken);
+	// TODO@Yoyokrazy -- transfer this to the NotebookCellOutlineDataSource and call from there. minimal recompute
+	async initialize(cancelToken: CancellationToken) {
+		const showAllGotoSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
+		const showAllOutlineSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+		if (this._target === OutlineTarget.QuickPick && showAllGotoSymbols) {
+			await this._outlineDataSourceReference?.object?.setFullSymbols(cancelToken);
+		} else if (this._target === OutlineTarget.OutlinePane && showAllOutlineSymbols) {
+			// No need to wait for this, we want the outline to show up quickly.
+			void this._outlineDataSourceReference?.object?.setFullSymbols(cancelToken);
+		}
 	}
 
 	get uri(): URI | undefined {
-		return this._outlineProviderReference?.object?.uri;
+		return this._outlineDataSourceReference?.object?.uri;
 	}
 	get isEmpty(): boolean {
-		return this._outlineProviderReference?.object?.isEmpty ?? true;
+		return this._outlineDataSourceReference?.object?.isEmpty ?? true;
 	}
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		await this._editorService.openEditor({
@@ -610,9 +621,9 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this._dispoables.dispose();
+		this._disposables.dispose();
 		this._entriesDisposables.dispose();
-		this._outlineProviderReference?.dispose();
+		this._outlineDataSourceReference?.dispose();
 		this._localDisposables.dispose();
 	}
 }
@@ -624,7 +635,6 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 	constructor(
 		@IOutlineService outlineService: IOutlineService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		const reg = outlineService.registerOutlineCreator(this);
 		this.dispose = () => reg.dispose();
@@ -636,16 +646,7 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 
 	async createOutline(editor: NotebookEditor, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
-
-		const showAllGotoSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
-		const showAllOutlineSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
-		if (target === OutlineTarget.QuickPick && showAllGotoSymbols) {
-			await outline.setFullSymbols(cancelToken);
-		} else if (target === OutlineTarget.OutlinePane && showAllOutlineSymbols) {
-			// No need to wait for this, we want the outline to show up quickly.
-			void outline.setFullSymbols(cancelToken);
-		}
-
+		await outline.initialize(cancelToken);
 		return outline;
 	}
 }
@@ -724,7 +725,6 @@ registerAction2(class ToggleShowMarkdownHeadersOnly extends Action2 {
 		configurationService.updateValue(NotebookSetting.outlineShowMarkdownHeadersOnly, !showMarkdownHeadersOnly);
 	}
 });
-
 
 registerAction2(class ToggleCodeCellEntries extends Action2 {
 	constructor() {
