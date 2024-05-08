@@ -105,13 +105,12 @@ const withReporter = (function () {
 						testsuitesTitle: `${args.tfs} ${process.platform}`,
 						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY
 							? path.join(
-									process.env.BUILD_ARTIFACTSTAGINGDIRECTORY,
-									`test-results/${process.platform}-${
-										process.arch
-									}-${browserType}-${args.tfs
-										.toLowerCase()
-										.replace(/[^\w]/g, "-")}-results.xml`
-							  )
+								process.env.BUILD_ARTIFACTSTAGINGDIRECTORY,
+								`test-results/${process.platform}-${process.arch
+								}-${browserType}-${args.tfs
+									.toLowerCase()
+									.replace(/[^\w]/g, "-")}-results.xml`
+							)
 							: undefined,
 					},
 				});
@@ -336,9 +335,8 @@ async function runTestsInBrowser(testModules, browserType) {
 			.join("\n - ")}`;
 
 		if (failingModuleIds.length > 0) {
-			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${
-				target.href
-			}?${failingModuleIds.map((module) => `m=${module}`).join("&")}`;
+			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href
+				}?${failingModuleIds.map((module) => `m=${module}`).join("&")}`;
 		}
 
 		return `${res}\n`;
