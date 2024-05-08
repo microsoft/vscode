@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,7 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
-import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
+import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -37,9 +36,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
-
-		this._proxy.$updateLanguageModels({ added: coalesce(_chatProviderService.getLanguageModelIds().map(id => _chatProviderService.lookupLanguageModel(id))) });
-		this._store.add(_chatProviderService.onDidChangeLanguageModels(this._proxy.$updateLanguageModels, this._proxy));
+		this._proxy.$acceptChatModelMetadata({ added: _chatProviderService.getLanguageModelIds().map(id => ({ identifier: id, metadata: _chatProviderService.lookupLanguageModel(id)! })) });
+		this._store.add(_chatProviderService.onDidChangeLanguageModels(this._proxy.$acceptChatModelMetadata, this._proxy));
 	}
 
 	dispose(): void {
@@ -78,25 +76,12 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	$whenLanguageModelChatRequestMade(identifier: string, extensionId: ExtensionIdentifier, participant?: string | undefined, tokenCount?: number | undefined): void {
-		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
+	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]> {
+		return this._chatProviderService.selectLanguageModels(selector);
 	}
 
-	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined> {
-
-		const activate = this._extensionService.activateByEvent(`onLanguageModelAccess:${providerId}`);
-		const metadata = this._chatProviderService.lookupLanguageModel(providerId);
-
-		if (metadata) {
-			return metadata;
-		}
-
-		await Promise.race([
-			activate,
-			Event.toPromise(Event.filter(this._chatProviderService.onDidChangeLanguageModels, e => Boolean(e.added?.some(value => value.identifier === providerId))))
-		]);
-
-		return this._chatProviderService.lookupLanguageModel(providerId);
+	$whenLanguageModelChatRequestMade(identifier: string, extensionId: ExtensionIdentifier, participant?: string | undefined, tokenCount?: number | undefined): void {
+		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {

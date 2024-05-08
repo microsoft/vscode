@@ -47,8 +47,6 @@ declare module 'vscode' {
 			role: LanguageModelChatMessageRole.Assistant;
 			content: AsyncIterable<string>;
 		};
-
-
 	}
 
 	/**
@@ -65,12 +63,6 @@ declare module 'vscode' {
 		 */
 		Assistant = 2
 	}
-
-	/**
-	 * @deprecated
-	 */
-	// TODO@API remove
-	export type LanguageModelChatMessage2 = LanguageModelChatMessage;
 
 	/**
 	 * Represents a message in a chat. Can assume different roles, like user or assistant.
@@ -101,50 +93,111 @@ declare module 'vscode' {
 		constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
 	}
 
-	/**
-	 * Represents information about a registered language model.
-	 */
-	export interface LanguageModelInformation {
+	// TODO@API name LanguageModelChatEndpoint
+	export interface LanguageModelChat {
 		/**
-		 * The identifier of the language model.
+		 * Opaque identifier of the language model.
 		 */
 		readonly id: string;
 
 		/**
-		 * The human-readable name of the language model.
+		 * A well-know identifier of the vendor of the language model, a sample is `copilot`, but
+		 * values are defined by extensions contributing chat model and need to be looked up with them.
+		 */
+		readonly vendor: string;
+		/**
+		 * Human-readable name of the language model.
 		 */
 		readonly name: string;
-
 		/**
-		 * The version of the language model.
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 * but they are defined by extensions contributing languages and subject to change.
 		 */
-		// TODO@API drop this for now?
+		readonly family: string;
+		/**
+		 * Opaque version string of the model. This is defined by the extension contributing the language model
+		 * and subject to change while the identifier is stable.
+		 */
 		readonly version: string;
 
+		// TODO@API
+		// max_prompt_tokens vs output_tokens vs context_size
+		// readonly inputTokens: number;
+		// readonly outputTokens: number;
+		readonly contextSize: number;
+
 		/**
-		 * The number of available tokens that can be used when sending requests
-		 * to the language model.
+		 * Make a chat request using a language model.
 		 *
-		 * _Note_ that input- and output-tokens count towards this limit.
+		 * - *Note 1:* language model use may be subject to access restrictions and user consent. Calling this function
+		 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
+		 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
+		 * to check if they have the necessary permissions to make a request.
 		 *
-		 * @see {@link lm.sendChatRequest}
+		 * - *Note 2:* language models are contributed by other extensions and as they evolve and change,
+		 * the set of available language models may change over time. Therefore it is strongly recommend to check
+		 * {@link languageModels} for available values and handle missing language models gracefully.
+		 *
+		 * This function will return a rejected promise if making a request to the language model is not
+		 * possible. Reasons for this can be:
+		 *
+		 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
+		 * - model does not exist anymore, see {@link LanguageModelError.NotFound `NotFound`}
+		 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
+		 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
+		 *
+		 * @param messages An array of message instances.
+		 * @param options Options that control the request.
+		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
+		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
 		 */
-		readonly contextLength: number;
+		sendRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+
+		/**
+		 * Uses the model specific tokenzier and computes the length in tokens of a given message.
+		 *
+		 * @param text A string or a message instance.
+		 * @param token Optional cancellation token.
+		 * @returns A thenable that resolves to the length of the message in tokens.
+		 */
+		// TODO@API `undefined` when the language model does not support computing token length
+		// ollama has nothing
+		// anthropic suggests to count after the fact https://github.com/anthropics/anthropic-tokenizer-typescript?tab=readme-ov-file#anthropic-typescript-tokenizer
+		computeTokenLength(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number | undefined>;
 	}
 
 	/**
-	 * An event describing the change in the set of available language models.
+	 * Describes how to select language models for chat requests.
+	 *
+	 * @see {@link lm.selectChatModels}
 	 */
-	// TODO@API use LanguageModelInformation instead of string?
-	export interface LanguageModelChangeEvent {
+	export interface LanguageModelChatSelector {
+
 		/**
-		 * Added language models.
+		 * A vendor of language models.
+		 * @see {@link LanguageModelChat.vendor}
 		 */
-		readonly added: readonly string[];
+		vendor?: string;
+
 		/**
-		 * Removed language models.
+		 * A family of language models.
+		 * @see {@link LanguageModelChat.family}
 		 */
-		readonly removed: readonly string[];
+		family?: string;
+
+		/**
+		 * The version of a language model.
+		 * @see {@link LanguageModelChat.version}
+		 */
+		version?: string;
+
+		/**
+		 * The identifier of a language model.
+		 * @see {@link LanguageModelChat.id}
+		 */
+		id?: string;
+
+		// TODO@API tokens? min/max etc
 	}
 
 	/**
@@ -208,65 +261,18 @@ declare module 'vscode' {
 	export namespace lm {
 
 		/**
-		 * The identifiers of all language models that are currently available.
+		 * An event that is fired when the set of available chat models changes.
 		 */
-		export const languageModels: readonly string[];
+		export const onDidChangeChatModels: Event<void>;
 
 		/**
-		 * An event that is fired when the set of available language models changes.
+		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models
+		 * and extension must handle these cases, esp when no chat model exists.
+		 *
+		 * @param selector A chat model selector. When omitted all chat models are returned.
+		 * @returns An array of chat models or `undefined` when no chat model was selected.
 		 */
-		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
-
-		/**
-		 * Retrieve information about a language model.
-		 *
-		 * @param languageModel A language model identifier.
-		 * @returns A {@link LanguageModelInformation} instance or `undefined` if the language model does not exist.
-		 */
-		export function getLanguageModelInformation(languageModel: string): LanguageModelInformation | undefined;
-
-		/**
-		 * Make a chat request using a language model.
-		 *
-		 * - *Note 1:* language model use may be subject to access restrictions and user consent. Calling this function
-		 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
-		 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
-		 * to check if they have the necessary permissions to make a request.
-		 *
-		 * - *Note 2:* language models are contributed by other extensions and as they evolve and change,
-		 * the set of available language models may change over time. Therefore it is strongly recommend to check
-		 * {@link languageModels} for available values and handle missing language models gracefully.
-		 *
-		 * This function will return a rejected promise if making a request to the language model is not
-		 * possible. Reasons for this can be:
-		 *
-		 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
-		 * - model does not exist, see {@link LanguageModelError.NotFound `NotFound`}
-		 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
-		 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
-		 *
-		 * @param languageModel A language model identifier.
-		 * @param messages An array of message instances.
-		 * @param options Options that control the request.
-		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
-		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
-		 */
-		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
-
-		/**
-		 * Uses the language model specific tokenzier and computes the length in token of a given message.
-		 *
-		 * *Note* that this function will throw when the language model does not exist.
-		 *
-		 * @param languageModel A language model identifier.
-		 * @param text A string or a message instance.
-		 * @param token Optional cancellation token.
-		 * @returns A thenable that resolves to the length of the message in tokens.
-		 */
-		// TODO@API `undefined` when the language model does not support computing token length
-		// ollama has nothing
-		// anthropic suggests to count after the fact https://github.com/anthropics/anthropic-tokenizer-typescript?tab=readme-ov-file#anthropic-typescript-tokenizer
-		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number | undefined>;
+		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[] | undefined>;
 	}
 
 	/**
@@ -288,6 +294,7 @@ declare module 'vscode' {
 		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
 		 * model does not exist or consent hasn't been asked for.
 		 */
+		// TODO@API applies to chat and embeddings models
 		canSendRequest(languageModelId: string): boolean | undefined;
 	}
 

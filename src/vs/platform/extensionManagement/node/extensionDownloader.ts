@@ -58,24 +58,39 @@ export class ExtensionsDownloader extends Disposable {
 		let verificationStatus: ExtensionVerificationStatus = false;
 
 		if (verifySignature && this.shouldVerifySignature(extension)) {
-			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
+
+			let signatureArchiveLocation;
+			try {
+				signatureArchiveLocation = await this.downloadSignatureArchive(extension);
+			} catch (error) {
+				try {
+					// Delete the downloaded VSIX if signature archive download fails
+					await this.delete(location);
+				} catch (error) {
+					this.logService.error(error);
+				}
+				throw error;
+			}
+
 			try {
 				verificationStatus = await this.extensionSignatureVerificationService.verify(extension.identifier.id, location.fsPath, signatureArchiveLocation.fsPath);
 			} catch (error) {
 				verificationStatus = (error as ExtensionSignatureVerificationError).code;
 				if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
+					try {
+						// Delete the downloaded vsix if VSIX or signature archive is invalid
+						await this.delete(location);
+					} catch (error) {
+						this.logService.error(error);
+					}
 					throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
 				}
 			} finally {
 				try {
-					// Delete downloaded files
-					await Promise.allSettled([
-						this.delete(location),
-						this.delete(signatureArchiveLocation)
-					]);
+					// Delete signature archive always
+					await this.delete(signatureArchiveLocation);
 				} catch (error) {
-					// Ignore error
-					this.logService.warn(`Error while deleting downloaded files: ${getErrorMessage(error)}`);
+					this.logService.error(error);
 				}
 			}
 		}
@@ -96,9 +111,9 @@ export class ExtensionsDownloader extends Disposable {
 	private async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {
 		await this.cleanUpPromise;
 
-		const location = joinPath(this.extensionsDownloadDir, `${this.getName(extension)}${ExtensionsDownloader.SignatureArchiveExtension}`);
+		const location = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
 		try {
-			await this.downloadFile(extension, location, location => this.extensionGalleryService.downloadSignatureArchive(extension, location));
+			await this.extensionGalleryService.downloadSignatureArchive(extension, location);
 		} catch (error) {
 			throw toExtensionManagementError(error, ExtensionManagementErrorCode.DownloadSignature);
 		}

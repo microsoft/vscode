@@ -4119,6 +4119,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
+		public testItem?: vscode.TestItem,
 	) {
 	}
 }
@@ -4334,6 +4335,17 @@ export class ChatResponseDetectedParticipantPart {
 	constructor(participant: string, command?: vscode.ChatCommand) {
 		this.participant = participant;
 		this.command = command;
+	}
+}
+
+export class ChatResponseConfirmationPart {
+	title: string;
+	message: string;
+	data: any;
+	constructor(title: string, message: string, data: any) {
+		this.title = title;
+		this.message = message;
+		this.data = data;
 	}
 }
 
