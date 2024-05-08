@@ -61,9 +61,6 @@ export class SnapshotContext {
 
 		this.namePrefix = sanitizeName(test.fullTitle()) + '.';
 		this.snapshotsDir = URI.joinPath(root, 'src', ...relevantParts, '__snapshots__');
-		console.log('sn' + this.snapshotsDir)
-		console.log('tf' + test.file)
-		console.log('rel' + test.file)
 	}
 
 	public async assert(value: any, options?: ISnapshotOptions) {
