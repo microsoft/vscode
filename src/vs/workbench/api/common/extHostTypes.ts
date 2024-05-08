@@ -4119,6 +4119,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
+		public testItem?: vscode.TestItem,
 	) {
 	}
 }
@@ -4370,6 +4371,15 @@ export class ChatResponseProgressPart {
 	value: string;
 	constructor(value: string) {
 		this.value = value;
+	}
+}
+
+export class ChatResponseProgressPart2 {
+	value: string;
+	task?: () => Thenable<string | void>;
+	constructor(value: string, task?: () => Thenable<string | void>) {
+		this.value = value;
+		this.task = task;
 	}
 }
 
