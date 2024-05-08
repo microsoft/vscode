@@ -52,10 +52,18 @@ export class SnapshotContext {
 		const src = FileAccess.asFileUri('');
 		const parts = test.file.split(/[/\\]/g);
 		const relevantIndex = parts.indexOf('out');
-		const relevantParts = parts.slice(relevantIndex, -1);
+		let relevantParts = parts
+		if (relevantIndex !== -1) {
+			relevantParts = parts.slice(relevantIndex, -1);
+		} else {
+			relevantParts = parts.slice(0, -1)
+		}
 
 		this.namePrefix = sanitizeName(test.fullTitle()) + '.';
 		this.snapshotsDir = URI.joinPath(src, ...relevantParts, '__snapshots__');
+		console.log('sn' + this.snapshotsDir)
+		console.log('tf' + test.file)
+		console.log('rel' + test.file)
 	}
 
 	public async assert(value: any, options?: ISnapshotOptions) {
