@@ -12,7 +12,7 @@ import {
 import * as styles from 'ansi-styles';
 import { ChildProcessWithoutNullStreams } from 'child_process';
 import * as vscode from 'vscode';
-import { coverageContext } from './coverageProvider';
+import { IScriptCoverage, istanbulCoverageContext } from './coverageProvider';
 import { attachTestMessageMetadata } from './metadata';
 import { snapshotComment } from './snapshot';
 import { getContentFromFilesystem } from './testTree';
@@ -24,6 +24,10 @@ export const enum MochaEvent {
 	Pass = 'pass',
 	Fail = 'fail',
 	End = 'end',
+
+	// custom events:
+	CoverageInit = 'coverage init',
+	CoverageIncrement = 'coverage increment',
 }
 
 export interface IStartEvent {
@@ -62,12 +66,20 @@ export interface IEndEvent {
 	end: string /* ISO date */;
 }
 
+export interface ITestCoverageCoverage {
+	file: string;
+	fullTitle: string;
+	coverage: IScriptCoverage;
+}
+
 export type MochaEventTuple =
 	| [MochaEvent.Start, IStartEvent]
 	| [MochaEvent.TestStart, ITestStartEvent]
 	| [MochaEvent.Pass, IPassEvent]
 	| [MochaEvent.Fail, IFailEvent]
-	| [MochaEvent.End, IEndEvent];
+	| [MochaEvent.End, IEndEvent]
+	| [MochaEvent.CoverageInit, IScriptCoverage]
+	| [MochaEvent.CoverageIncrement, ITestCoverageCoverage];
 
 const LF = '\n'.charCodeAt(0);
 
@@ -315,7 +327,7 @@ export async function scanTestOutput(
 
 		if (coverageDir) {
 			try {
-				await coverageContext.apply(task, coverageDir, {
+				await istanbulCoverageContext.apply(task, coverageDir, {
 					mapFileUri: uri => store.getSourceFile(uri.toString()),
 					mapLocation: (uri, position) =>
 						store.getSourceLocation(uri.toString(), position.line, position.character),

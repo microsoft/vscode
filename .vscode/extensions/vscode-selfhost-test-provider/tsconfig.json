@@ -3,7 +3,8 @@
 	"compilerOptions": {
 		"outDir": "./out",
 		"types": [
-			"node"
+			"node",
+			"mocha",
 		]
 	},
 	"include": [
