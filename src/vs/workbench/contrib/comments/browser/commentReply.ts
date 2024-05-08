@@ -353,7 +353,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private hideReplyArea() {
-		this.commentEditor.getDomNode()!.style.outline = '';
+		const domNode = this.commentEditor.getDomNode();
+		if (domNode) {
+			domNode.style.outline = '';
+		}
 		this.commentEditor.setValue('');
 		this._pendingComment = '';
 		this.form.classList.remove('expand');
