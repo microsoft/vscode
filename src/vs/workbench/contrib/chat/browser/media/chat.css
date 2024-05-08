@@ -678,9 +678,9 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	display: flex;
-	gap: 5px;
+	gap: 8px;
 	align-items: center;
-	margin-bottom: 4px;
+	margin-bottom: 6px;
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p .codicon {
