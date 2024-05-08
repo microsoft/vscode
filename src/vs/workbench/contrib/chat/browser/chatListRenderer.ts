@@ -890,7 +890,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// this step is in progress, communicate it to SR users
 			alert(progress.content.value);
 		}
-		const codicon = showSpinner ? ThemeIcon.modify(Codicon.sync, 'spin').id : Codicon.check.id;
+		const codicon = showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
 		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
 			supportThemeIcons: true
 		});
