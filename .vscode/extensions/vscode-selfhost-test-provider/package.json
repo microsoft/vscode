@@ -69,13 +69,12 @@
     "test": "npx mocha --ui tdd 'out/*.test.js'"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.6",
-    "@types/node": "18.x",
-    "v8-to-istanbul": "^9.2.0"
+    "@types/node": "18.x"
   },
   "dependencies": {
     "@jridgewell/trace-mapping": "^0.3.25",
     "ansi-styles": "^5.2.0",
-    "istanbul-to-vscode": "^2.0.1"
+    "istanbul-to-vscode": "^2.0.1",
+    "v8-to-istanbul": "^9.2.0"
   }
 }
