@@ -49,7 +49,7 @@ export class SnapshotContext {
 			);
 		}
 
-		const root = FileAccess.appRootUri();
+		const root = FileAccess.appRootFsUri();
 		const parts = test.file.split(/[/\\]/g);
 		const relevantIndex = parts.indexOf('out');
 		let relevantParts = parts

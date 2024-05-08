@@ -299,6 +299,10 @@ class FileAccessImpl {
 		return this.uriToFileUri(uri);
 	}
 
+	appRootFsUri() {
+		return URI.parse(root)
+	}
+
 	appRootUri() {
 		return this.asFileUri('')
 	}
