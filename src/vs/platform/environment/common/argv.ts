@@ -129,6 +129,7 @@ export interface NativeParsedArgs {
 	'inspect'?: string;
 	'inspect-brk'?: string;
 	'js-flags'?: string;
+	'disable-lcd-text'?: boolean;
 	'disable-gpu'?: boolean;
 	'disable-gpu-sandbox'?: boolean;
 	'nolazy'?: boolean;

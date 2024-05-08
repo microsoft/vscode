@@ -126,7 +126,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		this._onDidChangeHasSpeechProvider.fire();
 	}
 
-	//#region Transcription
+	//#region Speech to Text
 
 	private readonly _onDidStartSpeechToTextSession = this._register(new Emitter<void>());
 	readonly onDidStartSpeechToTextSession = this._onDidStartSpeechToTextSession.event;
@@ -240,7 +240,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	//#endregion
 
-	//#region Synthesizer
+	//#region Text to Speech
 
 	private readonly _onDidStartTextToSpeechSession = this._register(new Emitter<void>());
 	readonly onDidStartTextToSpeechSession = this._onDidStartTextToSpeechSession.event;
@@ -332,9 +332,6 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	async recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
 		const result = new DeferredPromise<KeywordRecognitionStatus>();
-
-		// Send out extension activation to ensure providers can register
-		await this.extensionService.activateByEvent('onSpeech');
 
 		const disposables = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => {

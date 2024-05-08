@@ -230,17 +230,20 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 		// Override save behavior to avoid transferring the buffer across the wire 3 times
 		if (saveWithReducedCommunication) {
-			this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
-				const serializer = await this.getNotebookSerializer();
-
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-
-				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
-				return stat;
-			};
+			this.setSaveDelegate().catch(console.error);
 		}
+	}
+
+	private async setSaveDelegate() {
+		const serializer = await this.getNotebookSerializer();
+		this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
+			const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
+			return stat;
+		};
 	}
 
 	override dispose(): void {

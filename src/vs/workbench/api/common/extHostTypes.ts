@@ -4023,7 +4023,7 @@ export enum TestRunProfileKind {
 }
 
 @es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest2 {
+export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
@@ -4119,6 +4119,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
+		public testItem?: vscode.TestItem,
 	) {
 	}
 }
@@ -4337,6 +4338,17 @@ export class ChatResponseDetectedParticipantPart {
 	}
 }
 
+export class ChatResponseConfirmationPart {
+	title: string;
+	message: string;
+	data: any;
+	constructor(title: string, message: string, data: any) {
+		this.title = title;
+		this.message = message;
+		this.data = data;
+	}
+}
+
 export class ChatResponseFileTreePart {
 	value: vscode.ChatResponseFileTree[];
 	baseUri: vscode.Uri;
@@ -4359,6 +4371,15 @@ export class ChatResponseProgressPart {
 	value: string;
 	constructor(value: string) {
 		this.value = value;
+	}
+}
+
+export class ChatResponseProgressPart2 {
+	value: string;
+	task?: () => Thenable<string | void>;
+	constructor(value: string, task?: () => Thenable<string | void>) {
+		this.value = value;
+		this.task = task;
 	}
 }
 
@@ -4424,14 +4445,39 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export enum LanguageModelChatMessageRole {
+	User = 1,
+	Assistant = 2,
+	System = 3
+}
+
+export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
+
+	role: vscode.LanguageModelChatMessageRole;
+	content: string;
+	name: string | undefined;
+
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
+		this.role = role;
+		this.content = content;
+		this.name = name;
+	}
+}
+
+/**
+ * @deprecated
+ */
 export class LanguageModelChatSystemMessage {
 	content: string;
-
 	constructor(content: string) {
 		this.content = content;
 	}
 }
 
+
+/**
+ * @deprecated
+ */
 export class LanguageModelChatUserMessage {
 	content: string;
 	name: string | undefined;
@@ -4442,6 +4488,9 @@ export class LanguageModelChatUserMessage {
 	}
 }
 
+/**
+ * @deprecated
+ */
 export class LanguageModelChatAssistantMessage {
 	content: string;
 	name?: string;

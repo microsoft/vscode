@@ -106,6 +106,21 @@ export interface IChatProgressMessage {
 	kind: 'progressMessage';
 }
 
+export interface IChatTask extends IChatTaskDto {
+	task?: () => Promise<string | void>;
+	isSettled?: () => boolean;
+}
+
+export interface IChatTaskDto {
+	content: IMarkdownString;
+	kind: 'progressTask';
+}
+
+export interface IChatTaskResult {
+	content: IMarkdownString | void;
+	kind: 'progressTaskResult';
+}
+
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
@@ -133,6 +148,13 @@ export interface IChatTextEdit {
 	kind: 'textEdit';
 }
 
+export interface IChatConfirmation {
+	title: string;
+	message: string;
+	data: any;
+	kind: 'confirmation';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -142,9 +164,12 @@ export type IChatProgress =
 	| IChatContentInlineReference
 	| IChatAgentDetection
 	| IChatProgressMessage
+	| IChatTask
+	| IChatTaskResult
 	| IChatCommandButton
 	| IChatWarningMessage
-	| IChatTextEdit;
+	| IChatTextEdit
+	| IChatConfirmation;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -268,6 +293,11 @@ export interface IChatSendRequestOptions {
 	parserContext?: IChatParserContext;
 	attempt?: number;
 	noCommandDetection?: boolean;
+	acceptedConfirmationData?: any[];
+	rejectedConfirmationData?: any[];
+
+	/** The target agent ID can be specified with this property instead of using @ in 'message' */
+	agentId?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

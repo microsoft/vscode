@@ -1896,8 +1896,8 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
 	}
 
-	addFunctionBreakpoint(functionName: string, id?: string, mode?: string): IFunctionBreakpoint {
-		const newFunctionBreakpoint = new FunctionBreakpoint({ name: functionName, mode }, id);
+	addFunctionBreakpoint(opts: IFunctionBreakpointOptions, id?: string): IFunctionBreakpoint {
+		const newFunctionBreakpoint = new FunctionBreakpoint(opts, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint], sessionOnly: false });
 

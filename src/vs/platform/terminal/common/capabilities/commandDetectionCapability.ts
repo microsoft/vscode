@@ -205,6 +205,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._promptInputModel.setContinuationPrompt(value);
 	}
 
+	// TODO: Simplify this, can everything work off the last line?
+	setPromptTerminator(promptTerminator: string, lastPromptLine: string) {
+		this._logService.debug('CommandDetectionCapability#setPromptTerminator', promptTerminator);
+		this._promptTerminator = promptTerminator;
+		this._promptInputModel.setLastPromptLine(lastPromptLine);
+	}
+
 	setCwd(value: string) {
 		this._cwd = value;
 	}
@@ -453,11 +460,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
-	}
-
-	setPromptTerminator(promptTerminator: string) {
-		this._logService.debug('CommandDetectionCapability#setPromptTerminator', promptTerminator);
-		this._promptTerminator = promptTerminator;
 	}
 }
 
