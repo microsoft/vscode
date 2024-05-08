@@ -49,7 +49,7 @@ export class SnapshotContext {
 			);
 		}
 
-		const src = FileAccess.asFileUri('');
+		const root = FileAccess.asFileUri('');
 		const parts = test.file.split(/[/\\]/g);
 		const relevantIndex = parts.indexOf('out');
 		let relevantParts = parts
@@ -60,7 +60,7 @@ export class SnapshotContext {
 		}
 
 		this.namePrefix = sanitizeName(test.fullTitle()) + '.';
-		this.snapshotsDir = URI.joinPath(src, ...relevantParts, '__snapshots__');
+		this.snapshotsDir = URI.joinPath(root, 'src', ...relevantParts, '__snapshots__');
 		console.log('sn' + this.snapshotsDir)
 		console.log('tf' + test.file)
 		console.log('rel' + test.file)
