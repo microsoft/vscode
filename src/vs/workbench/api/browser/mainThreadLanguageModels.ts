@@ -38,8 +38,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 
-		this._proxy.$updateLanguageModels({ added: coalesce(_chatProviderService.getLanguageModelIds().map(id => _chatProviderService.lookupLanguageModel(id))) });
-		this._store.add(_chatProviderService.onDidChangeLanguageModels(this._proxy.$updateLanguageModels, this._proxy));
+		this._proxy.$acceptChatModelMetadata({ added: coalesce(_chatProviderService.getLanguageModelIds().map(id => _chatProviderService.lookupLanguageModel(id))) });
+		this._store.add(_chatProviderService.onDidChangeLanguageModels(this._proxy.$acceptChatModelMetadata, this._proxy));
 	}
 
 	dispose(): void {
@@ -76,6 +76,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	$unregisterProvider(handle: number): void {
 		this._providerRegistrations.deleteAndDispose(handle);
+	}
+
+	$selectChatModels(selector: Partial<ILanguageModelChatMetadata>): Promise<string[]> {
+		return this._chatProviderService.selectLanguageModels(selector);
 	}
 
 	$whenLanguageModelChatRequestMade(identifier: string, extensionId: ExtensionIdentifier, participant?: string | undefined, tokenCount?: number | undefined): void {

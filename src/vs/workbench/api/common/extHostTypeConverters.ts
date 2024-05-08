@@ -2242,7 +2242,7 @@ export namespace ChatFollowup {
 
 export namespace LanguageModelChatMessage {
 
-	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage2 {
+	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
 		switch (message.role) {
 			case chatProvider.ChatMessageRole.System: return new types.LanguageModelChatMessage(<number>types.LanguageModelChatMessageRole.System, message.content);
 			case chatProvider.ChatMessageRole.User: return new types.LanguageModelChatMessage(<number>types.LanguageModelChatMessageRole.User, message.content);
@@ -2250,7 +2250,7 @@ export namespace LanguageModelChatMessage {
 		}
 	}
 
-	export function from(message: vscode.LanguageModelChatMessage2): chatProvider.IChatMessage {
+	export function from(message: vscode.LanguageModelChatMessage): chatProvider.IChatMessage {
 		switch (message.role as types.LanguageModelChatMessageRole) {
 			case types.LanguageModelChatMessageRole.System: return { role: chatProvider.ChatMessageRole.System, content: message.content };
 			case types.LanguageModelChatMessageRole.User: return { role: chatProvider.ChatMessageRole.User, content: message.content };

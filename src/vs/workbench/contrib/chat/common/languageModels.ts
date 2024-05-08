@@ -6,9 +6,11 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isEmptyObject } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const enum ChatMessageRole {
 	System,
@@ -28,9 +30,11 @@ export interface IChatResponseFragment {
 
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
-	readonly identifier: string;
 	readonly name: string;
+	readonly identifier: string;
+	readonly vendor: string;
 	readonly version: string;
+	readonly family: string;
 	readonly tokens: number;
 
 	readonly auth?: {
@@ -57,6 +61,8 @@ export interface ILanguageModelsService {
 
 	lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined;
 
+	selectLanguageModels(selector: Partial<ILanguageModelChatMetadata>): Promise<string[]>;
+
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable;
 
 	makeLanguageModelChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
@@ -72,6 +78,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onDidChangeProviders = new Emitter<{ added?: ILanguageModelChatMetadata[]; removed?: string[] }>();
 	readonly onDidChangeLanguageModels: Event<{ added?: ILanguageModelChatMetadata[]; removed?: string[] }> = this._onDidChangeProviders.event;
 
+	constructor(
+		@IExtensionService private readonly _extensionService: IExtensionService,
+	) { }
+
 	dispose() {
 		this._onDidChangeProviders.dispose();
 		this._providers.clear();
@@ -83,6 +93,29 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined {
 		return this._providers.get(identifier)?.metadata;
+	}
+
+	async selectLanguageModels(selector: Partial<ILanguageModelChatMetadata>): Promise<string[]> {
+		await this._extensionService.activateByEvent(`onLanguageModelChat:${selector.vendor ?? '*'}}`);
+
+		const result: string[] = [];
+
+		for (const model of this._providers.values()) {
+			if (selector.vendor !== undefined && model.metadata.vendor === selector.vendor
+				|| selector.family !== undefined && model.metadata.family === selector.family
+				|| selector.version !== undefined && model.metadata.version === selector.version
+				|| selector.identifier !== undefined && model.metadata.identifier === selector.identifier
+			) {
+				// true selection
+				result.push(model.metadata.identifier);
+
+			} else if (!selector || isEmptyObject(selector)) {
+				// no selection
+				result.push(model.metadata.identifier);
+			}
+		}
+
+		return result;
 	}
 
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable {
