@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
-import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
+import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -78,7 +78,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	$selectChatModels(selector: Partial<ILanguageModelChatMetadata>): Promise<string[]> {
+	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return this._chatProviderService.selectLanguageModels(selector);
 	}
 

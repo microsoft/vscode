@@ -160,7 +160,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			family: metadata.family ?? '',
 			version: metadata.version,
 			tokens: metadata.tokens,
-			auth
+			auth,
+			targetExtensions: metadata.extensions
 		});
 
 		const responseReceivedListener = provider.onDidReceiveLanguageModelResponse2?.(({ extensionId, participant, tokenCount }) => {
@@ -244,7 +245,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	async selectLanguageModels(extension: IExtensionDescription, selector: vscode.LanguageModelChatSelector) {
 
 		// this triggers extension activation
-		const models = await this._proxy.$selectChatModels(selector);
+		const models = await this._proxy.$selectChatModels({ ...selector, extension: extension.identifier });
 
 		const result: vscode.LanguageModelChat[] = [];
 		const that = this;

@@ -36,6 +36,7 @@ export interface ILanguageModelChatMetadata {
 	readonly version: string;
 	readonly family: string;
 	readonly tokens: number;
+	readonly targetExtensions?: string[];
 
 	readonly auth?: {
 		readonly providerLabel: string;
@@ -47,6 +48,16 @@ export interface ILanguageModelChat {
 	metadata: ILanguageModelChatMetadata;
 	provideChatResponse(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 	provideTokenCount(message: string | IChatMessage, token: CancellationToken): Promise<number>;
+}
+
+export interface ILanguageModelChatSelector {
+	readonly name?: string;
+	readonly identifier?: string;
+	readonly vendor?: string;
+	readonly version?: string;
+	readonly family?: string;
+	readonly tokens?: number;
+	readonly extension?: ExtensionIdentifier;
 }
 
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
@@ -61,7 +72,7 @@ export interface ILanguageModelsService {
 
 	lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined;
 
-	selectLanguageModels(selector: Partial<ILanguageModelChatMetadata>): Promise<string[]>;
+	selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]>;
 
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable;
 
@@ -95,7 +106,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return this._providers.get(identifier)?.metadata;
 	}
 
-	async selectLanguageModels(selector: Partial<ILanguageModelChatMetadata>): Promise<string[]> {
+	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		await this._extensionService.activateByEvent(`onLanguageModelChat:${selector.vendor ?? '*'}}`);
 
 		const result: string[] = [];
@@ -105,6 +116,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				|| selector.family !== undefined && model.metadata.family === selector.family
 				|| selector.version !== undefined && model.metadata.version === selector.version
 				|| selector.identifier !== undefined && model.metadata.identifier === selector.identifier
+				|| selector.extension !== undefined && model.metadata.targetExtensions?.some(candidate => ExtensionIdentifier.equals(candidate, selector.extension))
 			) {
 				// true selection
 				result.push(model.metadata.identifier);

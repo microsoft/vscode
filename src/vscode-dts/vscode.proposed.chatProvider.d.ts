@@ -52,11 +52,12 @@ declare module 'vscode' {
 		 * Additionally, the extension can provide a label that will be shown in the UI.
 		 */
 		auth?: true | { label: string };
-
-		// MAGIC
-		extension?: string;
 	}
 
+	export interface ChatResponseProviderMetadata {
+		// limit this provider to some extensions
+		extensions: string[];
+	}
 
 	export namespace chat {
 

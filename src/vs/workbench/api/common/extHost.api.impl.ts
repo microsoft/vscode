@@ -1428,7 +1428,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: lm
 		const lm: typeof vscode.lm = {
-			selectLanguageModels: (selector) => {
+			selectChatModels: (selector) => {
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostLanguageModels.selectLanguageModels(extension, selector);
 			},
