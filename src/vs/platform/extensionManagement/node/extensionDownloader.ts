@@ -111,9 +111,9 @@ export class ExtensionsDownloader extends Disposable {
 	private async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {
 		await this.cleanUpPromise;
 
-		const location = joinPath(this.extensionsDownloadDir, `${this.getName(extension)}${ExtensionsDownloader.SignatureArchiveExtension}`);
+		const location = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
 		try {
-			await this.downloadFile(extension, location, location => this.extensionGalleryService.downloadSignatureArchive(extension, location));
+			await this.extensionGalleryService.downloadSignatureArchive(extension, location);
 		} catch (error) {
 			throw toExtensionManagementError(error, ExtensionManagementErrorCode.DownloadSignature);
 		}
