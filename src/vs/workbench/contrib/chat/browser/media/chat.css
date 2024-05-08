@@ -720,7 +720,7 @@
 
 .chat-confirmation-widget {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 6px;
+	border-radius: 4px;
 	margin-bottom: 16px;
 	padding: 12px 16px 16px;
 }
