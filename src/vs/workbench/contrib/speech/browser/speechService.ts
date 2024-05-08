@@ -333,9 +333,6 @@ export class SpeechService extends Disposable implements ISpeechService {
 	async recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
 		const result = new DeferredPromise<KeywordRecognitionStatus>();
 
-		// Send out extension activation to ensure providers can register
-		await this.extensionService.activateByEvent('onSpeech');
-
 		const disposables = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => {
 			disposables.dispose();
