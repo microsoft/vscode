@@ -38,6 +38,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
 import type { IHoverWidget, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { QuickPickFocus } from '../common/quickInput';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
 
@@ -706,7 +707,8 @@ export class QuickInputTree extends Disposable {
 		private hoverDelegate: IHoverDelegate,
 		private linkOpenerDelegate: (content: string) => void,
 		id: string,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
@@ -1114,6 +1116,20 @@ export class QuickInputTree extends Disposable {
 		}
 		this._tree.setChildren(null, elements);
 		this._onChangedVisibleCount.fire(visibleCount);
+
+		// Accessibility hack, unfortunately on next tick
+		// https://github.com/microsoft/vscode/issues/211976
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			setTimeout(() => {
+				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
+				const parent = focusedElement?.parentNode;
+				if (focusedElement && parent) {
+					const nextSibling = focusedElement.nextSibling;
+					parent.removeChild(focusedElement);
+					parent.insertBefore(focusedElement, nextSibling);
+				}
+			}, 0);
+		}
 	}
 
 	getElementsCount(): number {
