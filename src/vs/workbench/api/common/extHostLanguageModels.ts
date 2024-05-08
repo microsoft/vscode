@@ -295,7 +295,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const internalMessages: IChatMessage[] = this._convertMessages(extension, messages);
 
 		const from = extension.identifier;
-		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options.justification);
+		const metadata = this._allLanguageModelData.get(languageModelId)?.metadata;
 
 		if (!metadata || !this._allLanguageModelData.has(languageModelId)) {
 			throw extHostTypes.LanguageModelError.NotFound(`Language model '${languageModelId}' is unknown.`);
