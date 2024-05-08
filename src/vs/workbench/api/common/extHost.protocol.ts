@@ -1203,7 +1203,6 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]>;
 
-	$prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined>;
 	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
 
 	$whenLanguageModelChatRequestMade(identifier: string, extension: ExtensionIdentifier, participant?: string, tokenCount?: number): void;
