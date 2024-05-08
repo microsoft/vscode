@@ -143,7 +143,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string, extensionId: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange | undefined, extensionId: ExtensionIdentifier, isTemplate: boolean): languages.CommentThread<IRange | ICellRange> | undefined;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange | undefined, extensionId: ExtensionIdentifier, isTemplate: boolean, editorId?: string): languages.CommentThread<IRange | ICellRange> | undefined;
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number, resourceHints?: languages.CommentingRangeResourceHint): void;
@@ -1214,6 +1214,17 @@ export interface ExtHostLanguageModelsShape {
 	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 	$provideTokenLength(handle: number, value: string | IChatMessage, token: CancellationToken): Promise<number>;
+}
+
+export interface MainThreadEmbeddingsShape extends IDisposable {
+	$registerEmbeddingProvider(handle: number, identifier: string): void;
+	$unregisterEmbeddingProvider(handle: number): void;
+	$computeEmbeddings(embeddingsModel: string, input: string[], token: CancellationToken): Promise<({ values: number[] }[])>;
+}
+
+export interface ExtHostEmbeddingsShape {
+	$provideEmbeddings(handle: number, input: string[], token: CancellationToken): Promise<{ values: number[] }[]>;
+	$acceptEmbeddingModels(models: string[]): void;
 }
 
 export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
@@ -2447,7 +2458,7 @@ export interface ExtHostProgressShape {
 }
 
 export interface ExtHostCommentsShape {
-	$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined): Promise<void>;
+	$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined, editorId?: string): Promise<void>;
 	$updateCommentThreadTemplate(commentControllerHandle: number, threadHandle: number, range: IRange): Promise<void>;
 	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number): void;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined>;
@@ -2774,6 +2785,7 @@ export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
 	MainThreadLanguageModels: createProxyIdentifier<MainThreadLanguageModelsShape>('MainThreadLanguageModels'),
+	MainThreadEmbeddings: createProxyIdentifier<MainThreadEmbeddingsShape>('MainThreadEmbeddings'),
 	MainThreadChatAgents2: createProxyIdentifier<MainThreadChatAgentsShape2>('MainThreadChatAgents2'),
 	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
@@ -2897,6 +2909,7 @@ export const ExtHostContext = {
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),
+	ExtHostEmbeddings: createProxyIdentifier<ExtHostEmbeddingsShape>('ExtHostEmbeddings'),
 	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),
 	ExtHostAiEmbeddingVector: createProxyIdentifier<ExtHostAiEmbeddingVectorShape>('ExtHostAiEmbeddingVector'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),

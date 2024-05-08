@@ -12,8 +12,6 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService, NavigationType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -35,6 +33,8 @@ import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/ac
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { TerminalAccessibilitySettingId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration';
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
+import { IAccessibleViewService, AccessibleViewProviderId, NavigationType } from 'vs/platform/accessibility/browser/accessibleView';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 // #region Terminal Contributions
 

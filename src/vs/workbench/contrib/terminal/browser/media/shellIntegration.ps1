@@ -22,7 +22,7 @@ $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
 $osVersion = [System.Environment]::OSVersion.Version
-$isWindows10 = $IsWindows10 -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+$isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 
 if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
