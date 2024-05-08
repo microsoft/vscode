@@ -18,6 +18,9 @@ import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/com
 export interface IMenuItem {
 	command: ICommandAction;
 	alt?: ICommandAction;
+	/**
+	 * Menu item is hidden if this expression returns false.
+	 */
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
