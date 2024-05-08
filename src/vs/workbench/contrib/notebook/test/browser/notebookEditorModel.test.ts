@@ -259,40 +259,45 @@ suite('NotebookFileWorkingCopyModel', function () {
 				return Promise.resolve({ name: 'savedFile' } as IFileStatWithMetadata);
 			}
 		};
+		(serializer as any).test = 'yes';
 
-		const notebookService = mockNotebookService(notebook, serializer);
+		let resolveSerializer: (serializer: INotebookSerializer) => void = () => { };
+		const serializerPromise = new Promise<INotebookSerializer>(resolve => {
+			resolveSerializer = resolve;
+		});
+		const notebookService = mockNotebookService(notebook, serializerPromise);
+		configurationService.setUserConfiguration(NotebookSetting.remoteSaving, true);
+
 		const model = disposables.add(new NotebookFileWorkingCopyModel(
 			notebook,
 			notebookService,
 			configurationService
 		));
 
-		const notExist = model.getSaveDelegate();
-		const saveDelegate = model.getSaveDelegate();
-		const result = await saveDelegate!({} as any, {} as any);
-
+		// the save method should not be set if the serializer is not yet resolved
+		const notExist = model.save;
 		assert.strictEqual(notExist, undefined);
-		assert.strictEqual(typeof (saveDelegate), 'function');
-		assert.strictEqual(result.name, 'savedFile');
+
+		resolveSerializer(serializer);
+		await model.getNotebookSerializer();
+		const result = await model.save?.({} as any, {} as any);
+
+		assert.strictEqual(result!.name, 'savedFile');
 	});
 });
 
-function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: INotebookSerializer) {
+function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: Promise<INotebookSerializer> | INotebookSerializer) {
 	return new class extends mock<INotebookService>() {
-		private cachedProvider: SimpleNotebookProviderInfo | undefined;
 		override async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
-			this.cachedProvider = new SimpleNotebookProviderInfo(
+			const serializer = await notebookSerializer;
+			return new SimpleNotebookProviderInfo(
 				notebook.viewType,
-				notebookSerializer,
+				serializer,
 				{
 					id: new ExtensionIdentifier('test'),
 					location: undefined
 				}
 			);
-			return this.cachedProvider;
-		}
-		override cachedNotebookDataProvider(viewType: string): SimpleNotebookProviderInfo | undefined {
-			return this.cachedProvider;
 		}
 	};
 }

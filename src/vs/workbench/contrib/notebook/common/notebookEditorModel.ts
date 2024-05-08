@@ -14,7 +14,7 @@ import { filter } from 'vs/base/common/objects';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWriteFileOptions } from 'vs/platform/files/common/files';
+import { IWriteFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -190,6 +190,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	readonly onWillDispose: Event<void>;
 
 	readonly configuration: IFileWorkingCopyModelConfiguration | undefined = undefined;
+	save: ((options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata>) | undefined;
 
 	constructor(
 		private readonly _notebookModel: NotebookTextModel,
@@ -226,31 +227,23 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				backupDelay: 10000
 			};
 		}
+
+		// Override save behavior to avoid transferring the buffer across the wire 3 times
+		if (saveWithReducedCommunication) {
+			this.setSaveDelegate().catch(console.error);
+		}
 	}
 
-	getSaveDelegate() {
-		if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
-			return undefined;
-		}
+	private async setSaveDelegate() {
+		const serializer = await this.getNotebookSerializer();
+		this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 
-		const serializer = this._notebookService.cachedNotebookDataProvider(this._notebookModel.viewType)?.serializer;
-
-		if (serializer) {
-			return async (options: IWriteFileOptions, token: CancellationToken) => {
-
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-
-				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
-				return stat;
-			};
-		}
-
-		// We can't asyncronously fetch the serializer because this method must be synchronous,
-		// but we should asyncronously fetch the serializer for future calls
-		this.cacheNotebookSerializer();
-		return undefined;
+			const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
+			return stat;
+		};
 	}
 
 	override dispose(): void {
@@ -325,15 +318,6 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		}
 
 		return info.serializer;
-	}
-
-	private serializerPromise: Promise<INotebookSerializer> | undefined;
-	private async cacheNotebookSerializer() {
-		if (!this.serializerPromise) {
-			this.serializerPromise = this.getNotebookSerializer();
-		}
-
-		return this.serializerPromise;
 	}
 
 	get versionId() {

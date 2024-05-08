@@ -33,10 +33,6 @@ export class TestStoredFileWorkingCopyModel extends Disposable implements IStore
 		super();
 	}
 
-	getSaveDelegate(): ((options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata>) | undefined {
-		return undefined;
-	}
-
 	fireContentChangeEvent(event: IStoredFileWorkingCopyModelContentChangedEvent): void {
 		this._onDidChangeContent.fire(event);
 	}
@@ -93,28 +89,26 @@ export class TestStoredFileWorkingCopyModelWithCustomSave extends TestStoredFile
 	saveCounter = 0;
 	throwOnSave = false;
 
-	override getSaveDelegate() {
-		return async (options: IWriteFileOptions, token: CancellationToken) => {
-			if (this.throwOnSave) {
-				throw new Error('Fail');
-			}
+	async save(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata> {
+		if (this.throwOnSave) {
+			throw new Error('Fail');
+		}
 
-			this.saveCounter++;
+		this.saveCounter++;
 
-			return {
-				resource: this.resource,
-				ctime: 0,
-				etag: '',
-				isDirectory: false,
-				isFile: true,
-				mtime: 0,
-				name: 'resource2',
-				size: 0,
-				isSymbolicLink: false,
-				readonly: false,
-				locked: false,
-				children: undefined
-			};
+		return {
+			resource: this.resource,
+			ctime: 0,
+			etag: '',
+			isDirectory: false,
+			isFile: true,
+			mtime: 0,
+			name: 'resource2',
+			size: 0,
+			isSymbolicLink: false,
+			readonly: false,
+			locked: false,
+			children: undefined
 		};
 	}
 }
