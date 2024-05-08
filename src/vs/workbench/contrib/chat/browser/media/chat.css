@@ -256,8 +256,11 @@
 }
 
 .interactive-item-container .value .rendered-markdown p {
-	margin: 0 0 16px 0;
 	line-height: 1.5em;
+}
+
+.interactive-item-container .value > .rendered-markdown p {
+	margin: 0 0 16px 0;
 }
 
 .interactive-item-container .value .rendered-markdown ul {
@@ -317,7 +320,7 @@
 	min-height: 0;
 }
 
-.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown p {
 	margin: 0 0 8px 0;
 }
 
@@ -703,7 +706,8 @@
 	gap: 6px;
 }
 
-.interactive-item-container .chat-command-button .monaco-button {
+.interactive-item-container .chat-command-button .monaco-button,
+.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button {
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
@@ -712,4 +716,24 @@
 .interactive-item-container .chat-command-button .monaco-button .codicon {
 	margin-left: 0;
 	margin-top: 1px;
+}
+
+.chat-confirmation-widget {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 6px;
+	margin-bottom: 16px;
+	padding: 10px 16px 12px;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title {
+	font-weight: 600;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title p {
+	margin: 0 0 4px 0;
+}
+
+.chat-confirmation-widget .chat-confirmation-buttons-container {
+	display: flex;
+	gap: 8px;
 }

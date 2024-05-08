@@ -122,6 +122,8 @@ export interface IChatAgentRequest {
 	enableCommandDetection?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
+	acceptedConfirmationData?: any[];
+	rejectedConfirmationData?: any[];
 }
 
 export interface IChatAgentResult {
