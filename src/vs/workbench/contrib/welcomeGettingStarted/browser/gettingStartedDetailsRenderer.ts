@@ -221,12 +221,9 @@ export class GettingStartedDetailsRenderer {
 		try {
 			const moduleId = JSON.parse(path.query).moduleId;
 			if (useModuleId && moduleId) {
-				const contents = await new Promise<string>(c => {
-					require([moduleId], content => {
-						c(content.default());
-					});
-				});
-				return contents;
+
+				const module = await import(moduleId)
+				return module.default()
 			}
 		} catch { }
 
