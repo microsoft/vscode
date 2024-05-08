@@ -414,6 +414,23 @@ export async function getDocumentFormattingEditsUntilResult(
 	return undefined;
 }
 
+export async function getDocumentFormattingEditsWithSelectedProvider(
+	workerService: IEditorWorkerService,
+	languageFeaturesService: ILanguageFeaturesService,
+	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
+	token: CancellationToken,
+): Promise<TextEdit[] | undefined> {
+	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
+	const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
+	const selected = await FormattingConflicts.select(provider, model, mode, FormattingKind.File);
+	if (selected) {
+		const rawEdits = await Promise.resolve(selected.provideDocumentFormattingEdits(model, model.getOptions(), token)).catch(onUnexpectedExternalError);
+		return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+	}
+	return undefined;
+}
+
 export function getOnTypeFormattingEdits(
 	workerService: IEditorWorkerService,
 	languageFeaturesService: ILanguageFeaturesService,

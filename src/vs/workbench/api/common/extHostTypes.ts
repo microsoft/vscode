@@ -4023,7 +4023,7 @@ export enum TestRunProfileKind {
 }
 
 @es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest2 {
+export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
@@ -4334,6 +4334,17 @@ export class ChatResponseDetectedParticipantPart {
 	constructor(participant: string, command?: vscode.ChatCommand) {
 		this.participant = participant;
 		this.command = command;
+	}
+}
+
+export class ChatResponseConfirmationPart {
+	title: string;
+	message: string;
+	data: any;
+	constructor(title: string, message: string, data: any) {
+		this.title = title;
+		this.message = message;
+		this.data = data;
 	}
 }
 

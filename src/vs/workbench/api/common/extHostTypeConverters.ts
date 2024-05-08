@@ -40,7 +40,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/edit
 import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -2297,6 +2297,17 @@ export namespace ChatResponseDetectedParticipantPart {
 	}
 }
 
+export namespace ChatResponseConfirmationPart {
+	export function from(part: vscode.ChatResponseConfirmationPart): Dto<IChatConfirmation> {
+		return {
+			kind: 'confirmation',
+			title: part.title,
+			message: part.message,
+			data: part.data
+		};
+	}
+}
+
 export namespace ChatResponseFilesPart {
 	export function from(part: vscode.ChatResponseFileTreePart): IChatTreeData {
 		const { value, baseUri } = part;
@@ -2452,7 +2463,7 @@ export namespace ChatResponseReferencePart {
 
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseWarningPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2516,6 +2527,8 @@ export namespace ChatAgentRequest {
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			variables: request.variables.variables.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
+			acceptedConfirmationData: request.acceptedConfirmationData,
+			rejectedConfirmationData: request.rejectedConfirmationData
 		};
 	}
 }
