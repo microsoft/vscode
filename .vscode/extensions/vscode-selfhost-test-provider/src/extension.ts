@@ -7,8 +7,9 @@ import { randomBytes } from 'crypto';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { istanbulCoverageContext } from './coverageProvider';
+import { V8CoverageFile } from './coverageProvider';
 import { FailingDeepStrictEqualAssertFixer } from './failingDeepStrictEqualAssertFixer';
+import { FailureTracker } from './failureTracker';
 import { registerSnapshotUpdate } from './snapshot';
 import { scanTestOutput } from './testOutputScanner';
 import {
@@ -19,7 +20,6 @@ import {
 	itemData,
 } from './testTree';
 import { BrowserTestRunner, PlatformTestRunner, VSCodeTestRunner } from './vscodeTestRunner';
-import { FailureTracker } from './failureTracker';
 
 const TEST_FILE_PATTERN = 'src/vs/**/*.{test,integrationTest}.ts';
 
@@ -183,7 +183,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		true
 	);
 
-	coverage.loadDetailedCoverage = istanbulCoverageContext.loadDetailedCoverage;
+	coverage.loadDetailedCoverage = async (_run, coverage) => {
+		if (coverage instanceof V8CoverageFile) {
+			return coverage.details;
+		}
+
+		return [];
+	};
 
 	for (const [name, arg] of browserArgs) {
 		const cfg = ctrl.createRunProfile(

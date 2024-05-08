@@ -3,14 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import {
+	GREATEST_LOWER_BOUND,
+	LEAST_UPPER_BOUND,
+	originalPositionFor,
+	TraceMap,
+} from '@jridgewell/trace-mapping';
 import * as styles from 'ansi-styles';
 import { ChildProcessWithoutNullStreams } from 'child_process';
 import * as vscode from 'vscode';
-import { IScriptCoverage, PerTestCoverageTracker, istanbulCoverageContext } from './coverageProvider';
+import { istanbulCoverageContext, PerTestCoverageTracker } from './coverageProvider';
 import { attachTestMessageMetadata } from './metadata';
 import { snapshotComment } from './snapshot';
-import { SourceMapStore } from './sourceMapStore';
+import { getContentFromFilesystem } from './testTree';
 import { StreamSplitter } from './streamSplitter';
+import { IScriptCoverage } from './v8CoverageWrangling';
 
 export const enum MochaEvent {
 	Start = 'start',
@@ -20,8 +27,8 @@ export const enum MochaEvent {
 	End = 'end',
 
 	// custom events:
-	CoverageInit = 'coverage init',
-	CoverageIncrement = 'coverage increment',
+	CoverageInit = 'coverageInit',
+	CoverageIncrement = 'coverageIncrement',
 }
 
 export interface IStartEvent {
@@ -63,7 +70,7 @@ export interface IEndEvent {
 export interface ITestCoverageCoverage {
 	file: string;
 	fullTitle: string;
-	coverage: IScriptCoverage;
+	coverage: { result: IScriptCoverage[] };
 }
 
 export type MochaEventTuple =
@@ -72,7 +79,7 @@ export type MochaEventTuple =
 	| [MochaEvent.Pass, IPassEvent]
 	| [MochaEvent.Fail, IFailEvent]
 	| [MochaEvent.End, IEndEvent]
-	| [MochaEvent.CoverageInit, IScriptCoverage]
+	| [MochaEvent.CoverageInit, { result: IScriptCoverage[] }]
 	| [MochaEvent.CoverageIncrement, ITestCoverageCoverage];
 
 const LF = '\n'.charCodeAt(0);
@@ -166,9 +173,9 @@ export async function scanTestOutput(
 		return prom;
 	};
 
+	let perTestCoverage: PerTestCoverageTracker | undefined;
 	let lastTest: vscode.TestItem | undefined;
 	let ranAnyTest = false;
-	let perTestCoverage: PerTestCoverageTracker | undefined;
 
 	try {
 		if (cancellation.isCancellationRequested) {
@@ -231,7 +238,6 @@ export async function scanTestOutput(
 							if (tcase) {
 								lastTest = tcase;
 								task.passed(tcase, evt[1].duration);
-								tests.delete(title);
 							}
 						}
 						break;
@@ -264,8 +270,6 @@ export async function scanTestOutput(
 							if (!tcase) {
 								return;
 							}
-
-							tests.delete(id);
 
 							const hasDiff =
 								actual !== undefined &&
@@ -316,20 +320,28 @@ export async function scanTestOutput(
 						break;
 					case MochaEvent.CoverageInit:
 						perTestCoverage ??= new PerTestCoverageTracker(store);
-						enqueueExitBlocker(perTestCoverage.add(task, evt[1]));
+						for (const result of evt[1].result) {
+							perTestCoverage.add(result);
+						}
 						break;
 					case MochaEvent.CoverageIncrement: {
 						const { fullTitle, coverage } = evt[1];
 						const tcase = tests.get(fullTitle);
 						if (tcase) {
 							perTestCoverage ??= new PerTestCoverageTracker(store);
-							enqueueExitBlocker(perTestCoverage.add(task, coverage, tcase));
+							for (const result of coverage.result) {
+								perTestCoverage.add(result, tcase);
+							}
 						}
 						break;
 					}
 				}
 			});
 		});
+
+		if (perTestCoverage) {
+			enqueueExitBlocker(perTestCoverage.report(task));
+		}
 
 		await Promise.all([...exitBlockers]);
 
@@ -407,6 +419,98 @@ const tryMakeMarkdown = (message: string) => {
 	lines.push('```');
 	return new vscode.MarkdownString(lines.join('\n'));
 };
+
+const inlineSourcemapRe = /^\/\/# sourceMappingURL=data:application\/json;base64,(.+)/m;
+const sourceMapBiases = [GREATEST_LOWER_BOUND, LEAST_UPPER_BOUND] as const;
+
+export type SourceLocationMapper = (line: number, col: number) => vscode.Location | undefined;
+
+export class SourceMapStore {
+	private readonly cache = new Map</* file uri */ string, Promise<TraceMap | undefined>>();
+
+	async getSourceLocationMapper(fileUri: string) {
+		const sourceMap = await this.loadSourceMap(fileUri);
+		return (line: number, col: number) => {
+			if (!sourceMap) {
+				return undefined;
+			}
+
+			for (const bias of sourceMapBiases) {
+				const position = originalPositionFor(sourceMap, { column: col, line: line + 1, bias });
+				if (position.line !== null && position.column !== null && position.source !== null) {
+					return new vscode.Location(
+						this.completeSourceMapUrl(sourceMap, position.source),
+						new vscode.Position(position.line - 1, position.column)
+					);
+				}
+			}
+
+			return undefined;
+		};
+	}
+
+	async getSourceLocation(fileUri: string, line: number, col = 1) {
+		return this.getSourceLocationMapper(fileUri).then(m => m(line, col));
+	}
+
+	async getSourceFile(compiledUri: string) {
+		const sourceMap = await this.loadSourceMap(compiledUri);
+		if (!sourceMap) {
+			return undefined;
+		}
+
+		if (sourceMap.sources[0]) {
+			return this.completeSourceMapUrl(sourceMap, sourceMap.sources[0]);
+		}
+
+		for (const bias of sourceMapBiases) {
+			const position = originalPositionFor(sourceMap, { column: 0, line: 1, bias });
+			if (position.source !== null) {
+				return this.completeSourceMapUrl(sourceMap, position.source);
+			}
+		}
+
+		return undefined;
+	}
+
+	private completeSourceMapUrl(sm: TraceMap, source: string) {
+		if (sm.sourceRoot) {
+			try {
+				return vscode.Uri.parse(new URL(source, sm.sourceRoot).toString());
+			} catch {
+				// ignored
+			}
+		}
+
+		return vscode.Uri.parse(source);
+	}
+
+	private loadSourceMap(fileUri: string) {
+		const existing = this.cache.get(fileUri);
+		if (existing) {
+			return existing;
+		}
+
+		const promise = (async () => {
+			try {
+				const contents = await getContentFromFilesystem(vscode.Uri.parse(fileUri));
+				const sourcemapMatch = inlineSourcemapRe.exec(contents);
+				if (!sourcemapMatch) {
+					return;
+				}
+
+				const decoded = Buffer.from(sourcemapMatch[1], 'base64').toString();
+				return new TraceMap(decoded, fileUri);
+			} catch (e) {
+				console.warn(`Error parsing sourcemap for ${fileUri}: ${(e as Error).stack}`);
+				return;
+			}
+		})();
+
+		this.cache.set(fileUri, promise);
+		return promise;
+	}
+}
 
 const locationRe = /(file:\/{3}.+):([0-9]+):([0-9]+)/g;
 

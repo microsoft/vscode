@@ -31,7 +31,7 @@ module.exports = class FullJsonStreamReporter extends BaseRunner {
 
 		// custom coverage events:
 		runner.on('coverage init', (c) => writeEvent(['coverageInit', c]));
-		runner.on('coverage increment', (context, c) => writeEvent(['coverageIncrement', context, c]));
+		runner.on('coverage increment', (context, coverage) => writeEvent(['coverageIncrement', { ...context, coverage }]));
 
 		runner.on(EVENT_TEST_BEGIN, test => writeEvent(['testStart', clean(test)]));
 		runner.on(EVENT_TEST_PASS, test => writeEvent(['pass', clean(test)]));
