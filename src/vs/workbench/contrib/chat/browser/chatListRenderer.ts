@@ -612,11 +612,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							isAtEndOfResponse: onlyProgressMessagesAfterI(renderableResponse, index),
 							isLast: index === renderableResponse.length - 1,
 						} satisfies IChatProgressMessageRenderData;
-					} else if (part.kind === 'progressTask') {
-						partsToRender[index] = part;
 					} else if (part.kind === 'command' ||
 						part.kind === 'textEditGroup' ||
-						part.kind === 'confirmation') {
+						part.kind === 'confirmation' ||
+						part.kind === 'progressTask') {
 						partsToRender[index] = part;
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });

@@ -146,11 +146,11 @@ export class Response implements IResponse {
 	}
 
 	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
-	private _responseParts: (IChatProgressResponseContent)[];
+	private _responseParts: IChatProgressResponseContent[];
 	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
 	private _responseRepr!: string;
 
-	get value(): (IChatProgressResponseContent)[] {
+	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
 	}
 
