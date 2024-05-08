@@ -299,6 +299,14 @@ class FileAccessImpl {
 		return this.uriToFileUri(uri);
 	}
 
+	appRootPath() {
+		const root = this.asFileUri('').fsPath
+		if (root.endsWith('/') || root.endsWith('\\')) {
+			return root.slice(0, -1)
+		}
+		return root
+	}
+
 	/**
 	 * Returns the `file` URI to use in contexts where node.js
 	 * is responsible for loading.
