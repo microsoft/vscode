@@ -38,9 +38,9 @@ import { CHAT_CATEGORY, stringifyItem } from 'vs/workbench/contrib/chat/browser/
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
-import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
@@ -864,18 +864,24 @@ export class ReadChatItemAloud extends Action2 {
 			title: localize2('workbench.action.chat.readChatItemAloud', "Read Aloud"),
 			f1: false,
 			category: CHAT_CATEGORY,
+			icon: Codicon.unmute,
 			precondition: CanVoiceChat,
 			menu: {
-				id: MenuId.ChatContext,
-				when: ContextKeyExpr.and(CanVoiceChat, CONTEXT_RESPONSE_FILTERED.negate()),
-				group: 'textToSpeech'
+				id: MenuId.ChatMessageTitle,
+				when: ContextKeyExpr.and(
+					CanVoiceChat,
+					CONTEXT_RESPONSE,					// only for responses
+					TextToSpeechInProgress.negate(),	// but not when already in progress
+					CONTEXT_RESPONSE_FILTERED.negate()	// and not when response is filtered
+				),
+				group: 'navigation'
 			}
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const item = args[0];
-		if (!isRequestVM(item) && !isResponseVM(item)) {
+		if (!isResponseVM(item)) {
 			return;
 		}
 
@@ -899,16 +905,53 @@ export class StopReadAloud extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape,
 			},
-			menu: [{
-				id: MenuId.ChatContext,
-				when: TextToSpeechInProgress,
-				group: 'textToSpeech'
-			}, {
-				id: MenuId.ChatExecute,
-				when: TextToSpeechInProgress,
-				group: 'navigation',
-				order: -1
-			}]
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					when: TextToSpeechInProgress,
+					group: 'navigation',
+					order: -1
+				},
+				{
+					id: MenuId.for('terminalChatInput'),
+					when: TextToSpeechInProgress,
+					group: 'navigation',
+					order: -1
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).stop();
+	}
+}
+
+export class StopReadChatItemAloud extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.stopRadChatItemAloud';
+
+	constructor() {
+		super({
+			id: StopReadChatItemAloud.ID,
+			icon: Codicon.mute,
+			title: localize2('workbench.action.chat.stopRadChatItemAloud', "Stop Reading Aloud"),
+			precondition: TextToSpeechInProgress,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 100,
+				primary: KeyCode.Escape,
+			},
+			menu: [
+				{
+					id: MenuId.ChatMessageTitle,
+					when: ContextKeyExpr.and(
+						TextToSpeechInProgress,				// only when in progress
+						CONTEXT_RESPONSE,					// only for responses
+						CONTEXT_RESPONSE_FILTERED.negate()	// but not when response is filtered
+					),
+					group: 'navigation'
+				}
+			]
 		});
 	}
 
