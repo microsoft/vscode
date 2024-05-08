@@ -12,7 +12,7 @@ import {
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Action2, MenuId, MenuRegistry, registerAction2, } from 'vs/platform/actions/common/actions';
-import { localize, localize2 } from 'vs/nls';
+import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -43,7 +43,8 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 				super({
 					id: actionId,
 					title: {
-						...localize2(actionKey, 'extension action'),
+						value: actionKey,
+						original: actionKey,
 						mnemonicTitle: `&&${actionTitle}`,
 					},
 					category: Categories.Extension,
