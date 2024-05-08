@@ -102,6 +102,15 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
 
+	export class ChatResponseConfirmationPart {
+		title: string;
+		message: string;
+		data: any;
+		constructor(title: string, message: string, data: any);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart;
+
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -111,7 +120,19 @@ declare module 'vscode' {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
 		detectedParticipant(participant: string, command?: ChatCommand): ChatResponseStream;
-		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart): ChatResponseStream;
+
+		/**
+		 * Show an inline message in the chat view asking the user to confirm an action.
+		 * Multiple confirmations may be shown per response. The UI might show "Accept All" / "Reject All" actions.
+		 * @param title The title of the confirmation entry
+		 * @param message An extra message to display to the user
+		 * @param data An arbitrary JSON-stringifiable object that will be included in the ChatRequest when
+		 * the confirmation is accepted or rejected
+		 * TODO@API should this be MarkdownString?
+		 * TODO@API should actually be a more generic function that takes an array of buttons
+		 */
+		confirmation(title: string, message: string, data: any): ChatResponseStream;
+
 		/**
 		 * Push a warning to this stream. Short-hand for
 		 * `push(new ChatResponseWarningPart(message))`.
@@ -121,6 +142,23 @@ declare module 'vscode' {
 		 */
 		warning(message: string | MarkdownString): ChatResponseStream;
 
+		push(part: ExtendedChatResponsePart): ChatResponseStream;
+	}
+
+	/**
+	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
+	 * Does it show up in history?
+	 */
+	export interface ChatRequest {
+		/**
+		 * The `data` for any confirmations that were accepted
+		 */
+		acceptedConfirmationData?: any[];
+
+		/**
+		 * The `data` for any confirmations that were rejected
+		 */
+		rejectedConfirmationData?: any[];
 	}
 
 	// TODO@API fit this into the stream
