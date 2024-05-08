@@ -51,14 +51,13 @@ export class SnapshotContext {
 
 		const root = FileAccess.appRootFsUri();
 		const parts = test.file.split(/[/\\]/g);
-		const relevantIndex = parts.indexOf('out');
+		const relevantIndex = parts.lastIndexOf('out');
 		let relevantParts = parts
-		if (relevantIndex !== -1) {
-			relevantParts = parts.slice(relevantIndex, -1);
-		} else {
+		if (relevantIndex === -1) {
 			relevantParts = parts.slice(0, -1)
+		} else {
+			relevantParts = parts.slice(relevantIndex + 1, -1);
 		}
-
 		this.namePrefix = sanitizeName(test.fullTitle()) + '.';
 		this.snapshotsDir = URI.joinPath(root, 'src', ...relevantParts, '__snapshots__');
 	}
