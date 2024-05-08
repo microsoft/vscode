@@ -44,7 +44,7 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 					id: actionId,
 					title: {
 						...localize2(actionKey, 'extension action'),
-						mnemonicTitle: localize({ key: `mi${actionKey}`, comment: ['&& denotes a mnemonic'] }, `&&${actionTitle}`),
+						mnemonicTitle: `&&${actionTitle}`,
 					},
 					category: Categories.Extension,
 					menu: {
@@ -105,7 +105,7 @@ export class ExtensionsMenuContribution extends Disposable implements IWorkbench
 					title: {
 						value: extName,
 						original: extName,
-						mnemonicTitle: localize({ key: `m${extName}`, comment: ['&& denotes a mnemonic'] }, `&&${extName}`)
+						mnemonicTitle: `&&${extName}`
 					},
 					order: extensionOrderIndex
 				});
