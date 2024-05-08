@@ -33,11 +33,13 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { Range } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/model';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -59,6 +61,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
+import { ChatConfirmationWidget } from 'vs/workbench/contrib/chat/browser/chatConfirmationWidget';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
@@ -67,17 +70,16 @@ import { ChatAgentLocation, IChatAgentMetadata, IChatAgentNameService } from 'vs
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
-import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
-import { generateUuid } from 'vs/base/common/uuid';
 
 const $ = dom.$;
 
@@ -155,8 +157,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
+		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -511,7 +515,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'command' ? this.renderCommandButton(element, data)
 							: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
-								: undefined;
+								: data.kind === 'warning' ? this.renderNotification('warning', data.content)
+									: data.kind === 'confirmation' ? this.renderConfirmation(element, data)
+										: undefined;
+
 			if (result) {
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
@@ -519,13 +526,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
-			const icon = element.errorDetails.responseIsFiltered ? Codicon.info : Codicon.error;
-			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(icon)));
-			const renderedError = templateData.elementDisposables.add(this.renderer.render(new MarkdownString(element.errorDetails.message)));
-			errorDetails.appendChild($('span', undefined, renderedError.element));
+			const renderedError = this.renderNotification(element.errorDetails.responseIsFiltered ? 'info' : 'error', new MarkdownString(element.errorDetails.message));
+			templateData.elementDisposables.add(renderedError);
+			templateData.value.appendChild(renderedError.element);
 		}
-
-
 
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
@@ -607,9 +611,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							isAtEndOfResponse: onlyProgressMessagesAfterI(renderableResponse, index),
 							isLast: index === renderableResponse.length - 1,
 						} satisfies IChatProgressMessageRenderData;
-					} else if (part.kind === 'command') {
-						partsToRender[index] = part;
-					} else if (part.kind === 'textEditGroup') {
+					} else if (
+						part.kind === 'command' ||
+						part.kind === 'textEditGroup' ||
+						part.kind === 'confirmation'
+					) {
 						partsToRender[index] = part;
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });
@@ -686,9 +692,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						}
 					} else if (isCommandButtonRenderData(partToRender)) {
 						result = this.renderCommandButton(element, partToRender);
-
 					} else if (isTextEditRenderData(partToRender)) {
 						result = this.renderTextEdit(element, partToRender, templateData);
+					} else if (isConfirmationRenderData(partToRender)) {
+						result = this.renderConfirmation(element, partToRender);
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
@@ -889,7 +896,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// this step is in progress, communicate it to SR users
 			alert(progress.content.value);
 		}
-		const codicon = showSpinner ? ThemeIcon.modify(Codicon.sync, 'spin').id : Codicon.check.id;
+		const codicon = showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
 		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
 			supportThemeIcons: true
 		});
@@ -916,6 +923,57 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.dispose();
 			},
 			element: container
+		};
+	}
+
+	private renderNotification(kind: 'info' | 'warning' | 'error', content: IMarkdownString): IMarkdownRenderResult {
+		const container = $('.chat-notification-widget');
+		let icon;
+		let iconClass;
+		switch (kind) {
+			case 'warning':
+				icon = Codicon.warning;
+				iconClass = '.chat-warning-codicon';
+				break;
+			case 'error':
+				icon = Codicon.error;
+				iconClass = '.chat-error-codicon';
+				break;
+			case 'info':
+				icon = Codicon.info;
+				iconClass = '.chat-info-codicon';
+				break;
+		}
+		container.appendChild($(iconClass, undefined, renderIcon(icon)));
+		const markdownContent = this.renderer.render(content);
+		container.appendChild(markdownContent.element);
+		return {
+			element: container,
+			dispose() { markdownContent.dispose(); }
+		};
+	}
+
+	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation): IMarkdownRenderResult | undefined {
+		const store = new DisposableStore();
+		const confirmationWidget = store.add(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, [
+			{ label: localize('accept', "Accept"), data: confirmation.data },
+			{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
+		]));
+
+		store.add(confirmationWidget.onDidClick(e => {
+			if (isResponseVM(element)) {
+				const prompt = `${e.label}: "${confirmation.title}"`;
+				const data: IChatSendRequestOptions = e.isSecondary ?
+					{ rejectedConfirmationData: [e.data] } :
+					{ acceptedConfirmationData: [e.data] };
+				data.agentId = element.agent?.id;
+				this.chatService.sendRequest(element.sessionId, prompt, data);
+			}
+		}));
+
+		return {
+			element: confirmationWidget.domNode,
+			dispose() { store.dispose(); }
 		};
 	}
 
@@ -1015,7 +1073,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		let codeBlockIndex = 0;
 		const result = this.renderer.render(markdown, {
-			disallowRemoteImages: true,
+			remoteImageIsAllowed: (uri) => this.trustedDomainService.isValid(uri),
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const index = codeBlockIndex++;
@@ -1394,6 +1452,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	constructor(
 		private labels: ResourceLabels,
+		@IThemeService private readonly themeService: IThemeService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) { }
 
@@ -1403,9 +1462,19 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		return { templateDisposables, label };
 	}
 
+
+	private getReferenceIcon(data: IChatContentReference): URI | ThemeIcon | undefined {
+		if (ThemeIcon.isThemeIcon(data.iconPath)) {
+			return data.iconPath;
+		} else {
+			return this.themeService.getColorTheme().type === ColorScheme.DARK && data.iconPath?.dark ? data.iconPath?.dark :
+				data.iconPath?.light;
+		}
+	}
+
 	renderElement(data: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		const reference = data.reference;
-		const icon = data.iconPath;
+		const icon = this.getReferenceIcon(data);
 		templateData.label.element.style.display = 'flex';
 		if ('variableName' in reference) {
 			if (reference.value) {
@@ -1576,6 +1645,10 @@ function isCommandButtonRenderData(item: IChatRenderData): item is IChatCommandB
 
 function isTextEditRenderData(item: IChatRenderData): item is IChatTextEditGroup {
 	return item && 'kind' in item && item.kind === 'textEditGroup';
+}
+
+function isConfirmationRenderData(item: IChatRenderData): item is IChatConfirmation {
+	return item && 'kind' in item && item.kind === 'confirmation';
 }
 
 function isMarkdownRenderData(item: IChatRenderData): item is IChatResponseMarkdownRenderData {

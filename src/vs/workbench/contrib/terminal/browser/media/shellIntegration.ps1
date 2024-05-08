@@ -22,7 +22,7 @@ $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
 $osVersion = [System.Environment]::OSVersion.Version
-$isWindows10 = $IsWindows10 -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+$isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 
 if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
@@ -90,7 +90,13 @@ function Global:Prompt() {
 		Write-Error "failure" -ea ignore
 	}
 	# Run the original prompt
-	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
+	$OriginalPrompt += $Global:__VSCodeOriginalPrompt.Invoke()
+	$Result += $OriginalPrompt
+
+	# Prompt
+	# OSC 633 ; <Property>=<Value> ST
+	$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
+
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
 	$Global:__LastHistoryId = $LastHistoryEntry.Id

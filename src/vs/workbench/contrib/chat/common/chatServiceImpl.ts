@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -24,7 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
@@ -114,6 +115,11 @@ type ChatTerminalClassification = {
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
+
+interface IRequestConfirmationData {
+	acceptedConfirmationData?: any[];
+	rejectedConfirmationData?: any[];
+}
 
 const maxPersistedSessions = 25;
 
@@ -250,7 +256,7 @@ export class ChatService extends Disposable implements IChatService {
 				throw new Error('Expected array');
 			}
 
-			const sessions = arrayOfSessions.reduce((acc, session) => {
+			const sessions = arrayOfSessions.reduce<ISerializableChatsData>((acc, session) => {
 				// Revive serialized markdown strings in response data
 				for (const request of session.requests) {
 					if (Array.isArray(request.response)) {
@@ -267,7 +273,7 @@ export class ChatService extends Disposable implements IChatService {
 
 				acc[session.sessionId] = session;
 				return acc;
-			}, {} as ISerializableChatsData);
+			}, {});
 			return sessions;
 		} catch (err) {
 			this.error('deserializeChats', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
@@ -459,16 +465,31 @@ export class ChatService extends Disposable implements IChatService {
 		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
 
-		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location, options?.parserContext);
+		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
 		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			responseCompletePromise: this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, implicitVariablesEnabled, defaultAgent, location),
+			responseCompletePromise: this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, implicitVariablesEnabled, defaultAgent, location, options),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
+	}
+
+	private parseChatRequest(sessionId: string, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
+		let parserContext = options?.parserContext;
+		if (options?.agentId) {
+			const agent = this.chatAgentService.getAgent(options.agentId);
+			if (!agent) {
+				throw new Error(`Unknown agent: ${options.agentId}`);
+			}
+			parserContext = { selectedAgent: agent };
+			request = `${chatAgentLeader}${agent.name} ${request}`;
+		}
+
+		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location, parserContext);
+		return parsedRequest;
 	}
 
 	private refreshFollowupsCancellationToken(sessionId: string): CancellationToken {
@@ -479,7 +500,7 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private async _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation): Promise<void> {
+	private async _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation, confirmData?: IRequestConfirmationData): Promise<void> {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -544,8 +565,12 @@ export class ChatService extends Disposable implements IChatService {
 					if (implicitVariablesEnabled) {
 						const implicitVariables = agent.defaultImplicitVariables;
 						if (implicitVariables) {
-							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => ({ name: v, values: await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token) } satisfies IChatRequestVariableEntry)));
-							updatedVariableData.variables.push(...resolvedImplicitVariables);
+							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => {
+								const value = await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token);
+								return value ? { name: v, value } satisfies IChatRequestVariableEntry :
+									undefined;
+							}));
+							updatedVariableData.variables.push(...coalesce(resolvedImplicitVariables));
 						}
 					}
 
@@ -558,7 +583,8 @@ export class ChatService extends Disposable implements IChatService {
 						variables: updatedVariableData,
 						enableCommandDetection,
 						attempt,
-						location
+						location,
+						...confirmData
 					};
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);

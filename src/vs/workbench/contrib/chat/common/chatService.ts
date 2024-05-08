@@ -75,7 +75,7 @@ export interface IChatContentVariableReference {
 
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference;
-	iconPath?: ThemeIcon;
+	iconPath?: ThemeIcon | { light: URI; dark: URI };
 	kind: 'reference';
 }
 
@@ -106,6 +106,11 @@ export interface IChatProgressMessage {
 	kind: 'progressMessage';
 }
 
+export interface IChatWarningMessage {
+	content: IMarkdownString;
+	kind: 'warning';
+}
+
 export interface IChatAgentVulnerabilityDetails {
 	title: string;
 	description: string;
@@ -128,6 +133,13 @@ export interface IChatTextEdit {
 	kind: 'textEdit';
 }
 
+export interface IChatConfirmation {
+	title: string;
+	message: string;
+	data: any;
+	kind: 'confirmation';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -138,7 +150,9 @@ export type IChatProgress =
 	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatCommandButton
-	| IChatTextEdit;
+	| IChatWarningMessage
+	| IChatTextEdit
+	| IChatConfirmation;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -262,6 +276,11 @@ export interface IChatSendRequestOptions {
 	parserContext?: IChatParserContext;
 	attempt?: number;
 	noCommandDetection?: boolean;
+	acceptedConfirmationData?: any[];
+	rejectedConfirmationData?: any[];
+
+	/** The target agent ID can be specified with this property instead of using @ in 'message' */
+	agentId?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

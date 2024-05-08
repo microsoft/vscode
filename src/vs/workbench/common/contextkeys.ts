@@ -292,13 +292,12 @@ export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor:
 	}
 
 	const editorResource = editor.resource;
-	const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
-
 	if (editorResource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
 		// Non text editor untitled files cannot be easily serialized between extensions
 		// so instead we disable this context key to prevent common commands that act on the active editor
 		contextKey.set('');
 	} else {
+		const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
 		contextKey.set(editors.join(','));
 	}
 }

@@ -685,11 +685,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidFocus: Event<ITerminalInstance>;
 	onDidRequestFocus: Event<void>;
 	onDidBlur: Event<ITerminalInstance>;
-	onDidInputData: Event<ITerminalInstance>;
+	onDidInputData: Event<string>;
 	onDidChangeSelection: Event<ITerminalInstance>;
 	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
+	onDidChangeShellType: Event<TerminalShellType>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
@@ -701,6 +702,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * sequences.
 	 */
 	onData: Event<string>;
+	onWillData: Event<string>;
 
 	/**
 	 * Attach a listener to the binary data stream coming from xterm and going to pty
