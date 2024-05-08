@@ -8,8 +8,8 @@ const module = await importAmdModule(
 	`${root}/node_modules/sinon/pkg/sinon.js`,
 )
 
-const { createSandbox, assert, clock, requests, server, match, spy, stub, mock, fake, useFakeTimers, useFakeXMLHttpRequest, useFakeServer, restore, reset, resetHistory, resetBehaviour, usingPromise, verify, verifyAndRestore, replace, replaceGetter, replaceSetter, createStubInstance } = module
+const { addBehaviour, createSandbox, assert, clock, requests, server, match, spy, defaultConfig, expectation, stub, mock, fake, useFakeTimers, useFakeXMLHttpRequest, useFakeServer, restore, reset, resetHistory, sandbox, resetBehaviour, setFormatter, usingPromise, verify, verifyAndRestore, replace, replaceGetter, replaceSetter, createStubInstance } = module
 
-export { createSandbox, assert, clock, requests, server, match, spy, stub, mock, fake, useFakeTimers, useFakeXMLHttpRequest, useFakeServer, restore, reset, resetHistory, resetBehaviour, usingPromise, verify, verifyAndRestore, replace, replaceGetter, replaceSetter, createStubInstance }
+export { addBehaviour, assert, clock, createSandbox, createStubInstance, defaultConfig, expectation, fake, match, mock, replace, replaceGetter, replaceSetter, requests, reset, resetBehaviour, resetHistory, restore, sandbox, server, setFormatter, spy, stub, useFakeServer, useFakeTimers, useFakeXMLHttpRequest, usingPromise, verify, verifyAndRestore }
 
 export default module
