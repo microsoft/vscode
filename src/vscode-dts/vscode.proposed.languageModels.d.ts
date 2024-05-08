@@ -166,16 +166,37 @@ declare module 'vscode' {
 		computeTokenLength(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number | undefined>;
 	}
 
-
+	/**
+	 * Describes how to select language models for chat requests.
+	 *
+	 * @see {@link lm.selectChatModels}
+	 */
 	export interface LanguageModelChatSelector {
-		// TODO@API make required?
+
+		/**
+		 * A vendor of language models.
+		 * @see {@link LanguageModelChat.vendor}
+		 */
 		vendor?: string;
 
+		/**
+		 * A family of language models.
+		 * @see {@link LanguageModelChat.family}
+		 */
 		family?: string;
 
+		/**
+		 * The version of a language model.
+		 * @see {@link LanguageModelChat.version}
+		 */
 		version?: string;
 
+		/**
+		 * The identifier of a language model.
+		 * @see {@link LanguageModelChat.id}
+		 */
 		id?: string;
+
 		// TODO@API tokens? min/max etc
 	}
 
