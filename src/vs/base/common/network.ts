@@ -230,10 +230,10 @@ export type AppResourcePath = (
 );
 
 
-export const builtinExtensionsPath: string = `${root}extensions`;
-export const nodeModulesPath: string = `${root}node_modules`;
-export const nodeModulesAsarPath: string = `${root}node_modules.asar`;
-export const nodeModulesAsarUnpackedPath: string = `${root}node_modules.asar.unpacked`;
+export const builtinExtensionsPath: string = `${root}/extensions`;
+export const nodeModulesPath: string = `${root}/node_modules`;
+export const nodeModulesAsarPath: string = `${root}/node_modules.asar`;
+export const nodeModulesAsarUnpackedPath: string = `${root}/node_modules.asar.unpacked`;
 
 export const VSCODE_AUTHORITY = 'vscode-app';
 
