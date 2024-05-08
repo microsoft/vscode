@@ -8,7 +8,7 @@ import * as platform from 'vs/base/common/platform';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/path';
-import { root } from 'vs/base/common/root';
+import { relativeRoot, root } from 'vs/base/common/root';
 
 export namespace Schemas {
 
@@ -230,10 +230,10 @@ export type AppResourcePath = (
 );
 
 
-export const builtinExtensionsPath: string = `${root}/extensions`;
-export const nodeModulesPath: string = `${root}/node_modules`;
-export const nodeModulesAsarPath: string = `${root}/node_modules.asar`;
-export const nodeModulesAsarUnpackedPath: string = `${root}/node_modules.asar.unpacked`;
+export const builtinExtensionsPath: string = `${relativeRoot}/extensions`;
+export const nodeModulesPath: string = `${relativeRoot}/node_modules`;
+export const nodeModulesAsarPath: string = `${relativeRoot}/node_modules.asar`;
+export const nodeModulesAsarUnpackedPath: string = `${relativeRoot}/node_modules.asar.unpacked`;
 
 export const VSCODE_AUTHORITY = 'vscode-app';
 

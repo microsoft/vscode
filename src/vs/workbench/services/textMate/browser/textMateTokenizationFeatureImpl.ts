@@ -38,7 +38,7 @@ import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { ITextMateThemingRule, IWorkbenchColorTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
-import { root } from 'vs/base/common/root';
+import { relativeRoot } from 'vs/base/common/root';
 
 export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
 	private static reportTokenizationTimeCounter = { sync: 0, async: 0 };
@@ -372,7 +372,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private async _loadVSCodeOnigurumaWASM(): Promise<Response | ArrayBuffer> {
 		if (isWeb) {
-			const onigurumaWasmUrl = FileAccess.asBrowserUri(`${root}node_modules/vscode-oniguruma/release/onig.wasm`).toString(true);
+			const onigurumaWasmUrl = FileAccess.asBrowserUri(`${relativeRoot}/node_modules/vscode-oniguruma/release/onig.wasm`).toString(true);
 			const response = await fetch(onigurumaWasmUrl);
 			// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 			// Otherwise, a TypeError is thrown when using the streaming compiler.

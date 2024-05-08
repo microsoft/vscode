@@ -14,4 +14,10 @@ const getRoot = () => {
 	return new URL("../../../../", import.meta.url).toString();
 };
 
+const getRelativeRoot = () => {
+	return new URL("../../../../", import.meta.url).toString();
+}
+
 export const root = getRoot();
+
+export const relativeRoot = getRelativeRoot()
