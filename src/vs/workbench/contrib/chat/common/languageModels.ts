@@ -34,8 +34,9 @@ export interface IChatResponseFragment {
 
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
+
 	readonly name: string;
-	readonly identifier: string;
+	readonly id: string;
 	readonly vendor: string;
 	readonly version: string;
 	readonly family: string;
@@ -66,11 +67,19 @@ export interface ILanguageModelChatSelector {
 
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
 
+export interface ILanguageModelsChangeEvent {
+	added?: {
+		identifier: string;
+		metadata: ILanguageModelChatMetadata;
+	}[];
+	removed?: string[];
+}
+
 export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;
 
-	onDidChangeLanguageModels: Event<{ added?: ILanguageModelChatMetadata[]; removed?: string[] }>;
+	onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent>;
 
 	getLanguageModelIds(): string[];
 
@@ -113,7 +122,7 @@ export const languageModelExtensionPoint = ExtensionsRegistry.registerExtensionP
 	},
 	activationEventsGenerator: (contribs: IUserFriendlyLanguageModel[], result: { push(item: string): void }) => {
 		for (const contrib of contribs) {
-			result.push(`onLanguageModel:${contrib.vendor}`);
+			result.push(`onLanguageModelChat:${contrib.vendor}`);
 		}
 	}
 });
@@ -125,8 +134,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _providers = new Map<string, ILanguageModelChat>();
 	private readonly _vendors = new Set<string>();
 
-	private readonly _onDidChangeProviders = new Emitter<{ added?: ILanguageModelChatMetadata[]; removed?: string[] }>();
-	readonly onDidChangeLanguageModels: Event<{ added?: ILanguageModelChatMetadata[]; removed?: string[] }> = this._onDidChangeProviders.event;
+	private readonly _onDidChangeProviders = new Emitter<ILanguageModelsChangeEvent>();
+	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -161,10 +170,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 
 			const removed: string[] = [];
-			for (const [key, value] of this._providers) {
+			for (const [identifier, value] of this._providers) {
 				if (!this._vendors.has(value.metadata.vendor)) {
-					this._providers.delete(key);
-					removed.push(key);
+					this._providers.delete(identifier);
+					removed.push(identifier);
 				}
 			}
 			if (removed.length > 0) {
@@ -199,16 +208,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		const result: string[] = [];
 
-		for (const model of this._providers.values()) {
+		for (const [identifier, model] of this._providers) {
 
 			if (selector.vendor !== undefined && model.metadata.vendor === selector.vendor
 				|| selector.family !== undefined && model.metadata.family === selector.family
 				|| selector.version !== undefined && model.metadata.version === selector.version
-				|| selector.identifier !== undefined && model.metadata.identifier === selector.identifier
+				|| selector.identifier !== undefined && model.metadata.id === selector.identifier
 				|| selector.extension !== undefined && model.metadata.targetExtensions?.some(candidate => ExtensionIdentifier.equals(candidate, selector.extension))
 			) {
 				// true selection
-				result.push(model.metadata.identifier);
+				result.push(identifier);
 
 			} else if (!selector || (
 				selector.vendor === undefined
@@ -217,7 +226,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				&& selector.identifier === undefined)
 			) {
 				// no selection
-				result.push(model.metadata.identifier);
+				result.push(identifier);
 			}
 		}
 
@@ -234,7 +243,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat response provider with identifier ${identifier} is already registered.`);
 		}
 		this._providers.set(identifier, provider);
-		this._onDidChangeProviders.fire({ added: [provider.metadata] });
+		this._onDidChangeProviders.fire({ added: [{ identifier, metadata: provider.metadata }] });
 		return toDisposable(() => {
 			if (this._providers.delete(identifier)) {
 				this._onDidChangeProviders.fire({ removed: [identifier] });

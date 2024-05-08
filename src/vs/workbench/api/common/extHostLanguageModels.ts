@@ -152,9 +152,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				accountLabel: typeof metadata.auth === 'object' ? metadata.auth.label : undefined
 			};
 		}
-		this._proxy.$registerLanguageModelProvider(handle, identifier, {
+		this._proxy.$registerLanguageModelProvider(handle, `${ExtensionIdentifier.toKey(extension.identifier)}/${handle}/${identifier}`, {
 			extension: extension.identifier,
-			identifier: identifier,
+			id: identifier,
 			vendor: metadata.vendor ?? ExtensionIdentifier.toKey(extension.identifier),
 			name: metadata.name ?? '',
 			family: metadata.family ?? '',
@@ -211,20 +211,16 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	//#region --- making request
 
-	$acceptChatModelMetadata(data: { added?: ILanguageModelChatMetadata[] | undefined; removed?: string[] | undefined }): void {
-		const added: string[] = [];
-		const removed: string[] = [];
+	$acceptChatModelMetadata(data: { added?: { identifier: string; metadata: ILanguageModelChatMetadata }[] | undefined; removed?: string[] | undefined }): void {
 		if (data.added) {
-			for (const metadata of data.added) {
-				this._allLanguageModelData.set(metadata.identifier, { metadata, apiObjects: new ExtensionIdentifierMap() });
-				added.push(metadata.identifier);
+			for (const { identifier, metadata } of data.added) {
+				this._allLanguageModelData.set(identifier, { metadata, apiObjects: new ExtensionIdentifierMap() });
 			}
 		}
 		if (data.removed) {
 			for (const id of data.removed) {
 				// clean up
 				this._allLanguageModelData.delete(id);
-				removed.push(id);
 
 				// cancel pending requests for this model
 				for (const [key, value] of this._pendingRequest) {
@@ -236,10 +232,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 		}
 
-		this._onDidChangeProviders.fire(undefined);
-
 		// TODO@jrieken@TylerLeonhardt - this is a temporary hack to populate the auth providers
-		data.added?.forEach(this._fakeAuthPopulate, this);
+		data.added?.forEach(added => this._fakeAuthPopulate(added.metadata));
+
+		this._onDidChangeProviders.fire(undefined);
 	}
 
 	async selectLanguageModels(extension: IExtensionDescription, selector: vscode.LanguageModelChatSelector) {
@@ -433,7 +429,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return local.provider.provideTokenCount(value, token);
 		}
 
-		return this._proxy.$countTokens(data.metadata.identifier, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage.from(value)), token);
+		return this._proxy.$countTokens(languageModelId, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage.from(value)), token);
 	}
 
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void {
