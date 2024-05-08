@@ -44,7 +44,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	declare readonly _serviceBrand: undefined;
 
 	@memoize
-	get appRoot(): string { return dirname(FileAccess.asFileUri('').fsPath); }
+	get appRoot(): string { return FileAccess.appRootPath(); }
 
 	@memoize
 	get userHome(): URI { return URI.file(this.paths.homeDir); }
@@ -117,7 +117,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return resolve(cliBuiltinExtensionsDir);
 		}
 
-		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
+		return normalize(join(FileAccess.appRootPath(), 'extensions'));
 	}
 
 	get extensionsDownloadLocation(): URI {

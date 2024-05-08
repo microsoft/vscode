@@ -521,7 +521,7 @@ export async function main(argv: string[]): Promise<any> {
 }
 
 function getAppRoot() {
-	return dirname(FileAccess.asFileUri('').fsPath);
+	return FileAccess.appRootPath();
 }
 
 function eventuallyExit(code: number): void {

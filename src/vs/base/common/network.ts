@@ -299,6 +299,10 @@ class FileAccessImpl {
 		return this.uriToFileUri(uri);
 	}
 
+	appRootUri() {
+		return this.asFileUri('')
+	}
+
 	appRootPath() {
 		const root = this.asFileUri('').fsPath
 		if (root.endsWith('/') || root.endsWith('\\')) {

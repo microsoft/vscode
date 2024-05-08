@@ -91,7 +91,7 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 	}
 }
 
-const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
+const APP_ROOT = FileAccess.appRootPath();
 
 export class WebClientServer {
 
