@@ -61,6 +61,8 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuId } from 'vs/platform/actions/common/actions';
 
+import {AceEditor} from "vs/editor/browser/widget/aceEditor/aceEditor";
+
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
 	private static readonly dropIntoEditorDecorationOptions = ModelDecorationOptions.register({
@@ -1625,6 +1627,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			attachedView,
 		);
 
+		const aceEditor = new AceEditor(model, this._domElement);
+
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
 		listenersToRemove.push(model.onWillDispose(() => this.setModel(null)));
 
@@ -1702,6 +1706,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ModelLanguageChanged:
 					this._domElement.setAttribute('data-mode-id', model.getLanguageId());
+					aceEditor?.setMode(model.getLanguageId());
 					this._onDidChangeModelLanguage.fire(e.event);
 					break;
 				case OutgoingViewModelEventKind.ModelLanguageConfigurationChanged:
@@ -1709,6 +1714,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ModelContentChanged:
 					this._onDidChangeModelContent.fire(e.event);
+					console.log(e.event);
 					break;
 				case OutgoingViewModelEventKind.ModelOptionsChanged:
 					this._onDidChangeModelOptions.fire(e.event);
@@ -1721,29 +1727,37 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		const [view, hasRealView] = this._createView(viewModel);
+
+
 		if (hasRealView) {
-			this._domElement.appendChild(view.domNode.domNode);
+			aceEditor.render();
+			/*if (Math.random() > 0.01) {
+				aceEditor.render();
+			} else {
+				this._domElement.appendChild(view.domNode.domNode);
 
-			let keys = Object.keys(this._contentWidgets);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				const widgetId = keys[i];
-				view.addContentWidget(this._contentWidgets[widgetId]);
-			}
 
-			keys = Object.keys(this._overlayWidgets);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				const widgetId = keys[i];
-				view.addOverlayWidget(this._overlayWidgets[widgetId]);
-			}
+				let keys = Object.keys(this._contentWidgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					const widgetId = keys[i];
+					view.addContentWidget(this._contentWidgets[widgetId]);
+				}
 
-			keys = Object.keys(this._glyphMarginWidgets);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				const widgetId = keys[i];
-				view.addGlyphMarginWidget(this._glyphMarginWidgets[widgetId]);
-			}
+				keys = Object.keys(this._overlayWidgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					const widgetId = keys[i];
+					view.addOverlayWidget(this._overlayWidgets[widgetId]);
+				}
 
-			view.render(false, true);
-			view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
+				keys = Object.keys(this._glyphMarginWidgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					const widgetId = keys[i];
+					view.addGlyphMarginWidget(this._glyphMarginWidgets[widgetId]);
+				}
+
+				view.render(false, true);
+				view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
+			}*/
 		}
 
 		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove, attachedView);
