@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/voiceChatActions';
 import { RunOnceScheduler, disposableTimeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
@@ -12,7 +13,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined, isNumber } from 'vs/base/common/types';
-import 'vs/css!./media/voiceChatActions';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize, localize2 } from 'vs/nls';
@@ -27,25 +27,26 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
+import { spinningLoading, syncing } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY, stringifyItem } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus, SpeechToTextInProgress, TextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatContextKeys, TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -53,6 +54,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+
+//#region Speech to Text
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -614,12 +617,12 @@ export class StartVoiceChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate(), TerminalChatContextKeys.requestActive.negate()),
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate(), TextToSpeechInProgress.negate()),
 				group: 'navigation',
 				order: -1
 			}, {
 				id: MenuId.for('terminalChatInput'),
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS.negate()),
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS.negate(), TextToSpeechInProgress.negate()),
 				group: 'navigation',
 				order: -1
 			}]
@@ -787,65 +790,105 @@ export class StopListeningAndSubmitAction extends Action2 {
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	let activeRecordingColor: Color | undefined;
-	let activeRecordingDimmedColor: Color | undefined;
-	if (theme.type === ColorScheme.LIGHT || theme.type === ColorScheme.DARK) {
-		activeRecordingColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND) ?? theme.getColor(focusBorder);
-		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.38);
-	} else {
-		activeRecordingColor = theme.getColor(contrastBorder);
-		activeRecordingDimmedColor = theme.getColor(contrastBorder);
+//#endregion
+
+//#region Text to Speech
+
+class TextToSpeechSessions {
+
+	private static instance: TextToSpeechSessions | undefined = undefined;
+	static getInstance(instantiationService: IInstantiationService): TextToSpeechSessions {
+		if (!TextToSpeechSessions.instance) {
+			TextToSpeechSessions.instance = instantiationService.createInstance(TextToSpeechSessions);
+		}
+
+		return TextToSpeechSessions.instance;
 	}
 
-	// Show a "microphone" icon when recording is in progress that glows via outline.
-	collector.addRule(`
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
-			color: ${activeRecordingColor};
-			outline: 1px solid ${activeRecordingColor};
-			outline-offset: -1px;
-			animation: pulseAnimation 1s infinite;
-			border-radius: 50%;
-		}
+	private activeSession: CancellationTokenSource | undefined = undefined;
 
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
-			position: absolute;
-			outline: 1px solid ${activeRecordingColor};
-			outline-offset: 2px;
-			border-radius: 50%;
-			width: 16px;
-			height: 16px;
-		}
+	constructor(
+		@ISpeechService private readonly speechService: ISpeechService
+	) { }
 
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
-			outline: 2px solid ${activeRecordingColor};
-			outline-offset: -1px;
-			animation: pulseAnimation 1500ms cubic-bezier(0.75, 0, 0.25, 1) infinite;
-		}
+	async start(text: string): Promise<void> {
+		this.stop();
 
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
-			position: absolute;
-			outline: 1px solid ${activeRecordingColor};
-			outline-offset: 2px;
-			border-radius: 50%;
-			width: 16px;
-			height: 16px;
-		}
+		const activeSession = this.activeSession = new CancellationTokenSource();
 
-		@keyframes pulseAnimation {
-			0% {
-				outline-width: 2px;
+		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
+		session.synthesize(text);
+	}
+
+	stop(): void {
+		this.activeSession?.dispose(true);
+		this.activeSession = undefined;
+	}
+}
+
+export class ReadChatItemAloud extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.readChatItemAloud',
+			title: localize2('workbench.action.chat.readChatItemAloud', "Read Aloud"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(CanVoiceChat, SpeechToTextInProgress.toNegated()),
+			menu: {
+				id: MenuId.ChatContext,
+				when: ContextKeyExpr.and(CanVoiceChat, CONTEXT_RESPONSE_FILTERED.toNegated()),
+				group: 'textToSpeech'
 			}
-			62% {
-				outline-width: 5px;
-				outline-color: ${activeRecordingDimmedColor};
-			}
-			100% {
-				outline-width: 2px;
-			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const item = args[0];
+		if (!isRequestVM(item) && !isResponseVM(item)) {
+			return;
 		}
-	`);
-});
+
+		TextToSpeechSessions.getInstance(accessor.get(IInstantiationService)).start(stringifyItem(item, false));
+	}
+}
+
+export class StopReadAloud extends Action2 {
+
+	static readonly ID = 'workbench.action.speech.stopReadAloud';
+
+	constructor() {
+		super({
+			id: StopReadAloud.ID,
+			icon: syncing,
+			title: localize2('workbench.action.speech.stopReadAloud', "Stop Reading Aloud"),
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: TextToSpeechInProgress,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 100,
+				primary: KeyCode.Escape
+			},
+			menu: [{
+				id: MenuId.ChatContext,
+				when: ContextKeyExpr.and(CanVoiceChat, TextToSpeechInProgress),
+				group: 'textToSpeech'
+			}, {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(CanVoiceChat, TextToSpeechInProgress),
+				group: 'navigation',
+				order: -1
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		TextToSpeechSessions.getInstance(accessor.get(IInstantiationService)).stop();
+	}
+}
+
+//#endregion
+
+//#region Keyword Recognition
 
 function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService, chatAgentService: IChatAgentService): boolean {
 	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
@@ -1086,3 +1129,69 @@ class KeywordActivationStatusEntry extends Disposable {
 		this.entry.value?.update(this.getStatusEntryProperties());
 	}
 }
+
+//#endregion
+
+registerThemingParticipant((theme, collector) => {
+	let activeRecordingColor: Color | undefined;
+	let activeRecordingDimmedColor: Color | undefined;
+	if (theme.type === ColorScheme.LIGHT || theme.type === ColorScheme.DARK) {
+		activeRecordingColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND) ?? theme.getColor(focusBorder);
+		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.38);
+	} else {
+		activeRecordingColor = theme.getColor(contrastBorder);
+		activeRecordingDimmedColor = theme.getColor(contrastBorder);
+	}
+
+	// Show a "microphone" or "pulse" icon when speech-to-text or text-to-speech is in progress that glows via outline.
+	collector.addRule(`
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled),
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
+			color: ${activeRecordingColor};
+			outline: 1px solid ${activeRecordingColor};
+			outline-offset: -1px;
+			animation: pulseAnimation 1s infinite;
+			border-radius: 50%;
+		}
+
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::before,
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+			position: absolute;
+			outline: 1px solid ${activeRecordingColor};
+			outline-offset: 2px;
+			border-radius: 50%;
+			width: 16px;
+			height: 16px;
+		}
+
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::after,
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
+			outline: 2px solid ${activeRecordingColor};
+			outline-offset: -1px;
+			animation: pulseAnimation 1500ms cubic-bezier(0.75, 0, 0.25, 1) infinite;
+		}
+
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::before,
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+			position: absolute;
+			outline: 1px solid ${activeRecordingColor};
+			outline-offset: 2px;
+			border-radius: 50%;
+			width: 16px;
+			height: 16px;
+		}
+
+		@keyframes pulseAnimation {
+			0% {
+				outline-width: 2px;
+			}
+			62% {
+				outline-width: 5px;
+				outline-color: ${activeRecordingDimmedColor};
+			}
+			100% {
+				outline-width: 2px;
+			}
+		}
+	`);
+});

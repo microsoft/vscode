@@ -66,8 +66,16 @@ declare module 'vscode' {
 		Assistant = 2
 	}
 
-	// TODO@API name: LanguageModelChatMessage once the deprecated stuff is removed
-	export class LanguageModelChatMessage2 {
+	/**
+	 * @deprecated
+	 */
+	// TODO@API remove
+	export type LanguageModelChatMessage2 = LanguageModelChatMessage;
+
+	/**
+	 * Represents a message in a chat. Can assume different roles, like user or assistant.
+	 */
+	export class LanguageModelChatMessage {
 		/**
 		 * The role of this message.
 		 */
@@ -86,84 +94,12 @@ declare module 'vscode' {
 		/**
 		 * Create a new user message.
 		 *
+		 * @param role The role of the message.
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
 		constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
 	}
-
-
-	/**
-	 * @deprecated
-	 */
-	export class LanguageModelChatSystemMessage {
-
-		/**
-		 * The content of this message.
-		 */
-		content: string;
-
-		/**
-		 * Create a new system message.
-		 *
-		 * @param content The content of the message.
-		 */
-		constructor(content: string);
-	}
-
-	/**
-	 * @deprecated
-	 */
-	export class LanguageModelChatUserMessage {
-
-		/**
-		 * The content of this message.
-		 */
-		content: string;
-
-		/**
-		 * The optional name of a user for this message.
-		 */
-		name: string | undefined;
-
-		/**
-		 * Create a new user message.
-		 *
-		 * @param content The content of the message.
-		 * @param name The optional name of a user for the message.
-		 */
-		constructor(content: string, name?: string);
-	}
-
-	/**
-	 * @deprecated
-	 */
-	export class LanguageModelChatAssistantMessage {
-
-		/**
-		 * The content of this message.
-		 */
-		content: string;
-
-		/**
-		 * The optional name of a user for this message.
-		 */
-		name: string | undefined;
-
-		/**
-		 * Create a new assistant message.
-		 *
-		 * @param content The content of the message.
-		 * @param name The optional name of a user for the message.
-		 */
-		constructor(content: string, name?: string);
-	}
-
-	/**
-	 * Different types of language model messages.
-	 * @deprecated
-	 */
-	export type LanguageModelChatMessage = LanguageModelChatSystemMessage | LanguageModelChatUserMessage | LanguageModelChatAssistantMessage;
 
 	/**
 	 * Represents information about a registered language model.
@@ -315,7 +251,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
 		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
 		 */
-		export function sendChatRequest(languageModel: string, messages: (LanguageModelChatMessage | LanguageModelChatMessage2)[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		/**
 		 * Uses the language model specific tokenzier and computes the length in token of a given message.
@@ -330,7 +266,7 @@ declare module 'vscode' {
 		// TODO@API `undefined` when the language model does not support computing token length
 		// ollama has nothing
 		// anthropic suggests to count after the fact https://github.com/anthropics/anthropic-tokenizer-typescript?tab=readme-ov-file#anthropic-typescript-tokenizer
-		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token?: CancellationToken): Thenable<number | undefined>;
+		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number | undefined>;
 	}
 
 	/**

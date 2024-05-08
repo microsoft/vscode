@@ -22,6 +22,7 @@ import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -238,4 +239,12 @@ export function registerChatActions() {
 			widgetService.lastFocusedWidget?.focusInput();
 		}
 	});
+}
+
+export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
+	if (isRequestVM(item)) {
+		return (includeName ? `${item.username}: ` : '') + item.messageText;
+	} else {
+		return (includeName ? `${item.username}: ` : '') + item.response.asString();
+	}
 }
