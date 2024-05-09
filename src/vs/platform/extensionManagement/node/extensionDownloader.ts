@@ -16,12 +16,12 @@ import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { CorruptZipMessage } from 'vs/base/node/zip';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionVerificationStatus } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignaturetErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionVerificationStatus, toExtensionManagementError } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { ExtensionSignatureVerificationError, ExtensionSignatureVerificationCode, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionsDownloader extends Disposable {
 
@@ -52,24 +52,33 @@ export class ExtensionsDownloader extends Disposable {
 		try {
 			await this.downloadFile(extension, location, location => this.extensionGalleryService.download(extension, location, operation));
 		} catch (error) {
-			throw new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Download);
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.Download);
 		}
 
 		let verificationStatus: ExtensionVerificationStatus = false;
 
 		if (verifySignature && this.shouldVerifySignature(extension)) {
-			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
+
+			let signatureArchiveLocation;
 			try {
-				verificationStatus = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath, this.logService.getLevel() === LogLevel.Trace);
+				signatureArchiveLocation = await this.downloadSignatureArchive(extension);
 			} catch (error) {
-				const sigError = error as ExtensionSignatureVerificationError;
-				verificationStatus = sigError.code;
-				if (sigError.output) {
-					this.logService.trace(`Extension signature verification details for ${extension.identifier.id} ${extension.version}:\n${sigError.output}`);
+				try {
+					// Delete the downloaded VSIX if signature archive download fails
+					await this.delete(location);
+				} catch (error) {
+					this.logService.error(error);
 				}
-				if (verificationStatus === ExtensionSignaturetErrorCode.PackageIsInvalidZip || verificationStatus === ExtensionSignaturetErrorCode.SignatureArchiveIsInvalidZip) {
+				throw error;
+			}
+
+			try {
+				verificationStatus = await this.extensionSignatureVerificationService.verify(extension.identifier.id, location.fsPath, signatureArchiveLocation.fsPath);
+			} catch (error) {
+				verificationStatus = (error as ExtensionSignatureVerificationError).code;
+				if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
 					try {
-						// Delete the downloaded vsix before throwing the error
+						// Delete the downloaded vsix if VSIX or signature archive is invalid
 						await this.delete(location);
 					} catch (error) {
 						this.logService.error(error);
@@ -84,14 +93,6 @@ export class ExtensionsDownloader extends Disposable {
 					this.logService.error(error);
 				}
 			}
-		}
-
-		if (verificationStatus === true) {
-			this.logService.info(`Extension signature is verified: ${extension.identifier.id}`);
-		} else if (verificationStatus === false) {
-			this.logService.info(`Extension signature verification is not done: ${extension.identifier.id}`);
-		} else {
-			this.logService.warn(`Extension signature verification failed with error '${verificationStatus}': ${extension.identifier.id}`);
 		}
 
 		return { location, verificationStatus };
@@ -110,11 +111,11 @@ export class ExtensionsDownloader extends Disposable {
 	private async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {
 		await this.cleanUpPromise;
 
-		const location = joinPath(this.extensionsDownloadDir, `${this.getName(extension)}${ExtensionsDownloader.SignatureArchiveExtension}`);
+		const location = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
 		try {
-			await this.downloadFile(extension, location, location => this.extensionGalleryService.downloadSignatureArchive(extension, location));
+			await this.extensionGalleryService.downloadSignatureArchive(extension, location);
 		} catch (error) {
-			throw new ExtensionManagementError(error.message, ExtensionManagementErrorCode.DownloadSignature);
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.DownloadSignature);
 		}
 		return location;
 	}
@@ -133,8 +134,13 @@ export class ExtensionsDownloader extends Disposable {
 
 		// Download to temporary location first only if file does not exist
 		const tempLocation = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
-		if (!await this.fileService.exists(tempLocation)) {
+		try {
 			await downloadFn(tempLocation);
+		} catch (error) {
+			try {
+				await this.fileService.del(tempLocation);
+			} catch (e) { /* ignore */ }
+			throw error;
 		}
 
 		try {

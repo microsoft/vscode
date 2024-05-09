@@ -269,12 +269,17 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 						await Promises.settled(modelsToRestore.map(async modelToRestore => {
 
+							// From this moment on, only operate on the canonical resource
+							// to fix a potential data loss issue:
+							// https://github.com/microsoft/vscode/issues/211374
+							const target = this.uriIdentityService.asCanonicalUri(modelToRestore.target);
+
 							// restore the model at the target. if we have previous dirty content, we pass it
 							// over to be used, otherwise we force a reload from disk. this is important
 							// because we know the file has changed on disk after the move and the model might
 							// have still existed with the previous state. this ensures that the model is not
 							// tracking a stale state.
-							const restoredModel = await this.resolve(modelToRestore.target, {
+							const restoredModel = await this.resolve(target, {
 								reload: { async: false }, // enforce a reload
 								contents: modelToRestore.snapshot ? createTextBufferFactoryFromSnapshot(modelToRestore.snapshot) : undefined,
 								encoding: modelToRestore.encoding
@@ -287,7 +292,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 								modelToRestore.languageId &&
 								modelToRestore.languageId !== PLAINTEXT_LANGUAGE_ID &&
 								restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID &&
-								extname(modelToRestore.target) !== PLAINTEXT_EXTENSION
+								extname(target) !== PLAINTEXT_EXTENSION
 							) {
 								restoredModel.updateTextEditorModel(undefined, modelToRestore.languageId);
 							}

@@ -292,7 +292,10 @@ class ShellExecutionDataStream extends Disposable {
 	private _emitters: AsyncIterableEmitter<string>[] = [];
 
 	createIterable(): AsyncIterable<string> {
-		const barrier = this._barrier = new Barrier();
+		if (!this._barrier) {
+			this._barrier = new Barrier();
+		}
+		const barrier = this._barrier;
 		const iterable = new AsyncIterableObject<string>(async emitter => {
 			this._emitters.push(emitter);
 			await barrier.wait();

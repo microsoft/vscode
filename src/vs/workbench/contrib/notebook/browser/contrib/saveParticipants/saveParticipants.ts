@@ -20,7 +20,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
+import { FormattingMode, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -73,11 +73,11 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 
 				const model = ref.object.textEditorModel;
 
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
+				const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
 					this.editorWorkerService,
 					this.languageFeaturesService,
 					model,
-					model.getOptions(),
+					FormattingMode.Silent,
 					token
 				);
 

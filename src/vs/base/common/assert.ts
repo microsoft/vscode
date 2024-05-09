@@ -29,9 +29,9 @@ export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
 
-export function assert(condition: boolean): void {
+export function assert(condition: boolean, message = 'unexpected state'): asserts condition {
 	if (!condition) {
-		throw new BugIndicatingError('Assertion Failed');
+		throw new BugIndicatingError(`Assertion Failed: ${message}`);
 	}
 }
 

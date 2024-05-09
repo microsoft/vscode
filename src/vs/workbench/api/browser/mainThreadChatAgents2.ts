@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -43,6 +44,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
+
+	private _responsePartHandlePool = 0;
+	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | void>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -92,7 +96,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
 	}
 
-	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string } | undefined): void {
+	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string; publisherDisplayName: string } | undefined): void {
 		const staticAgentRegistration = this._chatAgentService.getAgent(id);
 		if (!staticAgentRegistration && !dynamicProps) {
 			if (this._chatAgentService.getAgentsByName(id).length) {
@@ -137,7 +141,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
-					extensionPublisher: extensionDescription?.publisherDisplayName ?? extension.value,
+					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
+					extensionPublisherId: '',
+					publisherDisplayName: dynamicProps.publisherDisplayName,
 					metadata: revive(metadata),
 					slashCommands: [],
 					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
@@ -164,7 +170,25 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatAgentService.updateAgent(data.id, revive(metadataUpdate));
 	}
 
-	async $handleProgressChunk(requestId: string, progress: IChatProgressDto): Promise<number | void> {
+	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
+		if (progress.kind === 'progressTask') {
+			const handle = ++this._responsePartHandlePool;
+			const responsePartId = `${requestId}_${handle}`;
+			const deferredContentPromise = new DeferredPromise<string | void>();
+			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
+			this._pendingProgress.get(requestId)?.({ ...progress, task: () => deferredContentPromise.p, isSettled: () => deferredContentPromise.isSettled });
+			return handle;
+		} else if (progress.kind === 'progressTaskResult' && responsePartHandle !== undefined) {
+			const responsePartId = `${requestId}_${responsePartHandle}`;
+			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
+			if (deferredContentPromise && progress.content) {
+				deferredContentPromise.complete(progress.content.value);
+				this._activeResponsePartPromises.delete(responsePartId);
+			} else {
+				deferredContentPromise?.complete(undefined);
+			}
+			return responsePartHandle;
+		}
 		const revivedProgress = revive(progress);
 		this._pendingProgress.get(requestId)?.(revivedProgress as IChatProgress);
 	}
@@ -210,7 +234,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						kind: CompletionItemKind.Text,
 						detail: v.detail,
 						documentation: v.documentation,
-						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.values), command: v.command } satisfies IAddDynamicVariableContext] }
+						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.value) as any, command: v.command } satisfies IAddDynamicVariableContext] }
 					} satisfies CompletionItem;
 				});
 

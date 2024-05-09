@@ -116,19 +116,19 @@ export class ExtensionsLifecycle extends Disposable {
 		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr!, 'data');
 
 		// Log output
-		onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
-		onStderr(data => this.logService.error(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
+		this._register(onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data)));
+		this._register(onStderr(data => this.logService.error(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data)));
 
 		const onOutput = Event.any(
-			Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-			Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+			Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] }), this._store),
+			Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }), this._store)
 		);
 		// Debounce all output, so we can render it in the Chrome console as a group
 		const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
 			return r
 				? { data: r.data + o.data, format: [...r.format, ...o.format] }
 				: { data: o.data, format: o.format };
-		}, 100);
+		}, 100, undefined, undefined, undefined, this._store);
 
 		// Print out output
 		onDebouncedOutput(data => {

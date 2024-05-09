@@ -415,6 +415,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		}));
 
 		const contribs = explorerFileContribRegistry.create(this.instantiationService, container, templateDisposables);
+		templateDisposables.add(explorerFileContribRegistry.onDidRegisterDescriptor(d => {
+			const contr = d.create(this.instantiationService, container);
+			contribs.push(templateDisposables.add(contr));
+			contr.setResource(templateData.currentContext?.resource);
+		}));
 
 		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs };
 		return templateData;
