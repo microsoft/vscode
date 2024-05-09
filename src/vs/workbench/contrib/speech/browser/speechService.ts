@@ -256,7 +256,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 	async createTextToSpeechSession(token: CancellationToken, context: string = 'speech'): Promise<ITextToSpeechSession> {
 		const provider = await this.getProvider();
 
-		const session = this._activeTextToSpeechSession = provider.createTextToSpeechSession(token);
+		const language = speechLanguageConfigToLanguage(this.configurationService.getValue<unknown>(SPEECH_LANGUAGE_CONFIG));
+		const session = this._activeTextToSpeechSession = provider.createTextToSpeechSession(token, typeof language === 'string' ? { language } : undefined);
 
 		const sessionStart = Date.now();
 		let sessionError = false;
@@ -275,16 +276,19 @@ export class SpeechService extends Disposable implements ISpeechService {
 					context: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Context of the session.' };
 					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration of the session.' };
 					sessionError: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If speech resulted in error.' };
+					sessionLanguage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured language for the session.' };
 				};
 				type TextToSpeechSessionEvent = {
 					context: string;
 					sessionDuration: number;
 					sessionError: boolean;
+					sessionLanguage: string;
 				};
 				this.telemetryService.publicLog2<TextToSpeechSessionEvent, TextToSpeechSessionClassification>('textToSpeechSession', {
 					context,
 					sessionDuration: Date.now() - sessionStart,
-					sessionError
+					sessionError,
+					sessionLanguage: language
 				});
 			}
 
