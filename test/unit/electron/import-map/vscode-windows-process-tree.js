@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { getProcessList, getProcessCpuUsage } = testGlobals.vscodeWindowsProcessTree;
+const { getProcessList, getProcessCpuUsage, getProcessTree } = testGlobals.vscodeWindowsProcessTree;
 
-export { getProcessList, getProcessCpuUsage };
+export { getProcessList, getProcessCpuUsage, getProcessTree };
