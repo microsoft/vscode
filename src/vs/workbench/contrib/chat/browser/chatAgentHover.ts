@@ -112,7 +112,7 @@ export class ChatAgentHover extends Disposable {
 
 		let description = agent.description ?? '';
 		if (description) {
-			if (!description.match(/\. *$/)) {
+			if (!description.match(/[\.\?\!] *$/)) {
 				description += '.';
 			}
 		}
