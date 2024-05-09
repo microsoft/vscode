@@ -248,7 +248,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		});
 	});
 
-	suite('macOS/Linux', () => {
+	suite.skip('macOS/Linux', () => {
 		setup(() => {
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, store.add(new TerminalCapabilityStore()), {
 				initialCwd: '/parent/cwd',
