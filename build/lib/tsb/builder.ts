@@ -39,14 +39,19 @@ function normalize(path: string): string {
 }
 
 
-const vsRoot = path.join(__dirname, '..', '..', '..', 'src')
+let vsRoot = path.join(__dirname, '..', '..', '..', 'src')
+
+if (process.platform === 'win32') {
+	vsRoot = vsRoot.replace(/\\/g, '/')
+}
 
 function getVsRelativePath(absolutePath: string) {
 	absolutePath = absolutePath.replace('/out/vs/vs/', '/out/vs/')
+	console.log({ vsRoot, absolutePath })
 	if (!absolutePath.startsWith(vsRoot)) {
 		return ''
 	}
-	return absolutePath.slice(vsRoot.length + 1).replace(/\\/g, '/')
+	return absolutePath.slice(vsRoot.length + 1)
 }
 
 export function createTypeScriptBuilder(config: IConfiguration, projectFile: string, cmd: ts.ParsedCommandLine): ITypeScriptBuilder {

@@ -24,13 +24,17 @@ var CancellationToken;
 function normalize(path) {
     return path.replace(/\\/g, '/');
 }
-const vsRoot = path.join(__dirname, '..', '..', '..', 'src');
+let vsRoot = path.join(__dirname, '..', '..', '..', 'src');
+if (process.platform === 'win32') {
+    vsRoot = vsRoot.replace(/\\/g, '/');
+}
 function getVsRelativePath(absolutePath) {
     absolutePath = absolutePath.replace('/out/vs/vs/', '/out/vs/');
+    console.log({ vsRoot, absolutePath });
     if (!absolutePath.startsWith(vsRoot)) {
         return '';
     }
-    return absolutePath.slice(vsRoot.length + 1).replace(/\\/g, '/');
+    return absolutePath.slice(vsRoot.length + 1);
 }
 function createTypeScriptBuilder(config, projectFile, cmd) {
     const _log = config.logFn;
