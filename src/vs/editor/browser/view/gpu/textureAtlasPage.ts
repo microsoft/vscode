@@ -61,7 +61,6 @@ export class TextureAtlasPage extends Disposable {
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
 			// TODO: Clear entire atlas on theme change
 			this._colorMap = this._themeService.getColorTheme().tokenColorMap;
-			this._warmUpAtlas();
 		}));
 
 		this._allocator = new TextureAtlasShelfAllocator(this._canvas, this._ctx);
@@ -96,24 +95,8 @@ export class TextureAtlasPage extends Disposable {
 
 		return glyph;
 	}
-
-	/**
-	 * Warms up the atlas by rasterizing all printable ASCII characters for each token color. This
-	 * is distrubuted over multiple idle callbacks to avoid blocking the main thread.
-	 */
-	private _warmUpAtlas(): void {
-		// TODO: Clean up on dispose
-		this._warmUpTask?.clear();
-		this._warmUpTask = new IdleTaskQueue();
-		for (const tokenFg of this._colorMap.keys()) {
-			this._warmUpTask.enqueue(() => {
-				for (let code = 33; code <= 126; code++) {
-					this.getGlyph(String.fromCharCode(code), tokenFg);
-				}
-			});
-		}
-	}
 }
+
 export interface ITextureAtlasGlyph {
 	index: number;
 	x: number;
