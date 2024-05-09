@@ -74,14 +74,11 @@ class ChatAgentResponseStream {
 					this._firstProgress = this._stopWatch.elapsed();
 				}
 
-				this._proxy.$handleProgressChunk(this._request.requestId, progress)
-					.then((handle) => {
-						if (typeof handle === 'number' && task) {
-							task().then((res) => {
-								this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
-							});
-						}
-					});
+				Promise.all([this._proxy.$handleProgressChunk(this._request.requestId, progress,), task ? task() : undefined]).then(([handle, res]) => {
+					if (typeof handle === 'number' && task) {
+						this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
+					}
+				});
 			};
 
 			this._apiObject = {
