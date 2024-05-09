@@ -18,7 +18,7 @@ import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
-import { isWeb } from './utils/platform';
+import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 
 
 const validateSetting = 'validate.enable';
@@ -142,8 +142,13 @@ export default class LanguageProvider extends Disposable {
 			return;
 		}
 
-		if (diagnosticsKind === DiagnosticKind.Semantic && isWeb() && this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors) {
-			return;
+		if (diagnosticsKind === DiagnosticKind.Semantic && isWeb()) {
+			if (!isWebAndHasSharedArrayBuffers()
+				|| this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors
+				|| !this.client.configuration.webProjectWideIntellisenseEnabled
+			) {
+				return;
+			}
 		}
 
 		// Disable semantic errors in notebooks until we have better notebook support
