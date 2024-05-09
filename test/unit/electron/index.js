@@ -11,7 +11,7 @@
 process.env.MOCHA_COLORS = '1';
 
 import { app, BrowserWindow, ipcMain, crashReporter } from 'electron';
-import product from '../../../product.json' assert {type: 'json'};
+import product from '../../../product.json' with {type: 'json'};
 import { tmpdir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
