@@ -258,12 +258,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return agent.apiAgent;
 	}
 
-	createDynamicChatAgent(extension: IExtensionDescription, id: string, name: string, publisherName: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+	createDynamicChatAgent(extension: IExtensionDescription, id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
 		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, extension.identifier, id, { isSticky: true } satisfies IExtensionChatAgentMetadata, { name, description, publisherDisplayName: publisherName });
+		this._proxy.$registerAgent(handle, extension.identifier, id, { isSticky: true } satisfies IExtensionChatAgentMetadata, dynamicProps);
 		return agent.apiAgent;
 	}
 
@@ -439,7 +439,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 class ExtHostChatAgent {
 
 	private _followupProvider: vscode.ChatFollowupProvider | undefined;
-	private _fullName: string | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
 	private _isDefault: boolean | undefined;
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
@@ -535,7 +534,6 @@ class ExtHostChatAgent {
 			updateScheduled = true;
 			queueMicrotask(() => {
 				this._proxy.$updateAgent(this._handle, {
-					fullName: this._fullName,
 					icon: !this._iconPath ? undefined :
 						this._iconPath instanceof URI ? this._iconPath :
 							'light' in this._iconPath ? this._iconPath.light :
@@ -560,15 +558,6 @@ class ExtHostChatAgent {
 		return {
 			get id() {
 				return that.id;
-			},
-			get fullName() {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				return that._fullName ?? that.extension.displayName ?? that.extension.name;
-			},
-			set fullName(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				that._fullName = v;
-				updateMetadataSoon();
 			},
 			get iconPath() {
 				return that._iconPath;

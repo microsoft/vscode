@@ -18,7 +18,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
@@ -96,7 +96,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
 	}
 
-	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string; publisherDisplayName: string } | undefined): void {
+	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void {
 		const staticAgentRegistration = this._chatAgentService.getAgent(id);
 		if (!staticAgentRegistration && !dynamicProps) {
 			if (this._chatAgentService.getAgentsByName(id).length) {
@@ -143,7 +143,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					extensionId: extension,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
 					extensionPublisherId: extensionDescription?.publisher ?? '',
-					publisherDisplayName: dynamicProps.publisherDisplayName,
+					publisherDisplayName: dynamicProps.publisherName,
+					fullName: dynamicProps.fullName,
 					metadata: revive(metadata),
 					slashCommands: [],
 					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?

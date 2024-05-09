@@ -214,7 +214,17 @@ declare module 'vscode' {
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 
-		export function createDynamicChatParticipant(id: string, name: string, publisherName: string, description: string, handler: ChatExtendedRequestHandler): ChatParticipant;
+		export function createDynamicChatParticipant(id: string, dynamicProps: DynamicChatParticipantProps, handler: ChatExtendedRequestHandler): ChatParticipant;
+	}
+
+	/**
+	 * These don't get set on the ChatParticipant after creation, like other props, because they are typically defined in package.json and we want them at the time of creation.
+	 */
+	export interface DynamicChatParticipantProps {
+		name: string;
+		publisherName: string;
+		description?: string;
+		fullName?: string;
 	}
 
 	/*
