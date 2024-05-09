@@ -263,6 +263,10 @@
 	margin: 0 0 16px 0;
 }
 
+.interactive-item-container .value > .rendered-markdown li > p {
+	margin: 0;
+}
+
 .interactive-item-container .value .rendered-markdown ul {
 	padding-inline-start: 24px;
 }
@@ -324,6 +328,10 @@
 	margin: 0 0 8px 0;
 }
 
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown li > p {
+	margin: 0;
+}
+
 .interactive-item-container.interactive-item-compact .value .rendered-markdown h1 {
 	margin: 8px 0;
 
@@ -335,10 +343,6 @@
 
 .interactive-item-container.interactive-item-compact .value .rendered-markdown h3 {
 	margin: 8px 0;
-}
-
-.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
-	margin: 0 0 8px 0;
 }
 
 .interactive-session .interactive-input-and-execute-toolbar {
