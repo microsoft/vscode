@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IRasterizedGlyph, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
+import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/glyphRasterizer';
+import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
 
 export interface ITextureAtlasAllocator {
 	allocate(rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph;
