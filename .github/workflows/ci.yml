@@ -180,15 +180,15 @@ jobs:
         timeout-minutes: 15
         run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
-      - name: Prepare Deb
-        id: prepare-deb
-        timeout-minutes: 30
-        run: yarn gulp vscode-linux-x64-prepare-deb"
+      # - name: Prepare Deb
+      #   id: prepare-deb
+      #   timeout-minutes: 30
+      #   run: yarn gulp vscode-linux-x64-prepare-deb"
 
-      - name: Build Deb
-        id: build-deb
-        timeout-minutes: 30
-        run: yarn gulp vscode-linux-x64-build-deb
+      # - name: Build Deb
+      #   id: build-deb
+      #   timeout-minutes: 30
+      #   run: yarn gulp vscode-linux-x64-build-deb
 
   darwin:
     name: macOS
