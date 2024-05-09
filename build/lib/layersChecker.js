@@ -95,6 +95,17 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
+    // Common: vs/base/common/platform.ts
+    {
+        target: '**/vs/base/common/root.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to postMessage() and friends
+            'MessageEvent',
+        ],
+        disallowedTypes: [],
+        disallowedDefinitions: []
+    },
     // Common: vs/base/common/async.ts
     {
         target: '**/vs/base/common/async.ts',
