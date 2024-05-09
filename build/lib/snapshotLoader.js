@@ -17,12 +17,12 @@ var snaps;
     let startupBlobFilepath;
     switch (process.platform) {
         case 'darwin':
-            loaderFilepath = `VSCode-darwin/${product.nameLong}.app/Contents/Resources/app/out/vs/loader.js`;
+            loaderFilepath = `VSCode-darwin/${product.nameLong}.app/Contents/Resources/app/out/vs/loader.cjs`;
             startupBlobFilepath = `VSCode-darwin/${product.nameLong}.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin`;
             break;
         case 'win32':
         case 'linux':
-            loaderFilepath = `VSCode-${process.platform}-${arch}/resources/app/out/vs/loader.js`;
+            loaderFilepath = `VSCode-${process.platform}-${arch}/resources/app/out/vs/loader.cjs`;
             startupBlobFilepath = `VSCode-${process.platform}-${arch}/snapshot_blob.bin`;
             break;
         default:

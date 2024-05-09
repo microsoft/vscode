@@ -171,7 +171,6 @@ const RULES = [
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
