@@ -10,7 +10,8 @@
 
 .chat-agent-hover-header {
 	display: flex;
-	gap: 5px;
+	gap: 8px;
+	margin-bottom: 4px;
 }
 
 .chat-agent-hover-icon img,
@@ -55,13 +56,14 @@
 }
 
 .chat-agent-hover-header .chat-agent-hover-name {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 600;
 }
 
 .chat-agent-hover-extension {
 	display: flex;
 	gap: 6px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .chat-agent-hover.noExtensionName .chat-agent-hover-separator,
