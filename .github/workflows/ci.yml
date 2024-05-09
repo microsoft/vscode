@@ -92,6 +92,11 @@ jobs:
         timeout-minutes: 20
         run: .\scripts\test-remote-integration.bat
 
+      - name: Prepare Exe
+        id: prepare-exe
+        timeout-minutes: 30
+        run: yarn gulp vscode-win32-x64-min-ci
+
       - name: Build Exe
         id: build-exe
         timeout-minutes: 30
