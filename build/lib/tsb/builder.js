@@ -30,7 +30,6 @@ if (process.platform === 'win32') {
 }
 function getVsRelativePath(absolutePath) {
     absolutePath = absolutePath.replace('/out/vs/vs/', '/out/vs/');
-    console.log({ vsRoot, absolutePath });
     if (!absolutePath.startsWith(vsRoot)) {
         return '';
     }
