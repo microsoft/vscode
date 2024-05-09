@@ -37,6 +37,7 @@ import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget'
 import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/codeBlockContextProviderService';
 import 'vs/workbench/contrib/chat/browser/contrib/chatHistoryVariables';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
+import 'vs/workbench/contrib/chat/browser/contrib/chatInputCompletions';
 import { ChatAgentLocation, ChatAgentService, IChatAgentService, IChatAgentNameService, ChatAgentNameService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
