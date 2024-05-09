@@ -72,7 +72,7 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 					onDidChange: onDidChange.event
 				};
 			},
-			createTextToSpeechSession: (token) => {
+			createTextToSpeechSession: (token, options) => {
 				if (token.isCancellationRequested) {
 					return {
 						onDidChange: Event.None,
@@ -83,7 +83,7 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 				const disposables = new DisposableStore();
 				const session = Math.random();
 
-				this.proxy.$createTextToSpeechSession(handle, session);
+				this.proxy.$createTextToSpeechSession(handle, session, options?.language);
 
 				const onDidChange = disposables.add(new Emitter<ITextToSpeechEvent>());
 				this.textToSpeechSessions.set(session, {

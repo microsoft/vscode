@@ -26,6 +26,10 @@ declare module 'vscode' {
 		readonly onDidChange: Event<SpeechToTextEvent>;
 	}
 
+	export interface TextToSpeechOptions {
+		readonly language?: string;
+	}
+
 	export enum TextToSpeechStatus {
 		Started = 1,
 		Stopped = 2,
@@ -59,7 +63,7 @@ declare module 'vscode' {
 
 	export interface SpeechProvider {
 		provideSpeechToTextSession(token: CancellationToken, options?: SpeechToTextOptions): ProviderResult<SpeechToTextSession>;
-		provideTextToSpeechSession(token: CancellationToken): ProviderResult<TextToSpeechSession>;
+		provideTextToSpeechSession(token: CancellationToken, options?: TextToSpeechOptions): ProviderResult<TextToSpeechSession>;
 		provideKeywordRecognitionSession(token: CancellationToken): ProviderResult<KeywordRecognitionSession>;
 	}
 
