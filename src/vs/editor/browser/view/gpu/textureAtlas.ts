@@ -85,7 +85,7 @@ export class TextureAtlas extends Disposable {
 
 		const activeWindow = getActiveWindow();
 		const style = activeWindow.getComputedStyle(parentDomNode);
-		const fontSize = Math.ceil(parseInt(style.fontSize.replace('px', '')) * activeWindow.devicePixelRatio);
+		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
 		this._ctx.font = `${fontSize}px ${style.fontFamily}`;
 
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
