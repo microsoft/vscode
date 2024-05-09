@@ -565,6 +565,7 @@ class TestRunTracker extends Disposable {
 						throw new Error('Attempted to `addCoverage` for a test item not included in the run');
 					}
 
+					this.ensureTestIsKnown(testItem);
 					testItemIdPart = testItemCoverageId.get(testItem);
 					if (testItemIdPart === undefined) {
 						testItemIdPart = testItemCoverageId.size;
