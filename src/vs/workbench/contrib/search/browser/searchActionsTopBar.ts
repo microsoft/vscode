@@ -8,7 +8,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchSparkleEmpty, searchSparkleFilled, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
@@ -205,53 +205,6 @@ registerAction2(class ViewAsListAction extends Action2 {
 	}
 });
 
-registerAction2(class ViewAIResultsAction extends Action2 {
-	constructor() {
-		super({
-			id: Constants.SearchCommandIds.ShowAIResultsActionId,
-			title: nls.localize2('ViewAIResultsAction.label', "Show AI Results"),
-			category,
-			icon: searchSparkleEmpty,
-			precondition: Constants.SearchContext.AIResultsVisibleKey.toNegated(),
-			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 3,
-				when: ContextKeyExpr.false(), // disabled for now
-			}]
-		});
-	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const searchView = getSearchView(accessor.get(IViewsService));
-		if (searchView) {
-			searchView.setAIResultsVisible(true);
-		}
-	}
-});
-
-registerAction2(class HideAIResultsAction extends Action2 {
-	constructor() {
-		super({
-			id: Constants.SearchCommandIds.HideAIResultsActionId,
-			title: nls.localize2('HideAIResultsAction.label', "Hide AI Results"),
-			category,
-			icon: searchSparkleFilled,
-			precondition: Constants.SearchContext.AIResultsVisibleKey,
-			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 3,
-				when: ContextKeyExpr.false(), // disabled for now
-			}]
-		});
-	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const searchView = getSearchView(accessor.get(IViewsService));
-		if (searchView) {
-			searchView.setAIResultsVisible(false);
-		}
-	}
-});
 
 //#endregion
 

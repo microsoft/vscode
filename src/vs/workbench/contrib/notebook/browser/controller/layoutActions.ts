@@ -6,9 +6,10 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize, localize2 } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -240,5 +241,37 @@ registerAction2(class NotebookWebviewResetAction extends Action2 {
 
 			editor.getInnerWebview()?.reload();
 		}
+	}
+});
+
+registerAction2(class ToggleNotebookStickyScroll extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.action.toggleNotebookStickyScroll',
+			title: {
+				...localize2('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+			},
+			category: Categories.View,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true),
+				title: localize('notebookStickyScroll', "Toggle Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+			},
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{
+					id: MenuId.NotebookStickyScrollContext,
+					group: 'notebookView',
+					order: 2
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue('notebook.stickyScroll.enabled');
+		return configurationService.updateValue('notebook.stickyScroll.enabled', newValue);
 	}
 });

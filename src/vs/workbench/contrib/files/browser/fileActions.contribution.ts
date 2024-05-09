@@ -246,7 +246,10 @@ appendToCommandPalette({
 appendToCommandPalette({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
 	title: nls.localize2('compareActiveWithSaved', "Compare Active File with Saved"),
-	category: Categories.File
+	category: Categories.File,
+	metadata: {
+		description: nls.localize2('compareActiveWithSavedMeta', "Opens a new diff editor to compare the active file with the version on disk.")
+	}
 });
 
 appendToCommandPalette({

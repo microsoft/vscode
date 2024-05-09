@@ -214,10 +214,6 @@
 	text-overflow: ellipsis;
 }
 
-.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container {
-	flex-wrap: wrap-reverse;
-}
-
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label:not(.icon) {
 	border-radius: 2px;
 }

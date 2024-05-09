@@ -53,6 +53,25 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
+		test('should sort lines in ascending order', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					executeAction(sortLinesAscendingAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
+				});
+		});
+
 		test('should sort multiple selections in ascending order', function () {
 			withTestCodeEditor(
 				[
@@ -148,7 +167,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	suite('DeleteDuplicateLinesAction', () => {
-		test('should remove duplicate lines', function () {
+		test('should remove duplicate lines within selection', function () {
 			withTestCodeEditor(
 				[
 					'alpha',
@@ -169,6 +188,29 @@ suite('Editor Contrib - Line Operations', () => {
 						'omicron',
 					]);
 					assertSelection(editor, new Selection(1, 1, 3, 7));
+				});
+		});
+
+		test('should remove duplicate lines', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'beta',
+					'beta',
+					'alpha',
+					'omicron',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+
+					executeAction(deleteDuplicateLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron',
+					]);
+					assert.ok(editor.getSelection().isEmpty());
 				});
 		});
 

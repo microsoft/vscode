@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
-import { EditorOption, IEditorStickyScrollOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { binarySearch } from 'vs/base/common/arrays';
@@ -45,7 +45,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private readonly _updateSoon: RunOnceScheduler;
 	private readonly _sessionStore: DisposableStore;
 
-	private _options: Readonly<Required<IEditorStickyScrollOptions>> | null = null;
 	private _model: StickyModel | null = null;
 	private _cts: CancellationTokenSource | null = null;
 	private _stickyModelProvider: IStickyModelProvider | null = null;
@@ -69,26 +68,18 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	}
 
 	private readConfiguration() {
-
-		this._stickyModelProvider = null;
 		this._sessionStore.clear();
 
-		this._options = this._editor.getOption(EditorOption.stickyScroll);
-		if (!this._options.enabled) {
+		const options = this._editor.getOption(EditorOption.stickyScroll);
+		if (!options.enabled) {
 			return;
 		}
-
-		this._stickyModelProvider = this._sessionStore.add(new StickyModelProvider(
-			this._editor,
-			this._languageConfigurationService,
-			this._languageFeaturesService,
-			this._options.defaultModel
-		));
 
 		this._sessionStore.add(this._editor.onDidChangeModel(() => {
 			// We should not show an old model for a different file, it will always be wrong.
 			// So we clear the model here immediately and then trigger an update.
 			this._model = null;
+			this.updateStickyModelProvider();
 			this._onDidChangeStickyScroll.fire();
 
 			this.update();
@@ -96,11 +87,31 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 		this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 		this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update()));
+		this._sessionStore.add(toDisposable(() => {
+			this._stickyModelProvider?.dispose();
+			this._stickyModelProvider = null;
+		}));
+		this.updateStickyModelProvider();
 		this.update();
 	}
 
 	public getVersionId(): number | undefined {
 		return this._model?.version;
+	}
+
+	private updateStickyModelProvider() {
+		this._stickyModelProvider?.dispose();
+		this._stickyModelProvider = null;
+
+		const editor = this._editor;
+		if (editor.hasModel()) {
+			this._stickyModelProvider = new StickyModelProvider(
+				editor,
+				() => this._updateSoon.schedule(),
+				this._languageConfigurationService,
+				this._languageFeaturesService
+			);
+		}
 	}
 
 	public async update(): Promise<void> {
@@ -116,11 +127,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			this._model = null;
 			return;
 		}
-
-		const textModel = this._editor.getModel();
-		const modelVersionId = textModel.getVersionId();
-
-		const model = await this._stickyModelProvider.update(textModel, modelVersionId, token);
+		const model = await this._stickyModelProvider.update(token);
 		if (token.isCancellationRequested) {
 			// the computation was canceled, so do not overwrite the model
 			return;

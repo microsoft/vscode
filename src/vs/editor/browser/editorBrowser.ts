@@ -22,6 +22,7 @@ import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
@@ -510,6 +511,18 @@ export interface IPartialEditorMouseEvent {
 export interface IPasteEvent {
 	readonly range: Range;
 	readonly languageId: string | null;
+	readonly clipboardEvent?: ClipboardEvent;
+}
+
+/**
+ * @internal
+ */
+export interface PastePayload {
+	text: string;
+	pasteOnNewLine: boolean;
+	multicursorText: string[] | null;
+	mode: string | null;
+	clipboardEvent?: ClipboardEvent;
 }
 
 /**
@@ -559,6 +572,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly isSimpleWidget: boolean;
+	/**
+	 * The context menu ID that should be used to lookup context menu actions.
+	 * @internal
+	 */
+	readonly contextMenuId: MenuId;
 	/**
 	 * The editor's scoped context key service.
 	 * @internal
@@ -755,6 +773,20 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidChangeHiddenAreas: Event<void>;
+
+	/**
+	 * Some editor operations fire multiple events at once.
+	 * To allow users to react to multiple events fired by a single operation,
+	 * the editor fires a begin update before the operation and an end update after the operation.
+	 * Whenever the editor fires `onBeginUpdate`, it will also fire `onEndUpdate` once the operation finishes.
+	 * Note that not all operations are bracketed by `onBeginUpdate` and `onEndUpdate`.
+	*/
+	readonly onBeginUpdate: Event<void>;
+
+	/**
+	 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
+	*/
+	readonly onEndUpdate: Event<void>;
 
 	/**
 	 * Saves current view state of the editor in a serializable object.

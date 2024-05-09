@@ -34,7 +34,7 @@ serde_bytes = "0.11.9"
 chrono = { version = "0.4.26", features = ["serde", "std", "clock"], default-features = false }
 gethostname = "0.4.3"
 libc = "0.2.144"
-tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "4de1ff7979b5758c69218a3f45f6d9784b165072", default-features = false, features = ["connections"] }
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "8cae9b2a24c65c6c1958f5a0e77d72b23b5c6c30", default-features = false, features = ["connections"] }
 keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl"] }
 dialoguer = "0.10.4"
 hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }

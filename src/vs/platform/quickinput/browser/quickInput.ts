@@ -11,14 +11,13 @@ import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/cou
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
@@ -26,12 +25,26 @@ import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
-import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickInputType } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
-import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
+import { QuickPickFocus } from '../common/quickInput';
+import type { IHoverOptions } from 'vs/base/browser/ui/hover/hover';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const inQuickInputContextKeyValue = 'inQuickInput';
+export const InQuickInputContextKey = new RawContextKey<boolean>(inQuickInputContextKeyValue, false, localize('inQuickInput', "Whether keyboard focus is inside the quick input control"));
+export const inQuickInputContext = ContextKeyExpr.has(inQuickInputContextKeyValue);
+
+export const quickInputTypeContextKeyValue = 'quickInputType';
+export const QuickInputTypeContextKey = new RawContextKey<QuickInputType>(quickInputTypeContextKeyValue, undefined, localize('quickInputType', "The type of the currently visible quick input"));
+
+export const endOfQuickInputBoxContextKeyValue = 'cursorAtEndOfQuickInputBox';
+export const EndOfQuickInputBoxContextKey = new RawContextKey<boolean>(endOfQuickInputBoxContextKeyValue, false, localize('cursorAtEndOfQuickInputBox', "Whether the cursor in the quick input is at the end of the input box"));
+export const endOfQuickInputBoxContext = ContextKeyExpr.has(endOfQuickInputBoxContextKeyValue);
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -41,13 +54,6 @@ export interface IQuickInputOptions {
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
 	returnFocus(): void;
-	createList<T>(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
-		options: IListOptions<T>,
-	): List<T>;
 	/**
 	 * @todo With IHover in vs/editor, can we depend on the service directly
 	 * instead of passing it through a hover delegate?
@@ -108,7 +114,7 @@ export interface QuickInputUI {
 	customButtonContainer: HTMLElement;
 	customButton: Button;
 	progressBar: ProgressBar;
-	list: QuickInputList;
+	list: QuickInputTree;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
@@ -137,7 +143,7 @@ export type Visibilities = {
 	progressBar?: boolean;
 };
 
-class QuickInput extends Disposable implements IQuickInput {
+abstract class QuickInput extends Disposable implements IQuickInput {
 	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 	private _title: string | undefined;
@@ -168,6 +174,8 @@ class QuickInput extends Disposable implements IQuickInput {
 	protected readonly visibleDisposables = this._register(new DisposableStore());
 
 	private busyDelay: TimeoutTimer | undefined;
+
+	abstract type: QuickInputType;
 
 	constructor(
 		protected ui: QuickInputUI
@@ -541,6 +549,9 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private _hideInput: boolean | undefined;
 	private _hideCountBadge: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
+	private _focusEventBufferer = new EventBufferer();
+
+	readonly type = QuickInputType.QuickPick;
 
 	get quickNavigate() {
 		return this._quickNavigate;
@@ -731,7 +742,15 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		return this.ui.keyMods;
 	}
 
-	set valueSelection(valueSelection: Readonly<[number, number]>) {
+	get valueSelection() {
+		const selection = this.ui.inputBox.getSelection();
+		if (!selection) {
+			return undefined;
+		}
+		return [selection.start, selection.end];
+	}
+
+	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();
@@ -816,7 +835,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 
 	private trySelectFirst() {
 		if (!this.canSelectMany) {
-			this.ui.list.focus(QuickInputListFocus.First);
+			this.ui.list.focus(QuickPickFocus.First);
 		}
 	}
 
@@ -826,70 +845,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this.ui.inputBox.onDidChange(value => {
 					this.doSetValue(value, true /* skip update since this originates from the UI */);
 				}));
-			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
-				switch (event.keyCode) {
-					case KeyCode.DownArrow:
-						this.ui.list.focus(QuickInputListFocus.Next);
-						if (this.canSelectMany) {
-							this.ui.list.domFocus();
-						}
-						dom.EventHelper.stop(event, true);
-						break;
-					case KeyCode.UpArrow:
-						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus(QuickInputListFocus.Previous);
-						} else {
-							this.ui.list.focus(QuickInputListFocus.Last);
-						}
-						if (this.canSelectMany) {
-							this.ui.list.domFocus();
-						}
-						dom.EventHelper.stop(event, true);
-						break;
-					case KeyCode.PageDown:
-						this.ui.list.focus(QuickInputListFocus.NextPage);
-						if (this.canSelectMany) {
-							this.ui.list.domFocus();
-						}
-						dom.EventHelper.stop(event, true);
-						break;
-					case KeyCode.PageUp:
-						this.ui.list.focus(QuickInputListFocus.PreviousPage);
-						if (this.canSelectMany) {
-							this.ui.list.domFocus();
-						}
-						dom.EventHelper.stop(event, true);
-						break;
-					case KeyCode.RightArrow:
-						if (!this._canAcceptInBackground) {
-							return; // needs to be enabled
-						}
-
-						if (!this.ui.inputBox.isSelectionAtEnd()) {
-							return; // ensure input box selection at end
-						}
-
-						if (this.activeItems[0]) {
-							this._selectedItems = [this.activeItems[0]];
-							this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-							this.handleAccept(true);
-						}
-
-						break;
-					case KeyCode.Home:
-						if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
-							this.ui.list.focus(QuickInputListFocus.First);
-							dom.EventHelper.stop(event, true);
-						}
-						break;
-					case KeyCode.End:
-						if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
-							this.ui.list.focus(QuickInputListFocus.Last);
-							dom.EventHelper.stop(event, true);
-						}
-						break;
-				}
-			}));
 			this.visibleDisposables.add(this.ui.onDidAccept(() => {
 				if (this.canSelectMany) {
 					// if there are no checked elements, it means that an onDidChangeSelection never fired to overwrite
@@ -909,7 +864,11 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 			this.visibleDisposables.add(this.ui.onDidCustom(() => {
 				this.onDidCustomEmitter.fire();
 			}));
-			this.visibleDisposables.add(this.ui.list.onDidChangeFocus(focusedItems => {
+			this.visibleDisposables.add(this._focusEventBufferer.wrapEvent(
+				this.ui.list.onDidChangeFocus,
+				// Only fire the last event
+				(_, e) => e
+			)(focusedItems => {
 				if (this.activeItemsUpdated) {
 					return; // Expect another event.
 				}
@@ -1072,27 +1031,31 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
-			this.ui.list.setElements(this.items);
-			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
-			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
-			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			switch (this._itemActivation) {
-				case ItemActivation.NONE:
-					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
-					break;
-				case ItemActivation.SECOND:
-					this.ui.list.focus(QuickInputListFocus.Second);
-					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
-					break;
-				case ItemActivation.LAST:
-					this.ui.list.focus(QuickInputListFocus.Last);
-					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
-					break;
-				default:
-					this.trySelectFirst();
-					break;
-			}
+			this._focusEventBufferer.bufferEvents(() => {
+				this.ui.list.setElements(this.items);
+				// We want focus to exist in the list if there are items so that space can be used to toggle
+				this.ui.list.shouldLoop = !this.canSelectMany;
+				this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
+				this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
+				this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
+				this.ui.count.setCount(this.ui.list.getCheckedCount());
+				switch (this._itemActivation) {
+					case ItemActivation.NONE:
+						this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+						break;
+					case ItemActivation.SECOND:
+						this.ui.list.focus(QuickPickFocus.Second);
+						this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+						break;
+					case ItemActivation.LAST:
+						this.ui.list.focus(QuickPickFocus.Last);
+						this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+						break;
+					default:
+						this.trySelectFirst();
+						break;
+				}
+			});
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== !!this.canSelectMany) {
 			if (this.canSelectMany) {
@@ -1130,13 +1093,33 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 
 			// Focus the first element in the list if multiselect is enabled
 			if (this.canSelectMany) {
-				this.ui.list.focus(QuickInputListFocus.First);
+				this.ui.list.focus(QuickPickFocus.First);
 			}
 		}
 
 		// Set the scroll position to what it was before updating the items
 		if (this.keepScrollPosition) {
 			this.scrollTop = scrollTopBefore;
+		}
+	}
+
+	focus(focus: QuickPickFocus): void {
+		this.ui.list.focus(focus);
+		// To allow things like space to check/uncheck items
+		if (this.canSelectMany) {
+			this.ui.list.domFocus();
+		}
+	}
+
+	accept(inBackground?: boolean | undefined): void {
+		if (inBackground && !this._canAcceptInBackground) {
+			return; // needs to be enabled
+		}
+
+		if (this.activeItems[0]) {
+			this._selectedItems = [this.activeItems[0]];
+			this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+			this.handleAccept(inBackground ?? false);
 		}
 	}
 }
@@ -1151,6 +1134,8 @@ export class InputBox extends QuickInput implements IInputBox {
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
+	readonly type = QuickInputType.InputBox;
+
 	get value() {
 		return this._value;
 	}
@@ -1160,7 +1145,15 @@ export class InputBox extends QuickInput implements IInputBox {
 		this.update();
 	}
 
-	set valueSelection(valueSelection: Readonly<[number, number]>) {
+	get valueSelection() {
+		const selection = this.ui.inputBox.getSelection();
+		if (!selection) {
+			return undefined;
+		}
+		return [selection.start, selection.end];
+	}
+
+	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();
@@ -1249,6 +1242,8 @@ export class InputBox extends QuickInput implements IInputBox {
 }
 
 export class QuickWidget extends QuickInput implements IQuickWidget {
+	readonly type = QuickInputType.QuickWidget;
+
 	protected override update() {
 		if (!this.visible) {
 			return;

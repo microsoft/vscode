@@ -29,7 +29,13 @@ export async function startVsCodeServer(connection: Connection) {
 		slugifier = md.githubSlugifier;
 
 		tokenize(document: md.ITextDocument): Promise<md.Token[]> {
-			return connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
+			return connection.sendRequest(protocol.parse, {
+				uri: document.uri,
+
+				// Clients won't be able to read temp documents.
+				// Send along the full text for parsing.
+				text: document.version < 0 ? document.getText() : undefined
+			});
 		}
 	};
 
@@ -109,6 +115,7 @@ export async function startServer(connection: Connection, serverConfig: {
 				documentLinkProvider: { resolveProvider: true },
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
+				hoverProvider: true,
 				referencesProvider: true,
 				renameProvider: { prepareProvider: true, },
 				selectionRangeProvider: true,
@@ -246,6 +253,15 @@ export async function startServer(connection: Connection, serverConfig: {
 		return codeAction;
 	});
 
+	connection.onHover(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return null;
+		}
+
+		return mdLs!.getHover(document, params.position, token);
+	});
+
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {
 		return mdLs!.getFileReferences(URI.parse(params.uri), token);
 	}));
@@ -260,6 +276,26 @@ export async function startServer(connection: Connection, serverConfig: {
 			edit: result.edit,
 			participatingRenames: result.participatingRenames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() }))
 		};
+	}));
+
+	connection.onRequest(protocol.prepareUpdatePastedLinks, (async (params, token: CancellationToken) => {
+		const document = documents.get(params.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		return mdLs!.prepareUpdatePastedLinks(document, params.ranges, token);
+	}));
+
+	connection.onRequest(protocol.getUpdatePastedLinksEdit, (async (params, token: CancellationToken) => {
+		const document = documents.get(params.pasteIntoDoc);
+		if (!document) {
+			return undefined;
+		}
+
+		// TODO: Figure out why range types are lying
+		const edits = params.edits.map((edit: any) => lsp.TextEdit.replace(lsp.Range.create(edit.range[0].line, edit.range[0].character, edit.range[1].line, edit.range[1].character), edit.newText));
+		return mdLs!.getUpdatePastedLinksEdit(document, edits, params.metadata, token);
 	}));
 
 	connection.onRequest(protocol.resolveLinkTarget, (async (params, token: CancellationToken) => {

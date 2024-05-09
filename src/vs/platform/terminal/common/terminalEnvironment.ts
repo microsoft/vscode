@@ -66,5 +66,5 @@ export function sanitizeCwd(cwd: string): string {
  * @param slc The shell launch config to check.
  */
 export function shouldUseEnvironmentVariableCollection(slc: IShellLaunchConfig): boolean {
-	return !slc.strictEnv && !slc.hideFromUser;
+	return !slc.strictEnv;
 }

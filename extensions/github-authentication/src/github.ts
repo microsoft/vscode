@@ -304,11 +304,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			if (sessions.some(s => s.id !== session.id)) {
+			if (sessions.some(s => s.account.id !== session.account.id)) {
 				const otherAccountsIndexes = new Array<number>();
 				const otherAccountsLabels = new Set<string>();
 				for (let i = 0; i < sessions.length; i++) {
-					if (sessions[i].id !== session.id) {
+					if (sessions[i].account.id !== session.account.id) {
 						otherAccountsIndexes.push(i);
 						otherAccountsLabels.add(sessions[i].account.label);
 					}

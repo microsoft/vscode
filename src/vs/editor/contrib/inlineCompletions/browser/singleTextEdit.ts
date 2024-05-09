@@ -7,147 +7,136 @@ import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import { commonPrefixLength, getLeadingWhitespace } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { TextLength } from 'vs/editor/common/core/textLength';
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
-export class SingleTextEdit {
-	constructor(
-		public readonly range: Range,
-		public readonly text: string
-	) {
+export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextModel, validModelRange?: Range): SingleTextEdit {
+	const modelRange = validModelRange ? edit.range.intersectRanges(validModelRange) : edit.range;
+	if (!modelRange) {
+		return edit;
+	}
+	const valueToReplace = model.getValueInRange(modelRange, EndOfLinePreference.LF);
+	const commonPrefixLen = commonPrefixLength(valueToReplace, edit.text);
+	const start = TextLength.ofText(valueToReplace.substring(0, commonPrefixLen)).addToPosition(edit.range.getStartPosition());
+	const text = edit.text.substring(commonPrefixLen);
+	const range = Range.fromPositions(start, edit.range.getEndPosition());
+	return new SingleTextEdit(range, text);
+}
+
+export function singleTextEditAugments(edit: SingleTextEdit, base: SingleTextEdit): boolean {
+	// The augmented completion must replace the base range, but can replace even more
+	return edit.text.startsWith(base.text) && rangeExtends(edit.range, base.range);
+}
+
+/**
+ * @param previewSuffixLength Sets where to split `inlineCompletion.text`.
+ * 	If the text is `hello` and the suffix length is 2, the non-preview part is `hel` and the preview-part is `lo`.
+*/
+export function computeGhostText(
+	edit: SingleTextEdit,
+	model: ITextModel,
+	mode: 'prefix' | 'subword' | 'subwordSmart',
+	cursorPosition?: Position,
+	previewSuffixLength = 0
+): GhostText | undefined {
+	let e = singleTextRemoveCommonPrefix(edit, model);
+
+	if (e.range.endLineNumber !== e.range.startLineNumber) {
+		// This edit might span multiple lines, but the first lines must be a common prefix.
+		return undefined;
 	}
 
-	static equals(first: SingleTextEdit, second: SingleTextEdit) {
-		return first.range.equalsRange(second.range) && first.text === second.text;
+	const sourceLine = model.getLineContent(e.range.startLineNumber);
+	const sourceIndentationLength = getLeadingWhitespace(sourceLine).length;
 
+	const suggestionTouchesIndentation = e.range.startColumn - 1 <= sourceIndentationLength;
+	if (suggestionTouchesIndentation) {
+		// source:      ··········[······abc]
+		//                         ^^^^^^^^^ inlineCompletion.range
+		//              ^^^^^^^^^^ ^^^^^^ sourceIndentationLength
+		//                         ^^^^^^ replacedIndentation.length
+		//                               ^^^ rangeThatDoesNotReplaceIndentation
+
+		// inlineCompletion.text: '··foo'
+		//                         ^^ suggestionAddedIndentationLength
+
+		const suggestionAddedIndentationLength = getLeadingWhitespace(e.text).length;
+
+		const replacedIndentation = sourceLine.substring(e.range.startColumn - 1, sourceIndentationLength);
+
+		const [startPosition, endPosition] = [e.range.getStartPosition(), e.range.getEndPosition()];
+		const newStartPosition =
+			startPosition.column + replacedIndentation.length <= endPosition.column
+				? startPosition.delta(0, replacedIndentation.length)
+				: endPosition;
+		const rangeThatDoesNotReplaceIndentation = Range.fromPositions(newStartPosition, endPosition);
+
+		const suggestionWithoutIndentationChange =
+			e.text.startsWith(replacedIndentation)
+				// Adds more indentation without changing existing indentation: We can add ghost text for this
+				? e.text.substring(replacedIndentation.length)
+				// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
+				: e.text.substring(suggestionAddedIndentationLength);
+
+		e = new SingleTextEdit(rangeThatDoesNotReplaceIndentation, suggestionWithoutIndentationChange);
 	}
 
-	removeCommonPrefix(model: ITextModel, validModelRange?: Range): SingleTextEdit {
-		const modelRange = validModelRange ? this.range.intersectRanges(validModelRange) : this.range;
-		if (!modelRange) {
-			return this;
+	// This is a single line string
+	const valueToBeReplaced = model.getValueInRange(e.range);
+
+	const changes = cachingDiff(valueToBeReplaced, e.text);
+
+	if (!changes) {
+		// No ghost text in case the diff would be too slow to compute
+		return undefined;
+	}
+
+	const lineNumber = e.range.startLineNumber;
+
+	const parts = new Array<GhostTextPart>();
+
+	if (mode === 'prefix') {
+		const filteredChanges = changes.filter(c => c.originalLength === 0);
+		if (filteredChanges.length > 1 || filteredChanges.length === 1 && filteredChanges[0].originalStart !== valueToBeReplaced.length) {
+			// Prefixes only have a single change.
+			return undefined;
 		}
-		const valueToReplace = model.getValueInRange(modelRange, EndOfLinePreference.LF);
-		const commonPrefixLen = commonPrefixLength(valueToReplace, this.text);
-		const start = addPositions(this.range.getStartPosition(), lengthOfText(valueToReplace.substring(0, commonPrefixLen)));
-		const text = this.text.substring(commonPrefixLen);
-		const range = Range.fromPositions(start, this.range.getEndPosition());
-		return new SingleTextEdit(range, text);
 	}
 
-	augments(base: SingleTextEdit): boolean {
-		// The augmented completion must replace the base range, but can replace even more
-		return this.text.startsWith(base.text) && rangeExtends(this.range, base.range);
-	}
+	const previewStartInCompletionText = e.text.length - previewSuffixLength;
 
-	/**
-	 * @param previewSuffixLength Sets where to split `inlineCompletion.text`.
-	 * 	If the text is `hello` and the suffix length is 2, the non-preview part is `hel` and the preview-part is `lo`.
-	*/
-	computeGhostText(
-		model: ITextModel,
-		mode: 'prefix' | 'subword' | 'subwordSmart',
-		cursorPosition?: Position,
-		previewSuffixLength = 0
-	): GhostText | undefined {
-		let edit = this.removeCommonPrefix(model);
+	for (const c of changes) {
+		const insertColumn = e.range.startColumn + c.originalStart + c.originalLength;
 
-		if (edit.range.endLineNumber !== edit.range.startLineNumber) {
-			// This edit might span multiple lines, but the first lines must be a common prefix.
+		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === e.range.startLineNumber && insertColumn < cursorPosition.column) {
+			// No ghost text before cursor
 			return undefined;
 		}
 
-		const sourceLine = model.getLineContent(edit.range.startLineNumber);
-		const sourceIndentationLength = getLeadingWhitespace(sourceLine).length;
-
-		const suggestionTouchesIndentation = edit.range.startColumn - 1 <= sourceIndentationLength;
-		if (suggestionTouchesIndentation) {
-			// source:      ··········[······abc]
-			//                         ^^^^^^^^^ inlineCompletion.range
-			//              ^^^^^^^^^^ ^^^^^^ sourceIndentationLength
-			//                         ^^^^^^ replacedIndentation.length
-			//                               ^^^ rangeThatDoesNotReplaceIndentation
-
-			// inlineCompletion.text: '··foo'
-			//                         ^^ suggestionAddedIndentationLength
-
-			const suggestionAddedIndentationLength = getLeadingWhitespace(edit.text).length;
-
-			const replacedIndentation = sourceLine.substring(edit.range.startColumn - 1, sourceIndentationLength);
-
-			const [startPosition, endPosition] = [edit.range.getStartPosition(), edit.range.getEndPosition()];
-			const newStartPosition =
-				startPosition.column + replacedIndentation.length <= endPosition.column
-					? startPosition.delta(0, replacedIndentation.length)
-					: endPosition;
-			const rangeThatDoesNotReplaceIndentation = Range.fromPositions(newStartPosition, endPosition);
-
-			const suggestionWithoutIndentationChange =
-				edit.text.startsWith(replacedIndentation)
-					// Adds more indentation without changing existing indentation: We can add ghost text for this
-					? edit.text.substring(replacedIndentation.length)
-					// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
-					: edit.text.substring(suggestionAddedIndentationLength);
-
-			edit = new SingleTextEdit(rangeThatDoesNotReplaceIndentation, suggestionWithoutIndentationChange);
-		}
-
-		// This is a single line string
-		const valueToBeReplaced = model.getValueInRange(edit.range);
-
-		const changes = cachingDiff(valueToBeReplaced, edit.text);
-
-		if (!changes) {
-			// No ghost text in case the diff would be too slow to compute
+		if (c.originalLength > 0) {
 			return undefined;
 		}
 
-		const lineNumber = edit.range.startLineNumber;
-
-		const parts = new Array<GhostTextPart>();
-
-		if (mode === 'prefix') {
-			const filteredChanges = changes.filter(c => c.originalLength === 0);
-			if (filteredChanges.length > 1 || filteredChanges.length === 1 && filteredChanges[0].originalStart !== valueToBeReplaced.length) {
-				// Prefixes only have a single change.
-				return undefined;
-			}
+		if (c.modifiedLength === 0) {
+			continue;
 		}
 
-		const previewStartInCompletionText = edit.text.length - previewSuffixLength;
+		const modifiedEnd = c.modifiedStart + c.modifiedLength;
+		const nonPreviewTextEnd = Math.max(c.modifiedStart, Math.min(modifiedEnd, previewStartInCompletionText));
+		const nonPreviewText = e.text.substring(c.modifiedStart, nonPreviewTextEnd);
+		const italicText = e.text.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
 
-		for (const c of changes) {
-			const insertColumn = edit.range.startColumn + c.originalStart + c.originalLength;
-
-			if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === edit.range.startLineNumber && insertColumn < cursorPosition.column) {
-				// No ghost text before cursor
-				return undefined;
-			}
-
-			if (c.originalLength > 0) {
-				return undefined;
-			}
-
-			if (c.modifiedLength === 0) {
-				continue;
-			}
-
-			const modifiedEnd = c.modifiedStart + c.modifiedLength;
-			const nonPreviewTextEnd = Math.max(c.modifiedStart, Math.min(modifiedEnd, previewStartInCompletionText));
-			const nonPreviewText = edit.text.substring(c.modifiedStart, nonPreviewTextEnd);
-			const italicText = edit.text.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
-
-			if (nonPreviewText.length > 0) {
-				parts.push(new GhostTextPart(insertColumn, nonPreviewText, false));
-			}
-			if (italicText.length > 0) {
-				parts.push(new GhostTextPart(insertColumn, italicText, true));
-			}
+		if (nonPreviewText.length > 0) {
+			parts.push(new GhostTextPart(insertColumn, nonPreviewText, false));
 		}
-
-		return new GhostText(lineNumber, parts);
+		if (italicText.length > 0) {
+			parts.push(new GhostTextPart(insertColumn, italicText, true));
+		}
 	}
+
+	return new GhostText(lineNumber, parts);
 }
 
 function rangeExtends(extendingRange: Range, rangeToExtend: Range): boolean {

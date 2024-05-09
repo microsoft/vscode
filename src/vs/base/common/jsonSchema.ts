@@ -99,3 +99,22 @@ export interface IJSONSchemaSnippet {
 	body?: any; // a object that will be JSON stringified
 	bodyText?: string; // an already stringified JSON object that can contain new lines (\n) and tabs (\t)
 }
+
+/**
+ * Converts a basic JSON schema to a TypeScript type.
+ *
+ * TODO: only supports basic schemas. Doesn't support all JSON schema features.
+ */
+export type SchemaToType<T> = T extends { type: 'string' }
+	? string
+	: T extends { type: 'number' }
+	? number
+	: T extends { type: 'boolean' }
+	? boolean
+	: T extends { type: 'null' }
+	? null
+	: T extends { type: 'object'; properties: infer P }
+	? { [K in keyof P]: SchemaToType<P[K]> }
+	: T extends { type: 'array'; items: infer I }
+	? Array<SchemaToType<I>>
+	: never;

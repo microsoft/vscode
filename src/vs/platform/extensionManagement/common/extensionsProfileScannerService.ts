@@ -83,7 +83,7 @@ export interface IExtensionsProfileScannerService {
 	readonly onDidRemoveExtensions: Event<DidRemoveProfileExtensionsEvent>;
 
 	scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]>;
-	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
+	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI, keepExistingVersions?: boolean): Promise<IScannedProfileExtension[]>;
 	updateMetadata(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
 	removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void>;
 }
@@ -120,18 +120,22 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		return this.withProfileExtensions(profileLocation, undefined, options);
 	}
 
-	async addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
+	async addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI, keepExistingVersions?: boolean): Promise<IScannedProfileExtension[]> {
 		const extensionsToRemove: IScannedProfileExtension[] = [];
 		const extensionsToAdd: IScannedProfileExtension[] = [];
 		try {
 			await this.withProfileExtensions(profileLocation, existingExtensions => {
 				const result: IScannedProfileExtension[] = [];
-				for (const existing of existingExtensions) {
-					if (extensions.some(([e]) => areSameExtensions(e.identifier, existing.identifier) && e.manifest.version !== existing.version)) {
-						// Remove the existing extension with different version
-						extensionsToRemove.push(existing);
-					} else {
-						result.push(existing);
+				if (keepExistingVersions) {
+					result.push(...existingExtensions);
+				} else {
+					for (const existing of existingExtensions) {
+						if (extensions.some(([e]) => areSameExtensions(e.identifier, existing.identifier) && e.manifest.version !== existing.version)) {
+							// Remove the existing extension with different version
+							extensionsToRemove.push(existing);
+						} else {
+							result.push(existing);
+						}
 					}
 				}
 				for (const [extension, metadata] of extensions) {
@@ -302,7 +306,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		type ErrorClassification = {
 			owner: 'sandy081';
 			comment: 'Information about the error that occurred while scanning';
-			code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
+			code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
 		};
 		const error = new ExtensionsProfileScanningError(`Invalid extensions content in ${file.toString()}`, ExtensionsProfileScanningErrorCode.ERROR_INVALID_CONTENT);
 		this.telemetryService.publicLogError2<{ code: string }, ErrorClassification>('extensionsProfileScanningError', { code: error.code });

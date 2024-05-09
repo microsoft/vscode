@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getProductionDependencies = void 0;
+exports.getProductionDependencies = getProductionDependencies;
 const fs = require("fs");
 const path = require("path");
 const cp = require("child_process");
@@ -69,7 +69,6 @@ function getProductionDependencies(folderPath) {
     }
     return [...new Set(result)];
 }
-exports.getProductionDependencies = getProductionDependencies;
 if (require.main === module) {
     console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }

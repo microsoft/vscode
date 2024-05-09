@@ -208,10 +208,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateKeybindingsJsonSchema();
 
 		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
-		this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
+		this._register(this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
 			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
 			this.updateResolver();
-		});
+		}));
 
 		this._keybindingHoldMode = null;
 		this._cachedResolver = null;

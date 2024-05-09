@@ -14,18 +14,27 @@ import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 
 // -----------------------------------------------------------------------------------------------------------------------
+// Uncomment the next line to print warnings whenever a listener is GC'ed without having been disposed. This is a LEAK.
+// -----------------------------------------------------------------------------------------------------------------------
+const _enableListenerGCedWarning = false
+	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
+	;
+
+// -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever an emitter with listeners is disposed. That is a sign of code smell.
 // -----------------------------------------------------------------------------------------------------------------------
-const _enableDisposeWithListenerWarning = false;
-// _enableDisposeWithListenerWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
+const _enableDisposeWithListenerWarning = false
+	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
+	;
 
 
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever a snapshotted event is used repeatedly without cleanup.
 // See https://github.com/microsoft/vscode/issues/142851
 // -----------------------------------------------------------------------------------------------------------------------
-const _enableSnapshotPotentialLeakWarning = false;
-// _enableSnapshotPotentialLeakWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
+const _enableSnapshotPotentialLeakWarning = false
+	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
+	;
 
 /**
  * An event with zero or one parameters that can be subscribed to. The event is a function itself.
@@ -911,6 +920,16 @@ const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerC
 	}
 };
 
+
+const _listenerFinalizers = _enableListenerGCedWarning
+	? new FinalizationRegistry(heldValue => {
+		if (typeof heldValue === 'string') {
+			console.warn('[LEAKING LISTENER] GC\'ed a listener that was NOT yet disposed. This is where is was created:');
+			console.warn(heldValue);
+		}
+	})
+	: undefined;
+
 /**
  * The Emitter can be used to expose an Event to the public
  * to fire it from the insides.
@@ -1054,11 +1073,21 @@ export class Emitter<T> {
 
 			this._size++;
 
-			const result = toDisposable(() => { removeMonitor?.(); this._removeListener(contained); });
+
+			const result = toDisposable(() => {
+				_listenerFinalizers?.unregister(result);
+				removeMonitor?.();
+				this._removeListener(contained);
+			});
 			if (disposables instanceof DisposableStore) {
 				disposables.add(result);
 			} else if (Array.isArray(disposables)) {
 				disposables.push(result);
+			}
+
+			if (_listenerFinalizers) {
+				const stack = new Error().stack!.split('\n').slice(2).join('\n').trim();
+				_listenerFinalizers.register(result, stack, result);
 			}
 
 			return result;
@@ -1536,28 +1565,70 @@ export class DynamicListEventMultiplexer<TItem, TEventType> implements IDynamicL
  */
 export class EventBufferer {
 
-	private buffers: Function[][] = [];
+	private data: { buffers: Function[] }[] = [];
 
-	wrapEvent<T>(event: Event<T>): Event<T> {
+	wrapEvent<T>(event: Event<T>): Event<T>;
+	wrapEvent<T>(event: Event<T>, reduce: (last: T | undefined, event: T) => T): Event<T>;
+	wrapEvent<T, O>(event: Event<T>, reduce: (last: O | undefined, event: T) => O, initial: O): Event<O>;
+	wrapEvent<T, O>(event: Event<T>, reduce?: (last: T | O | undefined, event: T) => T | O, initial?: O): Event<O | T> {
 		return (listener, thisArgs?, disposables?) => {
 			return event(i => {
-				const buffer = this.buffers[this.buffers.length - 1];
+				const data = this.data[this.data.length - 1];
 
-				if (buffer) {
-					buffer.push(() => listener.call(thisArgs, i));
-				} else {
-					listener.call(thisArgs, i);
+				// Non-reduce scenario
+				if (!reduce) {
+					// Buffering case
+					if (data) {
+						data.buffers.push(() => listener.call(thisArgs, i));
+					} else {
+						// Not buffering case
+						listener.call(thisArgs, i);
+					}
+					return;
+				}
+
+				// Reduce scenario
+				const reduceData = data as typeof data & {
+					/**
+					 * The accumulated items that will be reduced.
+					 */
+					items?: T[];
+					/**
+					 * The reduced result cached to be shared with other listeners.
+					 */
+					reducedResult?: T | O;
+				};
+
+				// Not buffering case
+				if (!reduceData) {
+					// TODO: Is there a way to cache this reduce call for all listeners?
+					listener.call(thisArgs, reduce(initial, i));
+					return;
+				}
+
+				// Buffering case
+				reduceData.items ??= [];
+				reduceData.items.push(i);
+				if (reduceData.buffers.length === 0) {
+					// Include a single buffered function that will reduce all events when we're done buffering events
+					data.buffers.push(() => {
+						// cache the reduced result so that the value can be shared across all listeners
+						reduceData.reducedResult ??= initial
+							? reduceData.items!.reduce(reduce as (last: O | undefined, event: T) => O, initial)
+							: reduceData.items!.reduce(reduce as (last: T | undefined, event: T) => T);
+						listener.call(thisArgs, reduceData.reducedResult);
+					});
 				}
 			}, undefined, disposables);
 		};
 	}
 
 	bufferEvents<R = void>(fn: () => R): R {
-		const buffer: Array<() => R> = [];
-		this.buffers.push(buffer);
+		const data = { buffers: new Array<Function>() };
+		this.data.push(data);
 		const r = fn();
-		this.buffers.pop();
-		buffer.forEach(flush => flush());
+		this.data.pop();
+		data.buffers.forEach(flush => flush());
 		return r;
 	}
 }
@@ -1600,4 +1671,37 @@ export class Relay<T> implements IDisposable {
 		this.inputEventListener.dispose();
 		this.emitter.dispose();
 	}
+}
+
+export interface IValueWithChangeEvent<T> {
+	readonly onDidChange: Event<void>;
+	get value(): T;
+}
+
+export class ValueWithChangeEvent<T> implements IValueWithChangeEvent<T> {
+	public static const<T>(value: T): IValueWithChangeEvent<T> {
+		return new ConstValueWithChangeEvent(value);
+	}
+
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	constructor(private _value: T) { }
+
+	get value(): T {
+		return this._value;
+	}
+
+	set value(value: T) {
+		if (value !== this._value) {
+			this._value = value;
+			this._onDidChange.fire(undefined);
+		}
+	}
+}
+
+class ConstValueWithChangeEvent<T> implements IValueWithChangeEvent<T> {
+	public readonly onDidChange: Event<void> = Event.None;
+
+	constructor(readonly value: T) { }
 }

@@ -87,7 +87,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		this.logService.info(`Downloading the '${extension.identifier.id}' extension locally and install`);
 		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
 		installOptions = { ...installOptions, donotIncludePackAndDependencies: true };
-		const installed = await this.getInstalled(ExtensionType.User);
+		const installed = await this.getInstalled(ExtensionType.User, undefined, installOptions.productVersion);
 		const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(compatible, CancellationToken.None);
 		if (workspaceExtensions.length) {
 			this.logService.info(`Downloading the workspace dependencies and packed extensions of '${compatible.identifier.id}' locally and install`);

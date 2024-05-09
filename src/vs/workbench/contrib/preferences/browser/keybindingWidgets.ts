@@ -141,7 +141,7 @@ export class DefineKeybindingWidget extends Widget {
 	private _keybindingInputWidget: KeybindingsSearchWidget;
 	private _outputNode: HTMLElement;
 	private _showExistingKeybindingsNode: HTMLElement;
-	private _keybindingDisposables = this._register(new DisposableStore());
+	private readonly _keybindingDisposables = this._register(new DisposableStore());
 
 	private _chords: ResolvedKeybinding[] | null = null;
 	private _isVisible: boolean = false;

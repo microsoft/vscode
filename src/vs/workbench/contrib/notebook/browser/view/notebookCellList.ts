@@ -925,8 +925,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				break;
 		}
 
-		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
-		if (cell.getEditState() === CellEditState.Editing && !cell.editorAttached) {
+		if ((
+			// wait for the editor to be created if the cell is in editing mode
+			cell.getEditState() === CellEditState.Editing
+			// wait for the editor to be created if we are revealing the first line of the cell
+			|| (revealType === CellRevealType.FirstLineIfOutsideViewport && cell.cellKind === CellKind.Code)
+		) && !cell.editorAttached) {
 			return getEditorAttachedPromise(cell);
 		}
 

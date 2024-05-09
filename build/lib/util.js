@@ -4,7 +4,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.appendOwnPathSourceURL = exports.$if = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
+exports.incremental = incremental;
+exports.debounce = debounce;
+exports.fixWin32DirectoryPermissions = fixWin32DirectoryPermissions;
+exports.setExecutableBit = setExecutableBit;
+exports.toFileUri = toFileUri;
+exports.skipDirectories = skipDirectories;
+exports.cleanNodeModules = cleanNodeModules;
+exports.loadSourcemaps = loadSourcemaps;
+exports.stripSourceMappingURL = stripSourceMappingURL;
+exports.$if = $if;
+exports.appendOwnPathSourceURL = appendOwnPathSourceURL;
+exports.rewriteSourceMappingURL = rewriteSourceMappingURL;
+exports.rimraf = rimraf;
+exports.rreddir = rreddir;
+exports.ensureDir = ensureDir;
+exports.rebase = rebase;
+exports.filter = filter;
+exports.versionStringToNumber = versionStringToNumber;
+exports.streamToPromise = streamToPromise;
+exports.getElectronVersion = getElectronVersion;
+exports.acquireWebNodePaths = acquireWebNodePaths;
+exports.createExternalLoaderConfig = createExternalLoaderConfig;
+exports.buildWebNodePaths = buildWebNodePaths;
 const es = require("event-stream");
 const _debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -54,7 +76,6 @@ function incremental(streamProvider, initial, supportsCancellation) {
     });
     return es.duplex(input, output);
 }
-exports.incremental = incremental;
 function debounce(task, duration = 500) {
     const input = es.through();
     const output = es.through();
@@ -83,7 +104,6 @@ function debounce(task, duration = 500) {
     });
     return es.duplex(input, output);
 }
-exports.debounce = debounce;
 function fixWin32DirectoryPermissions() {
     if (!/win32/.test(process.platform)) {
         return es.through();
@@ -95,7 +115,6 @@ function fixWin32DirectoryPermissions() {
         return f;
     });
 }
-exports.fixWin32DirectoryPermissions = fixWin32DirectoryPermissions;
 function setExecutableBit(pattern) {
     const setBit = es.mapSync(f => {
         if (!f.stat) {
@@ -115,7 +134,6 @@ function setExecutableBit(pattern) {
         .pipe(filter.restore);
     return es.duplex(input, output);
 }
-exports.setExecutableBit = setExecutableBit;
 function toFileUri(filePath) {
     const match = filePath.match(/^([a-z])\:(.*)$/i);
     if (match) {
@@ -123,7 +141,6 @@ function toFileUri(filePath) {
     }
     return 'file://' + filePath.replace(/\\/g, '/');
 }
-exports.toFileUri = toFileUri;
 function skipDirectories() {
     return es.mapSync(f => {
         if (!f.isDirectory()) {
@@ -131,7 +148,6 @@ function skipDirectories() {
         }
     });
 }
-exports.skipDirectories = skipDirectories;
 function cleanNodeModules(rulePath) {
     const rules = fs.readFileSync(rulePath, 'utf8')
         .split(/\r?\n/g)
@@ -143,7 +159,6 @@ function cleanNodeModules(rulePath) {
     const output = es.merge(input.pipe(_filter(['**', ...excludes])), input.pipe(_filter(includes)));
     return es.duplex(input, output);
 }
-exports.cleanNodeModules = cleanNodeModules;
 function loadSourcemaps() {
     const input = es.through();
     const output = input
@@ -185,7 +200,6 @@ function loadSourcemaps() {
     }));
     return es.duplex(input, output);
 }
-exports.loadSourcemaps = loadSourcemaps;
 function stripSourceMappingURL() {
     const input = es.through();
     const output = input
@@ -196,7 +210,6 @@ function stripSourceMappingURL() {
     }));
     return es.duplex(input, output);
 }
-exports.stripSourceMappingURL = stripSourceMappingURL;
 /** Splits items in the stream based on the predicate, sending them to onTrue if true, or onFalse otherwise */
 function $if(test, onTrue, onFalse = es.through()) {
     if (typeof test === 'boolean') {
@@ -204,7 +217,6 @@ function $if(test, onTrue, onFalse = es.through()) {
     }
     return ternaryStream(test, onTrue, onFalse);
 }
-exports.$if = $if;
 /** Operator that appends the js files' original path a sourceURL, so debug locations map */
 function appendOwnPathSourceURL() {
     const input = es.through();
@@ -218,7 +230,6 @@ function appendOwnPathSourceURL() {
     }));
     return es.duplex(input, output);
 }
-exports.appendOwnPathSourceURL = appendOwnPathSourceURL;
 function rewriteSourceMappingURL(sourceMappingURLBase) {
     const input = es.through();
     const output = input
@@ -230,7 +241,6 @@ function rewriteSourceMappingURL(sourceMappingURLBase) {
     }));
     return es.duplex(input, output);
 }
-exports.rewriteSourceMappingURL = rewriteSourceMappingURL;
 function rimraf(dir) {
     const result = () => new Promise((c, e) => {
         let retries = 0;
@@ -250,7 +260,6 @@ function rimraf(dir) {
     result.taskName = `clean-${path.basename(dir).toLowerCase()}`;
     return result;
 }
-exports.rimraf = rimraf;
 function _rreaddir(dirPath, prepend, result) {
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
     for (const entry of entries) {
@@ -267,7 +276,6 @@ function rreddir(dirPath) {
     _rreaddir(dirPath, '', result);
     return result;
 }
-exports.rreddir = rreddir;
 function ensureDir(dirPath) {
     if (fs.existsSync(dirPath)) {
         return;
@@ -275,14 +283,12 @@ function ensureDir(dirPath) {
     ensureDir(path.dirname(dirPath));
     fs.mkdirSync(dirPath);
 }
-exports.ensureDir = ensureDir;
 function rebase(count) {
     return rename(f => {
         const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
         f.dirname = parts.slice(count).join(path.sep);
     });
 }
-exports.rebase = rebase;
 function filter(fn) {
     const result = es.through(function (data) {
         if (fn(data)) {
@@ -295,7 +301,6 @@ function filter(fn) {
     result.restore = es.through();
     return result;
 }
-exports.filter = filter;
 function versionStringToNumber(versionStr) {
     const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
     const match = versionStr.match(semverRegex);
@@ -304,21 +309,18 @@ function versionStringToNumber(versionStr) {
     }
     return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
 }
-exports.versionStringToNumber = versionStringToNumber;
 function streamToPromise(stream) {
     return new Promise((c, e) => {
         stream.on('error', err => e(err));
         stream.on('end', () => c());
     });
 }
-exports.streamToPromise = streamToPromise;
 function getElectronVersion() {
     const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
     const electronVersion = /^target "(.*)"$/m.exec(yarnrc)[1];
     const msBuildId = /^ms_build_id "(.*)"$/m.exec(yarnrc)[1];
     return { electronVersion, msBuildId };
 }
-exports.getElectronVersion = getElectronVersion;
 function acquireWebNodePaths() {
     const root = path.join(__dirname, '..', '..');
     const webPackageJSON = path.join(root, '/remote/web', 'package.json');
@@ -367,7 +369,6 @@ function acquireWebNodePaths() {
     nodePaths['@microsoft/applicationinsights-core-js'] = 'browser/applicationinsights-core-js.min.js';
     return nodePaths;
 }
-exports.acquireWebNodePaths = acquireWebNodePaths;
 function createExternalLoaderConfig(webEndpoint, commit, quality) {
     if (!webEndpoint || !commit || !quality) {
         return undefined;
@@ -384,7 +385,6 @@ function createExternalLoaderConfig(webEndpoint, commit, quality) {
     };
     return externalLoaderConfig;
 }
-exports.createExternalLoaderConfig = createExternalLoaderConfig;
 function buildWebNodePaths(outDir) {
     const result = () => new Promise((resolve, _) => {
         const root = path.join(__dirname, '..', '..');
@@ -405,5 +405,4 @@ function buildWebNodePaths(outDir) {
     result.taskName = 'build-web-node-paths';
     return result;
 }
-exports.buildWebNodePaths = buildWebNodePaths;
 //# sourceMappingURL=util.js.map

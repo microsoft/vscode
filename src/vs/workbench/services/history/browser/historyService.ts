@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -177,6 +177,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private onDidActiveEditorChange(): void {
 		const activeEditorGroup = this.editorGroupService.activeGroup;
 		const activeEditorPane = activeEditorGroup.activeEditorPane;
+
 		if (this.lastActiveEditor && this.editorHelper.matchesEditorIdentifier(this.lastActiveEditor, activeEditorPane)) {
 			return; // return if the active editor is still the same
 		}
@@ -187,11 +188,23 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
 
-		// Handle editor change unless the editor is transient
+		// Handle editor change unless the editor is transient. In that case
+		// setup a listener to see if the transient editor becomes non-transient
+		// (https://github.com/microsoft/vscode/issues/211769)
 		if (!activeEditorPane?.group.isTransient(activeEditorPane.input)) {
 			this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
 		} else {
-			this.logService.trace(`[History]: ignoring transient editor change (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+			this.logService.trace(`[History]: ignoring transient editor change until becoming non-transient (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+
+			const transientListener = activeEditorGroup.onDidModelChange(e => {
+				if (e.kind === GroupModelChangeKind.EDITOR_TRANSIENT && e.editor === activeEditorPane.input && !activeEditorPane.group.isTransient(activeEditorPane.input)) {
+					transientListener.dispose();
+
+					this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
+				}
+			});
+
+			this.activeEditorListeners.add(transientListener);
 		}
 
 		// Listen to selection changes unless the editor is transient
@@ -819,35 +832,44 @@ export class HistoryService extends Disposable implements IHistoryService {
 			this.editorHelper.clearOnEditorDispose(this.history.pop()!, this.editorHistoryListeners);
 		}
 
-		// React to editor input disposing if this is a typed editor
-		if (isEditorInput(historyInput)) {
-			this.editorHelper.onEditorDispose(historyInput, () => this.updateHistoryOnEditorDispose(historyInput), this.editorHistoryListeners);
+		// React to editor input disposing
+		if (isEditorInput(editor)) {
+			this.editorHelper.onEditorDispose(editor, () => this.updateHistoryOnEditorDispose(historyInput), this.editorHistoryListeners);
 		}
 	}
 
-	private updateHistoryOnEditorDispose(editor: EditorInput): void {
+	private updateHistoryOnEditorDispose(editor: EditorInput | IResourceEditorInput): void {
+		if (isEditorInput(editor)) {
 
-		// Any non side-by-side editor input gets removed directly on dispose
-		if (!isSideBySideEditorInput(editor)) {
-			this.removeFromHistory(editor);
-		}
-
-		// Side-by-side editors get special treatment: we try to distill the
-		// possibly untyped resource inputs from both sides to be able to
-		// offer these entries from the history to the user still.
-		else {
-			const resourceInputs: IResourceEditorInput[] = [];
-			const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
-			for (const sideInput of sideInputs) {
-				const candidateResourceInput = this.editorHelper.preferResourceEditorInput(sideInput);
-				if (isResourceEditorInput(candidateResourceInput)) {
-					resourceInputs.push(candidateResourceInput);
-				}
+			// Any non side-by-side editor input gets removed directly on dispose
+			if (!isSideBySideEditorInput(editor)) {
+				this.removeFromHistory(editor);
 			}
 
-			// Insert the untyped resource inputs where our disposed
-			// side-by-side editor input is in the history stack
-			this.replaceInHistory(editor, ...resourceInputs);
+			// Side-by-side editors get special treatment: we try to distill the
+			// possibly untyped resource inputs from both sides to be able to
+			// offer these entries from the history to the user still unless
+			// they are excluded.
+			else {
+				const resourceInputs: IResourceEditorInput[] = [];
+				const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
+				for (const sideInput of sideInputs) {
+					const candidateResourceInput = this.editorHelper.preferResourceEditorInput(sideInput);
+					if (isResourceEditorInput(candidateResourceInput) && this.includeInHistory(candidateResourceInput)) {
+						resourceInputs.push(candidateResourceInput);
+					}
+				}
+
+				// Insert the untyped resource inputs where our disposed
+				// side-by-side editor input is in the history stack
+				this.replaceInHistory(editor, ...resourceInputs);
+			}
+		} else {
+
+			// Remove any editor that should not be included in history
+			if (!this.includeInHistory(editor)) {
+				this.removeFromHistory(editor);
+			}
 		}
 	}
 
@@ -1019,7 +1041,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// We check on resource and `editorId` (from `override`)
 		// to figure out if the editor has been already added.
 		for (const editor of storedEditorHistory) {
-			if (!handledEditors.has(`${editor.resource.toString()}/${editor.options?.override}`)) {
+			if (
+				!handledEditors.has(`${editor.resource.toString()}/${editor.options?.override}`) &&
+				this.includeInHistory(editor)
+			) {
 				this.addToHistory(editor, false /* at the end */);
 			}
 		}
@@ -1161,6 +1186,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 			for (const [, stack] of editors) {
 				stack.disposable.dispose();
 			}
+		}
+
+		for (const [, listener] of this.editorHistoryListeners) {
+			listener.dispose();
 		}
 	}
 }

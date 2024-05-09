@@ -28,6 +28,7 @@ import * as nls from 'vs/nls';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -110,6 +111,7 @@ export class DebugHoverWidget implements IContentWidget {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		this.toDispose = [];
 
@@ -289,7 +291,7 @@ export class DebugHoverWidget implements IContentWidget {
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
 				colorize: true
-			});
+			}, this.hoverService);
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
 			this.scrollbar.scanDomNode();

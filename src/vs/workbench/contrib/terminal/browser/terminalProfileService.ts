@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -39,6 +39,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
 	private _defaultProfileName?: string;
 	private _platformConfigJustRefreshed = false;
+	private readonly _refreshTerminalActionsDisposable = this._register(new MutableDisposable());
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 
 	private readonly _onDidChangeAvailableProfiles = this._register(new Emitter<ITerminalProfile[]>());
@@ -89,7 +90,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private async _setupConfigListener(): Promise<void> {
 		const platformKey = await this.getPlatformKey();
 
-		this._configurationService.onDidChangeConfiguration(async e => {
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingPrefix.AutomationProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
@@ -103,7 +104,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 					this._platformConfigJustRefreshed = true;
 				}
 			}
-		});
+		}));
 	}
 
 	getDefaultProfileName(): string | undefined {
@@ -201,7 +202,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
 		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles }, this._contributedProfiles);
-		refreshTerminalActions(profiles);
+		this._refreshTerminalActionsDisposable.value = refreshTerminalActions(profiles);
 	}
 
 	async getPlatformKey(): Promise<string> {

@@ -5,7 +5,7 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - template: ../distro/download-distro.yml
+  - template: ../distro/download-distro.yml@self
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -94,7 +94,7 @@ steps:
   - script: node build/azure-pipelines/distro/mixin-quality
     displayName: Mixin distro quality
 
-  - template: ../common/install-builtin-extensions.yml
+  - template: ../common/install-builtin-extensions.yml@self
 
   - script: |
       set -e
@@ -153,17 +153,12 @@ steps:
     condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
 
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: Generate SBOM
+  - task: 1ES.PublishPipelineArtifact@1
     inputs:
-      BuildDropPath: $(agent.builddirectory)/vscode-web
-      PackageName: Visual Studio Code Web
-
-  - publish: $(agent.builddirectory)/vscode-web/_manifest
-    displayName: Publish SBOM (client)
-    artifact: $(ARTIFACT_PREFIX)sbom_vscode_web
-
-  - publish: $(WEB_PATH)
-    artifact: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
+      targetPath: $(WEB_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
+      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
+      sbomPackageName: "VS Code Web"
+      sbomPackageVersion: $(Build.SourceVersion)
     condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
     displayName: Publish web archive

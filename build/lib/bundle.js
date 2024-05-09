@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bundle = void 0;
+exports.bundle = bundle;
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -78,7 +78,6 @@ function bundle(entryPoints, config, callback) {
         });
     }, (err) => callback(err, null));
 }
-exports.bundle = bundle;
 function emitEntryPoints(modules, entryPoints) {
     const modulesMap = {};
     modules.forEach((m) => {

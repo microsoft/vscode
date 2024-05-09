@@ -16,8 +16,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { FileAccess, AppResourcePath } from 'vs/base/common/network';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { Codicon } from 'vs/base/common/codicons';
 
 interface IStorageData {
 	readonly dontShowPrompt: boolean;
@@ -75,8 +73,7 @@ export class IntegrityService implements IIntegrityService {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 		@IChecksumService private readonly checksumService: IChecksumService,
-		@ILogService private readonly logService: ILogService,
-		@IBannerService private readonly bannerService: IBannerService
+		@ILogService private readonly logService: ILogService
 	) {
 		this._compute();
 	}
@@ -89,9 +86,9 @@ export class IntegrityService implements IIntegrityService {
 
 		this.logService.warn(`
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!	Installation has been modified on disk and is UNSUPPORTED. Please reinstall !!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+----------------------------------------------
+***	Installation has been modified on disk ***
+----------------------------------------------
 
 `);
 
@@ -100,7 +97,6 @@ export class IntegrityService implements IIntegrityService {
 			return; // Do not prompt
 		}
 
-		this._showBanner();
 		this._showNotification();
 	}
 
@@ -144,22 +140,6 @@ export class IntegrityService implements IIntegrityService {
 			expected: expected,
 			isPure: (actual === expected)
 		};
-	}
-
-	private _showBanner(): void {
-		const checksumFailMoreInfoUrl = this.productService.checksumFailMoreInfoUrl;
-
-		this.bannerService.show({
-			id: 'installation.corrupt',
-			message: localize('integrity.banner', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort),
-			icon: Codicon.warning,
-			actions: checksumFailMoreInfoUrl ? [
-				{
-					label: localize('integrity.moreInformation', "More Information"),
-					href: checksumFailMoreInfoUrl
-				}
-			] : undefined
-		});
 	}
 
 	private _showNotification(): void {

@@ -128,6 +128,11 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 		return lineTokens;
 	}
 
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		const firstInvalidLineNumber = this.store.getFirstInvalidEndStateLineNumberOrMax();
+		return (lineNumber < firstInvalidLineNumber);
+	}
+
 	public isCheapToTokenize(lineNumber: number): boolean {
 		const firstInvalidLineNumber = this.store.getFirstInvalidEndStateLineNumberOrMax();
 		if (lineNumber < firstInvalidLineNumber) {

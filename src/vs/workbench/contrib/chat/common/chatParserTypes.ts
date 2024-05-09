@@ -75,26 +75,11 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 
 	get text(): string {
-		return `${chatAgentLeader}${this.agent.id}`;
+		return `${chatAgentLeader}${this.agent.name}`;
 	}
 
 	get promptText(): string {
 		return '';
-	}
-
-	/**
-	 * Don't stringify all the agent methods, just data.
-	 */
-	toJSON(): any {
-		return {
-			kind: this.kind,
-			range: this.range,
-			editorRange: this.editorRange,
-			agent: {
-				id: this.agent.id,
-				metadata: this.agent.metadata
-			}
-		};
 	}
 }
 
@@ -138,7 +123,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -167,10 +152,19 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestVariablePart).variableArg
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
+				let agent = (part as ChatRequestAgentPart).agent;
+				if (!('name' in agent)) {
+					// Port old format
+					agent = {
+						...(agent as any),
+						name: (agent as any).id
+					};
+				}
+
 				return new ChatRequestAgentPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestAgentPart).agent
+					agent
 				);
 			} else if (part.kind === ChatRequestAgentSubcommandPart.Kind) {
 				return new ChatRequestAgentSubcommandPart(
@@ -189,11 +183,17 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestDynamicVariablePart).text,
-					revive((part as ChatRequestDynamicVariablePart).data)
+					revive((part as ChatRequestDynamicVariablePart).data) as any
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);
 			}
 		})
 	};
+}
+
+export function extractAgentAndCommand(parsed: IParsedChatRequest): { agentPart: ChatRequestAgentPart | undefined; commandPart: ChatRequestAgentSubcommandPart | undefined } {
+	const agentPart = parsed.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
+	const commandPart = parsed.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
+	return { agentPart, commandPart };
 }

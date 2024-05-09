@@ -67,4 +67,8 @@ export namespace TestingContextKeys {
 		type: 'boolean',
 		description: localize('testing.testResultOutdated', 'Value available in editor/content and testing/message/context when the result is outdated')
 	});
+	export const testResultState = new RawContextKey<string>('testResultState', undefined, {
+		type: 'string',
+		description: localize('testing.testResultState', 'Value available testing/item/result indicating the state of the item.')
+	});
 }

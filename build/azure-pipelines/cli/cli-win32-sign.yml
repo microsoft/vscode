@@ -59,6 +59,11 @@ steps:
           archiveType: zip
           archiveFile: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
 
-      - publish: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
+          artifactName: $(ASSET_ID)
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
+          sbomPackageName: "VS Code Windows ${{ target }} CLI"
+          sbomPackageVersion: $(Build.SourceVersion)
         displayName: Publish signed artifact with ID $(ASSET_ID)
-        artifact: $(ASSET_ID)

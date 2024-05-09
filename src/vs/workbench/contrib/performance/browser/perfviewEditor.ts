@@ -30,6 +30,7 @@ import * as perf from 'vs/base/common/performance';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, getWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 export class PerfviewContrib {
 
@@ -77,7 +78,8 @@ export class PerfviewInput extends TextResourceEditorInput {
 		@IFileService fileService: IFileService,
 		@ILabelService labelService: ILabelService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
 		super(
 			PerfviewContrib.get().getInputUri(),
@@ -91,7 +93,8 @@ export class PerfviewInput extends TextResourceEditorInput {
 			fileService,
 			labelService,
 			filesConfigurationService,
-			textResourceConfigurationService
+			textResourceConfigurationService,
+			customEditorLabelService
 		);
 	}
 }

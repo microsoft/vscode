@@ -19,18 +19,52 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IIssueMainService, IssueType } from 'vs/platform/issue/common/issue';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
+
 
 //#region Issue Contribution
 
 class NativeIssueContribution extends BaseIssueContribution {
 
 	constructor(
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(productService);
+		super(productService, configurationService);
 
 		if (productService.reportIssueUrl) {
-			registerAction2(ReportPerformanceIssueUsingReporterAction);
+			this._register(registerAction2(ReportPerformanceIssueUsingReporterAction));
+		}
+
+		let disposable: IDisposable | undefined;
+
+		const registerQuickAccessProvider = () => {
+			disposable = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+				ctor: IssueQuickAccess,
+				prefix: IssueQuickAccess.PREFIX,
+				contextKey: 'inReportIssuePicker',
+				placeholder: localize('tasksQuickAccessPlaceholder', "Type the name of an extension to report on."),
+				helpEntries: [{
+					description: localize('openIssueReporter', "Open Issue Reporter"),
+					commandId: 'workbench.action.openIssueReporter'
+				}]
+			});
+		};
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (!configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess') && disposable) {
+				disposable.dispose();
+				disposable = undefined;
+			} else if (!disposable) {
+				registerQuickAccessProvider();
+			}
+		}));
+
+		if (configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess')) {
+			registerQuickAccessProvider();
 		}
 	}
 }
@@ -133,5 +167,4 @@ registerAction2(StopTracing);
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return accessor.get(IIssueMainService).getSystemStatus();
 });
-
 //#endregion

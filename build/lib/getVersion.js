@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getVersion = void 0;
+exports.getVersion = getVersion;
 const git = require("./git");
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];
@@ -13,5 +13,4 @@ function getVersion(root) {
     }
     return version;
 }
-exports.getVersion = getVersion;
 //# sourceMappingURL=getVersion.js.map

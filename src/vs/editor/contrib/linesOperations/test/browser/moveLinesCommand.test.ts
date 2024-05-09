@@ -14,39 +14,42 @@ import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/browser/move
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
+const enum MoveLinesDirection {
+	Up,
+	Down
+}
+
 function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
-	const disposables = new DisposableStore();
-	if (!languageConfigurationService) {
-		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
-	}
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
-	disposables.dispose();
+	testMoveLinesUpOrDownCommand(MoveLinesDirection.Down, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
 }
 
 function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
-	const disposables = new DisposableStore();
-	if (!languageConfigurationService) {
-		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
-	}
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
-	disposables.dispose();
+	testMoveLinesUpOrDownCommand(MoveLinesDirection.Up, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
 }
 
 function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
-	const disposables = new DisposableStore();
-	if (!languageConfigurationService) {
-		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
-	}
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
-	disposables.dispose();
+	testMoveLinesUpOrDownWithIndentCommand(MoveLinesDirection.Down, languageId, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
 }
 
 function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownWithIndentCommand(MoveLinesDirection.Up, languageId, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
+}
+
+function testMoveLinesUpOrDownCommand(direction: MoveLinesDirection, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService) {
 	const disposables = new DisposableStore();
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
+	disposables.dispose();
+}
+
+function testMoveLinesUpOrDownWithIndentCommand(direction: MoveLinesDirection, languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService) {
+	const disposables = new DisposableStore();
+	if (!languageConfigurationService) {
+		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+	}
+	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 

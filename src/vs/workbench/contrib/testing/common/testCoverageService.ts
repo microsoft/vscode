@@ -6,16 +6,14 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, observableValue } from 'vs/base/common/observable';
-import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestRunTaskResults } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export const ITestCoverageService = createDecorator<ITestCoverageService>('testCoverageService');
 
@@ -50,7 +48,6 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestResultService resultService: ITestResultService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this._isOpenKey = TestingContextKeys.isTestCoverageOpen.bindTo(contextKeyService);
@@ -76,21 +73,13 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 	public async openCoverage(task: ITestRunTaskResults, focus = true) {
 		this.lastOpenCts.value?.cancel();
 		const cts = this.lastOpenCts.value = new CancellationTokenSource();
-		const getCoverage = task.coverage.get();
-		if (!getCoverage) {
+		const coverage = task.coverage.get();
+		if (!coverage) {
 			return;
 		}
 
-		try {
-			const coverage = await getCoverage(cts.token);
-			this.selected.set(coverage, undefined);
-			this._isOpenKey.set(true);
-		} catch (e) {
-			if (!cts.token.isCancellationRequested) {
-				this.notificationService.error(localize('testCoverageError', 'Failed to load test coverage: {0}', String(e)));
-			}
-			return;
-		}
+		this.selected.set(coverage, undefined);
+		this._isOpenKey.set(true);
 
 		if (focus && !cts.token.isCancellationRequested) {
 			this.viewsService.openView(Testing.CoverageViewId, true);

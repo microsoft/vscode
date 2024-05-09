@@ -296,6 +296,9 @@ export interface IEditorOptions {
 	 * This option is meant to be used only when the editor is used for a short
 	 * period of time, for example when opening a preview of the editor from a
 	 * picker control in the background while navigating through results of the picker.
+	 *
+	 * Note: an editor that is already opened in a group that is not transient, will
+	 * not turn transient.
 	 */
 	transient?: boolean;
 }

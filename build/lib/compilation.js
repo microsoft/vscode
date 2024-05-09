@@ -4,7 +4,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = void 0;
+exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = void 0;
+exports.transpileTask = transpileTask;
+exports.compileTask = compileTask;
+exports.watchTask = watchTask;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");
@@ -20,6 +23,7 @@ const ts = require("typescript");
 const File = require("vinyl");
 const task = require("./task");
 const index_1 = require("./mangle/index");
+const postcss_1 = require("./postcss");
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
@@ -57,13 +61,12 @@ function createCompile(src, build, emitError, transpileOnly) {
         const isRuntimeJs = (f) => f.path.endsWith('.js') && !f.path.includes('fixtures');
         const isCSS = (f) => f.path.endsWith('.css') && !f.path.includes('fixtures');
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
-        const postcss = require('gulp-postcss');
         const postcssNesting = require('postcss-nesting');
         const input = es.through();
         const output = input
             .pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
             .pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
-            .pipe(util.$if(isCSS, postcss([postcssNesting()])))
+            .pipe(util.$if(isCSS, (0, postcss_1.gulpPostcss)([postcssNesting()], err => reporter(String(err)))))
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
             .pipe(compilation(token))
@@ -96,7 +99,6 @@ function transpileTask(src, out, swc) {
     task.taskName = `transpile-${path.basename(src)}`;
     return task;
 }
-exports.transpileTask = transpileTask;
 function compileTask(src, out, build, options = {}) {
     const task = () => {
         if (os.totalmem() < 4_000_000_000) {
@@ -137,7 +139,6 @@ function compileTask(src, out, build, options = {}) {
     task.taskName = `compile-${path.basename(src)}`;
     return task;
 }
-exports.compileTask = compileTask;
 function watchTask(out, build) {
     const task = () => {
         const compile = createCompile('src', build, false, false);
@@ -153,7 +154,6 @@ function watchTask(out, build) {
     task.taskName = `watch-${path.basename(out)}`;
     return task;
 }
-exports.watchTask = watchTask;
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
 class MonacoGenerator {
     _isWatch;

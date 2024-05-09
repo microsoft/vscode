@@ -15,6 +15,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import { PipeCommand } from 'vs/workbench/api/node/extHostCLIServer';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
+import { DeferredPromise } from 'vs/base/common/async';
 
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
@@ -181,26 +182,33 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 	parsedArgs['_'] = [];
 
+	let readFromStdinPromise: Promise<void> | undefined;
+
 	if (hasReadStdinArg && hasStdinWithoutTty()) {
 		try {
 			let stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
-				await readFromStdin(stdinFilePath, verbose); // throws error if file can not be written
+				const readFromStdinDone = new DeferredPromise<void>();
+				await readFromStdin(stdinFilePath, verbose, () => readFromStdinDone.complete()); // throws error if file can not be written
+				if (!parsedArgs.wait) {
+					// if `--wait` is not provided, we keep this process alive
+					// for at least as long as the stdin stream is open to
+					// ensure that we read all the data.
+					readFromStdinPromise = readFromStdinDone.p;
+				}
 			}
 
 			// Make sure to open tmp file
 			translatePath(stdinFilePath, mapFileUri, folderURIs, fileURIs);
 
-			// Enable --wait to get all data and ignore adding this to history
-			parsedArgs.wait = true;
+			// Ignore adding this to history
 			parsedArgs['skip-add-to-recently-opened'] = true;
 
 			console.log(`Reading from stdin via: ${stdinFilePath}`);
 		} catch (e) {
 			console.log(`Failed to create file to read via stdin: ${e.toString()}`);
 		}
-
 	}
 
 	if (parsedArgs.extensionDevelopmentPath) {
@@ -338,6 +346,10 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 		if (waitMarkerFilePath) {
 			waitForFileDeleted(waitMarkerFilePath);
+		}
+
+		if (readFromStdinPromise) {
+			await readFromStdinPromise;
 		}
 	}
 }

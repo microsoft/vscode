@@ -62,3 +62,44 @@ export class StableEditorScrollState {
 		editor.setScrollTop(editor.getScrollTop() + offset);
 	}
 }
+
+
+export class StableEditorBottomScrollState {
+
+	public static capture(editor: ICodeEditor): StableEditorBottomScrollState {
+		if (editor.hasPendingScrollAnimation()) {
+			// Never mess with the scroll if there is a pending scroll animation
+			return new StableEditorBottomScrollState(editor.getScrollTop(), editor.getContentHeight(), null, 0);
+		}
+
+		let visiblePosition: Position | null = null;
+		let visiblePositionScrollDelta = 0;
+		const visibleRanges = editor.getVisibleRanges();
+		if (visibleRanges.length > 0) {
+			visiblePosition = visibleRanges.at(-1)!.getEndPosition();
+			const visiblePositionScrollBottom = editor.getBottomForLineNumber(visiblePosition.lineNumber);
+			visiblePositionScrollDelta = (editor.getScrollTop() + editor.getLayoutInfo().height) - visiblePositionScrollBottom;
+		}
+		return new StableEditorBottomScrollState(editor.getScrollTop(), editor.getContentHeight(), visiblePosition, visiblePositionScrollDelta);
+	}
+
+	constructor(
+		private readonly _initialScrollTop: number,
+		private readonly _initialContentHeight: number,
+		private readonly _visiblePosition: Position | null,
+		private readonly _visiblePositionScrollDelta: number,
+	) {
+	}
+
+	public restore(editor: ICodeEditor): void {
+		if (this._initialContentHeight === editor.getContentHeight() && this._initialScrollTop === editor.getScrollTop()) {
+			// The editor's content height and scroll top haven't changed, so we don't need to do anything
+			return;
+		}
+
+		if (this._visiblePosition) {
+			const visiblePositionScrollBottom = editor.getBottomForLineNumber(this._visiblePosition.lineNumber);
+			editor.setScrollTop(visiblePositionScrollBottom - (this._visiblePositionScrollDelta + editor.getLayoutInfo().height));
+		}
+	}
+}

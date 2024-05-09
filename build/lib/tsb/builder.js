@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createTypeScriptBuilder = exports.CancellationToken = void 0;
+exports.CancellationToken = void 0;
+exports.createTypeScriptBuilder = createTypeScriptBuilder;
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -364,7 +365,6 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         languageService: service
     };
 }
-exports.createTypeScriptBuilder = createTypeScriptBuilder;
 class ScriptSnapshot {
     _text;
     _mtime;

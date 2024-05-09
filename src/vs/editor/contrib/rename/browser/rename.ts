@@ -21,7 +21,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { Rejection, RenameLocation, RenameProvider, WorkspaceEdit } from 'vs/editor/common/languages';
+import { NewSymbolNameTriggerKind, Rejection, RenameLocation, RenameProvider, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -38,7 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_RENAME_INPUT_FOCUSED, CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField, RenameInputFieldResult } from './renameInputField';
+import { CONTEXT_RENAME_INPUT_VISIBLE, NewNameSource, RenameWidget, RenameWidgetResult } from './renameWidget';
 
 class RenameSkeleton {
 
@@ -138,7 +138,7 @@ class RenameController implements IEditorContribution {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
-	private readonly _renameInputField: RenameInputField;
+	private readonly _renameWidget: RenameWidget;
 	private readonly _disposableStore = new DisposableStore();
 	private _cts: CancellationTokenSource = new CancellationTokenSource();
 
@@ -153,7 +153,7 @@ class RenameController implements IEditorContribution {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		this._renameInputField = this._disposableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
+		this._renameWidget = this._disposableStore.add(this._instaService.createInstance(RenameWidget, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
 	}
 
 	dispose(): void {
@@ -229,24 +229,29 @@ class RenameController implements IEditorContribution {
 
 		const model = this.editor.getModel(); // @ulugbekna: assumes editor still has a model, otherwise, cts1 should've been cancelled
 
-		const renameCandidatesCts = new CancellationTokenSource(cts2.token);
 		const newSymbolNamesProviders = this._languageFeaturesService.newSymbolNamesProvider.all(model);
-		// TODO@ulugbekna: providers should get timeout token (use createTimeoutCancellation(x))
-		const newSymbolNameProvidersResults = newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, renameCandidatesCts.token));
-		trace(`requested new symbol names from ${newSymbolNamesProviders.length} providers`);
 
-		const selection = this.editor.getSelection();
-		let selectionStart = 0;
-		let selectionEnd = loc.text.length;
+		const resolvedNewSymbolnamesProviders = await Promise.all(newSymbolNamesProviders.map(async p => [p, await p.supportsAutomaticNewSymbolNamesTriggerKind ?? false] as const));
 
-		if (!Range.isEmpty(selection) && !Range.spansMultipleLines(selection) && Range.containsRange(loc.range, selection)) {
-			selectionStart = Math.max(0, selection.startColumn - loc.range.startColumn);
-			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
-		}
+		const requestRenameSuggestions = (triggerKind: NewSymbolNameTriggerKind, cts: CancellationToken) => {
+			let providers = resolvedNewSymbolnamesProviders.slice();
+
+			if (triggerKind === NewSymbolNameTriggerKind.Automatic) {
+				providers = providers.filter(([_, supportsAutomatic]) => supportsAutomatic);
+			}
+
+			return providers.map(([p,]) => p.provideNewSymbolNames(model, loc.range, triggerKind, cts));
+		};
 
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newSymbolNameProvidersResults, renameCandidatesCts);
+		const inputFieldResult = await this._renameWidget.getInput(
+			loc.range,
+			loc.text,
+			supportPreview,
+			newSymbolNamesProviders.length > 0 ? requestRenameSuggestions : undefined,
+			cts2
+		);
 		trace('received response from rename input field');
 
 		if (newSymbolNamesProviders.length > 0) { // @ulugbekna: we're interested only in telemetry for rename suggestions currently
@@ -324,22 +329,22 @@ class RenameController implements IEditorContribution {
 	}
 
 	acceptRenameInput(wantsPreview: boolean): void {
-		this._renameInputField.acceptInput(wantsPreview);
+		this._renameWidget.acceptInput(wantsPreview);
 	}
 
 	cancelRenameInput(): void {
-		this._renameInputField.cancelInput(true, 'cancelRenameInput command');
+		this._renameWidget.cancelInput(true, 'cancelRenameInput command');
 	}
 
 	focusNextRenameSuggestion(): void {
-		this._renameInputField.focusNextRenameSuggestion();
+		this._renameWidget.focusNextRenameSuggestion();
 	}
 
 	focusPreviousRenameSuggestion(): void {
-		this._renameInputField.focusPreviousRenameSuggestion();
+		this._renameWidget.focusPreviousRenameSuggestion();
 	}
 
-	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameInputFieldResult) {
+	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameWidgetResult) {
 		type RenameInvokedEvent =
 			{
 				kind: 'accepted' | 'cancelled';
@@ -347,11 +352,17 @@ class RenameController implements IEditorContribution {
 				nRenameSuggestionProviders: number;
 
 				/** provided only if kind = 'accepted' */
-				source?: RenameInputFieldResult['source'];
+				source?: NewNameSource['k'];
 				/** provided only if kind = 'accepted' */
 				nRenameSuggestions?: number;
 				/** provided only if kind = 'accepted' */
+				timeBeforeFirstInputFieldEdit?: number;
+				/** provided only if kind = 'accepted' */
 				wantsPreview?: boolean;
+				/** provided only if kind = 'accepted' */
+				nRenameSuggestionsInvocations?: number;
+				/** provided only if kind = 'accepted' */
+				hadAutomaticRenameSuggestionsInvocation?: boolean;
 			};
 
 		type RenameInvokedClassification = {
@@ -360,28 +371,35 @@ class RenameController implements IEditorContribution {
 
 			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename operation was cancelled or accepted.' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Document language ID.' };
-			nRenameSuggestionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename providers for this document.'; isMeasurement: true };
+			nRenameSuggestionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename providers for this document.' };
 
 			source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new name came from the input field or rename suggestions.' };
-			nRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename suggestions user has got'; isMeasurement: true };
-			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
+			nRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename suggestions user has got' };
+			timeBeforeFirstInputFieldEdit?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Milliseconds before user edits the input field for the first time' };
+			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.' };
+			nRenameSuggestionsInvocations?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of times rename suggestions were invoked' };
+			hadAutomaticRenameSuggestionsInvocation?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether rename suggestions were invoked automatically' };
 		};
 
-		const value: RenameInvokedEvent = typeof inputFieldResult === 'boolean'
-			? {
-				kind: 'cancelled',
-				languageId,
-				nRenameSuggestionProviders,
-			}
-			: {
-				kind: 'accepted',
-				languageId,
-				nRenameSuggestionProviders,
+		const value: RenameInvokedEvent =
+			typeof inputFieldResult === 'boolean'
+				? {
+					kind: 'cancelled',
+					languageId,
+					nRenameSuggestionProviders,
+				}
+				: {
+					kind: 'accepted',
+					languageId,
+					nRenameSuggestionProviders,
 
-				source: inputFieldResult.source,
-				nRenameSuggestions: inputFieldResult.nRenameSuggestions,
-				wantsPreview: inputFieldResult.wantsPreview,
-			};
+					source: inputFieldResult.stats.source.k,
+					nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
+					timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
+					wantsPreview: inputFieldResult.wantsPreview,
+					nRenameSuggestionsInvocations: inputFieldResult.stats.nRenameSuggestionsInvocations,
+					hadAutomaticRenameSuggestionsInvocation: inputFieldResult.stats.hadAutomaticRenameSuggestionsInvocation,
+				};
 
 		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);
 	}
@@ -466,7 +484,7 @@ registerEditorCommand(new RenameCommand({
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
 		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
-		primary: KeyMod.Shift + KeyCode.Enter
+		primary: KeyMod.CtrlCmd + KeyCode.Enter
 	}
 }));
 
@@ -492,8 +510,7 @@ registerAction2(class FocusNextRenameSuggestion extends Action2 {
 			precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 			keybinding: [
 				{
-					primary: KeyCode.Tab,
-					secondary: [KeyCode.DownArrow],
+					primary: KeyCode.DownArrow,
 					weight: KeybindingWeight.EditorContrib + 99,
 				}
 			]
@@ -521,14 +538,7 @@ registerAction2(class FocusPreviousRenameSuggestion extends Action2 {
 			precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 			keybinding: [
 				{
-					when: CONTEXT_RENAME_INPUT_FOCUSED,
-					primary: KeyCode.Tab | KeyCode.Shift,
-					weight: KeybindingWeight.EditorContrib + 99,
-				},
-				{
-					when: CONTEXT_RENAME_INPUT_FOCUSED.toNegated(),
-					primary: KeyMod.Shift | KeyCode.Tab,
-					secondary: [KeyCode.UpArrow],
+					primary: KeyCode.UpArrow,
 					weight: KeybindingWeight.EditorContrib + 99,
 				}
 			]

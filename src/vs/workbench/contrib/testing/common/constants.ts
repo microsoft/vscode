@@ -18,6 +18,8 @@ export const enum Testing {
 
 	ResultsPanelId = 'workbench.panel.testResults',
 	ResultsViewId = 'workbench.panel.testResults.view',
+
+	MessageLanguageId = 'vscodeInternalTestMessage'
 }
 
 export const enum TestExplorerViewMode {

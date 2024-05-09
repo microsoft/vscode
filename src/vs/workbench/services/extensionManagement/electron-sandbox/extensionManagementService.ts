@@ -23,6 +23,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -41,8 +43,26 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionsScannerService extensionsScannerService: IExtensionsScannerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(extensionManagementServerService, extensionGalleryService, userDataProfileService, configurationService, productService, downloadService, userDataSyncEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService, fileService, logService, instantiationService);
+		super(
+			extensionManagementServerService,
+			extensionGalleryService,
+			userDataProfileService,
+			configurationService,
+			productService,
+			downloadService,
+			userDataSyncEnablementService,
+			dialogService,
+			workspaceTrustRequestService,
+			extensionManifestPropertiesService,
+			fileService,
+			logService,
+			instantiationService,
+			extensionsScannerService,
+			telemetryService
+		);
 	}
 
 	protected override async installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallOptions | undefined): Promise<ILocalExtension> {

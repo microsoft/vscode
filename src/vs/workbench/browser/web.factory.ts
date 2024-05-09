@@ -150,9 +150,22 @@ export namespace window {
 		const workbench = await workbenchPromise.p;
 		workbench.window.createTerminal(options);
 	}
+
+	export async function showInformationMessage<T extends string>(message: string, ...items: T[]): Promise<T | undefined> {
+		const workbench = await workbenchPromise.p;
+		return await workbench.window.showInformationMessage(message, ...items);
+	}
 }
 
 export namespace workspace {
+
+	/**
+	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.didResolveRemoteAuthority}
+	 */
+	export async function didResolveRemoteAuthority() {
+		const workbench = await workbenchPromise.p;
+		await workbench.workspace.didResolveRemoteAuthority();
+	}
 
 	/**
 	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.openTunnel}

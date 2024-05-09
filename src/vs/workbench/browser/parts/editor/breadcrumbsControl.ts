@@ -611,7 +611,7 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
-				title: localize('cmd.toggle2', "Breadcrumbs"),
+				title: localize('cmd.toggle2', "Toggle Breadcrumbs"),
 				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs")
 			},
 			menu: [
