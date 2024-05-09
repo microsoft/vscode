@@ -408,7 +408,9 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
 				openedView.setSearchParameters(args);
-				openedView.toggleQueryDetails(false, typeof args.showIncludesExcludes === 'boolean')
+				if (typeof args.showIncludesExcludes === 'boolean') {
+					openedView.toggleQueryDetails(false, args.showIncludesExcludes);
+				}
 
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}
