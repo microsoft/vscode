@@ -95,7 +95,12 @@ export interface IChatProgressMessageRenderData {
 	isLast: boolean;
 }
 
-export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEditGroup | IChatConfirmation | IChatTask | IChatWarningMessage;
+export interface IChatTaskRenderData {
+	task: IChatTask;
+	isSettled: boolean;
+}
+
+export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEditGroup | IChatConfirmation | IChatTaskRenderData | IChatWarningMessage;
 export interface IChatResponseRenderData {
 	renderedParts: IChatRenderData[];
 }
