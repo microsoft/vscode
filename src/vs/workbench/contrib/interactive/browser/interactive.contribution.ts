@@ -813,15 +813,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('interactiveWindow.promptToSaveOnClose', "Prompt to save the interactive window when it is closed. Only new interactive windows will be affected by this setting change.")
-		}
-	}
-});
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'interactiveWindow',
-	order: 100,
-	type: 'object',
-	'properties': {
+		},
 		['executeWithShiftEnter']: {
 			type: 'boolean',
 			default: true,
