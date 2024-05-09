@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from 'vs/base/common/assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResourceMap } from 'vs/base/common/map';
 import { deepClone } from 'vs/base/common/objects';
@@ -34,8 +35,7 @@ export class TestCoverage {
 		private readonly accessor: ICoverageAccessor,
 	) { }
 
-	public append(rawCoverage: IFileCoverage, tx: ITransaction | undefined) {
-		const coverage = new FileCoverage(rawCoverage, this.accessor);
+	public append(coverage: IFileCoverage, tx: ITransaction | undefined) {
 		const previous = this.getComputedForUri(coverage.uri);
 		const applyDelta = (kind: 'statement' | 'branch' | 'declaration', node: ComputedFileCoverage) => {
 			if (!node[kind]) {
@@ -53,27 +53,51 @@ export class TestCoverage {
 		// version.
 		const canonical = [...this.treePathForUri(coverage.uri, /* canonical = */ true)];
 		const chain: IPrefixTreeNode<AbstractFileCoverage>[] = [];
-		this.tree.insert(this.treePathForUri(coverage.uri, /* canonical = */ false), coverage, node => {
+		const isPerTestCoverage = !!coverage.testId;
+		this.tree.mutatePath(this.treePathForUri(coverage.uri, /* canonical = */ false), node => {
 			chain.push(node);
 
 			if (chain.length === canonical.length) {
-				node.value = coverage;
-			} else if (!node.value) {
-				// clone because later intersertions can modify the counts:
-				const intermediate = deepClone(rawCoverage);
-				intermediate.id = String(incId++);
-				intermediate.uri = this.treePathToUri(canonical.slice(0, chain.length));
-				node.value = new ComputedFileCoverage(intermediate);
-			} else {
-				applyDelta('statement', node.value);
-				applyDelta('branch', node.value);
-				applyDelta('declaration', node.value);
-				node.value.didChange.trigger(tx);
+				// we reached our destination node, apply the coverage as necessary:
+				if (isPerTestCoverage) {
+					const v = node.value ??= new FileCoverage(IFileCoverage.empty(String(incId++), coverage.uri), this.accessor);
+					assert(v instanceof FileCoverage, 'coverage is unexpectedly computed');
+					v.perTestData ??= new Map();
+					v.perTestData.set(coverage.testId!.toString(), new FileCoverage(coverage, this.accessor));
+					this.fileCoverage.set(coverage.uri, v);
+				} else if (node.value) {
+					const v = node.value;
+					// if ID was generated from a test-specific coverage, reassign it to get its real ID in the extension host.
+					v.id = coverage.id;
+					v.statement = coverage.statement;
+					v.branch = coverage.branch;
+					v.declaration = coverage.declaration;
+					v.existsInExtHost = true;
+				} else {
+					const v = node.value = new FileCoverage(coverage, this.accessor);
+					v.existsInExtHost = true;
+					this.fileCoverage.set(coverage.uri, v);
+				}
+			} else if (!isPerTestCoverage) {
+				// Otherwise, if this is not a partial per-test coverage, merge the
+				// coverage changes into the chain. Per-test coverages are not complete
+				// and we don't want to consider them for computation.
+				if (!node.value) {
+					// clone because later intersertions can modify the counts:
+					const intermediate = deepClone(coverage);
+					intermediate.id = String(incId++);
+					intermediate.uri = this.treePathToUri(canonical.slice(0, chain.length));
+					node.value = new ComputedFileCoverage(intermediate);
+				} else {
+					applyDelta('statement', node.value);
+					applyDelta('branch', node.value);
+					applyDelta('declaration', node.value);
+					node.value.didChange.trigger(tx);
+				}
 			}
 		});
 
-		this.fileCoverage.set(coverage.uri, coverage);
-		if (chain) {
+		if (chain && !isPerTestCoverage) {
 			this.didAddCoverage.trigger(tx, chain);
 		}
 	}
@@ -131,12 +155,19 @@ export const getTotalCoveragePercent = (statement: ICoverageCount, branch: ICove
 };
 
 export abstract class AbstractFileCoverage {
-	public readonly id: string;
+	public id: string;
 	public readonly uri: URI;
 	public statement: ICoverageCount;
 	public branch?: ICoverageCount;
 	public declaration?: ICoverageCount;
 	public readonly didChange = observableSignal(this);
+
+	/**
+	 * Whether this coverage item exists in the extension host. This is false
+	 * if we have only {@link perTestData} and not summary data for the file, or
+	 * if the node is computed for a directory.
+	 */
+	public existsInExtHost = false;
 
 	/**
 	 * Gets the total coverage percent based on information provided.
@@ -169,6 +200,11 @@ export class FileCoverage extends AbstractFileCoverage {
 	public get hasSynchronousDetails() {
 		return this._details instanceof Array || this.resolved;
 	}
+
+	/**
+	 * Per-test coverage data for this file, if available.
+	 */
+	public perTestData?: Map<string, FileCoverage>;
 
 	constructor(coverage: IFileCoverage, private readonly accessor: ICoverageAccessor) {
 		super(coverage);
