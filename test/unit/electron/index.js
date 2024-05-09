@@ -11,7 +11,6 @@
 process.env.MOCHA_COLORS = '1';
 
 import { app, BrowserWindow, ipcMain, crashReporter } from 'electron';
-import product from '../../../product.json' with {type: 'json'};
 import { tmpdir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -25,8 +24,12 @@ import { applyReporter, importMochaReporter } from '../reporter.js';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const product = require('../../../product.json')
 /**
  * @type {{
  * grep: string;
