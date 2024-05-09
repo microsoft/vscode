@@ -298,6 +298,7 @@ export interface IChatSendRequestOptions {
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
+	slashCommand?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
