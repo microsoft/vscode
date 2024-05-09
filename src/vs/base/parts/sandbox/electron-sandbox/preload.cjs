@@ -434,6 +434,10 @@ if (isTest) {
 		get vscodeWindowsCaCerts() {
 			// @ts-ignore
 			return require('@vscode/windows-ca-certs')
+		},
+		get windowsForegroundLove() {
+			// @ts-ignore
+			return require('windows-foreground-love')
 		}
 	}
 	// @ts-ignore
