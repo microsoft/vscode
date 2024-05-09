@@ -794,15 +794,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
-		}
-	}
-});
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'interactiveWindow',
-	order: 100,
-	type: 'object',
-	'properties': {
+		},
 		[NotebookSetting.InteractiveWindowPromptToSave]: {
 			type: 'boolean',
 			default: false,
