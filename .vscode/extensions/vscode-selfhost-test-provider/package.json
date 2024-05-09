@@ -3,7 +3,8 @@
   "displayName": "VS Code Selfhost Test Provider",
   "description": "Test provider for the VS Code project",
   "enabledApiProposals": [
-    "testObserver"
+    "testObserver",
+    "attributableCoverage"
   ],
   "engines": {
     "vscode": "^1.88.0"

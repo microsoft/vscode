@@ -30,7 +30,6 @@ export interface IScriptCoverage {
 	functions: IV8FunctionCoverage[];
 }
 
-
 export class RangeCoverageTracker implements Iterable<ICoverageRange> {
 	/**
 	 * A noncontiguous, non-overlapping, ordered set of ranges and whether
@@ -41,26 +40,43 @@ export class RangeCoverageTracker implements Iterable<ICoverageRange> {
 	/**
 	 * Adds a coverage tracker initialized for a function with {@link isBlockCoverage} set to true.
 	 */
-	public static initializeBlock(ranges: IV8CoverageRange[]) {
-		let start = ranges[0].startOffset;
+	public static initializeBlocks(fns: IV8FunctionCoverage[]) {
 		const rt = new RangeCoverageTracker();
-		if (!ranges[0].count) {
-			rt.uncovered(start, ranges[0].endOffset);
-			return rt;
-		}
 
-		for (let i = 1; i < ranges.length; i++) {
-			const range = ranges[i];
-			if (range.count) {
-				continue;
+		let start = 0;
+		const stack: IV8CoverageRange[] = [];
+
+		// note: comes pre-sorted from V8
+		for (const { ranges } of fns) {
+			for (const range of ranges) {
+				while (stack.length && stack[stack.length - 1].endOffset < range.startOffset) {
+					const last = stack.pop()!;
+					rt.setCovered(start, last.endOffset, last.count > 0);
+					start = last.endOffset;
+				}
+
+				if (range.startOffset > start && stack.length) {
+					rt.setCovered(start, range.startOffset, !!stack[stack.length - 1].count);
+				}
+
+				start = range.startOffset;
+				stack.push(range);
 			}
-
-			rt.cover(start, range.startOffset);
-			rt.uncovered(range.startOffset, range.endOffset);
-			start = range.endOffset;
 		}
 
-		rt.cover(start, ranges[0].endOffset);
+		while (stack.length) {
+			const last = stack.pop()!;
+			rt.setCovered(start, last.endOffset, last.count > 0);
+			start = last.endOffset;
+		}
+
+		return rt;
+	}
+
+	/** Makes a copy of the range tracker. */
+	public clone() {
+		const rt = new RangeCoverageTracker();
+		rt.ranges = this.ranges.slice();
 		return rt;
 	}
 
@@ -79,6 +95,12 @@ export class RangeCoverageTracker implements Iterable<ICoverageRange> {
 		return this.ranges[Symbol.iterator]();
 	}
 
+	/**
+	 * Marks the given character range as being covered or uncovered.
+	 *
+	 * todo@connor4312: this is a hot path is could probably be optimized to
+	 * avoid rebuilding the array. Maybe with a nice tree structure?
+	 */
 	public setCovered(start: number, end: number, covered: boolean) {
 		const newRanges: ICoverageRange[] = [];
 		let i = 0;
@@ -86,38 +108,53 @@ export class RangeCoverageTracker implements Iterable<ICoverageRange> {
 			newRanges.push(this.ranges[i]);
 		}
 
-		newRanges.push({ start, end, covered });
+		const push = (range: ICoverageRange) => {
+			const last = newRanges.length && newRanges[newRanges.length - 1];
+			if (last && last.end === range.start && last.covered === range.covered) {
+				last.end = range.end;
+			} else {
+				newRanges.push(range);
+			}
+		};
+
+		push({ start, end, covered });
+
 		for (; i < this.ranges.length; i++) {
 			const range = this.ranges[i];
 			const last = newRanges[newRanges.length - 1];
 
-			if (range.start < last.start && range.end > last.end) {
+			if (range.start === last.start && range.end === last.end) {
+				// ranges are equal:
+				last.covered ||= range.covered;
+			} else if (range.end < last.start || range.start > last.end) {
+				// ranges don't overlap
+				push(range);
+			} else if (range.start < last.start && range.end > last.end) {
 				// range contains last:
 				newRanges.pop();
-				newRanges.push({ start: range.start, end: last.start, covered: range.covered });
-				newRanges.push({ start: last.start, end: last.end, covered: range.covered || last.covered });
-				newRanges.push({ start: last.end, end: range.end, covered: range.covered });
-			} else if (range.start > last.start && range.end <= last.end) {
+				push({ start: range.start, end: last.start, covered: range.covered });
+				push({ start: last.start, end: last.end, covered: range.covered || last.covered });
+				push({ start: last.end, end: range.end, covered: range.covered });
+			} else if (range.start >= last.start && range.end <= last.end) {
 				// last contains range:
 				newRanges.pop();
-				newRanges.push({ start: last.start, end: range.start, covered: last.covered });
-				newRanges.push({ start: range.start, end: range.end, covered: range.covered || last.covered });
-				newRanges.push({ start: range.end, end: last.end, covered: last.covered });
+				push({ start: last.start, end: range.start, covered: last.covered });
+				push({ start: range.start, end: range.end, covered: range.covered || last.covered });
+				push({ start: range.end, end: last.end, covered: last.covered });
 			} else if (range.start < last.start && range.end <= last.end) {
 				// range overlaps start of last:
 				newRanges.pop();
-				newRanges.push({ start: range.start, end: last.start, covered: range.covered });
-				newRanges.push({ start: last.start, end: range.end, covered: range.covered || last.covered });
-				newRanges.push({ start: range.end, end: last.end, covered: last.covered });
-			} else if (range.start > last.start && range.end > last.end) {
+				push({ start: range.start, end: last.start, covered: range.covered });
+				push({ start: last.start, end: range.end, covered: range.covered || last.covered });
+				push({ start: range.end, end: last.end, covered: last.covered });
+			} else if (range.start >= last.start && range.end > last.end) {
 				// range overlaps end of last:
 				newRanges.pop();
-				newRanges.push({ start: last.start, end: range.start, covered: last.covered });
-				newRanges.push({ start: range.start, end: last.end, covered: range.covered || last.covered });
-				newRanges.push({ start: last.end, end: range.end, covered: range.covered });
+				push({ start: last.start, end: range.start, covered: last.covered });
+				push({ start: range.start, end: last.end, covered: range.covered || last.covered });
+				push({ start: last.end, end: range.end, covered: range.covered });
 			} else {
-				// ranges are equal:
-				last.covered ||= range.covered;
+				throw new Error('unreachable');
 			}
 		}
 
@@ -127,14 +164,24 @@ export class RangeCoverageTracker implements Iterable<ICoverageRange> {
 
 export class OffsetToPosition {
 	/** Line numbers to byte offsets. */
-  public readonly lines: number[] = [];
+	public readonly lines: number[] = [];
 
-  constructor(public readonly source: string) {
-    this.lines.push(0);
-    for (let i = source.indexOf('\n'); i !== -1; i = source.indexOf('\n', i + 1)) {
-      this.lines.push(i + 1);
-    }
-  }
+	public readonly totalLength: number;
+
+	constructor(source: string) {
+		this.lines.push(0);
+		for (let i = source.indexOf('\n'); i !== -1; i = source.indexOf('\n', i + 1)) {
+			this.lines.push(i + 1);
+		}
+		this.totalLength = source.length;
+	}
+
+	public getLineLength(lineNumber: number): number {
+		return (
+			(lineNumber < this.lines.length - 1 ? this.lines[lineNumber + 1] - 1 : this.totalLength) -
+			this.lines[lineNumber]
+		);
+	}
 
 	/**
 	 * Gets the line the offset appears on.
@@ -154,11 +201,11 @@ export class OffsetToPosition {
 		return low - 1;
 	}
 
-  /**
-   * Converts from a file offset to a base 0 line/column .
-   */
-  public convert(offset: number): { line: number; column: number } {
+	/**
+	 * Converts from a file offset to a base 0 line/column .
+	 */
+	public toLineColumn(offset: number): { line: number; column: number } {
 		const line = this.getLineOfOffset(offset);
 		return { line: line, column: offset - this.lines[line] };
-  }
+	}
 }

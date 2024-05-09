@@ -491,8 +491,8 @@ class TestRunTracker extends Disposable {
 
 	/** Gets details for a previously-emitted coverage object. */
 	public getCoverageDetails(id: string, token: CancellationToken) {
-		const [, taskId, covId] = TestId.fromString(id).path; /** runId, taskId, URI */
-		const coverage = this.publishedCoverage.get(covId);
+		const [, taskId] = TestId.fromString(id).path; /** runId, taskId, URI */
+		const coverage = this.publishedCoverage.get(id);
 		if (!coverage) {
 			return [];
 		}
@@ -573,11 +573,11 @@ class TestRunTracker extends Disposable {
 				}
 
 				const uriStr = coverage.uri.toString();
-				const id = new TestId(testItemIdPart
+				const id = new TestId(testItemIdPart !== undefined
 					? [runId, taskId, uriStr, String(testItemIdPart)]
 					: [runId, taskId, uriStr],
 				).toString();
-				this.publishedCoverage.set(uriStr, coverage);
+				this.publishedCoverage.set(id, coverage);
 				this.proxy.$appendCoverage(runId, taskId, Convert.TestCoverage.fromFile(ctrlId, id, coverage));
 			},
 			//#region state mutation

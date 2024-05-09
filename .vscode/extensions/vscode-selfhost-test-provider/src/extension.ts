@@ -25,7 +25,7 @@ const TEST_FILE_PATTERN = 'src/vs/**/*.{test,integrationTest}.ts';
 
 const getWorkspaceFolderForTestFile = (uri: vscode.Uri) =>
 	(uri.path.endsWith('.test.ts') || uri.path.endsWith('.integrationTest.ts')) &&
-		uri.path.includes('/src/vs/')
+	uri.path.includes('/src/vs/')
 		? vscode.workspace.getWorkspaceFolder(uri)
 		: undefined;
 
@@ -58,7 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	let startedTrackingFailures = false;
 
 	const createRunHandler = (
-		runnerCtor: { new(folder: vscode.WorkspaceFolder): VSCodeTestRunner },
+		runnerCtor: { new (folder: vscode.WorkspaceFolder): VSCodeTestRunner },
 		kind: vscode.TestRunProfileKind,
 		args: string[] = []
 	) => {
@@ -88,7 +88,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (kind === vscode.TestRunProfileKind.Coverage) {
 				// todo: browser runs currently don't support per-test coverage
 				if (args.includes('--browser')) {
-					coverageDir = path.join(tmpdir(), `vscode-test-coverage-${randomBytes(8).toString('hex')}`);
+					coverageDir = path.join(
+						tmpdir(),
+						`vscode-test-coverage-${randomBytes(8).toString('hex')}`
+					);
 					currentArgs = [
 						...currentArgs,
 						'--coverage',
@@ -242,7 +245,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.onDidOpenTextDocument(updateNodeForDocument),
 		vscode.workspace.onDidChangeTextDocument(e => updateNodeForDocument(e.document)),
 		registerSnapshotUpdate(ctrl),
-		new FailingDeepStrictEqualAssertFixer(),
+		new FailingDeepStrictEqualAssertFixer()
 	);
 }
 

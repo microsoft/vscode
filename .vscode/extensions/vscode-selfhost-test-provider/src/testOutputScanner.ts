@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
+	decodedMappings,
 	GREATEST_LOWER_BOUND,
 	LEAST_UPPER_BOUND,
 	originalPositionFor,
@@ -15,8 +16,8 @@ import * as vscode from 'vscode';
 import { istanbulCoverageContext, PerTestCoverageTracker } from './coverageProvider';
 import { attachTestMessageMetadata } from './metadata';
 import { snapshotComment } from './snapshot';
-import { getContentFromFilesystem } from './testTree';
 import { StreamSplitter } from './streamSplitter';
+import { getContentFromFilesystem } from './testTree';
 import { IScriptCoverage } from './v8CoverageWrangling';
 
 export const enum MochaEvent {
@@ -435,8 +436,17 @@ export class SourceMapStore {
 				return undefined;
 			}
 
+			let smLine = line + 1;
+
+			// if the range is after the end of mappings, adjust it to the last mapped line
+			const decoded = decodedMappings(sourceMap);
+			if (decoded.length <= line) {
+				smLine = decoded.length; // base 1, no -1 needed
+				col = Number.MAX_SAFE_INTEGER;
+			}
+
 			for (const bias of sourceMapBiases) {
-				const position = originalPositionFor(sourceMap, { column: col, line: line + 1, bias });
+				const position = originalPositionFor(sourceMap, { column: col, line: smLine, bias });
 				if (position.line !== null && position.column !== null && position.source !== null) {
 					return new vscode.Location(
 						this.completeSourceMapUrl(sourceMap, position.source),
