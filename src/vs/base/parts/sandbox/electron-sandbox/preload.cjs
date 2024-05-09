@@ -438,6 +438,9 @@ if (isTest) {
 		get windowsForegroundLove() {
 			// @ts-ignore
 			return require('windows-foreground-love')
+		},
+		get vscodeWindowsProcessTree() {
+			return require('@vscode/windows-process-tree')
 		}
 	}
 	// @ts-ignore
