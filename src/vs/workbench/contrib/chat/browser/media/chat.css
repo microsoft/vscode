@@ -263,6 +263,10 @@
 	margin: 0 0 16px 0;
 }
 
+.interactive-item-container .value > .rendered-markdown li > p {
+	margin: 0;
+}
+
 .interactive-item-container .value .rendered-markdown ul {
 	padding-inline-start: 24px;
 }
@@ -324,6 +328,10 @@
 	margin: 0 0 8px 0;
 }
 
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown li > p {
+	margin: 0;
+}
+
 .interactive-item-container.interactive-item-compact .value .rendered-markdown h1 {
 	margin: 8px 0;
 
@@ -335,10 +343,6 @@
 
 .interactive-item-container.interactive-item-compact .value .rendered-markdown h3 {
 	margin: 8px 0;
-}
-
-.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
-	margin: 0 0 8px 0;
 }
 
 .interactive-session .interactive-input-and-execute-toolbar {
@@ -606,9 +610,18 @@
 .interactive-item-container .chat-resource-widget {
 	background-color: var(--vscode-chat-slashCommandBackground);
 	color: var(--vscode-chat-slashCommandForeground);
+}
+
+.interactive-item-container .chat-resource-widget,
+.interactive-item-container .chat-agent-widget .monaco-button {
 	border-radius: 4px;
 	white-space: nowrap;
 	padding: 1px 3px;
+}
+
+.interactive-item-container .chat-agent-widget .monaco-text-button {
+	display: inline;
+	border: none;
 }
 
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
