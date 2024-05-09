@@ -37,6 +37,6 @@
 		"vs/base/browser/markdownRenderer.ts",
 		"vs/base/test/browser/markdownRenderer.test.ts"
 	],
-	"ban-element-setattribute": ["**/*.ts", "**/*.cts"],
+	"ban-element-setattribute": ["**/*.ts", "**/*.cts", "vs/loader.cjs"],
 	"ban-element-insertadjacenthtml": ["**/*.ts", "**/*.cts"]
 }
