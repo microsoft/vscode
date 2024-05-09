@@ -1,10 +1,14 @@
 import {ITextModel} from 'vs/editor/common/model';
-import {Editor, VirtualRenderer, Ace} from 'vs/editor/browser/widget/aceEditor/ace-editor';
+import {
+	Editor,
+	VirtualRenderer,
+	Ace,
+	createEditSession
+} from 'vs/editor/browser/widget/aceEditor/ace-editor';
 import {Selection} from 'vs/editor/common/core/selection';
 import {fromAceDelta} from 'vs/editor/browser/widget/aceEditor/converters';
 import {mapToAceMode} from 'vs/editor/browser/widget/aceEditor/modesMapper';
 
-//TODO: undo/redo
 //TODO: other event types
 //TODO: eol
 //TODO: single line editor
@@ -12,13 +16,13 @@ import {mapToAceMode} from 'vs/editor/browser/widget/aceEditor/modesMapper';
 //TODO: disposal
 //TODO: ace extensions
 export class AceEditor {
-	private textModel: ITextModel;
+	private textModel?: ITextModel;
 	public editor?: Ace.Editor;
 	private $deltaQueue?: Ace.Delta[];
 	private domElement: HTMLElement;
+	private sessions: { [id: string]: Ace.EditSession } = {};
 
-	constructor(textModel: ITextModel, domElement: HTMLElement) {
-		this.textModel = textModel;
+	constructor(domElement: HTMLElement) {
 		this.domElement = domElement;
 	}
 
@@ -26,7 +30,6 @@ export class AceEditor {
 		if (!this.editor) {
 			this.editor = this.createEditor();
 		}
-		this.editor.session.doc.on('change', this.$changeListener, true);
 	}
 
 	private $changeListener = (delta: Ace.Delta) => {
@@ -54,19 +57,17 @@ export class AceEditor {
 			//TODO: eol needs to be passed in
 			const eol = this.editor.session.doc.getNewLineCharacter();
 			const edits = deltas.map((delta) => fromAceDelta(delta, eol));
-			this.textModel.pushEditOperations(selections, edits, () => []);
+			this.textModel?.pushEditOperations(selections, edits, () => []);
 		}
 	};
 
 	private createEditor() {
-		const editor = new Editor(new VirtualRenderer(this.domElement), undefined, {
+		const session = this.createSession();
+		const editor = new Editor(new VirtualRenderer(this.domElement), session, {
 			enableBasicAutocompletion: true,
 			enableSnippets: true,
 			enableLiveAutocompletion: true
 		});
-		editor.setValue(this.textModel.getValue(), -1);
-		console.log(this.textModel.getLanguageId());
-		editor.session.setMode(mapToAceMode(this.textModel.getLanguageId()));
 		return editor;
 	}
 
@@ -74,8 +75,26 @@ export class AceEditor {
 		this.editor?.session.setMode(mapToAceMode(mode));
 	}
 
-	render() {
-		this.editor = this.createEditor();
-		this.setEventListeners();
+	setModel(model: ITextModel) {
+		this.textModel = model;
+		if (!this.editor) {
+			this.editor = this.createEditor();
+		}
+		this.setSession();
+	}
+
+	setSession() {
+		const id = this.textModel?.id || '';
+		if (!this.sessions[id]) {
+			this.createSession();
+		}
+		this.editor?.setSession(this.sessions[id]);
+	}
+
+	createSession() {
+		const id = this.textModel?.id || '';
+		this.sessions[id] = createEditSession(this.textModel?.getValue() || '', mapToAceMode(this.textModel!.getLanguageId()));
+		this.sessions[id].doc.on('change', this.$changeListener, true);
+		return this.sessions[id];
 	}
 }
