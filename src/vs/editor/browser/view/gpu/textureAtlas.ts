@@ -72,12 +72,13 @@ export class TextureAtlas extends Disposable {
 	// TODO: Should pull in the font size from config instead of random dom node
 	constructor(
 		parentDomNode: HTMLElement,
+		pageSize: number,
 		maxTextureSize: number,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 
-		this._canvas = new OffscreenCanvas(maxTextureSize, maxTextureSize);
+		this._canvas = new OffscreenCanvas(pageSize, pageSize);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
 			willReadFrequently: true
 		}));
@@ -191,6 +192,7 @@ class GlyphRasterizer extends Disposable {
 		return result;
 	}
 
+	// TODO: Does this even need to happen when measure text is used?
 	// TODO: Pass back origin offset
 	private _findGlyphBoundingBox(imageData: ImageData): IBoundingBox {
 		// TODO: Hot path: Reuse object
