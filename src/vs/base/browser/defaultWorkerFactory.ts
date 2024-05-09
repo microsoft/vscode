@@ -52,7 +52,6 @@ function getWorker(label: string): Worker | Promise<Worker> {
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
-// ESM-comment-begin
 export function getWorkerBootstrapUrl(scriptPath: string, label: string): string {
 	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
@@ -79,7 +78,6 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 		return `${scriptPath}?${params.toString()}#${label}`;
 	}
 }
-// ESM-comment-end
 
 function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
 	if (typeof obj.then === 'function') {
