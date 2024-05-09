@@ -10,7 +10,6 @@ import FullJsonStreamReporter from './fullJsonStreamReporter.js';
 
 const require = createRequire(import.meta.url);
 
-
 function parseReporterOption(value) {
 	const r = /^([^=]+)=(.*)$/.exec(value);
 	return r ? { [r[1]]: r[2] } : {};
