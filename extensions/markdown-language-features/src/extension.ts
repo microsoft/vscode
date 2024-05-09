@@ -27,10 +27,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
-	const clientMain = vscode.extensions.getExtension('vscode.markdown-language-features')?.packageJSON?.main || '';
-
-	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/workerMain`;
-	const serverModule = context.asAbsolutePath(serverMain);
+	const serverModule = context.asAbsolutePath('./node_modules/vscode-markdown-languageserver/dist/node/workerMain');
 
 	// The debug options for the server
 	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
