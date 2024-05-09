@@ -76,11 +76,15 @@ export interface ISpeechToTextSessionOptions {
 	readonly language?: string;
 }
 
+export interface ITextToSpeechSessionOptions {
+	readonly language?: string;
+}
+
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
 	createSpeechToTextSession(token: CancellationToken, options?: ISpeechToTextSessionOptions): ISpeechToTextSession;
-	createTextToSpeechSession(token: CancellationToken): ITextToSpeechSession;
+	createTextToSpeechSession(token: CancellationToken, options?: ITextToSpeechSessionOptions): ITextToSpeechSession;
 	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 

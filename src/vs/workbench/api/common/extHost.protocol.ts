@@ -1188,7 +1188,7 @@ export interface ExtHostSpeechShape {
 	$createSpeechToTextSession(handle: number, session: number, language?: string): Promise<void>;
 	$cancelSpeechToTextSession(session: number): Promise<void>;
 
-	$createTextToSpeechSession(handle: number, session: number): Promise<void>;
+	$createTextToSpeechSession(handle: number, session: number, language?: string): Promise<void>;
 	$synthesizeSpeech(session: number, text: string): Promise<void>;
 	$cancelTextToSpeechSession(session: number): Promise<void>;
 
