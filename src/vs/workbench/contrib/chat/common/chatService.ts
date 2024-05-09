@@ -107,8 +107,8 @@ export interface IChatProgressMessage {
 }
 
 export interface IChatTask extends IChatTaskDto {
-	task?: () => Promise<string | void>;
-	isSettled?: () => boolean;
+	task: () => Promise<string | void>;
+	isSettled: () => boolean;
 }
 
 export interface IChatTaskDto {

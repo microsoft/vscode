@@ -70,9 +70,9 @@ import { ChatAgentLocation, IChatAgentMetadata, IChatAgentNameService } from 'vs
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatTask, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatTask, IChatWarningMessage, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatTaskRenderData, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
@@ -615,8 +615,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					} else if (part.kind === 'command' ||
 						part.kind === 'textEditGroup' ||
 						part.kind === 'confirmation' ||
-						part.kind === 'progressTask') {
+						part.kind === 'warning') {
 						partsToRender[index] = part;
+					} else if (part.kind === 'progressTask') {
+						partsToRender[index] = {
+							task: part,
+							isSettled: part.isSettled?.() ?? true
+						};
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });
 						if (wordCountResult !== undefined) {
@@ -661,6 +666,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						isLast: index === renderableResponse.length - 1,
 					} satisfies IChatProgressMessageRenderData;
 				}
+
+				else if (part.kind === 'progressTask' && isProgressTaskRenderData(renderedPart) && renderedPart.isSettled !== part.isSettled?.()) {
+					const isSettled = part.isSettled?.() ?? true;
+					if (renderedPart.isSettled !== isSettled) {
+						partsToRender[index] = { task: part, isSettled };
+					}
+				}
 			});
 
 			isFullyRendered = partsToRender.length === 0 && !somePartIsNotFullyRendered;
@@ -690,14 +702,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						} else {
 							result = null;
 						}
-					} else if (isProgressTask(partToRender)) {
-						result = this.renderProgressMessage(partToRender, partToRender.isSettled ? !partToRender.isSettled() : false);
+					} else if (isProgressTaskRenderData(partToRender)) {
+						result = this.renderProgressMessage(partToRender.task, !partToRender.isSettled);
 					} else if (isCommandButtonRenderData(partToRender)) {
 						result = this.renderCommandButton(element, partToRender);
 					} else if (isTextEditRenderData(partToRender)) {
 						result = this.renderTextEdit(element, partToRender, templateData);
 					} else if (isConfirmationRenderData(partToRender)) {
 						result = this.renderConfirmation(element, partToRender);
+					} else if (isWarningRenderData(partToRender)) {
+						result = this.renderNotification('warning', partToRender.content);
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
@@ -1640,8 +1654,12 @@ function isProgressMessage(item: any): item is IChatProgressMessage {
 	return item && 'kind' in item && item.kind === 'progressMessage';
 }
 
-function isProgressTask(item: any): item is IChatTask {
-	return item && 'kind' in item && item.kind === 'progressTask';
+function isProgressTaskRenderData(item: any): item is IChatTaskRenderData {
+	return item && 'isSettled' in item;
+}
+
+function isWarningRenderData(item: any): item is IChatWarningMessage {
+	return item && 'kind' in item && item.kind === 'warning';
 }
 
 function isProgressMessageRenderData(item: IChatRenderData): item is IChatProgressMessageRenderData {

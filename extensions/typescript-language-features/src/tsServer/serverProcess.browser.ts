@@ -50,7 +50,7 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 			// Explicitly give TS Server its path so it can load local resources
 			'--executingFilePath', tsServerPath,
 		];
-		if (_configuration.webExperimentalTypeAcquisition) {
+		if (_configuration.webTypeAcquisitionEnabled) {
 			launchArgs.push('--experimentalTypeAcquisition');
 		}
 		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, launchArgs, tsServerLog, this._logger);
