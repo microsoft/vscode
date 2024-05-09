@@ -30,7 +30,7 @@ function getVsRelativePath(absolutePath) {
     if (!absolutePath.startsWith(vsRoot)) {
         return '';
     }
-    return absolutePath.slice(vsRoot.length + 1);
+    return absolutePath.slice(vsRoot.length + 1).replace(/\\/g, '/');
 }
 function createTypeScriptBuilder(config, projectFile, cmd) {
     const _log = config.logFn;

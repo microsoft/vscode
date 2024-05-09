@@ -46,7 +46,7 @@ function getVsRelativePath(absolutePath: string) {
 	if (!absolutePath.startsWith(vsRoot)) {
 		return ''
 	}
-	return absolutePath.slice(vsRoot.length + 1)
+	return absolutePath.slice(vsRoot.length + 1).replace(/\\/g, '/')
 }
 
 export function createTypeScriptBuilder(config: IConfiguration, projectFile: string, cmd: ts.ParsedCommandLine): ITypeScriptBuilder {
