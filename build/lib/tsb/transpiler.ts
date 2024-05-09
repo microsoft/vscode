@@ -91,6 +91,12 @@ class OutputFileNameOracle {
 	}
 }
 
+
+
+function getVsRelativePath(relativePath: string) {
+	return relativePath.replace(/\\/g, '/')
+}
+
 class TranspileWorker {
 
 	private static pool = 1;
@@ -141,11 +147,12 @@ class TranspileWorker {
 
 				const outBase = options.compilerOptions?.outDir ?? file.base;
 				const outPath = outFileFn(file.path);
+				const vsRelativePath = getVsRelativePath(file.relative)
 				outFiles.push(new Vinyl({
 					path: outPath,
 					base: outBase,
 					contents: Buffer.from(
-						fixEsmFile(file.relative, jsSrc)
+						fixEsmFile(vsRelativePath, jsSrc)
 					),
 				}));
 			}

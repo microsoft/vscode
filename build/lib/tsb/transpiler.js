@@ -68,6 +68,9 @@ class OutputFileNameOracle {
         };
     }
 }
+function getVsRelativePath(relativePath) {
+    return relativePath.replace(/\\/g, '/');
+}
 class TranspileWorker {
     static pool = 1;
     id = TranspileWorker.pool++;
@@ -108,10 +111,11 @@ class TranspileWorker {
                 }
                 const outBase = options.compilerOptions?.outDir ?? file.base;
                 const outPath = outFileFn(file.path);
+                const vsRelativePath = getVsRelativePath(file.relative);
                 outFiles.push(new Vinyl({
                     path: outPath,
                     base: outBase,
-                    contents: Buffer.from((0, fixEsmFile_js_1.fixEsmFile)(file.relative, jsSrc)),
+                    contents: Buffer.from((0, fixEsmFile_js_1.fixEsmFile)(vsRelativePath, jsSrc)),
                 }));
             }
             this._pending = undefined;
