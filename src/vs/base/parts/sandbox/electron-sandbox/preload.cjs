@@ -430,7 +430,11 @@ if (isTest) {
 		parcelWatcher,
 		jschardet,
 		xtermHeadless,
-		vscodeWindowsRegistry
+		vscodeWindowsRegistry,
+		get vscodeWindowsCaCerts() {
+			// @ts-ignore
+			return require('@vscode/windows-ca-certs')
+		}
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals
