@@ -148,6 +148,7 @@ class TranspileWorker {
 				const outBase = options.compilerOptions?.outDir ?? file.base;
 				const outPath = outFileFn(file.path);
 				const vsRelativePath = getVsRelativePath(file.relative)
+				console.log({ vsRelativePath })
 				outFiles.push(new Vinyl({
 					path: outPath,
 					base: outBase,
@@ -360,11 +361,12 @@ export class SwcTranspiler implements ITranspiler {
 
 			const outBase = this._cmdLine.options.outDir ?? file.base;
 			const outPath = this._outputFileNames.getOutputFileName(file.path);
+			const vsRelativePath = getVsRelativePath(file.relative)
 			this.onOutfile!(new Vinyl({
 				path: outPath,
 				base: outBase,
 				contents: Buffer.from(
-					fixEsmFile(file.relative, output.code)
+					fixEsmFile(vsRelativePath, output.code)
 				),
 			}));
 
