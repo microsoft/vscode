@@ -39,12 +39,12 @@
 .interactive-item-container .header .user {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 }
 
 .interactive-item-container .header .username {
 	margin: 0;
-	font-size: 12px;
+	font-size: 13px;
 	font-weight: 600;
 }
 
