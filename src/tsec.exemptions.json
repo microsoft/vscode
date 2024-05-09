@@ -5,9 +5,11 @@
 	],
 	"ban-eval-calls": [
 		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain.ts"
+		"vs/base/worker/workerMain.ts",
+		"vs/loader.cjs"
 	],
 	"ban-function-calls": [
+		"vs/loader.cjs",
 		"vs/workbench/api/worker/extHostExtensionService.ts",
 		"vs/base/worker/workerMain.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
@@ -26,6 +28,7 @@
 	],
 	"ban-worker-importscripts": [
 		"vs/amdX.ts",
+		"vs/loader.cjs",
 		"vs/workbench/services/extensions/worker/polyfillNestedWorker.ts",
 		"vs/workbench/api/worker/extensionHostWorker.ts",
 		"vs/base/worker/workerMain.ts"
