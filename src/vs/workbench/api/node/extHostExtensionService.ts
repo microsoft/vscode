@@ -20,6 +20,7 @@ import { ExtHostConsoleForwarder } from 'vs/workbench/api/node/extHostConsoleFor
 import { ExtHostDiskFileSystemProvider } from 'vs/workbench/api/node/extHostDiskFileSystemProvider';
 
 import { createRequire } from 'module';
+import { pathToFileURL } from 'url';
 
 const require = createRequire(import.meta.url);
 
@@ -114,7 +115,8 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
 			if (extension?.type === 'module') {
-				r = await import(module.fsPath) as T;
+				const uri = pathToFileURL(module.fsPath).toString()
+				r = await import(uri) as T;
 			} else {
 				r = require(module.fsPath) as T;
 			}
