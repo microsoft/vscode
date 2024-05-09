@@ -45,6 +45,15 @@
 	display: flex;
 }
 
+.chat-agent-hover .chat-agent-hover-warning .codicon {
+	color: var(--vscode-notificationsWarningIcon-foreground) !important;
+	margin-right: 3px;
+}
+
+.chat-agent-hover.allowedName .chat-agent-hover-warning {
+	display: none;
+}
+
 .chat-agent-hover-header .chat-agent-hover-name {
 	font-size: 15px;
 	font-weight: 600;
@@ -65,7 +74,8 @@
 }
 
 .chat-agent-hover-description,
-.chat-agent-hover-marketplace-button .monaco-text-button {
+.chat-agent-hover-marketplace-button .monaco-text-button,
+.chat-agent-hover-warning {
 	font-size: 13px;
 }
 

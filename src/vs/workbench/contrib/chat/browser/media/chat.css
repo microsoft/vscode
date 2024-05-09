@@ -615,7 +615,6 @@
 .interactive-item-container .chat-resource-widget,
 .interactive-item-container .chat-agent-widget .monaco-button {
 	border-radius: 4px;
-	white-space: nowrap;
 	padding: 1px 3px;
 }
 
