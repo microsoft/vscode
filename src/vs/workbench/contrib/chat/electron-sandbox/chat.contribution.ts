@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, StopListeningInQuickChatAction, StopListeningInChatEditorAction, StopListeningInChatViewAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction, KeywordActivationContribution, InstallVoiceChatAction, StopListeningInTerminalChatAction, HoldToVoiceChatInChatViewAction, ReadChatItemAloud, StopReadAloud } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
+import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, StopListeningInQuickChatAction, StopListeningInChatEditorAction, StopListeningInChatViewAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction, KeywordActivationContribution, InstallVoiceChatAction, StopListeningInTerminalChatAction, HoldToVoiceChatInChatViewAction, ReadChatItemAloud, StopReadAloud, StopReadChatItemAloud } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
@@ -24,6 +24,7 @@ registerAction2(StopListeningInQuickChatAction);
 registerAction2(StopListeningInTerminalChatAction);
 
 registerAction2(ReadChatItemAloud);
+registerAction2(StopReadChatItemAloud);
 registerAction2(StopReadAloud);
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);

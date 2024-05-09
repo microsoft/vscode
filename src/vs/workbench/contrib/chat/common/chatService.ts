@@ -106,6 +106,21 @@ export interface IChatProgressMessage {
 	kind: 'progressMessage';
 }
 
+export interface IChatTask extends IChatTaskDto {
+	task?: () => Promise<string | void>;
+	isSettled?: () => boolean;
+}
+
+export interface IChatTaskDto {
+	content: IMarkdownString;
+	kind: 'progressTask';
+}
+
+export interface IChatTaskResult {
+	content: IMarkdownString | void;
+	kind: 'progressTaskResult';
+}
+
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
@@ -149,6 +164,8 @@ export type IChatProgress =
 	| IChatContentInlineReference
 	| IChatAgentDetection
 	| IChatProgressMessage
+	| IChatTask
+	| IChatTaskResult
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
@@ -281,6 +298,7 @@ export interface IChatSendRequestOptions {
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
+	slashCommand?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
