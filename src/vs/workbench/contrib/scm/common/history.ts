@@ -13,7 +13,7 @@ export interface ISCMHistoryProviderMenus {
 	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 
-	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
+	// getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
 }
 
 export interface ISCMHistoryProvider {
@@ -77,7 +77,8 @@ export interface ISCMHistoryItem {
 }
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
-	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
+	readonly repository: ISCMRepository;
+	readonly graphSwimlanes: string[];
 	readonly type: 'allChanges' | 'historyItem';
 }
 

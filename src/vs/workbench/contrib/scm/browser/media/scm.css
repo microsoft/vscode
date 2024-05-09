@@ -133,6 +133,11 @@
 	align-items: center;
 }
 
+.scm-view .monaco-list-row .history-item > .graph {
+	display: flex;
+	flex-shrink: 0;
+}
+
 .scm-view .monaco-list-row .history-item .stats-container {
 	display: flex;
 	font-size: 11px;

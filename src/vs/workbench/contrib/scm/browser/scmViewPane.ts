@@ -105,9 +105,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { clamp } from 'vs/base/common/numbers';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import type { IUpdatableHover, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
@@ -878,7 +877,7 @@ class HistoryItemActionRunner extends ActionRunner {
 		}
 
 		const args: (ISCMProvider | ISCMHistoryItem)[] = [];
-		args.push(context.historyItemGroup.repository.provider);
+		args.push(context.repository.provider);
 		args.push({
 			id: context.id,
 			parentIds: context.parentIds,
@@ -894,14 +893,15 @@ class HistoryItemActionRunner extends ActionRunner {
 }
 
 interface HistoryItemTemplate {
-	readonly iconContainer: HTMLElement;
+	// readonly iconContainer: HTMLElement;
 	readonly label: IconLabel;
-	readonly statsContainer: HTMLElement;
-	readonly statsCustomHover: IUpdatableHover;
-	readonly filesLabel: HTMLElement;
-	readonly insertionsLabel: HTMLElement;
-	readonly deletionsLabel: HTMLElement;
-	readonly actionBar: ActionBar;
+	readonly graphContainer: SVGElement;
+	// readonly statsContainer: HTMLElement;
+	// readonly statsCustomHover: IUpdatableHover;
+	// readonly filesLabel: HTMLElement;
+	// readonly insertionsLabel: HTMLElement;
+	// readonly deletionsLabel: HTMLElement;
+	// readonly actionBar: ActionBar;
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
@@ -912,63 +912,122 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private actionRunner: IActionRunner,
-		private actionViewItemProvider: IActionViewItemProvider,
-		@IHoverService private hoverService: IHoverService,
-		@ISCMViewService private scmViewService: ISCMViewService
+		// private actionRunner: IActionRunner,
+		// private actionViewItemProvider: IActionViewItemProvider,
+		// @IHoverService private hoverService: IHoverService,
+		// @ISCMViewService private scmViewService: ISCMViewService
 	) { }
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
 		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = append(container, $('.history-item'));
 
+		const graphContainer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		graphContainer.style.height = '22px';
+		graphContainer.classList.add('graph');
+		element.appendChild(graphContainer);
+
 		const iconLabel = new IconLabel(element, { supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true });
-		const iconContainer = prepend(iconLabel.element, $('.icon-container'));
+		//const iconContainer = prepend(iconLabel.element, $('.icon-container'));
 
 		const disposables = new DisposableStore();
-		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, { actionRunner: this.actionRunner, actionViewItemProvider: this.actionViewItemProvider });
-		disposables.add(actionBar);
+		// const actionsContainer = append(element, $('.actions'));
+		// const actionBar = new ActionBar(actionsContainer, { actionRunner: this.actionRunner, actionViewItemProvider: this.actionViewItemProvider });
+		// disposables.add(actionBar);
 
-		const statsContainer = append(element, $('.stats-container'));
-		const filesLabel = append(statsContainer, $('.files-label'));
-		const insertionsLabel = append(statsContainer, $('.insertions-label'));
-		const deletionsLabel = append(statsContainer, $('.deletions-label'));
+		// const statsContainer = append(element, $('.stats-container'));
+		// const filesLabel = append(statsContainer, $('.files-label'));
+		// const insertionsLabel = append(statsContainer, $('.insertions-label'));
+		// const deletionsLabel = append(statsContainer, $('.deletions-label'));
 
-		const statsCustomHover = this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), statsContainer, '');
-		disposables.add(statsCustomHover);
+		// const statsCustomHover = this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), statsContainer, '');
+		// disposables.add(statsCustomHover);
 
-		return { iconContainer, label: iconLabel, actionBar, statsContainer, statsCustomHover, filesLabel, insertionsLabel, deletionsLabel, elementDisposables: new DisposableStore(), disposables };
+		return { graphContainer, label: iconLabel, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
 		const historyItem = node.element;
 
-		templateData.iconContainer.className = 'icon-container';
-		if (historyItem.icon && ThemeIcon.isThemeIcon(historyItem.icon)) {
-			templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItem.icon));
-		}
+		// templateData.iconContainer.className = 'icon-container';
+		// if (historyItem.icon && ThemeIcon.isThemeIcon(historyItem.icon)) {
+		// 	templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItem.icon));
+		// }
+
+
+		// const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+		// line.setAttribute('x1', '11');
+		// line.setAttribute('y1', '0');
+		// line.setAttribute('x2', '11');
+		// line.setAttribute('y2', '22');
+		// line.setAttribute('stroke', 'black');
+		// line.setAttribute('stroke-width', '1');
+		// templateData.graphContainer.append(line);
+
+		// templateData.graphContainer.style.width = '22px';
+		this.renderGraph(templateData.graphContainer, historyItem,);
 
 		const title = this.getTooltip(historyItem);
-		const [matches, descriptionMatches] = this.processMatches(historyItem, node.filterData);
-		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches, title });
+		// const [matches, descriptionMatches] = this.processMatches(historyItem, node.filterData);
+		templateData.label.setLabel(historyItem.message, undefined, { title });
 
-		templateData.actionBar.clear();
-		templateData.actionBar.context = historyItem;
+		// templateData.actionBar.clear();
+		// templateData.actionBar.context = historyItem;
 
-		const menus = this.scmViewService.menus.getRepositoryMenus(historyItem.historyItemGroup.repository.provider);
-		if (menus.historyProviderMenu) {
-			const historyItemMenu = menus.historyProviderMenu.getHistoryItemMenu(historyItem);
-			templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(historyItemMenu, templateData.actionBar));
-		}
+		// const menus = this.scmViewService.menus.getRepositoryMenus(historyItem.historyItemGroup.repository.provider);
+		// if (menus.historyProviderMenu) {
+		// 	const historyItemMenu = menus.historyProviderMenu.getHistoryItemMenu(historyItem);
+		// 	templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(historyItemMenu, templateData.actionBar));
+		// }
 
-		this.renderStatistics(node, index, templateData, height);
+		// this.renderStatistics(node, index, templateData, height);
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemTreeElement>, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
+	}
+
+	private renderGraph(graphContainer: SVGElement, historyItem: SCMHistoryItemTreeElement): void {
+		graphContainer.textContent = '';
+
+		const swimlaneIndex = historyItem.graphSwimlanes.indexOf(historyItem.id);
+		const circleSwimlane = (swimlaneIndex === -1 ? historyItem.graphSwimlanes.length : swimlaneIndex) + 1;
+
+		// Circle
+		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+		circle.setAttribute('cx', `${11 * circleSwimlane}`);
+		circle.setAttribute('cy', '11');
+		circle.setAttribute('r', '4');
+		graphContainer.append(circle);
+
+		// Line(s)
+		for (let index = 0; index < historyItem.graphSwimlanes.length; index++) {
+			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path.setAttribute('d', `M${11 * (index + 1)} 0 V22`);
+			path.style.stroke = 'black';
+			path.style.strokeWidth = '1px';
+
+			graphContainer.append(path);
+		}
+
+		// New swimlane
+		if (swimlaneIndex === -1) {
+			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path.setAttribute('d', `M${11 * (historyItem.graphSwimlanes.length + 1)} 11 V22`);
+			path.style.stroke = 'black';
+			path.style.strokeWidth = '1px';
+
+			graphContainer.append(path);
+		}
+
+		// Container width
+		const containerWidth = swimlaneIndex === -1 ?
+			22 * (historyItem.graphSwimlanes.length + 1) :
+			22 * historyItem.graphSwimlanes.length;
+
+		graphContainer.style.width = `${containerWidth}px`;
 	}
 
 	private getTooltip(historyItem: SCMHistoryItemTreeElement): IUpdatableHoverTooltipMarkdownString {
@@ -988,46 +1047,46 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		return { markdown, markdownNotSupportedFallback: historyItem.message };
 	}
 
-	private processMatches(historyItem: SCMHistoryItemTreeElement, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
-		if (!filterData) {
-			return [undefined, undefined];
-		}
+	// private processMatches(historyItem: SCMHistoryItemTreeElement, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+	// 	if (!filterData) {
+	// 		return [undefined, undefined];
+	// 	}
 
-		return [
-			historyItem.message === filterData.label ? createMatches(filterData.score) : undefined,
-			historyItem.author === filterData.label ? createMatches(filterData.score) : undefined
-		];
-	}
+	// 	return [
+	// 		historyItem.message === filterData.label ? createMatches(filterData.score) : undefined,
+	// 		historyItem.author === filterData.label ? createMatches(filterData.score) : undefined
+	// 	];
+	// }
 
-	private renderStatistics(node: ITreeNode<SCMHistoryItemTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
-		const historyItem = node.element;
+	// private renderStatistics(node: ITreeNode<SCMHistoryItemTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+	// 	const historyItem = node.element;
 
-		if (historyItem.statistics) {
-			const statsAriaLabel: string[] = [
-				historyItem.statistics.files === 1 ?
-					localize('fileChanged', "{0} file changed", historyItem.statistics.files) :
-					localize('filesChanged', "{0} files changed", historyItem.statistics.files),
-				historyItem.statistics.insertions === 1 ? localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
-					historyItem.statistics.insertions > 1 ? localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)') : '',
-				historyItem.statistics.deletions === 1 ? localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
-					historyItem.statistics.deletions > 1 ? localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)') : ''
-			];
+	// 	if (historyItem.statistics) {
+	// 		const statsAriaLabel: string[] = [
+	// 			historyItem.statistics.files === 1 ?
+	// 				localize('fileChanged', "{0} file changed", historyItem.statistics.files) :
+	// 				localize('filesChanged', "{0} files changed", historyItem.statistics.files),
+	// 			historyItem.statistics.insertions === 1 ? localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
+	// 				historyItem.statistics.insertions > 1 ? localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)') : '',
+	// 			historyItem.statistics.deletions === 1 ? localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
+	// 				historyItem.statistics.deletions > 1 ? localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)') : ''
+	// 		];
 
-			const statsTitle = statsAriaLabel.filter(l => l !== '').join(', ');
-			templateData.statsContainer.setAttribute('aria-label', statsTitle);
-			templateData.statsCustomHover.update(statsTitle);
+	// 		const statsTitle = statsAriaLabel.filter(l => l !== '').join(', ');
+	// 		templateData.statsContainer.setAttribute('aria-label', statsTitle);
+	// 		templateData.statsCustomHover.update(statsTitle);
 
-			templateData.filesLabel.textContent = historyItem.statistics.files.toString();
+	// 		templateData.filesLabel.textContent = historyItem.statistics.files.toString();
 
-			templateData.insertionsLabel.textContent = historyItem.statistics.insertions > 0 ? `+${historyItem.statistics.insertions}` : '';
-			templateData.insertionsLabel.classList.toggle('hidden', historyItem.statistics.insertions === 0);
+	// 		templateData.insertionsLabel.textContent = historyItem.statistics.insertions > 0 ? `+${historyItem.statistics.insertions}` : '';
+	// 		templateData.insertionsLabel.classList.toggle('hidden', historyItem.statistics.insertions === 0);
 
-			templateData.deletionsLabel.textContent = historyItem.statistics.deletions > 0 ? `-${historyItem.statistics.deletions}` : '';
-			templateData.deletionsLabel.classList.toggle('hidden', historyItem.statistics.deletions === 0);
-		}
+	// 		templateData.deletionsLabel.textContent = historyItem.statistics.deletions > 0 ? `-${historyItem.statistics.deletions}` : '';
+	// 		templateData.deletionsLabel.classList.toggle('hidden', historyItem.statistics.deletions === 0);
+	// 	}
 
-		templateData.statsContainer.classList.toggle('hidden', historyItem.statistics === undefined);
-	}
+	// 	templateData.statsContainer.classList.toggle('hidden', historyItem.statistics === undefined);
+	// }
 
 	disposeElement(element: ITreeNode<SCMHistoryItemTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
 		templateData.elementDisposables.clear();
@@ -1258,11 +1317,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		if (isSCMHistoryItemTreeElement(one)) {
-			if (!isSCMHistoryItemTreeElement(other)) {
-				throw new Error('Invalid comparison');
-			}
-
-			return 0;
+			return isSCMHistoryItemTreeElement(other) ? 0 : 1;
 		}
 
 		if (isSCMHistoryItemChangeTreeElement(one) || isSCMHistoryItemChangeNode(one)) {
@@ -1396,19 +1451,18 @@ function getSCMResourceId(element: TreeElement): string {
 		const provider = element.repository.provider;
 		return `historyItemGroup:${provider.id}/${element.id}`;
 	} else if (isSCMHistoryItemTreeElement(element)) {
-		const historyItemGroup = element.historyItemGroup;
-		const provider = historyItemGroup.repository.provider;
-		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}/${element.parentIds.join(',')}`;
-	} else if (isSCMHistoryItemChangeTreeElement(element)) {
-		const historyItem = element.historyItem;
-		const historyItemGroup = historyItem.historyItemGroup;
-		const provider = historyItemGroup.repository.provider;
-		return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.uri.toString()}`;
-	} else if (isSCMHistoryItemChangeNode(element)) {
-		const historyItem = element.context;
-		const historyItemGroup = historyItem.historyItemGroup;
-		const provider = historyItemGroup.repository.provider;
-		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
+		const provider = element.repository.provider;
+		return `historyItem:${provider.id}/${element.id}/${element.parentIds.join(',')}`;
+		// } else if (isSCMHistoryItemChangeTreeElement(element)) {
+		// 	const historyItem = element.historyItem;
+		// 	const historyItemGroup = historyItem.historyItemGroup;
+		// 	const provider = historyItemGroup.repository.provider;
+		// 	return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.uri.toString()}`;
+		// } else if (isSCMHistoryItemChangeNode(element)) {
+		// 	const historyItem = element.context;
+		// 	const historyItemGroup = historyItem.historyItemGroup;
+		// 	const provider = historyItemGroup.repository.provider;
+		// 	return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
 	} else if (isSCMViewSeparator(element)) {
 		const provider = element.repository.provider;
 		return `separator:${provider.id}`;
@@ -3021,7 +3075,7 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner),
 				this.instantiationService.createInstance(HistoryItemGroupRenderer, historyItemGroupActionRunner),
-				this.instantiationService.createInstance(HistoryItemRenderer, historyItemActionRunner, getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(HistoryItemRenderer, /*historyItemActionRunner, getActionViewItemProvider(this.instantiationService)*/),
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewMode, this.listLabels),
 				this.instantiationService.createInstance(SeparatorRenderer)
 			],
@@ -3147,17 +3201,17 @@ export class SCMViewPane extends ViewPane {
 			this.scmViewService.focus(e.element.repository);
 			return;
 		} else if (isSCMHistoryItemTreeElement(e.element)) {
-			this.scmViewService.focus(e.element.historyItemGroup.repository);
+			// this.scmViewService.focus(e.element.historyItemGroup.repository);
 			return;
 		} else if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
 				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri), e);
 			}
 
-			this.scmViewService.focus(e.element.historyItem.historyItemGroup.repository);
+			// this.scmViewService.focus(e.element.historyItem.historyItemGroup.repository);
 			return;
 		} else if (isSCMHistoryItemChangeNode(e.element)) {
-			this.scmViewService.focus(e.element.context.historyItemGroup.repository);
+			// this.scmViewService.focus(e.element.context.historyItemGroup.repository);
 			return;
 		}
 	}
@@ -3320,12 +3374,12 @@ export class SCMViewPane extends ViewPane {
 				createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
 			}
 		} else if (isSCMHistoryItemTreeElement(element)) {
-			const menus = this.scmViewService.menus.getRepositoryMenus(element.historyItemGroup.repository.provider);
-			const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
-			if (menu) {
-				actionRunner = new HistoryItemActionRunner();
-				actions = collectContextMenuActions(menu);
-			}
+			// const menus = this.scmViewService.menus.getRepositoryMenus(element.historyItemGroup.repository.provider);
+			// const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
+			// if (menu) {
+			// 	actionRunner = new HistoryItemActionRunner();
+			// 	actions = collectContextMenuActions(menu);
+			// }
 		}
 
 		actionRunner.onWillRun(() => this.tree.domFocus());
@@ -3529,7 +3583,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IUriIdentityService private uriIdentityService: IUriIdentityService,
+		// @IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) {
 		const onDidChangeConfiguration = Event.filter(
 			this.configurationService.onDidChangeConfiguration,
@@ -3559,7 +3613,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		} else if (isSCMHistoryItemGroupTreeElement(inputOrElement)) {
 			return true;
 		} else if (isSCMHistoryItemTreeElement(inputOrElement)) {
-			return true;
+			return false;
 		} else if (isSCMHistoryItemChangeTreeElement(inputOrElement)) {
 			return false;
 		} else if (isSCMViewSeparator(inputOrElement)) {
@@ -3602,29 +3656,41 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				children.push(...resourceGroups);
 			}
 
-			// History item groups
-			const historyItemGroups = await this.getHistoryItemGroups(inputOrElement);
+			// History Separator
+			children.push({
+				label: localize('syncSeparatorHeader', "History"),
+				ariaLabel: localize('syncSeparatorHeaderAriaLabel', "History"),
+				repository: inputOrElement,
+				type: 'separator'
+			} satisfies SCMViewSeparatorElement);
 
-			// Incoming/Outgoing Separator
-			if (historyItemGroups.length > 0) {
-				let label = localize('syncSeparatorHeader', "Incoming/Outgoing");
-				let ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
+			// History items
+			const historyItems = await this.getHistoryItems(inputOrElement);
+			children.push(...historyItems);
 
-				const incomingHistoryItems = historyItemGroups.find(g => g.direction === 'incoming');
-				const outgoingHistoryItems = historyItemGroups.find(g => g.direction === 'outgoing');
+			// // History item groups
+			// const historyItemGroups = await this.getHistoryItemGroups(inputOrElement);
 
-				if (incomingHistoryItems && !outgoingHistoryItems) {
-					label = localize('syncIncomingSeparatorHeader', "Incoming");
-					ariaLabel = localize('syncIncomingSeparatorHeaderAriaLabel', "Incoming changes");
-				} else if (!incomingHistoryItems && outgoingHistoryItems) {
-					label = localize('syncOutgoingSeparatorHeader', "Outgoing");
-					ariaLabel = localize('syncOutgoingSeparatorHeaderAriaLabel', "Outgoing changes");
-				}
+			// // Incoming/Outgoing Separator
+			// if (historyItemGroups.length > 0) {
+			// 	let label = localize('syncSeparatorHeader', "Incoming/Outgoing");
+			// 	let ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
 
-				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
-			}
+			// 	const incomingHistoryItems = historyItemGroups.find(g => g.direction === 'incoming');
+			// 	const outgoingHistoryItems = historyItemGroups.find(g => g.direction === 'outgoing');
 
-			children.push(...historyItemGroups);
+			// 	if (incomingHistoryItems && !outgoingHistoryItems) {
+			// 		label = localize('syncIncomingSeparatorHeader', "Incoming");
+			// 		ariaLabel = localize('syncIncomingSeparatorHeaderAriaLabel', "Incoming changes");
+			// 	} else if (!incomingHistoryItems && outgoingHistoryItems) {
+			// 		label = localize('syncOutgoingSeparatorHeader', "Outgoing");
+			// 		ariaLabel = localize('syncOutgoingSeparatorHeaderAriaLabel', "Outgoing changes");
+			// 	}
+
+			// 	children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
+			// }
+
+			// children.push(...historyItemGroups);
 
 			return children;
 		} else if (isSCMResourceGroup(inputOrElement)) {
@@ -3650,187 +3716,215 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return children;
 		} else if (isSCMHistoryItemGroupTreeElement(inputOrElement)) {
 			// History item group
-			return this.getHistoryItems(inputOrElement);
+			// return this.getHistoryItems(inputOrElement);
 		} else if (isSCMHistoryItemTreeElement(inputOrElement)) {
 			// History item changes (List/Tree)
-			return this.getHistoryItemChanges(inputOrElement);
+			// return this.getHistoryItemChanges(inputOrElement);
 		}
 
 		return [];
 	}
 
-	private async getHistoryItemGroups(element: ISCMRepository): Promise<SCMHistoryItemGroupTreeElement[]> {
-		const { showIncomingChanges, showOutgoingChanges } = this.getConfiguration();
+	// private async getHistoryItemGroups(element: ISCMRepository): Promise<SCMHistoryItemGroupTreeElement[]> {
+	// 	const { showIncomingChanges, showOutgoingChanges } = this.getConfiguration();
 
-		const scmProvider = element.provider;
-		const historyProvider = scmProvider.historyProvider;
-		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
+	// 	const scmProvider = element.provider;
+	// 	const historyProvider = scmProvider.historyProvider;
+	// 	const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never')) {
+	// 	if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never')) {
+	// 		return [];
+	// 	}
+
+	// 	const children: SCMHistoryItemGroupTreeElement[] = [];
+	// 	const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(element);
+
+	// 	let incomingHistoryItemGroup = historyProviderCacheEntry?.incomingHistoryItemGroup;
+	// 	let outgoingHistoryItemGroup = historyProviderCacheEntry?.outgoingHistoryItemGroup;
+
+	// 	if (!incomingHistoryItemGroup && !outgoingHistoryItemGroup) {
+	// 		// Common ancestor, ahead, behind
+	// 		const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
+	// 		if (!ancestor) {
+	// 			return [];
+	// 		}
+
+	// 		// Only show "Incoming" node if there is a base branch
+	// 		incomingHistoryItemGroup = currentHistoryItemGroup.base ? {
+	// 			id: currentHistoryItemGroup.base.id,
+	// 			label: currentHistoryItemGroup.base.name,
+	// 			ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.base.name),
+	// 			icon: Codicon.arrowCircleDown,
+	// 			direction: 'incoming',
+	// 			ancestor: ancestor.id,
+	// 			count: ancestor.behind,
+	// 			repository: element,
+	// 			type: 'historyItemGroup'
+	// 		} : undefined;
+
+	// 		outgoingHistoryItemGroup = {
+	// 			id: currentHistoryItemGroup.id,
+	// 			label: currentHistoryItemGroup.name,
+	// 			ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes to {0}", currentHistoryItemGroup.name),
+	// 			icon: Codicon.arrowCircleUp,
+	// 			direction: 'outgoing',
+	// 			ancestor: ancestor.id,
+	// 			count: ancestor.ahead,
+	// 			repository: element,
+	// 			type: 'historyItemGroup'
+	// 		};
+
+	// 		this.historyProviderCache.set(element, {
+	// 			...historyProviderCacheEntry,
+	// 			incomingHistoryItemGroup,
+	// 			outgoingHistoryItemGroup
+	// 		});
+	// 	}
+
+	// 	// Incoming
+	// 	if (incomingHistoryItemGroup &&
+	// 		(showIncomingChanges === 'always' ||
+	// 			(showIncomingChanges === 'auto' && (incomingHistoryItemGroup.count ?? 0) > 0))) {
+	// 		children.push(incomingHistoryItemGroup);
+	// 	}
+
+	// 	// Outgoing
+	// 	if (outgoingHistoryItemGroup &&
+	// 		(showOutgoingChanges === 'always' ||
+	// 			(showOutgoingChanges === 'auto' && (outgoingHistoryItemGroup.count ?? 0) > 0))) {
+	// 		children.push(outgoingHistoryItemGroup);
+	// 	}
+
+	// 	return children;
+	// }
+
+	private async getHistoryItems(element: ISCMRepository): Promise<SCMHistoryItemTreeElement[]> {
+		const historyProvider = element.provider.historyProvider;
+
+		if (!historyProvider?.currentHistoryItemGroup) {
 			return [];
 		}
 
-		const children: SCMHistoryItemGroupTreeElement[] = [];
 		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(element);
-
-		let incomingHistoryItemGroup = historyProviderCacheEntry?.incomingHistoryItemGroup;
-		let outgoingHistoryItemGroup = historyProviderCacheEntry?.outgoingHistoryItemGroup;
-
-		if (!incomingHistoryItemGroup && !outgoingHistoryItemGroup) {
-			// Common ancestor, ahead, behind
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
-			if (!ancestor) {
-				return [];
-			}
-
-			// Only show "Incoming" node if there is a base branch
-			incomingHistoryItemGroup = currentHistoryItemGroup.base ? {
-				id: currentHistoryItemGroup.base.id,
-				label: currentHistoryItemGroup.base.name,
-				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.base.name),
-				icon: Codicon.arrowCircleDown,
-				direction: 'incoming',
-				ancestor: ancestor.id,
-				count: ancestor.behind,
-				repository: element,
-				type: 'historyItemGroup'
-			} : undefined;
-
-			outgoingHistoryItemGroup = {
-				id: currentHistoryItemGroup.id,
-				label: currentHistoryItemGroup.name,
-				ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes to {0}", currentHistoryItemGroup.name),
-				icon: Codicon.arrowCircleUp,
-				direction: 'outgoing',
-				ancestor: ancestor.id,
-				count: ancestor.ahead,
-				repository: element,
-				type: 'historyItemGroup'
-			};
-
-			this.historyProviderCache.set(element, {
-				...historyProviderCacheEntry,
-				incomingHistoryItemGroup,
-				outgoingHistoryItemGroup
-			});
-		}
-
-		// Incoming
-		if (incomingHistoryItemGroup &&
-			(showIncomingChanges === 'always' ||
-				(showIncomingChanges === 'auto' && (incomingHistoryItemGroup.count ?? 0) > 0))) {
-			children.push(incomingHistoryItemGroup);
-		}
-
-		// Outgoing
-		if (outgoingHistoryItemGroup &&
-			(showOutgoingChanges === 'always' ||
-				(showOutgoingChanges === 'auto' && (outgoingHistoryItemGroup.count ?? 0) > 0))) {
-			children.push(outgoingHistoryItemGroup);
-		}
-
-		return children;
-	}
-
-	private async getHistoryItems(element: SCMHistoryItemGroupTreeElement): Promise<SCMHistoryItemTreeElement[]> {
-		const repository = element.repository;
-		const historyProvider = repository.provider.historyProvider;
-
-		if (!historyProvider) {
-			return [];
-		}
-
-		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
 		const historyItemsMap = historyProviderCacheEntry.historyItems;
 		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
 		if (!historyItemsElement) {
-			const historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
+			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 32 }) ?? [];
 
 			// All Changes
-			const { showChangesSummary } = this.getConfiguration();
-			const allChanges = showChangesSummary && historyItems.length >= 2 ?
-				await historyProvider.provideHistoryItemSummary(historyItems[0].id, element.ancestor) : undefined;
+			// const { showChangesSummary } = this.getConfiguration();
+			// const allChanges = showChangesSummary && historyItems.length >= 2 ?
+			// 	await historyProvider.provideHistoryItemSummary(historyItems[0].id, element.ancestor) : undefined;
 
-			historyItemsElement = [allChanges, historyItems];
+			historyItemsElement = [undefined, historyItems];
 
-			this.historyProviderCache.set(repository, {
+			this.historyProviderCache.set(element, {
 				...historyProviderCacheEntry,
 				historyItems: historyItemsMap.set(element.id, historyItemsElement)
 			});
 		}
 
 		const children: SCMHistoryItemTreeElement[] = [];
-		if (historyItemsElement[0]) {
-			children.push({
-				...historyItemsElement[0],
-				icon: historyItemsElement[0].icon ?? Codicon.files,
-				message: localize('allChanges', "All Changes"),
-				historyItemGroup: element,
-				type: 'allChanges'
-			} satisfies SCMHistoryItemTreeElement);
-		}
+		// if (historyItemsElement[0]) {
+		// 	children.push({
+		// 		...historyItemsElement[0],
+		// 		icon: historyItemsElement[0].icon ?? Codicon.files,
+		// 		message: localize('allChanges', "All Changes"),
+		// 		historyItemGroup: element,
+		// 		type: 'allChanges'
+		// 	} satisfies SCMHistoryItemTreeElement);
+		// }
 
-		children.push(...historyItemsElement[1]
-			.map(historyItem => ({
-				...historyItem,
-				historyItemGroup: element,
-				type: 'historyItem'
-			} satisfies SCMHistoryItemTreeElement)));
+		// Process each commit and add graph information
+		const graphSwimlanes: string[] = [];
+		for (let index = 0; index < historyItemsElement[1].length; index++) {
+			const historyItem = historyItemsElement[1][index];
+			const swimlaneIndex = graphSwimlanes.indexOf(historyItem.id);
 
-		return children;
-	}
+			if (swimlaneIndex === -1) {
+				// New swimlane
+				children.push({
+					...historyItem,
+					graphSwimlanes: [...graphSwimlanes],
+					repository: element,
+					type: 'historyItem'
+				} satisfies SCMHistoryItemTreeElement);
 
-	private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {
-		const repository = element.historyItemGroup.repository;
-		const historyProvider = repository.provider.historyProvider;
+				graphSwimlanes.push(...historyItem.parentIds);
+			} else {
+				// Existing swimlane
+				children.push({
+					...historyItem,
+					graphSwimlanes: [...graphSwimlanes],
+					repository: element,
+					type: 'historyItem'
+				} satisfies SCMHistoryItemTreeElement);
 
-		if (!historyProvider) {
-			return [];
-		}
-
-		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
-		const historyItemChangesMap = historyProviderCacheEntry.historyItemChanges;
-
-		const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
-		let historyItemChanges = historyItemChangesMap.get(`${element.id}/${historyItemParentId}`);
-
-		if (!historyItemChanges) {
-			const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
-			historyItemChanges = await historyProvider.provideHistoryItemChanges(element.id, historyItemParentId) ?? [];
-
-			this.historyProviderCache.set(repository, {
-				...historyProviderCacheEntry,
-				historyItemChanges: historyItemChangesMap.set(`${element.id}/${historyItemParentId}`, historyItemChanges)
-			});
-		}
-
-		if (this.viewMode() === ViewMode.List) {
-			// List
-			return historyItemChanges.map(change => ({
-				...change,
-				historyItem: element,
-				type: 'historyItemChange'
-			}));
-		}
-
-		// Tree
-		const tree = new ResourceTree<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>(element, repository.provider.rootUri ?? URI.file('/'), this.uriIdentityService.extUri);
-		for (const change of historyItemChanges) {
-			tree.add(change.uri, {
-				...change,
-				historyItem: element,
-				type: 'historyItemChange'
-			});
-		}
-
-		const children: (SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[] = [];
-		for (const node of tree.root.children) {
-			children.push(node.element ?? node);
+				// Update swimlane
+				for (let index = 0; index < historyItem.parentIds.length; index++) {
+					if (index === 0) {
+						graphSwimlanes.splice(swimlaneIndex, 1, historyItem.parentIds[index]);
+					} else {
+						graphSwimlanes.push(historyItem.parentIds[index]);
+					}
+				}
+			}
 		}
 
 		return children;
 	}
+
+	// private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {
+	// 	const repository = element.historyItemGroup.repository;
+	// 	const historyProvider = repository.provider.historyProvider;
+
+	// 	if (!historyProvider) {
+	// 		return [];
+	// 	}
+
+	// 	const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
+	// 	const historyItemChangesMap = historyProviderCacheEntry.historyItemChanges;
+
+	// 	const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
+	// 	let historyItemChanges = historyItemChangesMap.get(`${element.id}/${historyItemParentId}`);
+
+	// 	if (!historyItemChanges) {
+	// 		const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
+	// 		historyItemChanges = await historyProvider.provideHistoryItemChanges(element.id, historyItemParentId) ?? [];
+
+	// 		this.historyProviderCache.set(repository, {
+	// 			...historyProviderCacheEntry,
+	// 			historyItemChanges: historyItemChangesMap.set(`${element.id}/${historyItemParentId}`, historyItemChanges)
+	// 		});
+	// 	}
+
+	// 	if (this.viewMode() === ViewMode.List) {
+	// 		// List
+	// 		return historyItemChanges.map(change => ({
+	// 			...change,
+	// 			historyItem: element,
+	// 			type: 'historyItemChange'
+	// 		}));
+	// 	}
+
+	// 	// Tree
+	// 	const tree = new ResourceTree<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>(element, repository.provider.rootUri ?? URI.file('/'), this.uriIdentityService.extUri);
+	// 	for (const change of historyItemChanges) {
+	// 		tree.add(change.uri, {
+	// 			...change,
+	// 			historyItem: element,
+	// 			type: 'historyItemChange'
+	// 		});
+	// 	}
+
+	// 	const children: (SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[] = [];
+	// 	for (const node of tree.root.children) {
+	// 		children.push(node.element ?? node);
+	// 	}
+
+	// 	return children;
+	// }
 
 	getParent(element: TreeElement): ISCMViewService | TreeElement {
 		if (isSCMResourceNode(element)) {

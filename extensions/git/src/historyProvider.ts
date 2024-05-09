@@ -77,20 +77,20 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup (${force}): ${JSON.stringify(this.currentHistoryItemGroup)}`);
 	}
 
-	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
+	async provideHistoryItems(_: string, __: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
 		//TODO@lszomoru - support limit and cursor
-		if (typeof options.limit === 'number') {
-			throw new Error('Unsupported options.');
-		}
-		if (typeof options.limit?.id !== 'string') {
-			throw new Error('Unsupported options.');
-		}
+		// if (typeof options.limit === 'number') {
+		// 	throw new Error('Unsupported options.');
+		// }
+		// if (typeof options.limit?.id !== 'string') {
+		// 	throw new Error('Unsupported options.');
+		// }
 
-		const refParentId = options.limit.id;
-		const refId = await this.repository.revParse(historyItemGroupId) ?? '';
+		// const refParentId = options.limit.id;
+		// const refId = await this.repository.revParse(historyItemGroupId) ?? '';
 
 		const historyItems: SourceControlHistoryItem[] = [];
-		const commits = await this.repository.log({ range: `${refParentId}..${refId}`, shortStats: true, sortByAuthorDate: true });
+		const commits = await this.repository.log({ refNames: ['main', 'origin/main'] });
 
 		await ensureEmojis();
 
