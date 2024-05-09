@@ -220,11 +220,11 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 		const saveWithReducedCommunication = this._configurationService.getValue(NotebookSetting.remoteSaving);
 
-		if (saveWithReducedCommunication || _notebookModel.uri.scheme === Schemas.vscodeRemote) {
+		if (saveWithReducedCommunication) {
 			this.configuration = {
 				// Intentionally pick a larger delay for triggering backups to allow auto-save
 				// to complete first on the optimized save path
-				backupDelay: 10000
+				backupDelay: _notebookModel.uri.scheme === Schemas.vscodeRemote ? 10000 : 4000,
 			};
 		}
 
