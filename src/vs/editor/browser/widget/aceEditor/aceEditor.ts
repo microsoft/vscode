@@ -54,7 +54,6 @@ export class AceEditor {
 			const selections = this.editor.selection.getAllRanges().map((range) => {
 				return new Selection(range.start.row, range.start.column, range.end.row, range.end.column);
 			});
-			//TODO: eol needs to be passed in
 			const eol = this.editor.session.doc.getNewLineCharacter();
 			const edits = deltas.map((delta) => fromAceDelta(delta, eol));
 			this.textModel?.pushEditOperations(selections, edits, () => []);
@@ -66,9 +65,18 @@ export class AceEditor {
 		const editor = new Editor(new VirtualRenderer(this.domElement), session, {
 			enableBasicAutocompletion: true,
 			enableSnippets: true,
-			enableLiveAutocompletion: true
+			enableLiveAutocompletion: true,
+			customScrollbar: true
 		});
 		return editor;
+	}
+
+	getNewLineMode(eol?: string) {
+		if (eol === '\r\n') {
+			return 'windows';
+		} else {
+			return 'unix';
+		}
 	}
 
 	setMode(mode: string) {
@@ -95,6 +103,7 @@ export class AceEditor {
 		const id = this.textModel?.id || '';
 		this.sessions[id] = createEditSession(this.textModel?.getValue() || '', mapToAceMode(this.textModel!.getLanguageId()));
 		this.sessions[id].doc.on('change', this.$changeListener, true);
+		this.sessions[id].setNewLineMode(this.getNewLineMode(this.textModel?.getEOL()));
 		return this.sessions[id];
 	}
 }

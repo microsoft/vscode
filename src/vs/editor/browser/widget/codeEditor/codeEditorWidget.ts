@@ -1646,6 +1646,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					this._onDidScrollChange.fire(e);
 					break;
 				case OutgoingViewModelEventKind.ViewZonesChanged:
+					console.log('ViewZonesChanged');
 					this._onDidChangeViewZones.fire();
 					break;
 				case OutgoingViewModelEventKind.HiddenAreasChanged:
@@ -1715,6 +1716,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					this._onDidChangeModelLanguageConfiguration.fire(e.event);
 					break;
 				case OutgoingViewModelEventKind.ModelContentChanged:
+					if (e.event.isEolChange) {
+						this.aceEditor?.editor?.session.setNewLineMode(this.aceEditor.getNewLineMode(e.event.eol));
+					}
 					this._onDidChangeModelContent.fire(e.event);
 					console.log(e.event);
 					break;
@@ -1732,9 +1736,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 
 		if (hasRealView) {
-			this.aceEditor.setModel(model);
-			/*if (Math.random() > 0.01) {
-				aceEditor.render();
+			if (!model.isForSimpleWidget && !this._contextKeyService.getContextKeyValue('isInDiffEditor')) {
+				this.aceEditor.setModel(model);
 			} else {
 				this._domElement.appendChild(view.domNode.domNode);
 
@@ -1759,7 +1762,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 				view.render(false, true);
 				view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
-			}*/
+			}
 		}
 
 		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove, attachedView);
