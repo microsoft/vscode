@@ -62,22 +62,30 @@ declare module '../../../../node_modules/typescript/lib/typescript' {
 
 
 		export interface GetPasteEditsRequest extends Request {
-			command: 'GetPasteEdits';
+			command: 'getPasteEdits';
 			arguments: GetPasteEditsRequestArgs;
 		}
 
-		export type GetPasteEditsRequestArgs = FileRequestArgs & {
-			copies: {
-				text: string;
-				range?: FileSpan;
-			}[];
-			pastes: TextSpan[];
-		};
+		export interface GetPasteEditsRequestArgs extends FileRequestArgs {
+			/** The text that gets pasted in a file.  */
+			pastedText: string[];
+			/** Locations of where the `pastedText` gets added in a file. If the length of the `pastedText` and `pastedLocations` are not the same,
+			 *  then the `pastedText` is combined into one and added at all the `pastedLocations`.
+			 */
+			pasteLocations: TextSpan[];
+			/** The source location of each `pastedText`. If present, the length of `spans` must be equal to the length of `pastedText`. */
+			copiedFrom?: {
+				file: string;
+				spans: TextSpan[];
+			};
+		}
+
 		export interface GetPasteEditsResponse extends Response {
 			body: PasteEditsAction;
 		}
 		export interface PasteEditsAction {
 			edits: FileCodeEdits[];
+			fixId?: {};
 		}
 		//#endregion
 	}

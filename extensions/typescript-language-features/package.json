@@ -1314,6 +1314,20 @@
           "default": true,
           "markdownDescription": "%typescript.workspaceSymbols.excludeLibrarySymbols%",
           "scope": "window"
+        },
+        "javascript.experimental.updateImportsOnPaste": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.updateImportsOnPaste%",
+          "tags": ["experimental"]
+        },
+        "typescript.experimental.updateImportsOnPaste": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.updateImportsOnPaste%",
+          "tags": ["experimental"]
         }
       }
     },
