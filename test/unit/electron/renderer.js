@@ -434,7 +434,6 @@ const main = (e, opts) => {
 	runTests(opts).catch(async err => {
 
 		console.log(err);
-		await new Promise(r => { });
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
