@@ -116,19 +116,17 @@ class AgentCompletions extends Disposable {
 					.filter(a => a.locations.includes(widget.location));
 
 				return {
-					suggestions: agents.map((a, i): CompletionItem => {
-						const isAllowed = this.chatAgentNameService.getAgentNameRestriction(a).get();
-						const withAt = `${chatAgentLeader}${isAllowed ? a.name : getFullyQualifiedId(a)}`;
-						const isDupe = isAllowed && !!agents.find(other => other.name === a.name && other.id !== a.id);
+					suggestions: agents.map((agent, i): CompletionItem => {
+						const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
 						return {
 							// Leading space is important because detail has no space at the start by design
 							label: isDupe ?
-								{ label: withAt, description: a.description, detail: ` (${a.publisherDisplayName})` } :
-								withAt,
-							insertText: `${withAt} `,
-							detail: a.description,
+								{ label: agentLabel, description: agent.description, detail: ` (${agent.publisherDisplayName})` } :
+								agentLabel,
+							insertText: `${agentLabel} `,
+							detail: agent.description,
 							range: new Range(1, 1, 1, 1),
-							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent: a, widget } satisfies AssignSelectedAgentActionArgs] },
+							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent: agent, widget } satisfies AssignSelectedAgentActionArgs] },
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
 					})
@@ -208,9 +206,8 @@ class AgentCompletions extends Disposable {
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
-						const isDupe = !!agents.find(other => other.name === agent.name && other.id !== agent.id);
+						const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
 						const detail = agent.description;
-						const agentLabel = `${chatAgentLeader}${agent.name}`;
 
 						return {
 							label: isDupe ?
@@ -229,10 +226,10 @@ class AgentCompletions extends Disposable {
 				return {
 					suggestions: justAgents.concat(
 						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
-							const agentLabel = `${chatAgentLeader}${agent.name}`;
+							const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
 							const withSlash = `${chatSubcommandLeader}${c.name}`;
 							return {
-								label: { label: withSlash, description: agentLabel },
+								label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
 								filterText: `${chatSubcommandLeader}${agent.name}${c.name}`,
 								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
@@ -390,3 +387,11 @@ class VariableCompletions extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);
+
+function getAgentCompletionDetails(agent: IChatAgentData, otherAgents: IChatAgentData[], chatAgentNameService: IChatAgentNameService): { label: string; isDupe: boolean } {
+	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent).get();
+	const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
+	const isDupe = isAllowed && !!otherAgents.find(other => other.name === agent.name && other.id !== agent.id);
+
+	return { label: agentLabel, isDupe };
+}
