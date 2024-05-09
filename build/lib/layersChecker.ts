@@ -191,7 +191,14 @@ const RULES: IRule[] = [
 			'@types/node'	// no node.js
 		]
 	},
-
+	{
+		target: '**/vs/workbench/api/node/extHostExtensionService.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: []
+	},
 	// Common
 	{
 		target: '**/vs/**/common/**',
