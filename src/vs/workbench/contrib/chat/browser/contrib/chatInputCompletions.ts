@@ -20,7 +20,7 @@ import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExec
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -86,6 +86,7 @@ class AgentCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
 		super();
 
@@ -116,8 +117,9 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: agents.map((a, i): CompletionItem => {
-						const withAt = `@${a.name}`;
-						const isDupe = !!agents.find(other => other.name === a.name && other.id !== a.id);
+						const isAllowed = this.chatAgentNameService.getAgentNameRestriction(a).get();
+						const withAt = `${chatAgentLeader}${isAllowed ? a.name : getFullyQualifiedId(a)}`;
+						const isDupe = isAllowed && !!agents.find(other => other.name === a.name && other.id !== a.id);
 						return {
 							// Leading space is important because detail has no space at the start by design
 							label: isDupe ?

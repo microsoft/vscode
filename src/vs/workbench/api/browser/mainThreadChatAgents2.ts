@@ -142,7 +142,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					description: dynamicProps.description,
 					extensionId: extension,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
-					extensionPublisherId: '',
+					extensionPublisherId: extensionDescription?.publisher ?? '',
 					publisherDisplayName: dynamicProps.publisherDisplayName,
 					metadata: revive(metadata),
 					slashCommands: [],

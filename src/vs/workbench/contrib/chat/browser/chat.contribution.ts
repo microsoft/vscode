@@ -185,10 +185,10 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';
-					const agentLine = `- ${agentToMarkdown(a, true, chatAgentService)} ${description}`;
+					const agentLine = `- ${agentToMarkdown(a, true)} ${description}`;
 					const commandText = a.slashCommands.map(c => {
 						const description = c.description ? `- ${c.description}` : '';
-						return `\t* ${agentSlashCommandToMarkdown(a, c, chatAgentService)} ${description}`;
+						return `\t* ${agentSlashCommandToMarkdown(a, c)} ${description}`;
 					}).join('\n');
 
 					return (agentLine + '\n' + commandText).trim();

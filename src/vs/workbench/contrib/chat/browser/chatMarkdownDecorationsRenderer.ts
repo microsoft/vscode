@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/languages';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, chatSubcommandLeader, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { contentRefUrl } from '../common/annotations';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { asCssVariable } from 'vs/platform/theme/common/colorUtils';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
+import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, chatSubcommandLeader, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { contentRefUrl } from '../common/annotations';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -34,15 +34,9 @@ const agentRefUrl = `http://_chatagent_`;
 /** For rendering agent decorations with hover */
 const agentSlashRefUrl = `http://_chatslash_`;
 
-export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean, chatAgentService: IChatAgentService): string {
-	let text = `${chatAgentLeader}${agent.name}`;
-	const isDupe = agent && chatAgentService.getAgentsByName(agent.name).length > 1;
-	if (isDupe) {
-		text += ` (${agent.publisherDisplayName})`;
-	}
-
+export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean): string {
 	const args: IAgentWidgetArgs = { agentId: agent.id, isClickable };
-	return `[${text}](${agentRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
+	return `[${agent.name}](${agentRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 }
 
 interface IAgentWidgetArgs {
@@ -50,7 +44,7 @@ interface IAgentWidgetArgs {
 	isClickable?: boolean;
 }
 
-export function agentSlashCommandToMarkdown(agent: IChatAgentData, command: IChatAgentCommand, chatAgentService: IChatAgentService): string {
+export function agentSlashCommandToMarkdown(agent: IChatAgentData, command: IChatAgentCommand): string {
 	const text = `${chatSubcommandLeader}${command.name}`;
 	const args: ISlashCommandWidgetArgs = { agentId: agent.id, command: command.name };
 	return `[${text}](${agentSlashRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
@@ -71,6 +65,7 @@ export class ChatMarkdownDecorationsRenderer {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) { }
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
@@ -79,7 +74,7 @@ export class ChatMarkdownDecorationsRenderer {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
-				result += agentToMarkdown(part.agent, false, this.chatAgentService);
+				result += agentToMarkdown(part.agent, false);
 			} else {
 				const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 					part.data :
@@ -111,7 +106,7 @@ export class ChatMarkdownDecorationsRenderer {
 
 					if (args) {
 						a.parentElement!.replaceChild(
-							this.renderAgentWidget(a.textContent!, args, store),
+							this.renderAgentWidget(args, store),
 							a);
 					}
 				} else if (href.startsWith(agentSlashRefUrl)) {
@@ -143,11 +138,24 @@ export class ChatMarkdownDecorationsRenderer {
 		return store;
 	}
 
-	private renderAgentWidget(name: string, args: IAgentWidgetArgs, store: DisposableStore): HTMLElement {
+	private renderAgentWidget(args: IAgentWidgetArgs, store: DisposableStore): HTMLElement {
+		const agent = this.chatAgentService.getAgent(args.agentId);
+		let name: string;
+		if (agent) {
+			const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent).get();
+			name = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
+
+			const isDupe = isAllowed && this.chatAgentService.getAgentsByName(agent.name).length > 1;
+			if (isDupe) {
+				name += ` (${agent.publisherDisplayName})`;
+			}
+		} else {
+			name = args.agentId;
+		}
+
 		let container: HTMLElement;
 		if (args.isClickable) {
 			container = dom.$('span.chat-agent-widget');
-			const agent = this.chatAgentService.getAgent(args.agentId);
 			const button = store.add(new Button(container, {
 				buttonBackground: asCssVariable(chatSlashCommandBackground),
 				buttonForeground: asCssVariable(chatSlashCommandForeground),
