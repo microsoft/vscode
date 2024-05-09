@@ -188,12 +188,12 @@ jobs:
       - name: Minify
         id: linux-minify
         timeout-minutes: 30
-        run: yarn gulp vscode-linux-x64-min-ci"
+        run: yarn gulp vscode-linux-x64-min-ci
 
       - name: Prepare Deb
         id: prepare-deb
         timeout-minutes: 30
-        run: yarn gulp vscode-linux-x64-prepare-deb"
+        run: yarn gulp vscode-linux-x64-prepare-deb
 
       - name: Build Deb
         id: build-deb
