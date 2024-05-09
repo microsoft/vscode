@@ -112,7 +112,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly useSyntaxServer: SyntaxServerConfiguration;
 	readonly webProjectWideIntellisenseEnabled: boolean;
 	readonly webProjectWideIntellisenseSuppressSemanticErrors: boolean;
-	readonly webExperimentalTypeAcquisition: boolean;
+	readonly webTypeAcquisitionEnabled: boolean;
 	readonly enableDiagnosticsTelemetry: boolean;
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
@@ -150,7 +150,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			useSyntaxServer: this.readUseSyntaxServer(configuration),
 			webProjectWideIntellisenseEnabled: this.readWebProjectWideIntellisenseEnable(configuration),
 			webProjectWideIntellisenseSuppressSemanticErrors: this.readWebProjectWideIntellisenseSuppressSemanticErrors(configuration),
-			webExperimentalTypeAcquisition: this.readWebTypeAcquisition(configuration),
+			webTypeAcquisitionEnabled: this.readWebTypeAcquisition(configuration),
 			enableDiagnosticsTelemetry: this.readEnableDiagnosticsTelemetry(configuration),
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
 			maxTsServerMemory: this.readMaxTsServerMemory(configuration),

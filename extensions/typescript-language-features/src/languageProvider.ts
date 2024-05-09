@@ -142,7 +142,10 @@ export default class LanguageProvider extends Disposable {
 		}
 
 		if (diagnosticsKind === DiagnosticKind.Semantic && isWeb()) {
-			if (!isWebAndHasSharedArrayBuffers() || this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors) {
+			if (!isWebAndHasSharedArrayBuffers()
+				|| this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors
+				|| !this.client.configuration.webProjectWideIntellisenseEnabled
+			) {
 				return;
 			}
 		}

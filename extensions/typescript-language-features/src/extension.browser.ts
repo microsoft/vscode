@@ -118,15 +118,21 @@ async function startPreloadWorkspaceContentsIfNeeded(context: vscode.ExtensionCo
 		return;
 	}
 
-	const workspaceUri = vscode.workspace.workspaceFolders?.at(0)?.uri;
-	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
-		logger.info(`Skipped loading workspace contents for repository ${workspaceUri?.toString()}`);
+	if (!vscode.workspace.workspaceFolders) {
 		return;
 	}
 
-	const loader = new RemoteWorkspaceContentsPreloader(workspaceUri, logger);
-	context.subscriptions.push(loader);
-	return loader.triggerPreload();
+	await Promise.all(vscode.workspace.workspaceFolders.map(async folder => {
+		const workspaceUri = folder.uri;
+		if (workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
+			logger.info(`Skipped pre loading workspace contents for repository ${workspaceUri?.toString()}`);
+			return;
+		}
+
+		const loader = new RemoteWorkspaceContentsPreloader(workspaceUri, logger);
+		context.subscriptions.push(loader);
+		await loader.triggerPreload();
+	}));
 }
 
 class RemoteWorkspaceContentsPreloader extends Disposable {
