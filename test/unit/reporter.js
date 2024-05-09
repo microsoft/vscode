@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import mocha from 'mocha';
+import { createRequire } from 'module';
+import * as path from 'node:path';
 import FullJsonStreamReporter from './fullJsonStreamReporter.js';
-import path from 'path';
+
+const require = createRequire(import.meta.url);
+
 
 function parseReporterOption(value) {
 	const r = /^([^=]+)=(.*)$/.exec(value);
