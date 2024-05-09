@@ -118,8 +118,8 @@ declare module 'vscode' {
 
 	export class ChatResponseProgressPart2 extends ChatResponseProgressPart {
 		value: string;
-		task?: () => Thenable<string | void>;
-		constructor(value: string, task?: () => Thenable<string | void>);
+		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
+		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
 	}
 
 	export interface ChatResponseStream {
@@ -132,7 +132,7 @@ declare module 'vscode' {
 		* @param task If provided, a task to run while the progress is displayed. When the Thenable resolves, the progress will be marked complete in the UI, and the progress message will be updated to the resolved string if one is specified.
 		* @returns This stream.
 		*/
-		progress(value: string, task?: () => Thenable<string | void>): ChatResponseStream;
+		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): ChatResponseStream;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;

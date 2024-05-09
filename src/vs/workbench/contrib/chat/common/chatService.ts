@@ -107,6 +107,11 @@ export interface IChatProgressMessage {
 }
 
 export interface IChatTask extends IChatTaskDto {
+	progress: (IChatWarningMessage | IChatContentReference)[];
+	onDidAddProgress: Event<IChatWarningMessage | IChatContentReference>;
+	add(progress: IChatWarningMessage | IChatContentReference): void;
+
+	complete: (result: string | void) => void;
 	task: () => Promise<string | void>;
 	isSettled: () => boolean;
 }

@@ -221,6 +221,10 @@ export class Response implements IResponse {
 				}
 				this._updateRepr(false);
 			});
+
+			progress.onDidAddProgress(() => {
+				this._updateRepr(false);
+			});
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
