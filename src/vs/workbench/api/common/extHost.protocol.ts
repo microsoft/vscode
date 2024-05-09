@@ -1323,7 +1323,8 @@ export type IDocumentContextDto = {
 };
 
 export type IChatProgressDto =
-	| Dto<IChatProgress>;
+	| Dto<Exclude<IChatProgress, IChatTask>>
+	| IChatTaskDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
