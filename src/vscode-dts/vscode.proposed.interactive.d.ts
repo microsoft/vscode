@@ -6,9 +6,6 @@
 declare module 'vscode' {
 
 	export namespace interactive {
-		// current version of the proposal.
-		export const _version: 1 | number;
-
 		export function transferActiveChat(toWorkspace: Uri): void;
 	}
 }
