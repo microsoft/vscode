@@ -47,11 +47,11 @@ const createTestGlobals = () => {
 	const map = Object.create(null)
 	for (const module of modules) {
 		Object.defineProperty(map, module, {
-			get [module]() {
+			get() {
 				return testGlobalRequire(module)
 			},
-			enumerable: true,
-			writable: true
+			// enumerable: true,
+			// writable: true
 		})
 	}
 	return map
@@ -59,5 +59,3 @@ const createTestGlobals = () => {
 
 
 export const testGlobals = createTestGlobals()
-
-console.log(JSON.stringify(Object.keys(testGlobals)))
