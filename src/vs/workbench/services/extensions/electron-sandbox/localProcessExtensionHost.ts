@@ -39,7 +39,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { isESM } from 'vs/base/common/amd';
-import { join } from 'node:path';
+import { join } from 'path';
 import { root } from 'vs/base/common/root.js';
 
 export interface ILocalProcessExtensionHostInitData {
