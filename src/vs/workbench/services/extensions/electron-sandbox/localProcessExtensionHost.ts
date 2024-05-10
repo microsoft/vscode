@@ -81,7 +81,6 @@ export class ExtensionHostProcess {
 			const loaderRegisterPath = `/home/simon/.cache/repos/vscode/src/extension-loader-register.js`
 			actualOptions = {
 				...opts,
-				execArgv: ['--import', loaderRegisterPath, ...(opts.execArgv || [])],
 				env: {
 					...opts.env,
 					NODE_OPTIONS: `--import="${loaderRegisterPath}"`
