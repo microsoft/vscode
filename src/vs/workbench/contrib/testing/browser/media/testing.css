@@ -404,50 +404,50 @@
 .coverage-summary-widget {
 	color: var(--vscode-editor-foreground);
 	z-index: 1;
-	line-height: 25px;
+	background: var(--vscode-editor-background);
+	left: 0;
+	width: 100%;
+	box-shadow: var(--vscode-editorStickyScroll-shadow) 0 3px 2px -2px;
 
 	> div {
 		display: flex;
 		align-items: center;
-		border-bottom: 1px solid var(--vscode-menu-border);
+		padding: 0 22px;
+		height: 25px;
 	}
 
-	.toggleInline, .perTestFilter {
-		border-left: 1px solid var(--vscode-menu-border);
-		padding: 0 6px;
-	}
-
-	.stat, .toggleInline {
-		padding-right: 6px;
-	}
-
-	> span, > a {
-		display: inline;
+	.btn {
 		position: relative;
-		padding: 0 6px;
+		margin: 0 4px;
+		padding: 0 4px;
 
 		&:first-child {
-			padding-left: 0;
+			margin-left: 0;
 		}
 
 		&:last-child {
-			padding-right: 0;
+			margin-right: 0;
 		}
 	}
 
-
-	a {
-		color: var(--vscode-textLink-foreground);
-		cursor: pointer;
+	.stat, .action-label {
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		margin: 0 3px;
 	}
 
-	a:hover {
-		color: var(--vscode-textLink-activeForeground);
+	.action-label {
+		display: flex;
+		align-items: center;
+		font-size: 13px;
+		padding: 0 4px;
+
+		.codicon {
+			margin-right: 4px;
+		}
 	}
 
-	.toggleInline, .perTestFilter {
-		border-left: 1px solid var(--vscode-menu-border);
-	}
 }
 
 .test-coverage-tree-per-test-switcher {
