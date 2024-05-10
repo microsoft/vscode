@@ -38,6 +38,7 @@ import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
+import { isESM } from 'vs/base/common/amd.js';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -75,7 +76,15 @@ export class ExtensionHostProcess {
 	}
 
 	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number | undefined }> {
-		return this._extensionHostStarter.start(this._id, opts);
+		let actualOptions: IExtensionHostProcessOptions = opts
+		if (isESM) {
+			actualOptions = {
+				...opts,
+				execArgv: ['--import', 'abc', ...(opts.execArgv || [])]
+			}
+		}
+
+		return this._extensionHostStarter.start(this._id, actualOptions);
 	}
 
 	public enableInspectPort(): Promise<boolean> {
