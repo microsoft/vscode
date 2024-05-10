@@ -246,21 +246,24 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
 				return stat;
 			} catch (error) {
-				type notebookSaveErrorData = {
-					isRemote: boolean;
-					versionMismatch: boolean;
-				};
-				type notebookSaveErrorClassification = {
-					owner: 'amunger';
-					comment: 'Detect if we are having issues saving a notebook on the Extension Host';
-					isRemote: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the save is happening on a remote file system' };
-					versionMismatch: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the error was because of a version mismatch' };
-				};
-				const telemetry = {} as ITelemetryService;
-				telemetry.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebookSaveError', {
-					isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
-					versionMismatch: error instanceof Error && error.message === 'Document version mismatch'
-				});
+				if (!token.isCancellationRequested) {
+					type notebookSaveErrorData = {
+						isRemote: boolean;
+						versionMismatch: boolean;
+					};
+					type notebookSaveErrorClassification = {
+						owner: 'amunger';
+						comment: 'Detect if we are having issues saving a notebook on the Extension Host';
+						isRemote: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the save is happening on a remote file system' };
+						versionMismatch: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the error was because of a version mismatch' };
+					};
+					const telemetry = {} as ITelemetryService;
+					telemetry.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
+						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
+						versionMismatch: error instanceof Error && error.message === 'Document version mismatch'
+					});
+				}
+
 				throw error;
 			}
 		};
