@@ -371,6 +371,7 @@ if (isTest) {
 	const xtermHeadless = require('@xterm/headless')
 	const vscodeSqlite3 = require('@vscode/sqlite3')
 	// const xtermAddonCanvas = require('@xterm/addon-canvas')
+	const inspector = require('inspector')
 	const nativeKeymap = require('native-keymap')
 	const vscodeWindowsRegistry = require('@vscode/windows-registry')
 
@@ -402,6 +403,7 @@ if (isTest) {
 		sinon,
 		nativeWatchdog,
 		nativeKeymap,
+		inspector,
 		util,
 		yauzl,
 		events,
@@ -431,6 +433,7 @@ if (isTest) {
 		jschardet,
 		xtermHeadless,
 		vscodeWindowsRegistry,
+		require,
 		get vscodeWindowsCaCerts() {
 			// @ts-ignore
 			return require('@vscode/windows-ca-certs')

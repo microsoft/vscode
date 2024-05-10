@@ -5,8 +5,18 @@
 
 /*eslint-env mocha*/
 
-const { fs, ipcRenderer, util, glob, path, assert, setRun, url } = globalThis.testGlobals;
-const inspector = require('inspector');
+const { setRun, } = globalThis.testGlobals;
+
+const inspector = require('inspector')
+const fs = require('fs')
+const { ipcRenderer } = require('electron');
+const assert = require('assert');
+const path = require('path');
+const glob = require('glob');
+const util = require('util');
+const bootstrap = require('../../../src/bootstrap');
+const coverage = require('../coverage');
+const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 
 (function () {
 	const originals = {};
@@ -61,10 +71,7 @@ const inspector = require('inspector');
 	});
 })();
 
-// TODO
-const coverage = {};
-// TODO
-const takeSnapshotAndCountClasses = {};
+
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -98,24 +105,24 @@ function initLoader(opts) {
 	_out = path.join(__dirname, `../../../${outdir}`);
 
 	// setup loader
-	// loader = require(`${_out}/vs/loader`);
-	// const loaderConfig = {
-	// 	nodeRequire: require,
-	// 	catchError: true,
-	// 	baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
-	// 	paths: {
-	// 		'vs': `../${outdir}/vs`,
-	// 		'lib': `../${outdir}/lib`,
-	// 		'bootstrap-fork': `../${outdir}/bootstrap-fork`
-	// 	}
-	// };
+	loader = require(`${_out}/vs/loader`);
+	const loaderConfig = {
+		nodeRequire: require,
+		catchError: true,
+		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
+		paths: {
+			'vs': `../${outdir}/vs`,
+			'lib': `../${outdir}/lib`,
+			'bootstrap-fork': `../${outdir}/bootstrap-fork`
+		}
+	};
 
-	// if (opts.coverage) {
-	// 	// initialize coverage if requested
-	// 	coverage.initialize(loaderConfig);
-	// }
+	if (opts.coverage) {
+		// initialize coverage if requested
+		coverage.initialize(loaderConfig);
+	}
 
-	// loader.require.config(loaderConfig);
+	loader.require.config(loaderConfig);
 }
 
 function createCoverageReport(opts) {
@@ -125,27 +132,16 @@ function createCoverageReport(opts) {
 	return Promise.resolve(undefined);
 }
 
-async function loadWorkbenchTestingUtilsModule() {
-	const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString();
-	const module = await import(utilsPath);
-	return module;
+function loadWorkbenchTestingUtilsModule() {
+	return new Promise((resolve, reject) => {
+		loader.require(['vs/workbench/test/common/utils'], resolve, reject);
+	});
 }
 
-const doImportUrl = async url => {
-	try {
-		// console.log('import', url)
-		return await import(url);
-	} catch (error) {
-		throw new Error(`Failed to import ${url}: ${error}`);
-	}
-};
-
 async function loadModules(modules) {
-	// console.log({ modules })
 	for (const file of modules) {
-		const importUrl = url.pathToFileURL(path.join(_out, file)).toString();
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-		const m = await doImportUrl(importUrl);
+		const m = await new Promise((resolve, reject) => loader.require([file], resolve, reject));
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
 	}
@@ -158,7 +154,7 @@ function loadTestModules(opts) {
 		const modules = files.map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
-			return path.relative(_out, file);
+			return path.relative(_out, file).replace(/\.js$/, '');
 		});
 		return loadModules(modules);
 	}
@@ -171,7 +167,7 @@ function loadTestModules(opts) {
 				reject(err);
 				return;
 			}
-			const modules = files;
+			const modules = files.map(file => file.replace(/\.js$/, ''));
 			resolve(modules);
 		});
 	}).then(loadModules);
@@ -236,52 +232,54 @@ async function loadTests(opts) {
 		'Search Model: Search reports timed telemetry on search when error is called'
 	]);
 
-	// loader.require.config({
-	// 	onError(err) {
-	// 		_loaderErrors.push(err);
-	// 		console.error(err);
-	// 	}
-	// });
-
-	// loader.require(['vs/base/common/errors'], function (errors) {
-
-	const onUnexpectedError = function (err) {
-		if (err.name === 'Canceled') {
-			return; // ignore canceled errors that are common
-		}
-
-		let stack = (err ? err.stack : null);
-		if (!stack) {
-			stack = new Error().stack;
-		}
-
-		_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
-	};
-
-	process.on('uncaughtException', error => onUnexpectedError(error));
-	process.on('unhandledRejection', (reason, promise) => {
-		onUnexpectedError(reason);
-		promise.catch(() => { });
-	});
-	window.addEventListener('unhandledrejection', event => {
-		event.preventDefault(); // Do not log to test output, we show an error later when test ends
-		event.stopPropagation();
-
-		if (!_allowedTestsWithUnhandledRejections.has(currentTestTitle)) {
-			onUnexpectedError(event.reason);
+	loader.require.config({
+		onError(err) {
+			_loaderErrors.push(err);
+			console.error(err);
 		}
 	});
 
+	loader.require(['vs/base/common/errors'], function (errors) {
 
+		const onUnexpectedError = function (err) {
+			if (err.name === 'Canceled') {
+				return; // ignore canceled errors that are common
+			}
+
+			let stack = (err ? err.stack : null);
+			if (!stack) {
+				stack = new Error().stack;
+			}
+
+			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
+		};
+
+		process.on('uncaughtException', error => onUnexpectedError(error));
+		process.on('unhandledRejection', (reason, promise) => {
+			onUnexpectedError(reason);
+			promise.catch(() => { });
+		});
+		window.addEventListener('unhandledrejection', event => {
+			event.preventDefault(); // Do not log to test output, we show an error later when test ends
+			event.stopPropagation();
+
+			if (!_allowedTestsWithUnhandledRejections.has(currentTest.title)) {
+				onUnexpectedError(event.reason);
+			}
+		});
+
+		errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
+	});
 
 	//#endregion
 
-	const workbenchTestingModule = await loadWorkbenchTestingUtilsModule()
-	const assertCleanState = workbenchTestingModule.assertCleanState;
+	return loadWorkbenchTestingUtilsModule().then((workbenchTestingModule) => {
+		const assertCleanState = workbenchTestingModule.assertCleanState;
 
-	suite('Tests are using suiteSetup and setup correctly', () => {
-		test('assertCleanState - check that registries are clean at the start of test running', () => {
-			assertCleanState(assert);
+		suite('Tests are using suiteSetup and setup correctly', () => {
+			test('assertCleanState - check that registries are clean at the start of test running', () => {
+				assertCleanState();
+			});
 		});
 
 		setup(async () => {
@@ -314,31 +312,6 @@ async function loadTests(opts) {
 
 		return loadTestModules(opts);
 	});
-
-	teardown(() => {
-
-		// should not have unexpected output
-		if (_testsWithUnexpectedOutput && !opts.dev) {
-			assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
-		}
-
-		// should not have unexpected errors
-		const errors = _unexpectedErrors.concat(_loaderErrors);
-		if (errors.length) {
-			for (const error of errors) {
-				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
-			}
-			assert.ok(false, 'Error: Test run should not have unexpected errors.');
-		}
-	});
-
-	suiteTeardown(() => { // intentionally not in teardown because some tests only cleanup in suiteTeardown
-
-		// should have cleaned up in registries
-		assertCleanState();
-	});
-
-	return loadTestModules(opts);
 }
 
 function serializeSuite(suite) {
@@ -427,25 +400,26 @@ class IPCReporter {
 	}
 }
 
-async function runTests(opts) {
+function runTests(opts) {
 	// this *must* come before loadTests, or it doesn't work.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
 	}
 
-	await loadTests(opts);
+	return loadTests(opts).then(() => {
 
-	if (opts.grep) {
-		mocha.grep(opts.grep);
-	}
+		if (opts.grep) {
+			mocha.grep(opts.grep);
+		}
 
-	if (!opts.dev) {
-		mocha.reporter(IPCReporter);
-	}
+		if (!opts.dev) {
+			mocha.reporter(IPCReporter);
+		}
 
-	const runner = mocha.run(() => {
-		createCoverageReport(opts).then(() => {
-			ipcRenderer.send('all done');
+		const runner = mocha.run(() => {
+			createCoverageReport(opts).then(() => {
+				ipcRenderer.send('all done');
+			});
 		});
 
 		runner.on('test', test => currentTest = test);
@@ -457,22 +431,11 @@ async function runTests(opts) {
 			});
 		}
 	});
-
-	runner.on('test', test => currentTestTitle = test.title);
-
-	if (opts.dev) {
-		runner.on('fail', (test, err) => {
-			console.error(test.fullTitle());
-			console.error(err.stack);
-		});
-	}
 }
 
 const main = (e, opts) => {
 	initLoader(opts);
-	runTests(opts).catch(async err => {
-
-		console.log(err);
+	runTests(opts).catch(err => {
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
@@ -480,7 +443,9 @@ const main = (e, opts) => {
 		console.error(err);
 		ipcRenderer.send('error', err);
 	});
-});
+}
+
+setRun(main)
 
 class PerTestCoverage {
 	static async init() {
