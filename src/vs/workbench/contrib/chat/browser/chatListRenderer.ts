@@ -731,7 +731,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 		treeDisposables.add(tree.onDidChangeCollapseState(() => {
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			this.updateItemHeight(templateData);
 		}));
 		treeDisposables.add(tree.onContextMenu((e) => {
 			e.browserEvent.preventDefault();
@@ -741,7 +741,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		tree.setInput(data).then(() => {
 			if (!ref.isStale()) {
 				tree.layout();
-				this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+				this.updateItemHeight(templateData);
 			}
 		});
 
@@ -817,7 +817,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.usedReferencesExpanded = !element.usedReferencesExpanded;
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 			container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			this.updateItemHeight(templateData);
 			this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		}));
 
@@ -988,7 +988,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 		store.add(ref.object.onDidChangeContentHeight(() => {
 			ref.object.layout(this._currentLayoutWidth);
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			this.updateItemHeight(templateData);
 		}));
 
 		const data: ICodeCompareBlockData = {
@@ -1090,7 +1090,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 				disposables.add(ref.object.onDidChangeContentHeight(() => {
 					ref.object.layout(this._currentLayoutWidth);
-					this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+					this.updateItemHeight(templateData);
 				}));
 
 				if (isResponseVM(element)) {
@@ -1111,7 +1111,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
 			},
-			asyncRenderCallback: () => this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight }),
+			asyncRenderCallback: () => this.updateItemHeight(templateData),
 		});
 
 		if (isResponseVM(element)) {
