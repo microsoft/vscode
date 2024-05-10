@@ -104,24 +104,24 @@ function initLoader(opts) {
 	_out = path.join(__dirname, `../../../${outdir}`);
 
 	// setup loader
-	loader = require(`${_out}/vs/loader`);
-	const loaderConfig = {
-		nodeRequire: require,
-		catchError: true,
-		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
-		paths: {
-			'vs': `../${outdir}/vs`,
-			'lib': `../${outdir}/lib`,
-			'bootstrap-fork': `../${outdir}/bootstrap-fork`
-		}
-	};
+	// loader = require(`${_out}/vs/loader`);
+	// const loaderConfig = {
+	// 	nodeRequire: require,
+	// 	catchError: true,
+	// 	baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
+	// 	paths: {
+	// 		'vs': `../${outdir}/vs`,
+	// 		'lib': `../${outdir}/lib`,
+	// 		'bootstrap-fork': `../${outdir}/bootstrap-fork`
+	// 	}
+	// };
 
-	if (opts.coverage) {
-		// initialize coverage if requested
-		coverage.initialize(loaderConfig);
-	}
+	// if (opts.coverage) {
+	// 	// initialize coverage if requested
+	// 	coverage.initialize(loaderConfig);
+	// }
 
-	loader.require.config(loaderConfig);
+	// loader.require.config(loaderConfig);
 }
 
 function createCoverageReport(opts) {
