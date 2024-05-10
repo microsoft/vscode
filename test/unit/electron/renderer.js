@@ -276,45 +276,45 @@ async function loadTests(opts) {
 
 	//#endregion
 
-	return loadWorkbenchTestingUtilsModule().then((workbenchTestingModule) => {
-		const assertCleanState = workbenchTestingModule.assertCleanState;
+	const workbenchTestingModule = await loadWorkbenchTestingUtilsModule()
 
-		suite('Tests are using suiteSetup and setup correctly', () => {
-			test('assertCleanState - check that registries are clean at the start of test running', () => {
-				assertCleanState();
-			});
-		});
+	const assertCleanState = workbenchTestingModule.assertCleanState;
 
-		setup(async () => {
-			await perTestCoverage?.startTest();
-		});
-
-		teardown(async () => {
-			await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
-
-			// should not have unexpected output
-			if (_testsWithUnexpectedOutput && !opts.dev) {
-				assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
-			}
-
-			// should not have unexpected errors
-			const errors = _unexpectedErrors.concat(_loaderErrors);
-			if (errors.length) {
-				for (const error of errors) {
-					console.error(`Error: Test run should not have unexpected errors:\n${error}`);
-				}
-				assert.ok(false, 'Error: Test run should not have unexpected errors.');
-			}
-		});
-
-		suiteTeardown(() => { // intentionally not in teardown because some tests only cleanup in suiteTeardown
-
-			// should have cleaned up in registries
+	suite('Tests are using suiteSetup and setup correctly', () => {
+		test('assertCleanState - check that registries are clean at the start of test running', () => {
 			assertCleanState();
 		});
-
-		return loadTestModules(opts);
 	});
+
+	setup(async () => {
+		await perTestCoverage?.startTest();
+	});
+
+	teardown(async () => {
+		await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
+
+		// should not have unexpected output
+		if (_testsWithUnexpectedOutput && !opts.dev) {
+			assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
+		}
+
+		// should not have unexpected errors
+		const errors = _unexpectedErrors.concat(_loaderErrors);
+		if (errors.length) {
+			for (const error of errors) {
+				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
+			}
+			assert.ok(false, 'Error: Test run should not have unexpected errors.');
+		}
+	});
+
+	suiteTeardown(() => { // intentionally not in teardown because some tests only cleanup in suiteTeardown
+
+		// should have cleaned up in registries
+		assertCleanState();
+	});
+
+	return loadTestModules(opts);
 }
 
 function serializeSuite(suite) {
