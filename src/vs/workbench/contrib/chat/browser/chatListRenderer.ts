@@ -460,7 +460,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							: data.kind === 'command' ? this.renderCommandButton(element, data)
 								: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
 									: data.kind === 'warning' ? this.renderNotification('warning', data.content)
-										: data.kind === 'confirmation' ? this.renderConfirmation(element, data)
+										: data.kind === 'confirmation' ? this.renderConfirmation(element, data, templateData)
 											: undefined;
 
 			if (result) {
@@ -487,6 +487,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
 			}));
 		}
+	}
+
+	private updateItemHeight(templateData: IChatListItemTemplate): void {
+		if (!templateData.currentElement) {
+			return;
+		}
+
+		const newHeight = templateData.rowContainer.offsetHeight;
+		templateData.currentElement.currentRenderedHeight = newHeight;
+		this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: newHeight });
 	}
 
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
@@ -658,7 +668,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					} else if (isTextEditRenderData(partToRender)) {
 						result = this.renderTextEdit(element, partToRender, templateData);
 					} else if (isConfirmationRenderData(partToRender)) {
-						result = this.renderConfirmation(element, partToRender);
+						result = this.renderConfirmation(element, partToRender, templateData);
 					} else if (isWarningRenderData(partToRender)) {
 						result = this.renderNotification('warning', partToRender.content);
 					}
@@ -721,7 +731,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 		treeDisposables.add(tree.onDidChangeCollapseState(() => {
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			this.updateItemHeight(templateData);
 		}));
 		treeDisposables.add(tree.onContextMenu((e) => {
 			e.browserEvent.preventDefault();
@@ -731,7 +741,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		tree.setInput(data).then(() => {
 			if (!ref.isStale()) {
 				tree.layout();
-				this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+				this.updateItemHeight(templateData);
 			}
 		});
 
@@ -807,7 +817,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.usedReferencesExpanded = !element.usedReferencesExpanded;
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 			container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			this.updateItemHeight(templateData);
 			this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		}));
 
@@ -921,21 +931,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation): IMarkdownRenderResult | undefined {
+	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
 		const store = new DisposableStore();
 		const confirmationWidget = store.add(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, [
 			{ label: localize('accept', "Accept"), data: confirmation.data },
 			{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
 		]));
+		confirmationWidget.setShowButtons(!confirmation.isUsed);
 
-		store.add(confirmationWidget.onDidClick(e => {
+		store.add(confirmationWidget.onDidClick(async e => {
 			if (isResponseVM(element)) {
 				const prompt = `${e.label}: "${confirmation.title}"`;
 				const data: IChatSendRequestOptions = e.isSecondary ?
 					{ rejectedConfirmationData: [e.data] } :
 					{ acceptedConfirmationData: [e.data] };
 				data.agentId = element.agent?.id;
-				this.chatService.sendRequest(element.sessionId, prompt, data);
+				if (await this.chatService.sendRequest(element.sessionId, prompt, data)) {
+					confirmation.isUsed = true;
+					confirmationWidget.setShowButtons(false);
+					this.updateItemHeight(templateData);
+				}
 			}
 		}));
 
@@ -973,7 +988,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 		store.add(ref.object.onDidChangeContentHeight(() => {
 			ref.object.layout(this._currentLayoutWidth);
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			this.updateItemHeight(templateData);
 		}));
 
 		const data: ICodeCompareBlockData = {
@@ -1075,7 +1090,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 				disposables.add(ref.object.onDidChangeContentHeight(() => {
 					ref.object.layout(this._currentLayoutWidth);
-					this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+					this.updateItemHeight(templateData);
 				}));
 
 				if (isResponseVM(element)) {
@@ -1096,7 +1111,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
 			},
-			asyncRenderCallback: () => this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight }),
+			asyncRenderCallback: () => this.updateItemHeight(templateData),
 		});
 
 		if (isResponseVM(element)) {
