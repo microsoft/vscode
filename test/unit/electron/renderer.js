@@ -112,7 +112,6 @@ function createCoverageReport(opts) {
 
 const doImportUrl = async url => {
 	try {
-		console.log('import', url)
 		return await import(url);
 	} catch (error) {
 		throw new Error(`Failed to import ${url}: ${error}`);
