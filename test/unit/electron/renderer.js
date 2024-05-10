@@ -6,6 +6,7 @@
 /*eslint-env mocha*/
 
 const { fs, ipcRenderer, util, glob, path, assert, setRun, url } = globalThis.testGlobals;
+const inspector = require('inspector');
 
 (function () {
 	const originals = {};
@@ -176,10 +177,10 @@ function loadTestModules(opts) {
 	}).then(loadModules);
 }
 
-let currentTestTitle;
+/** @type Mocha.Test */
+let currentTest;
 
 async function loadTests(opts) {
-	console.log({ opts })
 
 	//#region Unexpected Output
 
@@ -192,6 +193,8 @@ async function loadTests(opts) {
 		_allowedTestOutput.push(/Creating new snapshot in/);
 		_allowedTestOutput.push(/Deleting [0-9]+ old snapshots/);
 	}
+
+	const perTestCoverage = opts['per-test-coverage'] ? await PerTestCoverage.init() : undefined;
 
 	const _allowedTestsWithOutput = new Set([
 		'creates a snapshot', // self-testing
@@ -206,13 +209,12 @@ async function loadTests(opts) {
 		'fetch returns keybinding with user first if title and id matches' //
 	]);
 
-	const _testsWithUnexpectedOutput = false;
+	let _testsWithUnexpectedOutput = false;
 
 	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
-			consoleFn.apply('bla');
-			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTestTitle)) {
-				// _testsWithUnexpectedOutput = true;
+			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
+				_testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
 			}
 		};
@@ -270,8 +272,7 @@ async function loadTests(opts) {
 		}
 	});
 
-	// 	errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
-	// });
+
 
 	//#endregion
 
@@ -282,6 +283,36 @@ async function loadTests(opts) {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
 			assertCleanState(assert);
 		});
+
+		setup(async () => {
+			await perTestCoverage?.startTest();
+		});
+
+		teardown(async () => {
+			await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
+
+			// should not have unexpected output
+			if (_testsWithUnexpectedOutput && !opts.dev) {
+				assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
+			}
+
+			// should not have unexpected errors
+			const errors = _unexpectedErrors.concat(_loaderErrors);
+			if (errors.length) {
+				for (const error of errors) {
+					console.error(`Error: Test run should not have unexpected errors:\n${error}`);
+				}
+				assert.ok(false, 'Error: Test run should not have unexpected errors.');
+			}
+		});
+
+		suiteTeardown(() => { // intentionally not in teardown because some tests only cleanup in suiteTeardown
+
+			// should have cleaned up in registries
+			assertCleanState();
+		});
+
+		return loadTestModules(opts);
 	});
 
 	teardown(() => {
@@ -416,6 +447,15 @@ async function runTests(opts) {
 		createCoverageReport(opts).then(() => {
 			ipcRenderer.send('all done');
 		});
+
+		runner.on('test', test => currentTest = test);
+
+		if (opts.dev) {
+			runner.on('fail', (test, err) => {
+				console.error(test.fullTitle());
+				console.error(err.stack);
+			});
+		}
 	});
 
 	runner.on('test', test => currentTestTitle = test.title);
@@ -440,5 +480,22 @@ const main = (e, opts) => {
 		console.error(err);
 		ipcRenderer.send('error', err);
 	});
-};
-setRun(main);
+});
+
+class PerTestCoverage {
+	static async init() {
+		await ipcRenderer.invoke('startCoverage');
+		return new PerTestCoverage();
+	}
+
+	async startTest() {
+		if (!this.didInit) {
+			this.didInit = true;
+			await ipcRenderer.invoke('snapshotCoverage');
+		}
+	}
+
+	async finishTest(file, fullTitle) {
+		await ipcRenderer.invoke('snapshotCoverage', { file, fullTitle });
+	}
+}

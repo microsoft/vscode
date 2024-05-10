@@ -1280,21 +1280,20 @@
         },
         "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
+          "scope": "window"
+        },
+        "typescript.tsserver.web.typeAcquisition.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.tsserver.web.typeAcquisition.enabled%",
           "scope": "window"
         },
         "typescript.tsserver.nodePath": {
           "type": "string",
           "description": "%configuration.tsserver.nodePath%",
           "scope": "window"
-        },
-        "typescript.experimental.tsserver.web.typeAcquisition.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.experimental.tsserver.web.typeAcquisition.enabled%",
-          "scope": "window",
-          "tags": ["experimental"]
         },
         "typescript.preferGoToSourceDefinition": {
           "type": "boolean",

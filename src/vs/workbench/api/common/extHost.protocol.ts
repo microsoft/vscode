@@ -1232,8 +1232,15 @@ export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
 	hasFollowups?: boolean;
 }
 
+export interface IDynamicChatAgentProps {
+	name: string;
+	publisherName: string;
+	description?: string;
+	fullName?: string;
+}
+
 export interface MainThreadChatAgentsShape2 extends IDisposable {
-	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string; publisherDisplayName: string } | undefined): void;
+	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
 	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1323,7 +1330,8 @@ export type IDocumentContextDto = {
 };
 
 export type IChatProgressDto =
-	| Dto<IChatProgress>;
+	| Dto<Exclude<IChatProgress, IChatTask>>
+	| IChatTaskDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;

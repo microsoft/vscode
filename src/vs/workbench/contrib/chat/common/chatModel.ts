@@ -214,15 +214,13 @@ export class Response implements IResponse {
 			const responsePosition = this._responseParts.push(progress) - 1;
 			this._updateRepr(quiet);
 
-			if (progress.task) {
-				progress.task?.().then((content) => {
-					// Replace the resolving part's content with the resolved response
-					if (typeof content === 'string') {
-						this._responseParts[responsePosition] = { ...progress, content: new MarkdownString(content) };
-					}
-					this._updateRepr(false);
-				});
-			}
+			progress.task?.().then((content) => {
+				// Replace the resolving part's content with the resolved response
+				if (typeof content === 'string') {
+					this._responseParts[responsePosition] = { ...progress, content: new MarkdownString(content) };
+				}
+				this._updateRepr(false);
+			});
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -582,7 +580,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get responderUsername(): string {
 		return (this._defaultAgent ?
-			this._defaultAgent.metadata.fullName :
+			this._defaultAgent.fullName :
 			this.initialData?.responderUsername) ?? '';
 	}
 
@@ -958,7 +956,7 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	public get username(): string {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.fullName ?? '';
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName ?? '';
 	}
 
 	public get avatarIcon(): ThemeIcon | undefined {

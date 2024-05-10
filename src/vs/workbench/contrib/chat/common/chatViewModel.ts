@@ -14,7 +14,7 @@ import { annotateVulnerabilitiesInText } from 'vs/workbench/contrib/chat/common/
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTask, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTask, IChatUsedContext, IChatWarningMessage, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -95,7 +95,12 @@ export interface IChatProgressMessageRenderData {
 	isLast: boolean;
 }
 
-export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEditGroup | IChatConfirmation | IChatTask;
+export interface IChatTaskRenderData {
+	task: IChatTask;
+	isSettled: boolean;
+}
+
+export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEditGroup | IChatConfirmation | IChatTaskRenderData | IChatWarningMessage;
 export interface IChatResponseRenderData {
 	renderedParts: IChatRenderData[];
 }
@@ -132,7 +137,6 @@ export interface IChatResponseViewModel {
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IChatResponseRenderData;
-	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 	usedReferencesExpanded?: boolean;
@@ -370,7 +374,9 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get username() {
-		return this._model.username;
+		return this.agent ?
+			(this.agent.fullName || this.agent.name) :
+			this._model.username;
 	}
 
 	get avatarIcon() {
@@ -438,7 +444,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;
-	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 
 	private _usedReferencesExpanded: boolean | undefined;

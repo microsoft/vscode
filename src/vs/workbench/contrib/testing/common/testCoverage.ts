@@ -11,6 +11,8 @@ import { ITransaction, observableSignal } from 'vs/base/common/observable';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { CoverageDetails, ICoverageCount, IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ICoverageAccessor {
@@ -26,10 +28,13 @@ export class TestCoverage {
 	private readonly fileCoverage = new ResourceMap<FileCoverage>();
 	public readonly didAddCoverage = observableSignal<IPrefixTreeNode<AbstractFileCoverage>[]>(this);
 	public readonly tree = new WellDefinedPrefixTree<AbstractFileCoverage>();
-
 	public readonly associatedData = new Map<unknown, unknown>();
 
+	/** Test IDs that have per-test coverage in this output. */
+	public readonly perTestCoverageIDs = new Set<string>();
+
 	constructor(
+		public readonly result: LiveTestResult,
 		public readonly fromTaskId: string,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly accessor: ICoverageAccessor,
@@ -37,6 +42,7 @@ export class TestCoverage {
 
 	public append(coverage: IFileCoverage, tx: ITransaction | undefined) {
 		const previous = this.getComputedForUri(coverage.uri);
+		const result = this.result;
 		const applyDelta = (kind: 'statement' | 'branch' | 'declaration', node: ComputedFileCoverage) => {
 			if (!node[kind]) {
 				if (coverage[kind]) {
@@ -54,16 +60,21 @@ export class TestCoverage {
 		const canonical = [...this.treePathForUri(coverage.uri, /* canonical = */ true)];
 		const chain: IPrefixTreeNode<AbstractFileCoverage>[] = [];
 		const isPerTestCoverage = !!coverage.testId;
+		if (coverage.testId) {
+			this.perTestCoverageIDs.add(coverage.testId.toString());
+		}
 		this.tree.mutatePath(this.treePathForUri(coverage.uri, /* canonical = */ false), node => {
 			chain.push(node);
 
 			if (chain.length === canonical.length) {
 				// we reached our destination node, apply the coverage as necessary:
 				if (isPerTestCoverage) {
-					const v = node.value ??= new FileCoverage(IFileCoverage.empty(String(incId++), coverage.uri), this.accessor);
+					const v = node.value ??= new FileCoverage(IFileCoverage.empty(String(incId++), coverage.uri), result, this.accessor);
 					assert(v instanceof FileCoverage, 'coverage is unexpectedly computed');
 					v.perTestData ??= new Map();
-					v.perTestData.set(coverage.testId!.toString(), new FileCoverage(coverage, this.accessor));
+					const perTest = new FileCoverage(coverage, result, this.accessor);
+					perTest.isForTest = { id: coverage.testId!, parent: v };
+					v.perTestData.set(coverage.testId!.toString(), perTest);
 					this.fileCoverage.set(coverage.uri, v);
 				} else if (node.value) {
 					const v = node.value;
@@ -72,10 +83,8 @@ export class TestCoverage {
 					v.statement = coverage.statement;
 					v.branch = coverage.branch;
 					v.declaration = coverage.declaration;
-					v.existsInExtHost = true;
 				} else {
-					const v = node.value = new FileCoverage(coverage, this.accessor);
-					v.existsInExtHost = true;
+					const v = node.value = new FileCoverage(coverage, result, this.accessor);
 					this.fileCoverage.set(coverage.uri, v);
 				}
 			} else if (!isPerTestCoverage) {
@@ -87,7 +96,7 @@ export class TestCoverage {
 					const intermediate = deepClone(coverage);
 					intermediate.id = String(incId++);
 					intermediate.uri = this.treePathToUri(canonical.slice(0, chain.length));
-					node.value = new ComputedFileCoverage(intermediate);
+					node.value = new ComputedFileCoverage(intermediate, result);
 				} else {
 					applyDelta('statement', node.value);
 					applyDelta('branch', node.value);
@@ -100,6 +109,48 @@ export class TestCoverage {
 		if (chain && !isPerTestCoverage) {
 			this.didAddCoverage.trigger(tx, chain);
 		}
+	}
+
+	/**
+	 * Builds a new tree filtered to per-test coverage data for the given ID.
+	 */
+	public filterTreeForTest(testId: TestId) {
+		const tree = new WellDefinedPrefixTree<AbstractFileCoverage>();
+		for (const node of this.tree.values()) {
+			if (node instanceof FileCoverage) {
+				const fileData = node.perTestData?.get(testId.toString());
+				if (!fileData) {
+					continue;
+				}
+
+				const canonical = [...this.treePathForUri(fileData.uri, /* canonical = */ true)];
+				const chain: IPrefixTreeNode<AbstractFileCoverage>[] = [];
+				tree.mutatePath(this.treePathForUri(fileData.uri, /* canonical = */ false), node => {
+					chain.push(node);
+
+					if (chain.length === canonical.length) {
+						node.value = fileData;
+					} else {
+						node.value ??= new ComputedFileCoverage({
+							id: String(incId++),
+							uri: this.treePathToUri(canonical.slice(0, chain.length)),
+							statement: { covered: 0, total: 0 },
+						}, fileData.fromResult);
+
+						for (const kind of ['statement', 'branch', 'declaration'] as const) {
+							const count = fileData[kind];
+							if (count) {
+								const cc = (node.value[kind] ??= { covered: 0, total: 0 });
+								cc.covered += count.covered;
+								cc.total += count.total;
+							}
+						}
+					}
+				});
+			}
+		}
+
+		return tree;
 	}
 
 	/**
@@ -163,13 +214,6 @@ export abstract class AbstractFileCoverage {
 	public readonly didChange = observableSignal(this);
 
 	/**
-	 * Whether this coverage item exists in the extension host. This is false
-	 * if we have only {@link perTestData} and not summary data for the file, or
-	 * if the node is computed for a directory.
-	 */
-	public existsInExtHost = false;
-
-	/**
 	 * Gets the total coverage percent based on information provided.
 	 * This is based on the Clover total coverage formula
 	 */
@@ -177,7 +221,7 @@ export abstract class AbstractFileCoverage {
 		return getTotalCoveragePercent(this.statement, this.branch, this.declaration);
 	}
 
-	constructor(coverage: IFileCoverage) {
+	constructor(coverage: IFileCoverage, public readonly fromResult: LiveTestResult) {
 		this.id = coverage.id;
 		this.uri = coverage.uri;
 		this.statement = coverage.statement;
@@ -206,8 +250,13 @@ export class FileCoverage extends AbstractFileCoverage {
 	 */
 	public perTestData?: Map<string, FileCoverage>;
 
-	constructor(coverage: IFileCoverage, private readonly accessor: ICoverageAccessor) {
-		super(coverage);
+	/**
+	 * If this is for a single test item, gets the test item.
+	 */
+	public isForTest?: { id: TestId; parent: FileCoverage };
+
+	constructor(coverage: IFileCoverage, fromResult: LiveTestResult, private readonly accessor: ICoverageAccessor) {
+		super(coverage, fromResult);
 	}
 
 	/**
