@@ -38,7 +38,7 @@ import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
-import { isESM } from 'vs/base/common/amd.js';
+import { isESM } from 'vs/base/common/amd';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -80,7 +80,7 @@ export class ExtensionHostProcess {
 		if (isESM) {
 			actualOptions = {
 				...opts,
-				execArgv: ['--import', 'abc', ...(opts.execArgv || [])]
+				// execArgv: ['--import', 'abc', ...(opts.execArgv || [])]
 			}
 		}
 
