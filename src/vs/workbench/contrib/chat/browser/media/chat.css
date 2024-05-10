@@ -622,7 +622,7 @@
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
-	padding: 4px;
+	padding: 6px 8px;
 }
 
 .interactive-item-container .chat-notification-widget {
