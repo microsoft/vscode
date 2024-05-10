@@ -78,9 +78,10 @@ export class ExtensionHostProcess {
 	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number | undefined }> {
 		let actualOptions: IExtensionHostProcessOptions = opts
 		if (isESM) {
+			const loaderPath = `/home/simon/.cache/repos/vscode/src/extension-loader.js`
 			actualOptions = {
 				...opts,
-				// execArgv: ['--import', 'abc', ...(opts.execArgv || [])]
+				execArgv: ['--import', loaderPath, ...(opts.execArgv || [])]
 			}
 		}
 
