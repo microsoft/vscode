@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// export const testGlobals = globalThis.testGlobals
-
-
+// @ts-ignore
 const { testGlobalRequire } = globalThis;
 
 const modules = [
@@ -44,8 +42,6 @@ const modules = [
 	'native-keymap',
 	'@vscode/windows-registry'
 ]
-
-
 
 const createTestGlobals = () => {
 	const map = Object.create(null)

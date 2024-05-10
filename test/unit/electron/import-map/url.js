@@ -3,4 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { };
+import { testGlobals } from './testGlobals.js';
+
+const { pathToFileURL } = testGlobals['url'];
+
+export { pathToFileURL };

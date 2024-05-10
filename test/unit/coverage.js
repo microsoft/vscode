@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+if (typeof require === 'undefined') {
+	globalThis.require = globalThis['testGlobalRequire']
+}
+
 const minimatch = require('minimatch');
 const fs = require('fs');
 const path = require('path');

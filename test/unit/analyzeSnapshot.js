@@ -7,14 +7,18 @@
 
 // note: we use a fork here since we can't make a worker from the renderer process
 
-const { fork } = require('child_process');
+
+
+
+import { fork } from 'child_process';
+import * as fs from 'fs';
+import { pathToFileURL } from 'url';
+import { join } from 'path';
+import { tmpdir } from 'os';
+
 const workerData = process.env.SNAPSHOT_WORKER_DATA;
-const fs = require('fs');
-const { pathToFileURL } = require('url');
 
 if (!workerData) {
-	const { join } = require('path');
-	const { tmpdir } = require('os');
 
 	exports.takeSnapshotAndCountClasses = async (/** @type string */currentTest, /** @type string[] */ classes) => {
 		const cleanTitle = currentTest.replace(/[^\w]+/g, '-');
@@ -72,7 +76,7 @@ if (!workerData) {
 	};
 } else {
 	const { path, classes } = JSON.parse(workerData);
-	const { decode_bytes } = require('@vscode/v8-heap-parser');
+	const { decode_bytes } = await import('@vscode/v8-heap-parser');
 
 	fs.promises.readFile(path)
 		.then(buf => decode_bytes(buf))
