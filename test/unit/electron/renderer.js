@@ -5,17 +5,11 @@
 
 /*eslint-env mocha*/
 
-const { setRun, require } = globalThis.testGlobals;
 
-const fs = require('fs')
-const { ipcRenderer } = require('electron');
-const assert = require('assert');
-const path = require('path');
-const url = require('url');
-const glob = require('glob');
-const util = require('util');
-const coverage = require('../coverage');
-const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
+import * as coverage from '../coverage.js'
+import { takeSnapshotAndCountClasses } from '../analyzeSnapshot.js'
+
+const { setRun, fs, ipcRenderer, assert, path, url, glob, util, } = globalThis.testGlobals;
 
 (function () {
 	const originals = {};
