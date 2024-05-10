@@ -49,8 +49,8 @@
 }
 
 .interactive-item-container .header .detail-container {
-	font-size: 0.9em;
-	opacity: 0.7;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .interactive-item-container .chat-animated-ellipsis {
@@ -635,8 +635,7 @@
 
 .interactive-session .chat-used-context-label {
 	font-size: 12px;
-	color: var(--vscode-foreground);
-	opacity: 0.8;
+	color: var(--vscode-descriptionForeground);
 	user-select: none;
 }
 
