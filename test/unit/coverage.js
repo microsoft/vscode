@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as minimatch from "minimatch";
+import minimatch from "minimatch";
 import * as fs from "fs";
 import * as path from "path";
 import * as iLibInstrument from "istanbul-lib-instrument";
