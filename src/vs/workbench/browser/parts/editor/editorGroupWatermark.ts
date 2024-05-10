@@ -146,7 +146,6 @@ export class EditorGroupWatermark extends Disposable {
 				const dt = append(dl, $('dt'));
 				dt.textContent = entry.text;
 				const dd = append(dl, $('dd'));
-				this.keybindingLabel?.dispose();
 				this.keybindingLabel = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles });
 				this.keybindingLabel.set(keys);
 			}
