@@ -158,6 +158,7 @@ async function loadModules(modules) {
 	}
 }
 
+
 function loadTestModules(opts) {
 
 	if (opts.run) {
@@ -165,7 +166,7 @@ function loadTestModules(opts) {
 		const modules = files.map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
-			return path.relative(_out, file).replace(/\.js$/, '');
+			return path.relative(_out, file);
 		});
 		return loadModules(modules);
 	}
@@ -178,7 +179,7 @@ function loadTestModules(opts) {
 				reject(err);
 				return;
 			}
-			const modules = files.map(file => file.replace(/\.js$/, ''));
+			const modules = files;
 			resolve(modules);
 		});
 	}).then(loadModules);
