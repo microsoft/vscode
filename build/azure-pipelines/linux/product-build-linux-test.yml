@@ -181,6 +181,10 @@ steps:
 
       - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         timeoutInMinutes: 20
+        env:
+          # TODO(deepak1556): Remove this once runtime is updated for
+          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
+          UV_USE_IO_URING: 0
         displayName: Run smoke tests (Browser, Chromium)
 
       - script: yarn smoketest-no-compile --remote --tracing
@@ -203,6 +207,9 @@ steps:
       - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+          # TODO(deepak1556): Remove this once runtime is updated for
+          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
+          UV_USE_IO_URING: 0
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
