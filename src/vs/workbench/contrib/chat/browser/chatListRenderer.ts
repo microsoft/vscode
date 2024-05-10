@@ -460,7 +460,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							: data.kind === 'command' ? this.renderCommandButton(element, data)
 								: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
 									: data.kind === 'warning' ? this.renderNotification('warning', data.content)
-										: data.kind === 'confirmation' ? this.renderConfirmation(element, data)
+										: data.kind === 'confirmation' ? this.renderConfirmation(element, data, templateData)
 											: undefined;
 
 			if (result) {
@@ -487,6 +487,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
 			}));
 		}
+	}
+
+	private updateItemHeight(templateData: IChatListItemTemplate): void {
+		if (!templateData.currentElement) {
+			return;
+		}
+
+		const newHeight = templateData.rowContainer.offsetHeight;
+		templateData.currentElement.currentRenderedHeight = newHeight;
+		this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: newHeight });
 	}
 
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
@@ -658,7 +668,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					} else if (isTextEditRenderData(partToRender)) {
 						result = this.renderTextEdit(element, partToRender, templateData);
 					} else if (isConfirmationRenderData(partToRender)) {
-						result = this.renderConfirmation(element, partToRender);
+						result = this.renderConfirmation(element, partToRender, templateData);
 					} else if (isWarningRenderData(partToRender)) {
 						result = this.renderNotification('warning', partToRender.content);
 					}
@@ -921,21 +931,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation): IMarkdownRenderResult | undefined {
+	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
 		const store = new DisposableStore();
 		const confirmationWidget = store.add(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, [
 			{ label: localize('accept', "Accept"), data: confirmation.data },
 			{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
 		]));
+		confirmationWidget.setShowButtons(!confirmation.isUsed);
 
-		store.add(confirmationWidget.onDidClick(e => {
+		store.add(confirmationWidget.onDidClick(async e => {
 			if (isResponseVM(element)) {
 				const prompt = `${e.label}: "${confirmation.title}"`;
 				const data: IChatSendRequestOptions = e.isSecondary ?
 					{ rejectedConfirmationData: [e.data] } :
 					{ acceptedConfirmationData: [e.data] };
 				data.agentId = element.agent?.id;
-				this.chatService.sendRequest(element.sessionId, prompt, data);
+				if (await this.chatService.sendRequest(element.sessionId, prompt, data)) {
+					confirmation.isUsed = true;
+					confirmationWidget.setShowButtons(false);
+					this.updateItemHeight(templateData);
+				}
 			}
 		}));
 
