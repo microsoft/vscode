@@ -5,4 +5,4 @@
 
 import { testGlobals } from './testGlobals.js';
 
-export default testGlobals.sinonTest;
+export default testGlobals['sinon-test'];

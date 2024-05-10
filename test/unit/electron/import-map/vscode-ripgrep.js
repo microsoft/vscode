@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { rgPath } = testGlobals.vscodeRipgrep;
+const { rgPath } = testGlobals['@vscode/ripgrep'];
 
 export { rgPath };

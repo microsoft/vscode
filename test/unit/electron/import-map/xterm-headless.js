@@ -5,4 +5,4 @@
 
 import { testGlobals } from './testGlobals.js';
 
-export default testGlobals.xtermHeadless;
+export default testGlobals['@xterm/headless'];

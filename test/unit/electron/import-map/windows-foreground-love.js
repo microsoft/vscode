@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { allowSetForegroundWindow } = testGlobals.windowsForegroundLove;
+const { allowSetForegroundWindow } = testGlobals['windows-foreground-love'];
 
 export { allowSetForegroundWindow };

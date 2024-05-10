@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { GetStringRegKey } = testGlobals.vscodeWindowsRegistry;
+const { GetStringRegKey } = testGlobals['@vscode/windows-registry'];
 
 export { GetStringRegKey };

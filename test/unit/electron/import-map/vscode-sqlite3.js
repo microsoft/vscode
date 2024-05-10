@@ -5,7 +5,7 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { Database } = testGlobals.vscodeSqlite3;
+const { Database } = testGlobals['@vscode/sqlite3'];
 
 export { Database };
 

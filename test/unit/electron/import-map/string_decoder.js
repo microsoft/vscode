@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { StringDecoder } = testGlobals.stringDecoder;
+const { StringDecoder } = testGlobals['string_decoder'];
 
 export { StringDecoder };

@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { getCurrentKeyboardLayout } = testGlobals.nativeKeymap;
+const { getCurrentKeyboardLayout } = testGlobals['native-keymap'];
 
 export { getCurrentKeyboardLayout };

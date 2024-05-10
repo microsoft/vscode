@@ -5,4 +5,4 @@
 
 import { testGlobals } from './testGlobals.js';
 
-export default testGlobals.gracefulFs;
+export default testGlobals['graceful-fs'];

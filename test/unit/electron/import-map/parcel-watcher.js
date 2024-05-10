@@ -5,7 +5,7 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { subscribe, writeSnapshot, getEventsSince } = testGlobals.parcelWatcher;
+const { subscribe, writeSnapshot, getEventsSince } = testGlobals['parcel-watcher'];
 
 export { getEventsSince, subscribe, writeSnapshot };
 

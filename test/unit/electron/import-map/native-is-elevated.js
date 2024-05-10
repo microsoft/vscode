@@ -5,4 +5,4 @@
 
 import { testGlobals } from './testGlobals.js';
 
-export default testGlobals.nativeIsElevated;
+export default testGlobals['native-is-elevated'];

@@ -5,4 +5,4 @@
 
 import { testGlobals } from './testGlobals.js';
 
-export default testGlobals.xtermAddonCanvas;
+export default testGlobals['@xterm/addon-canvas'];

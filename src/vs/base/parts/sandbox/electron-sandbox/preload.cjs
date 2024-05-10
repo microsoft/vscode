@@ -448,4 +448,6 @@ if (isTest) {
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals
+	// @ts-ignore
+	window.testGlobalRequire = require
 }

@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { Crypt32 } = testGlobals.vscodeWindowsCaCerts;
+const { Crypt32 } = testGlobals['@vscode/windows-ca-certs'];
 
 export { Crypt32 };
