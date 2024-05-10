@@ -49,10 +49,15 @@ const createTestGlobals = () => {
 		Object.defineProperty(map, module, {
 			get [module]() {
 				return testGlobalRequire(module)
-			}
+			},
+			enumerable: true,
+			writable: true
 		})
 	}
 	return map
 }
 
+
 export const testGlobals = createTestGlobals()
+
+console.log(JSON.stringify(Object.keys(testGlobals)))
