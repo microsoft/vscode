@@ -244,44 +244,35 @@ async function loadTests(opts) {
 		'Search Model: Search reports timed telemetry on search when error is called'
 	]);
 
-	loader.require.config({
-		onError(err) {
-			_loaderErrors.push(err);
-			console.error(err);
+
+
+	const onUnexpectedError = function (err) {
+		if (err.name === 'Canceled') {
+			return; // ignore canceled errors that are common
+		}
+
+		let stack = (err ? err.stack : null);
+		if (!stack) {
+			stack = new Error().stack;
+		}
+
+		_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
+	};
+
+	process.on('uncaughtException', error => onUnexpectedError(error));
+	process.on('unhandledRejection', (reason, promise) => {
+		onUnexpectedError(reason);
+		promise.catch(() => { });
+	});
+	window.addEventListener('unhandledrejection', event => {
+		event.preventDefault(); // Do not log to test output, we show an error later when test ends
+		event.stopPropagation();
+
+		if (!_allowedTestsWithUnhandledRejections.has(currentTest.title)) {
+			onUnexpectedError(event.reason);
 		}
 	});
 
-	loader.require(['vs/base/common/errors'], function (errors) {
-
-		const onUnexpectedError = function (err) {
-			if (err.name === 'Canceled') {
-				return; // ignore canceled errors that are common
-			}
-
-			let stack = (err ? err.stack : null);
-			if (!stack) {
-				stack = new Error().stack;
-			}
-
-			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
-		};
-
-		process.on('uncaughtException', error => onUnexpectedError(error));
-		process.on('unhandledRejection', (reason, promise) => {
-			onUnexpectedError(reason);
-			promise.catch(() => { });
-		});
-		window.addEventListener('unhandledrejection', event => {
-			event.preventDefault(); // Do not log to test output, we show an error later when test ends
-			event.stopPropagation();
-
-			if (!_allowedTestsWithUnhandledRejections.has(currentTest.title)) {
-				onUnexpectedError(event.reason);
-			}
-		});
-
-		errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
-	});
 
 	//#endregion
 
