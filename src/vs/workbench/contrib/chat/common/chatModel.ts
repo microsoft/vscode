@@ -580,7 +580,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get responderUsername(): string {
 		return (this._defaultAgent ?
-			this._defaultAgent.metadata.fullName :
+			this._defaultAgent.fullName :
 			this.initialData?.responderUsername) ?? '';
 	}
 
@@ -956,7 +956,7 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	public get username(): string {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.fullName ?? '';
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName ?? '';
 	}
 
 	public get avatarIcon(): ThemeIcon | undefined {

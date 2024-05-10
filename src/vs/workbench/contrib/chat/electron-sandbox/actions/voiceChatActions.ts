@@ -675,17 +675,35 @@ export class StartVoiceChatAction extends Action2 {
 
 const InstallingSpeechProvider = new RawContextKey<boolean>('installingSpeechProvider', false, true);
 
-export class InstallVoiceChatAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.installVoiceChat';
+abstract class BaseInstallSpeechProviderAction extends Action2 {
 
 	private static readonly SPEECH_EXTENSION_ID = 'ms-vscode.vscode-speech';
 
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		try {
+			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
+			await extensionsWorkbenchService.install(BaseInstallSpeechProviderAction.SPEECH_EXTENSION_ID, {
+				justification: this.getJustification(),
+				enable: true
+			}, ProgressLocation.Notification);
+		} finally {
+			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
+		}
+	}
+
+	protected abstract getJustification(): string;
+}
+
+export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
+
+	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
+
 	constructor() {
 		super({
-			id: InstallVoiceChatAction.ID,
-			title: localize2('workbench.action.chat.startVoiceChat.label', "Start Voice Chat"),
-			category: CHAT_CATEGORY,
+			id: InstallSpeechProviderForVoiceChatAction.ID,
+			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
 			icon: Codicon.mic,
 			precondition: InstallingSpeechProvider.negate(),
 			menu: [{
@@ -702,18 +720,8 @@ export class InstallVoiceChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		try {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
-			await extensionsWorkbenchService.install(InstallVoiceChatAction.SPEECH_EXTENSION_ID, {
-				justification: localize('confirmInstallDetail', "Microphone support requires this extension."),
-				enable: true
-			}, ProgressLocation.Notification);
-		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
-		}
+	protected getJustification(): string {
+		return localize('installProviderForVoiceChat.justification', "Microphone support requires this extension.");
 	}
 }
 
@@ -857,13 +865,35 @@ class ChatSynthesizerSessions {
 	}
 }
 
+export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
+
+	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
+
+	constructor() {
+		super({
+			id: InstallSpeechProviderForSynthesizeChatAction.ID,
+			title: localize2('workbench.action.chat.installProviderForSynthesis.label', "Read Aloud"),
+			icon: Codicon.unmute,
+			precondition: InstallingSpeechProvider.negate(),
+			menu: [{
+				id: MenuId.ChatMessageTitle,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation'
+			}]
+		});
+	}
+
+	protected getJustification(): string {
+		return localize('installProviderForSynthesis.justification', "Speaker support requires this extension.");
+	}
+}
+
 export class ReadChatItemAloud extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.readChatItemAloud',
 			title: localize2('workbench.action.chat.readChatItemAloud', "Read Aloud"),
 			f1: false,
-			category: CHAT_CATEGORY,
 			icon: Codicon.unmute,
 			precondition: CanVoiceChat,
 			menu: {
