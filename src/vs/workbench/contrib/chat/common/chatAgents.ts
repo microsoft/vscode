@@ -57,6 +57,7 @@ export namespace ChatAgentLocation {
 export interface IChatAgentData {
 	id: string;
 	name: string;
+	fullName?: string;
 	description?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
@@ -100,7 +101,6 @@ export interface IChatAgentMetadata {
 	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
 	isSecondary?: boolean; // Invoked by ctrl/cmd+enter
-	fullName?: string;
 	icon?: URI;
 	iconDark?: URI;
 	themeIcon?: ThemeIcon;
