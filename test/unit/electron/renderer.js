@@ -413,6 +413,7 @@ async function runTests(opts) {
 
 const main = async (e, opts) => {
 	try {
+		initLoader(opts);
 		await runTests(opts)
 	} catch (err) {
 		console.error(err);
