@@ -1,12 +1,10 @@
-console.log('HELLO FROM LOADER!!!')
-console.log('HELLO FROM LOADER!!!')
-console.log('HELLO FROM LOADER!!!')
-console.log('HELLO FROM LOADER!!!')
+
 export async function initialize({ number, port }) {
 	// Receives data from `register`.
 }
 
 export async function resolve(specifier, context, nextResolve) {
+	console.log({ specifier, context, nextResolve })
 	// Take an `import` or `require` specifier and resolve it to a URL.
 }
 
