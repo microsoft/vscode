@@ -41,7 +41,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 				name: {
 					description: localize('chatParticipantName', "User-facing name for this chat participant. The user will use '@' with this name to invoke the participant."),
 					type: 'string',
-					pattern: '^[\w0-9_-]+$'
+					pattern: '^[\\w0-9_-]+$'
 				},
 				fullName: {
 					markdownDescription: localize('chatParticipantFullName', "The full name of this chat participant, which is shown as the label for responses coming from this participant. If not provided, {0} is used.", '`name`'),
