@@ -5,7 +5,7 @@
 
 /*eslint-env mocha*/
 
-const { setRun, } = globalThis.testGlobals;
+const { setRun, require } = globalThis.testGlobals;
 
 const fs = require('fs')
 const { ipcRenderer } = require('electron');
