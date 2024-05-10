@@ -335,6 +335,7 @@ export class MergedChatAgent implements IChatAgent {
 
 	get id(): string { return this.data.id; }
 	get name(): string { return this.data.name ?? ''; }
+	get fullName(): string { return this.data.fullName ?? ''; }
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
