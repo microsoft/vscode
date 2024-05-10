@@ -78,7 +78,6 @@ import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedD
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
-import { showExtensionsWithIdsCommandId } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 
 const $ = dom.$;
 

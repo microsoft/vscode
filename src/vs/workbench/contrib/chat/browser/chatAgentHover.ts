@@ -29,12 +29,9 @@ export class ChatAgentHover extends Disposable {
 	private readonly publisherName: HTMLElement;
 	private readonly description: HTMLElement;
 
-	private currentAgent: IChatAgentData | undefined;
-
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IExtensionsWorkbenchService private readonly extensionService: IExtensionsWorkbenchService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
 		super();
@@ -79,8 +76,6 @@ export class ChatAgentHover extends Disposable {
 
 	setAgent(id: string): void {
 		const agent = this.chatAgentService.getAgent(id)!;
-		this.currentAgent = agent;
-
 		if (agent.metadata.icon instanceof URI) {
 			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
 			avatarIcon.src = FileAccess.uriToBrowserUri(agent.metadata.icon).toString(true);
@@ -135,5 +130,5 @@ export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefi
 				},
 			}
 		]
-	}
+	};
 }
