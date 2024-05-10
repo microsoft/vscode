@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { RegExpParser, RegExpVisitor } = testGlobals['@vscode/regexpp'];
+const { RegExpParser, RegExpVisitor } = testGlobals['vscode-regexpp'];
 
 export { RegExpParser, RegExpVisitor };

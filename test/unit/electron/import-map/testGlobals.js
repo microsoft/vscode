@@ -9,7 +9,6 @@ const { testGlobalRequire, testSetRun } = globalThis;
 const modules = [
 	'@parcel/watcher',
 	'@vscode/ripgrep',
-	'@vscode/regexpp',
 	'@vscode/sqlite3',
 	'@vscode/windows-registry',
 	'@xterm/headless',
