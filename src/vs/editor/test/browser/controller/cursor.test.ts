@@ -26,7 +26,6 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
@@ -4469,93 +4468,6 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('issue #36090: JS: editor.autoIndent seems to be broken', () => {
-		const languageId = 'jsMode';
-
-		disposables.add(languageService.registerLanguage({ id: languageId }));
-		disposables.add(languageConfigurationService.register(languageId, {
-			brackets: [
-				['{', '}'],
-				['[', ']'],
-				['(', ')']
-			],
-			indentationRules: {
-				// ^(.*\*/)?\s*\}.*$
-				decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
-				// ^.*\{[^}"']*$
-				increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
-			},
-			onEnterRules: javascriptOnEnterRules
-		}));
-
-		const model = createTextModel(
-			[
-				'class ItemCtrl {',
-				'    getPropertiesByItemId(id) {',
-				'        return this.fetchItem(id)',
-				'            .then(item => {',
-				'                return this.getPropertiesOfItem(item);',
-				'            });',
-				'    }',
-				'}',
-			].join('\n'),
-			languageId
-		);
-
-		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 7, 6, false);
-			assertCursor(viewModel, new Selection(7, 6, 7, 6));
-
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(),
-				[
-					'class ItemCtrl {',
-					'    getPropertiesByItemId(id) {',
-					'        return this.fetchItem(id)',
-					'            .then(item => {',
-					'                return this.getPropertiesOfItem(item);',
-					'            });',
-					'    }',
-					'    ',
-					'}',
-				].join('\n')
-			);
-			assertCursor(viewModel, new Selection(8, 5, 8, 5));
-		});
-	});
-
-	test('issue #115304: OnEnter broken for TS', () => {
-		const languageId = 'jsMode';
-
-		disposables.add(languageService.registerLanguage({ id: languageId }));
-		disposables.add(languageConfigurationService.register(languageId, {
-			onEnterRules: javascriptOnEnterRules
-		}));
-
-		const model = createTextModel(
-			[
-				'/** */',
-				'function f() {}',
-			].join('\n'),
-			languageId
-		);
-
-		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 4, false);
-			assertCursor(viewModel, new Selection(1, 4, 1, 4));
-
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(),
-				[
-					'/**',
-					' * ',
-					' */',
-					'function f() {}',
-				].join('\n')
-			);
-			assertCursor(viewModel, new Selection(2, 4, 2, 4));
-		});
-	});
 
 	test('issue #38261: TAB key results in bizarre indentation in C++ mode ', () => {
 		const languageId = 'indentRulesMode';

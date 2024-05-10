@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';

@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 

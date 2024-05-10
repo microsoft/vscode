@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
-import { IMarkdownRendererOptions } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRendererOptions } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
@@ -107,6 +107,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		const tracker = this._register(dom.trackFocus(bodyElement));
 		this._register(registerNavigableContainer({
+			name: 'commentThreadWidget',
 			focusNotifiers: [tracker],
 			focusNextWidget: () => {
 				if (!this._commentReply?.isCommentEditorFocused()) {
@@ -204,7 +205,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}, true));
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>) {
+	async updateCommentThread(commentThread: languages.CommentThread<T>) {
 		const shouldCollapse = (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) && (this._commentThreadState === languages.CommentThreadState.Unresolved)
 			&& (commentThread.state === languages.CommentThreadState.Resolved);
 		this._commentThreadState = commentThread.state;
@@ -213,7 +214,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
-		this._body.updateCommentThread(commentThread);
+		await this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
 		this._threadIsEmpty.set(!this._body.length);
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
@@ -229,15 +230,15 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 	}
 
-	display(lineHeight: number) {
+	async display(lineHeight: number, focus: boolean) {
 		const headHeight = Math.max(23, Math.ceil(lineHeight * 1.2)); // 23 is the value of `Math.ceil(lineHeight * 1.2)` with the default editor font size
 		this._header.updateHeight(headHeight);
 
-		this._body.display();
+		await this._body.display();
 
 		// create comment thread only when it supports reply
 		if (this._commentThread.canReply) {
-			this._createCommentForm();
+			this._createCommentForm(focus);
 		}
 		this._createAdditionalActions();
 
@@ -261,6 +262,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	override dispose() {
 		super.dispose();
+		dispose(this._commentThreadDisposables);
 		this.updateCurrentThread(false, false);
 	}
 
@@ -270,7 +272,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 				this._commentReply.updateCanReply();
 			} else {
 				if (this._commentThread.canReply) {
-					this._createCommentForm();
+					this._createCommentForm(false);
 				}
 			}
 		}));
@@ -284,7 +286,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}));
 	}
 
-	private _createCommentForm() {
+	private _createCommentForm(focus: boolean) {
 		this._commentReply = this._scopedInstantiationService.createInstance(
 			CommentReply,
 			this._owner,
@@ -297,6 +299,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentOptions,
 			this._pendingComment,
 			this,
+			focus,
 			this._containerDelegate.actionRunner
 		);
 
@@ -332,12 +335,17 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return undefined;
 	}
 
+	setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this._commentReply?.setPendingComment(comment);
+	}
+
 	getDimensions() {
 		return this._body.getDimensions();
 	}
 
 	layout(widthInPixel?: number) {
-		this._body.layout();
+		this._body.layout(widthInPixel);
 
 		if (widthInPixel !== undefined) {
 			this._commentReply?.layout(widthInPixel);
@@ -345,7 +353,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	focusCommentEditor() {
-		this._commentReply?.focusCommentEditor();
+		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}
 
 	focus() {

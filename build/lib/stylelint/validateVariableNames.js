@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getVariableNameValidator = void 0;
+exports.getVariableNameValidator = getVariableNameValidator;
 const fs_1 = require("fs");
 const path = require("path");
 const RE_VAR_PROP = /var\(\s*(--([\w\-\.]+))/g;
@@ -17,6 +17,7 @@ function getKnownVariableNames() {
     }
     return knownVariables;
 }
+const iconVariable = /^--vscode-icon-.+-(content|font-family)$/;
 function getVariableNameValidator() {
     const allVariables = getKnownVariableNames();
     return (value, report) => {
@@ -24,11 +25,10 @@ function getVariableNameValidator() {
         let match;
         while (match = RE_VAR_PROP.exec(value)) {
             const variableName = match[1];
-            if (variableName && !allVariables.has(variableName)) {
+            if (variableName && !allVariables.has(variableName) && !iconVariable.test(variableName)) {
                 report(variableName);
             }
         }
     };
 }
-exports.getVariableNameValidator = getVariableNameValidator;
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidmFsaWRhdGVWYXJpYWJsZU5hbWVzLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsidmFsaWRhdGVWYXJpYWJsZU5hbWVzLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiI7QUFBQTs7O2dHQUdnRzs7O0FBRWhHLDJCQUFrQztBQUNsQyw2QkFBOEI7QUFFOUIsTUFBTSxXQUFXLEdBQUcsMEJBQTBCLENBQUM7QUFFL0MsSUFBSSxjQUF1QyxDQUFDO0FBQzVDLFNBQVMscUJBQXFCO0lBQzdCLElBQUksQ0FBQyxjQUFjLEVBQUUsQ0FBQztRQUNyQixNQUFNLHlCQUF5QixHQUFHLElBQUEsaUJBQVksRUFBQyxJQUFJLENBQUMsSUFBSSxDQUFDLFNBQVMsRUFBRSwrQkFBK0IsQ0FBQyxFQUFFLE1BQU0sQ0FBQyxDQUFDLFFBQVEsRUFBRSxDQUFDO1FBQ3pILE1BQU0sa0JBQWtCLEdBQUcsSUFBSSxDQUFDLEtBQUssQ0FBQyx5QkFBeUIsQ0FBQyxDQUFDO1FBQ2pFLGNBQWMsR0FBRyxJQUFJLEdBQUcsQ0FBQyxDQUFDLEdBQUcsa0JBQWtCLENBQUMsTUFBTSxFQUFFLEdBQUcsa0JBQWtCLENBQUMsTUFBTSxDQUFhLENBQUMsQ0FBQztJQUNwRyxDQUFDO0lBQ0QsT0FBTyxjQUFjLENBQUM7QUFDdkIsQ0FBQztBQU1ELFNBQWdCLHdCQUF3QjtJQUN2QyxNQUFNLFlBQVksR0FBRyxxQkFBcUIsRUFBRSxDQUFDO0lBQzdDLE9BQU8sQ0FBQyxLQUFhLEVBQUUsTUFBd0MsRUFBRSxFQUFFO1FBQ2xFLFdBQVcsQ0FBQyxTQUFTLEdBQUcsQ0FBQyxDQUFDLENBQUMsa0NBQWtDO1FBQzdELElBQUksS0FBSyxDQUFDO1FBQ1YsT0FBTyxLQUFLLEdBQUcsV0FBVyxDQUFDLElBQUksQ0FBQyxLQUFLLENBQUMsRUFBRSxDQUFDO1lBQ3hDLE1BQU0sWUFBWSxHQUFHLEtBQUssQ0FBQyxDQUFDLENBQUMsQ0FBQztZQUM5QixJQUFJLFlBQVksSUFBSSxDQUFDLFlBQVksQ0FBQyxHQUFHLENBQUMsWUFBWSxDQUFDLEVBQUUsQ0FBQztnQkFDckQsTUFBTSxDQUFDLFlBQVksQ0FBQyxDQUFDO1lBQ3RCLENBQUM7UUFDRixDQUFDO0lBQ0YsQ0FBQyxDQUFDO0FBQ0gsQ0FBQztBQVpELDREQVlDIn0=
+//# sourceMappingURL=validateVariableNames.js.map

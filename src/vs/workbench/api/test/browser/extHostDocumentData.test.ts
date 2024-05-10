@@ -441,6 +441,8 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		testLineMappingDirectionAfterEvents(lines, '\r\n', AssertDocumentLineMappingDirection.OffsetToPosition, e);
 	}
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('line mapping', () => {
 		testLineMappingAfterEvents([
 			'This is line one',

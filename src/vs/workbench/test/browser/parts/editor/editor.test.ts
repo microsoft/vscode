@@ -146,8 +146,8 @@ suite('Workbench editor utils', () => {
 	test('EditorResourceAccessor - typed inputs', () => {
 		const service = accessor.untitledTextEditorService;
 
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(null!));
-		assert.ok(!EditorResourceAccessor.getOriginalUri(null!));
+		assert.ok(!EditorResourceAccessor.getCanonicalUri(null));
+		assert.ok(!EditorResourceAccessor.getOriginalUri(null));
 
 		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, service.create()));
 
@@ -241,8 +241,8 @@ suite('Workbench editor utils', () => {
 
 	test('EditorResourceAccessor - untyped inputs', () => {
 
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(null!));
-		assert.ok(!EditorResourceAccessor.getOriginalUri(null!));
+		assert.ok(!EditorResourceAccessor.getCanonicalUri(null));
+		assert.ok(!EditorResourceAccessor.getOriginalUri(null));
 
 		const untitledURI = URI.from({
 			scheme: Schemas.untitled,
@@ -427,7 +427,7 @@ suite('Workbench editor utils', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		return instantiationService.createInstance(TestServiceAccessor);

@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError } from 'vs/workbench/common/views';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -19,6 +19,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { DataTransferFileCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -270,6 +271,9 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
+		if (!treeItem) {
+			this.itemsMap.clear();
+		}
 		return this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
 			.then(
 				children => this.postGetChildren(children),

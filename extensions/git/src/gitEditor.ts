@@ -27,7 +27,7 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 		this.env = {
 			GIT_EDITOR: `"${path.join(__dirname, ipc ? 'git-editor.sh' : 'git-editor-empty.sh')}"`,
 			VSCODE_GIT_EDITOR_NODE: process.execPath,
-			VSCODE_GIT_EDITOR_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
+			VSCODE_GIT_EDITOR_EXTRA_ARGS: '',
 			VSCODE_GIT_EDITOR_MAIN: path.join(__dirname, 'git-editor-main.js')
 		};
 	}

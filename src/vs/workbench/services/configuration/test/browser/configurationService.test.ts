@@ -101,7 +101,7 @@ suite('WorkspaceContextService - Folder', () => {
 				userDataProfileService,
 				environmentService,
 				TestProductService,
-				disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService)),
+				disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)),
 				new SignService(TestProductService), new NullLogService())),
 			uriIdentityService,
 			new NullLogService(),
@@ -152,7 +152,7 @@ suite('WorkspaceContextService - Folder', () => {
 			userDataProfileService,
 			userDataProfilesService,
 			fileService,
-			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
+			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
 			uriIdentityService,
 			new NullLogService(),
 			new NullPolicyService()));
@@ -184,11 +184,11 @@ suite('WorkspaceContextService - Folder', () => {
 			userDataProfileService,
 			userDataProfilesService,
 			fileService,
-			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
+			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
 			uriIdentityService,
 			new NullLogService(),
 			new NullPolicyService()));
-		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
+		await testObject.initialize(convertToWorkspacePayload(folder));
 
 		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a').with({ query: 'myquery=1' }));
 
@@ -228,7 +228,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
 		const remoteAgentService = disposables.add(disposables.add(instantiationService.createInstance(RemoteAgentService)));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -290,7 +290,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -538,7 +538,7 @@ suite('WorkspaceService - Initialization', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -558,7 +558,7 @@ suite('WorkspaceService - Initialization', () => {
 
 		await testObject.initialize({ id: '' });
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
-		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
+		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		testObject.acquireInstantiationService(instantiationService);
 	});
 
@@ -800,7 +800,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const folder = joinPath(ROOT, 'a');
 		await fileService.createFolder(folder);
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(folder, 'policies.json');
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
@@ -1295,10 +1295,20 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('update language configuration for multiple languages', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.updateValue('configurationService.folder.languageSetting', 'multiLangValue', { overrideIdentifiers: ['deflang', 'xyzlang'] }, ConfigurationTarget.USER);
+		await testObject.updateValue('configurationService.folder.languageSetting', 'multiLangValue', { overrideIdentifiers: ['xyzlang', 'deflang'] }, ConfigurationTarget.USER);
 		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'deflang' }), 'multiLangValue');
 		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'xyzlang' }), 'multiLangValue');
 		assert.deepStrictEqual(testObject.getValue(keyFromOverrideIdentifiers(['deflang', 'xyzlang'])), { 'configurationService.folder.languageSetting': 'multiLangValue' });
+	}));
+
+	test('update language configuration for multiple languages when already set', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "[deflang][xyzlang]": { "configurationService.folder.languageSetting": "userValue" }}'));
+		await testObject.updateValue('configurationService.folder.languageSetting', 'multiLangValue', { overrideIdentifiers: ['xyzlang', 'deflang'] }, ConfigurationTarget.USER);
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'deflang' }), 'multiLangValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'xyzlang' }), 'multiLangValue');
+		assert.deepStrictEqual(testObject.getValue(keyFromOverrideIdentifiers(['deflang', 'xyzlang'])), { 'configurationService.folder.languageSetting': 'multiLangValue' });
+		const actualContent = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
+		assert.deepStrictEqual(JSON.parse(actualContent), { '[deflang][xyzlang]': { 'configurationService.folder.languageSetting': 'multiLangValue' } });
 	}));
 
 	test('update resource language configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1603,7 +1613,7 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		const folder = joinPath(ROOT, 'a');
 		await fileService.createFolder(folder);
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(folder, 'policies.json');
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
@@ -1627,7 +1637,7 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		await workspaceService.initialize(convertToWorkspacePayload(folder));
 		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
-		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
+		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		workspaceService.acquireInstantiationService(instantiationService);
 	});
 
@@ -1958,7 +1968,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -1980,7 +1990,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await workspaceService.initialize(getWorkspaceIdentifier(configResource));
 		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
-		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
+		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		jsonEditingServce = instantiationService.createInstance(JSONEditingService);
 		instantiationService.stub(IJSONEditingService, jsonEditingServce);
 		workspaceService.acquireInstantiationService(instantiationService);
@@ -2699,7 +2709,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		machineSettingsResource = joinPath(ROOT, 'machine-settings.json');
 		remoteSettingsResource = machineSettingsResource.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource }));
 		const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });

@@ -181,6 +181,11 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
+vscode-uri@^3.0.8:
+  version "3.0.8"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.8.tgz#1770938d3e72588659a172d0fd4642780083ff9f"
+  integrity sha512-AyFQ0EVmsOZOlAnxoFOGOq1SQDWAB7C6aqMGS23svWAllfOaxbuFvcT8D1i8z3Gyn8fraVeZNNmN6e9bxxXkKw==
+
 which-pm@^2.1.1:
   version "2.1.1"
   resolved "https://registry.yarnpkg.com/which-pm/-/which-pm-2.1.1.tgz#0be2b70c67e94a32e87b9768a94a7f0954f2dcfa"

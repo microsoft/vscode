@@ -36,7 +36,7 @@ import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWo
 import { BrowserExtensionHostKindPicker } from 'vs/workbench/services/extensions/browser/extensionService';
 import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { ExtensionHostKind, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
 import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
@@ -250,7 +250,7 @@ suite('ExtensionService', () => {
 			[IUserDataProfileService, TestUserDataProfileService],
 			[IUriIdentityService, UriIdentityService],
 			[IRemoteExtensionsScannerService, TestRemoteExtensionsScannerService],
-			[IRemoteAuthorityResolverService, new RemoteAuthorityResolverService(false, undefined, undefined, testProductService, new NullLogService())]
+			[IRemoteAuthorityResolverService, new RemoteAuthorityResolverService(false, undefined, undefined, undefined, testProductService, new NullLogService())]
 		]));
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});

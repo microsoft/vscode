@@ -86,7 +86,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 			if (e.affectsConfiguration('debug.enableStatusBarColor') || e.affectsConfiguration('debug.toolBarLocation')) {
 				this.update();
 			}
-		});
+		}, this.disposables);
 		this.update();
 	}
 
@@ -100,7 +100,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 		}
 
 		const isInCommandCenter = debugConfig.toolBarLocation === 'commandCenter';
-		this.layoutService.container.style.setProperty(asCssVariableName(COMMAND_CENTER_BACKGROUND), isInCommandCenter && isInDebugMode
+		this.layoutService.mainContainer.style.setProperty(asCssVariableName(COMMAND_CENTER_BACKGROUND), isInCommandCenter && isInDebugMode
 			? asCssVariable(COMMAND_CENTER_DEBUGGING_BACKGROUND)
 			: ''
 		);

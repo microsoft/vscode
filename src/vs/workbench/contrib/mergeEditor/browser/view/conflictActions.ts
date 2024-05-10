@@ -6,7 +6,7 @@
 import { $, createStyleSheet, h, isInShadowDOM, reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived, IObservable, transaction } from 'vs/base/common/observable';
 import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -32,12 +32,8 @@ export class ConflictActionsFactory extends Disposable {
 		this._styleElement = createStyleSheet(
 			isInShadowDOM(this._editor.getContainerDomNode())
 				? this._editor.getContainerDomNode()
-				: undefined
+				: undefined, undefined, this._store
 		);
-
-		this._register(toDisposable(() => {
-			this._styleElement.remove();
-		}));
 
 		this._updateLensStyle();
 	}

@@ -12,6 +12,8 @@ import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInput
 import { TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('TextAreaInput', () => {
 
@@ -203,7 +205,7 @@ suite('TextAreaInput', () => {
 
 			public hasFocus(): boolean { return true; }
 		});
-		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser));
+		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser, new TestAccessibilityService(), new NullLogService()));
 
 		wrapper._initialize(recorded.initial);
 		input._initializeFromTest();

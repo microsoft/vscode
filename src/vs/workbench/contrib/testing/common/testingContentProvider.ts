@@ -119,7 +119,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 					const content = result.tasks[parsed.taskIndex].output.getRange(message.offset, message.length);
 					text = removeAnsiEscapeCodes(content.toString());
 				} else if (typeof message.message === 'string') {
-					text = message.message;
+					text = removeAnsiEscapeCodes(message.message);
 				} else {
 					text = message.message.value;
 					language = this.languageService.createById('markdown');

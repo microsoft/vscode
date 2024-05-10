@@ -58,6 +58,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			maxColumn: input.minimapMaxColumn,
 			showSlider: 'mouseover',
 			scale: 1,
+			showRegionSectionHeaders: true,
+			showMarkSectionHeaders: true,
+			sectionHeaderFontSize: 9
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {
@@ -74,6 +77,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarSize: input.verticalScrollbarWidth,
 			verticalSliderSize: EditorOptions.scrollbar.defaultValue.verticalSliderSize,
 			scrollByPage: EditorOptions.scrollbar.defaultValue.scrollByPage,
+			ignoreHorizontalScrollbarInContentHeight: false,
 		};
 		options._write(EditorOption.scrollbar, scrollbarOptions);
 		const lineNumbersOptions: InternalEditorRenderLineNumbersOptions = {

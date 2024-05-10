@@ -104,14 +104,14 @@ export abstract class Command {
 	public readonly precondition: ContextKeyExpression | undefined;
 	private readonly _kbOpts: ICommandKeybindingsOptions | ICommandKeybindingsOptions[] | undefined;
 	private readonly _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
-	private readonly _metadata: ICommandMetadata | undefined;
+	public readonly metadata: ICommandMetadata | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this._kbOpts = opts.kbOpts;
 		this._menuOpts = opts.menuOpts;
-		this._metadata = opts.metadata;
+		this.metadata = opts.metadata;
 	}
 
 	public register(): void {
@@ -153,7 +153,7 @@ export abstract class Command {
 		CommandsRegistry.registerCommand({
 			id: this.id,
 			handler: (accessor, args) => this.runCommand(accessor, args),
-			metadata: this._metadata
+			metadata: this.metadata
 		});
 	}
 
@@ -181,7 +181,7 @@ export abstract class Command {
 /**
  * Potential override for a command.
  *
- * @return `true` if the command was successfully run. This stops other overrides from being executed.
+ * @return `true` or a Promise if the command was successfully run. This stops other overrides from being executed.
  */
 export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
 
@@ -466,7 +466,7 @@ export abstract class EditorAction2 extends Action2 {
 				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
 				return;
 			}
-			return this.runEditorCommand(editorAccessor, editor!, ...args);
+			return this.runEditorCommand(editorAccessor, editor, ...args);
 		});
 	}
 

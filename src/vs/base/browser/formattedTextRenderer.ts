@@ -118,7 +118,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 
 	if (child && Array.isArray(treeNode.children)) {
 		treeNode.children.forEach((nodeChild) => {
-			_renderFormattedText(child!, nodeChild, actionHandler, renderCodeSegments);
+			_renderFormattedText(child, nodeChild, actionHandler, renderCodeSegments);
 		});
 	}
 }

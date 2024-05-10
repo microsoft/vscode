@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -16,24 +15,17 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 
 suite('Debug - Link Detector', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let linkDetector: LinkDetector;
 
 	/**
 	 * Instantiate a {@link LinkDetector} for use by the functions being tested.
 	 */
 	setup(() => {
-		disposables = new DisposableStore();
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ITunnelService, { canTunnel: () => false });
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
 	 * Assert that a given Element is an anchor element.

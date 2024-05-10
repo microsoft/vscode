@@ -29,6 +29,8 @@ import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 suite('NotebookKernel', function () {
 	let rpcProtocol: TestRPCProtocol;
@@ -40,6 +42,7 @@ suite('NotebookKernel', function () {
 	let extHostNotebookDocuments: ExtHostNotebookDocuments;
 	let extHostCommands: ExtHostCommands;
 	let extHostConsumerFileSystem: ExtHostConsumerFileSystem;
+	let extHostSearch: ExtHostSearch;
 
 	const notebookUri = URI.parse('test:///notebook.file');
 	const kernelData = new Map<number, INotebookKernelDto2>();
@@ -101,7 +104,8 @@ suite('NotebookKernel', function () {
 			}
 		});
 		extHostConsumerFileSystem = new ExtHostConsumerFileSystem(rpcProtocol, new ExtHostFileSystemInfo());
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem);
+		extHostSearch = new ExtHostSearch(rpcProtocol, new URITransformerService(null), new NullLogService());
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch);
 
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 

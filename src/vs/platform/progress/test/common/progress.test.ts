@@ -5,9 +5,13 @@
 
 import * as assert from 'assert';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { AsyncProgress } from 'vs/platform/progress/common/progress';
 
 suite('Progress', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('multiple report calls are processed in sequence', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
 			const executionOrder: string[] = [];
@@ -28,7 +32,7 @@ suite('Progress', () => {
 				}
 				executionOrder.push(`end ${value}`);
 			};
-			const progress = new Progress<number>(executor, { async: true });
+			const progress = new AsyncProgress<number>(executor);
 
 			progress.report(1);
 			progress.report(2);

@@ -14,7 +14,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ExtensionKind, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-export const EXTENSION_IDENTIFIER_WITH_LOG_REGEX = /^([^.]+\..+):(.+)$/;
+export const EXTENSION_IDENTIFIER_WITH_LOG_REGEX = /^([^.]+\..+)[:=](.+)$/;
 
 export interface INativeEnvironmentPaths {
 

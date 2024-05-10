@@ -9,6 +9,7 @@ import { nulToken } from '../../utils/cancellation';
 import type * as Proto from '../../tsServer/protocol/protocol';
 import * as typeConverters from '../../typeConverters';
 import { ITypeScriptServiceClient } from '../../typescriptService';
+import { TelemetryReporter } from '../../logging/telemetry';
 
 export class EditorChatFollowUp implements Command {
 	public static readonly ID = '_typescript.quickFix.editorChatReplacement2';
@@ -16,9 +17,38 @@ export class EditorChatFollowUp implements Command {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	async execute({ message, document, expand }: EditorChatFollowUp_Args) {
+	async execute({ message, document, expand, action }: EditorChatFollowUp_Args) {
+		if (action.type === 'quickfix') {
+			/* __GDPR__
+				"aiQuickfix.execute" : {
+					"owner": "mjbvz",
+					"action" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
+				}
+			*/
+			this.telemetryReporter.logTelemetry('aiQuickfix.execute', {
+				action: action.quickfix.fixName,
+			});
+		} else {
+			/* __GDPR__
+				"aiRefactor.execute" : {
+					"owner": "mjbvz",
+					"action" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
+				}
+			*/
+			this.telemetryReporter.logTelemetry('aiRefactor.execute', {
+				action: action.refactor.name,
+			});
+		}
+
 		const initialRange =
 			expand.kind === 'navtree-function'
 				? await findScopeEndLineFromNavTree(
@@ -50,6 +80,13 @@ export interface EditorChatFollowUp_Args {
 	readonly message: string;
 	readonly document: vscode.TextDocument;
 	readonly expand: Expand;
+	readonly action: {
+		readonly type: 'refactor';
+		readonly refactor: Proto.RefactorActionInfo;
+	} | {
+		readonly type: 'quickfix';
+		readonly quickfix: Proto.CodeFixAction;
+	};
 }
 
 export class CompositeCommand implements Command {

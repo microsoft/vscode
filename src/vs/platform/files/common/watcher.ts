@@ -5,11 +5,11 @@
 
 import { Event } from 'vs/base/common/event';
 import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isAbsolute } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+import { FileChangeFilter, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
 interface IWatchRequest {
 
@@ -34,6 +34,30 @@ interface IWatchRequest {
 	 * events.
 	 */
 	readonly includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * If provided, file change events from the watcher that
+	 * are a result of this watch request will carry the same
+	 * id.
+	 */
+	readonly correlationId?: number;
+
+	/**
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to:
+	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
+	 */
+	readonly filter?: FileChangeFilter;
+}
+
+export interface IWatchRequestWithCorrelation extends IWatchRequest {
+	readonly correlationId: number;
+}
+
+export function isWatchRequestWithCorrelation(request: IWatchRequest): request is IWatchRequestWithCorrelation {
+	return typeof request.correlationId === 'number';
 }
 
 export interface INonRecursiveWatchRequest extends IWatchRequest {
@@ -64,13 +88,13 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 
 export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
-interface IWatcher {
+export interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events
 	 * the watcher emits.
 	 */
-	readonly onDidChangeFile: Event<IDiskFileChange[]>;
+	readonly onDidChangeFile: Event<IFileChange[]>;
 
 	/**
 	 * An event to indicate a message that should get logged.
@@ -105,6 +129,20 @@ interface IWatcher {
 
 export interface IRecursiveWatcher extends IWatcher {
 	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IRecursiveWatcherWithSubscribe extends IRecursiveWatcher {
+
+	/**
+	 * Subscribe to file events for the given path. The callback is called
+	 * whenever a file event occurs for the path. If the watcher failed,
+	 * the error parameter is set to `true`.
+	 *
+	 * @returns an `IDisposable` to stop listening to events or `undefined`
+	 * if no events can be watched for the path given the current set of
+	 * recursive watch requests.
+	 */
+	subscribe(path: string, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined;
 }
 
 export interface IRecursiveWatcherOptions {
@@ -148,7 +186,7 @@ export abstract class AbstractWatcherClient extends Disposable {
 	private restartCounter = 0;
 
 	constructor(
-		private readonly onFileChanges: (changes: IDiskFileChange[]) => void,
+		private readonly onFileChanges: (changes: IFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 		private options: {
@@ -234,7 +272,7 @@ export abstract class AbstractWatcherClient extends Disposable {
 export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherClient {
 
 	constructor(
-		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onFileChanges: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
@@ -247,7 +285,7 @@ export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherC
 export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClient {
 
 	constructor(
-		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onFileChanges: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
@@ -257,24 +295,20 @@ export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClie
 	protected abstract override createWatcher(disposables: DisposableStore): IUniversalWatcher;
 }
 
-export interface IDiskFileChange {
-	type: FileChangeType;
-	readonly resource: URI;
-}
-
 export interface ILogMessage {
 	readonly type: 'trace' | 'warn' | 'error' | 'info' | 'debug';
 	readonly message: string;
 }
 
-export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
+export function reviveFileChanges(changes: IFileChange[]): IFileChange[] {
 	return changes.map(change => ({
 		type: change.type,
-		resource: URI.revive(change.resource)
+		resource: URI.revive(change.resource),
+		cId: change.cId
 	}));
 }
 
-export function coalesceEvents(changes: IDiskFileChange[]): IDiskFileChange[] {
+export function coalesceEvents(changes: IFileChange[]): IFileChange[] {
 
 	// Build deltas
 	const coalescer = new EventCoalescer();
@@ -312,10 +346,10 @@ export function parseWatcherPatterns(path: string, patterns: Array<string | IRel
 
 class EventCoalescer {
 
-	private readonly coalesced = new Set<IDiskFileChange>();
-	private readonly mapPathToChange = new Map<string, IDiskFileChange>();
+	private readonly coalesced = new Set<IFileChange>();
+	private readonly mapPathToChange = new Map<string, IFileChange>();
 
-	private toKey(event: IDiskFileChange): string {
+	private toKey(event: IFileChange): string {
 		if (isLinux) {
 			return event.resource.fsPath;
 		}
@@ -323,7 +357,7 @@ class EventCoalescer {
 		return event.resource.fsPath.toLowerCase(); // normalise to file system case sensitivity
 	}
 
-	processEvent(event: IDiskFileChange): void {
+	processEvent(event: IFileChange): void {
 		const existingEvent = this.mapPathToChange.get(this.toKey(event));
 
 		let keepEvent = false;
@@ -370,8 +404,8 @@ class EventCoalescer {
 		}
 	}
 
-	coalesce(): IDiskFileChange[] {
-		const addOrChangeEvents: IDiskFileChange[] = [];
+	coalesce(): IFileChange[] {
+		const addOrChangeEvents: IFileChange[] = [];
 		const deletedPaths: string[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder
@@ -402,4 +436,42 @@ class EventCoalescer {
 			return true;
 		}).concat(addOrChangeEvents);
 	}
+}
+
+export function isFiltered(event: IFileChange, filter: FileChangeFilter | undefined): boolean {
+	if (typeof filter === 'number') {
+		switch (event.type) {
+			case FileChangeType.ADDED:
+				return (filter & FileChangeFilter.ADDED) === 0;
+			case FileChangeType.DELETED:
+				return (filter & FileChangeFilter.DELETED) === 0;
+			case FileChangeType.UPDATED:
+				return (filter & FileChangeFilter.UPDATED) === 0;
+		}
+	}
+
+	return false;
+}
+
+export function requestFilterToString(filter: FileChangeFilter | undefined): string {
+	if (typeof filter === 'number') {
+		const filters = [];
+		if (filter & FileChangeFilter.ADDED) {
+			filters.push('Added');
+		}
+		if (filter & FileChangeFilter.DELETED) {
+			filters.push('Deleted');
+		}
+		if (filter & FileChangeFilter.UPDATED) {
+			filters.push('Updated');
+		}
+
+		if (filters.length === 0) {
+			return '<all>';
+		}
+
+		return `[${filters.join(', ')}]`;
+	}
+
+	return '<none>';
 }

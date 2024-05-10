@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Choice, FormatString, Marker, Placeholder, Scanner, SnippetParser, Text, TextmateSnippet, TokenType, Transform, Variable } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 suite('SnippetParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Scanner', () => {
 
@@ -773,10 +776,10 @@ suite('SnippetParser', () => {
 		assert.strictEqual(snippet.children.length, 1);
 		assert.ok(variable instanceof Variable);
 		assert.ok(variable.transform);
-		assert.strictEqual(variable.transform!.children.length, 1);
-		assert.ok(variable.transform!.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, 'import { hello } from world');
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+		assert.strictEqual(variable.transform.children.length, 1);
+		assert.ok(variable.transform.children[0] instanceof FormatString);
+		assert.strictEqual((<FormatString>variable.transform.children[0]).ifValue, 'import { hello } from world');
+		assert.strictEqual((<FormatString>variable.transform.children[0]).elseValue, undefined);
 	});
 
 	test('Snippet escape backslashes inside conditional insertion variable replacement #80394', function () {
@@ -786,10 +789,10 @@ suite('SnippetParser', () => {
 		assert.strictEqual(snippet.children.length, 1);
 		assert.ok(variable instanceof Variable);
 		assert.ok(variable.transform);
-		assert.strictEqual(variable.transform!.children.length, 1);
-		assert.ok(variable.transform!.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, '\\');
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+		assert.strictEqual(variable.transform.children.length, 1);
+		assert.ok(variable.transform.children[0] instanceof FormatString);
+		assert.strictEqual((<FormatString>variable.transform.children[0]).ifValue, '\\');
+		assert.strictEqual((<FormatString>variable.transform.children[0]).elseValue, undefined);
 	});
 
 	test('Snippet placeholder empty right after expansion #152553', function () {
@@ -806,5 +809,9 @@ suite('SnippetParser', () => {
 		const snippet3 = new SnippetParser().parse('${1:$2.one} <> ${2:$1.two}');
 		const actual3 = snippet3.toString();
 		assert.strictEqual(actual3, '.two.one.two.one <> .one.two.one.two');
+	});
+
+	test('Snippet choices are incorrectly escaped/applied #180132', function () {
+		assertTextAndMarker('${1|aaa$aaa|}bbb\\$bbb', 'aaa$aaabbb$bbb', Placeholder, Text);
 	});
 });

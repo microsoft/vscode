@@ -126,7 +126,7 @@ export class NativeMenubarControl extends MenubarControl {
 						const menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 							id: menuItem.id,
 							label: title,
-							submenu: submenu
+							submenu
 						};
 
 						menuToPopulate.items.push(menubarSubmenuItem);

@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
 	return {
 		extendMarkdownIt(md: any) {
 			if (isEnabled()) {
-				const katex = require('@vscode/markdown-it-katex');
+				const katex = require('@vscode/markdown-it-katex').default;
 				const settingsMacros = getMacros();
 				const options = { globalGroup: true, macros: { ...settingsMacros } };
 				md.core.ruler.push('reset-katex-macros', () => {

@@ -73,6 +73,7 @@ export interface TunnelInformation {
 		elevation: boolean;
 		public?: boolean;
 		privacyOptions: TunnelPrivacy[];
+		protocol: boolean;
 	};
 }
 

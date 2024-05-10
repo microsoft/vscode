@@ -14,13 +14,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -101,6 +100,7 @@ suite('EditorGroupModel', () => {
 		locked: number[];
 		active: number[];
 		index: number[];
+		label: number[];
 		opened: IGroupEditorOpenEvent[];
 		activated: IGroupEditorChangeEvent[];
 		closed: IGroupEditorCloseEvent[];
@@ -116,6 +116,7 @@ suite('EditorGroupModel', () => {
 		const groupEvents: GroupEvents = {
 			active: [],
 			index: [],
+			label: [],
 			locked: [],
 			opened: [],
 			closed: [],
@@ -137,6 +138,9 @@ suite('EditorGroupModel', () => {
 				return;
 			} else if (e.kind === GroupModelChangeKind.GROUP_INDEX) {
 				groupEvents.index.push(group.id);
+				return;
+			} else if (e.kind === GroupModelChangeKind.GROUP_LABEL) {
+				groupEvents.label.push(group.id);
 				return;
 			}
 			if (!e.editor) {
@@ -193,7 +197,7 @@ suite('EditorGroupModel', () => {
 			super();
 		}
 		override get typeId() { return 'testEditorInputForGroups'; }
-		override async resolve(): Promise<IEditorModel> { return null!; }
+		override async resolve(): Promise<IDisposable> { return null!; }
 
 		override matches(other: TestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof TestEditorInput;
@@ -216,7 +220,7 @@ suite('EditorGroupModel', () => {
 			super();
 		}
 		override get typeId() { return 'testEditorInputForGroups-nonSerializable'; }
-		override async resolve(): Promise<IEditorModel | null> { return null; }
+		override async resolve(): Promise<IDisposable | null> { return null; }
 
 		override matches(other: NonSerializableTestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -232,7 +236,7 @@ suite('EditorGroupModel', () => {
 		}
 		override get typeId() { return 'testFileEditorInputForGroups'; }
 		override get editorId() { return this.id; }
-		override async resolve(): Promise<IEditorModel | null> { return null; }
+		override async resolve(): Promise<IDisposable | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
 		setPreferredResource(resource: URI): void { }
@@ -805,6 +809,17 @@ suite('EditorGroupModel', () => {
 		group.setIndex(4);
 
 		assert.strictEqual(events.index.length, 1);
+	});
+
+	test('label', function () {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		assert.strictEqual(events.label.length, 0);
+
+		group.setLabel('Window 1');
+
+		assert.strictEqual(events.label.length, 1);
 	});
 
 	test('active', function () {
@@ -1517,7 +1532,7 @@ suite('EditorGroupModel', () => {
 
 		// Close Left
 		assert.strictEqual(group.activeEditor, input3);
-		closeEditors(group, group.activeEditor!, CloseDirection.LEFT);
+		closeEditors(group, group.activeEditor, CloseDirection.LEFT);
 		assert.strictEqual(group.activeEditor, input3);
 		assert.strictEqual(group.count, 3);
 		assert.strictEqual(group.getEditors(EditorsOrder.SEQUENTIAL)[0], input3);
@@ -1534,7 +1549,7 @@ suite('EditorGroupModel', () => {
 
 		// Close Right
 		assert.strictEqual(group.activeEditor, input3);
-		closeEditors(group, group.activeEditor!, CloseDirection.RIGHT);
+		closeEditors(group, group.activeEditor, CloseDirection.RIGHT);
 		assert.strictEqual(group.activeEditor, input3);
 		assert.strictEqual(group.count, 3);
 		assert.strictEqual(group.getEditors(EditorsOrder.SEQUENTIAL)[0], input1);

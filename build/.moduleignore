@@ -63,10 +63,11 @@ native-watchdog/build/**
 native-watchdog/src/**
 !native-watchdog/build/Release/*.node
 
-node-vsce-sign/**
-!node-vsce-sign/src/main.js
-!node-vsce-sign/package.json
-!node-vsce-sign/bin/**
+@vscode/vsce-sign/**
+!@vscode/vsce-sign/src/main.d.ts
+!@vscode/vsce-sign/src/main.js
+!@vscode/vsce-sign/package.json
+!@vscode/vsce-sign/bin/**
 
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
@@ -160,11 +161,11 @@ zone.js/dist/**
 !zone.js/dist/zone-node.js
 
 # https://github.com/xtermjs/xterm.js/issues/3137
-xterm/src/**
-xterm/tsconfig.all.json
+@xterm/xterm/src/**
+@xterm/xterm/tsconfig.all.json
 
 # https://github.com/xtermjs/xterm.js/issues/3138
-xterm-addon-*/src/**
-xterm-addon-*/fixtures/**
-xterm-addon-*/out/**
-xterm-addon-*/out-test/**
+@xterm/xterm-addon-*/src/**
+@xterm/xterm-addon-*/fixtures/**
+@xterm/xterm-addon-*/out/**
+@xterm/xterm-addon-*/out-test/**

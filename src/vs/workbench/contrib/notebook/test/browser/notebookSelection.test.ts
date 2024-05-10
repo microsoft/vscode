@@ -15,12 +15,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('NotebookSelection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('focus is never empty', function () {
 		const selectionCollection = new NotebookCellSelectionCollection();
 		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
 
 		selectionCollection.setState(null, [], true, 'model');
 		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
+		selectionCollection.dispose();
 	});
 });
 
@@ -275,7 +278,7 @@ suite('NotebookCellList focus/selection', () => {
 			(editor, viewModel) => {
 				assert.deepStrictEqual(viewModel.validateRange(null), null);
 				assert.deepStrictEqual(viewModel.validateRange(undefined), null);
-				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 0 }), null);
+				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 0 }), { start: 0, end: 0 });
 				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 2 }), { start: 0, end: 2 });
 				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 3 }), { start: 0, end: 2 });
 				assert.deepStrictEqual(viewModel.validateRange({ start: -1, end: 3 }), { start: 0, end: 2 });

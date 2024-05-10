@@ -8,10 +8,11 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import * as dom from 'vs/base/browser/dom';
-import type { IViewportRange } from 'xterm';
-import { IHoverTarget, IHoverService, IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import type { IViewportRange } from '@xterm/xterm';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import type { IHoverAction, IHoverTarget } from 'vs/base/browser/ui/hover/hover';
 
 const $ = dom.$;
 
@@ -103,13 +104,13 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 
 		if (this._options.modifierDownCallback && this._options.modifierUpCallback) {
 			let down = false;
-			this._register(dom.addDisposableListener(document, 'keydown', e => {
+			this._register(dom.addDisposableListener(container.ownerDocument, 'keydown', e => {
 				if (e.ctrlKey && !down) {
 					down = true;
 					this._options.modifierDownCallback!();
 				}
 			}));
-			this._register(dom.addDisposableListener(document, 'keyup', e => {
+			this._register(dom.addDisposableListener(container.ownerDocument, 'keyup', e => {
 				if (!e.ctrlKey) {
 					down = false;
 					this._options.modifierUpCallback!();

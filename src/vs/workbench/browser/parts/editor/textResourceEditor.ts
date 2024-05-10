@@ -18,7 +18,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType, ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -37,6 +37,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -46,14 +47,14 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService
 	) {
-		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
+		super(id, group, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 	}
 
 	override async setInput(input: AbstractTextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
-		const resolvedModel = await input.resolve(options);
+		const resolvedModel = await input.resolve();
 
 		// Check for cancellation
 		if (token.isCancellationRequested) {
@@ -130,6 +131,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	static readonly ID = 'workbench.editors.textResourceEditor';
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -141,7 +143,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService fileService: IFileService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
+		super(TextResourceEditor.ID, group, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
 	}
 
 	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
@@ -156,7 +158,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
-		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasLanguageSetExplicitly) {
+		if (this.input instanceof UntitledTextEditorInput && this.input.hasLanguageSetExplicitly) {
 			return; // do not override language if it was set explicitly
 		}
 
@@ -205,7 +207,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		if (candidateLanguage && candidateLanguage.id !== PLAINTEXT_LANGUAGE_ID) {
 			if (this.input instanceof UntitledTextEditorInput && candidateLanguage.source === 'event') {
 				// High confidence, set language id at TextEditorModel level to block future auto-detection
-				this.input.model.setLanguageId(candidateLanguage.id);
+				this.input.setLanguageId(candidateLanguage.id);
 			} else {
 				textModel.setLanguage(this.languageService.createById(candidateLanguage.id));
 			}

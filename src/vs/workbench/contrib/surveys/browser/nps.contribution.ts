@@ -11,7 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
@@ -85,7 +85,7 @@ class NPSContribution implements IWorkbenchContribution {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
-			{ sticky: true }
+			{ sticky: true, priority: NotificationPriority.URGENT }
 		);
 	}
 }

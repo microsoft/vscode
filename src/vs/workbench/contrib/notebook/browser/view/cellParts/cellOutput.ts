@@ -21,14 +21,13 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { INotebookOutputActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -183,6 +182,7 @@ class CellOutputElement extends Disposable {
 		const index = this.viewCell.outputsViewModels.indexOf(this.output);
 
 		if (this.viewCell.isOutputCollapsed || !this.notebookEditor.hasModel()) {
+			this.cellOutputContainer.flagAsStale();
 			return undefined;
 		}
 
@@ -200,18 +200,23 @@ class CellOutputElement extends Disposable {
 			return undefined;
 		}
 
-		const pickedMimeTypeRenderer = mimeTypes[pick];
-		const innerContainer = this._generateInnerOutputContainer(previousSibling, pickedMimeTypeRenderer);
+		const selectedPresentation = mimeTypes[pick];
+		let renderer = this.notebookService.getRendererInfo(selectedPresentation.rendererId);
+		if (!renderer && selectedPresentation.mimeType.indexOf('text/') > -1) {
+			renderer = this.notebookService.getRendererInfo('vscode.builtin-renderer');
+		}
+
+		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
 		this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 
 		this.renderedOutputContainer = DOM.append(innerContainer, DOM.$('.rendered-output'));
 
-		const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
-		this.renderResult = renderer
-			? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-			: this._renderMissingRenderer(this.output, pickedMimeTypeRenderer.mimeType);
 
-		this.output.pickedMimeType = pickedMimeTypeRenderer;
+		this.renderResult = renderer
+			? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: selectedPresentation.mimeType }
+			: this._renderMissingRenderer(this.output, selectedPresentation.mimeType);
+
+		this.output.pickedMimeType = selectedPresentation;
 
 		if (!this.renderResult) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#renderResultUndefined');
@@ -286,7 +291,7 @@ class CellOutputElement extends Disposable {
 			return;
 		}
 
-		const useConsolidatedButton = this.notebookEditor.notebookOptions.getLayoutConfiguration().consolidatedOutputButton;
+		const useConsolidatedButton = this.notebookEditor.notebookOptions.getDisplayOptions().consolidatedOutputButton;
 
 		outputItemDiv.style.position = 'relative';
 		const mimeTypePicker = DOM.$('.cell-output-toolbar');
@@ -296,7 +301,7 @@ class CellOutputElement extends Disposable {
 		const toolbar = this._renderDisposableStore.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
 		}));
-		toolbar.context = <INotebookOutputActionContext>{
+		toolbar.context = {
 			ui: true,
 			cell: this.output.cellViewModel as ICellViewModel,
 			outputViewModel: this.output,
@@ -472,6 +477,7 @@ const enum CellOutputUpdateContext {
 
 export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
+	private _hasStaleOutputs: boolean = false;
 
 	get renderedOutputEntries() {
 		return this._outputEntries;
@@ -529,6 +535,13 @@ export class CellOutputContainer extends CellContentPart {
 		}
 	}
 
+	/**
+	 * Notify that an output may have been swapped out without the model getting rendered.
+	 */
+	flagAsStale() {
+		this._hasStaleOutputs = true;
+	}
+
 	private _doRender() {
 		if (this.viewCell.outputsViewModels.length > 0) {
 			if (this.viewCell.layoutInfo.outputTotalHeight !== 0) {
@@ -564,6 +577,13 @@ export class CellOutputContainer extends CellContentPart {
 	}
 
 	viewUpdateShowOutputs(initRendering: boolean): void {
+		if (this._hasStaleOutputs) {
+			this._hasStaleOutputs = false;
+			this._outputEntries.forEach(entry => {
+				entry.element.rerender();
+			});
+		}
+
 		for (let index = 0; index < this._outputEntries.length; index++) {
 			const viewHandler = this._outputEntries[index];
 			const outputEntry = viewHandler.element;
@@ -590,12 +610,14 @@ export class CellOutputContainer extends CellContentPart {
 			clearTimeout(this._outputHeightTimer);
 		}
 
+		const executionState = this._notebookExecutionStateService.getCellExecution(this.viewCell.uri);
+
 		if (synchronous) {
 			this.viewCell.unlockOutputHeight();
-		} else {
+		} else if (executionState?.state !== NotebookCellExecutionState.Executing) {
 			this._outputHeightTimer = setTimeout(() => {
 				this.viewCell.unlockOutputHeight();
-			}, 1000);
+			}, 200);
 		}
 	}
 
@@ -713,9 +735,6 @@ export class CellOutputContainer extends CellContentPart {
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 		}
-
-		const editorHeight = this.templateData.editor.getContentHeight();
-		this.viewCell.editorHeight = editorHeight;
 
 		this._relayoutCell();
 		// if it's clearing all outputs, or outputs are all rendered synchronously

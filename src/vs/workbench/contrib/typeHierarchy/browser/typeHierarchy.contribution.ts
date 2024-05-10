@@ -16,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -177,7 +177,7 @@ registerAction2(class PeekTypeHierarchyAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.showTypeHierarchy',
-			title: { value: localize('title', "Peek Type Hierarchy"), original: 'Peek Type Hierarchy' },
+			title: localize2('title', 'Peek Type Hierarchy'),
 			menu: {
 				id: MenuId.EditorContextPeek,
 				group: 'navigation',
@@ -206,7 +206,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.showSupertypes',
-			title: { value: localize('title.supertypes', "Show Supertypes"), original: 'Show Supertypes' },
+			title: localize2('title.supertypes', 'Show Supertypes'),
 			icon: Codicon.typeHierarchySuper,
 			precondition: ContextKeyExpr.and(_ctxTypeHierarchyVisible, _ctxTypeHierarchyDirection.isEqualTo(TypeHierarchyDirection.Subtypes)),
 			keybinding: {
@@ -231,7 +231,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.showSubtypes',
-			title: { value: localize('title.subtypes', "Show Subtypes"), original: 'Show Subtypes' },
+			title: localize2('title.subtypes', 'Show Subtypes'),
 			icon: Codicon.typeHierarchySub,
 			precondition: ContextKeyExpr.and(_ctxTypeHierarchyVisible, _ctxTypeHierarchyDirection.isEqualTo(TypeHierarchyDirection.Supertypes)),
 			keybinding: {
@@ -256,7 +256,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.refocusTypeHierarchy',
-			title: { value: localize('title.refocusTypeHierarchy', "Refocus Type Hierarchy"), original: 'Refocus Type Hierarchy' },
+			title: localize2('title.refocusTypeHierarchy', 'Refocus Type Hierarchy'),
 			precondition: _ctxTypeHierarchyVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

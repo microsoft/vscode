@@ -26,8 +26,8 @@ import { joinPath } from 'vs/base/common/resources';
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
 	comment: 'Reporting when Remote Tunnel access is turned on or off';
-	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
-	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
+	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
+	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
 };
 
 type RemoteTunnelEnablementEvent = {
@@ -209,20 +209,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._tunnelProcess = undefined;
 		}
 
-		if (!this._mode.active) {
-			return;
-		}
+		if (this._mode.active) {
+			// Be careful to only uninstall the service if we're the ones who installed it:
+			const needsServiceUninstall = this._mode.asService;
+			this.setMode(INACTIVE_TUNNEL_MODE);
 
-		// Be careful to only uninstall the service if we're the ones who installed it:
-		const needsServiceUninstall = this._mode.asService;
-		this.setMode(INACTIVE_TUNNEL_MODE);
-
-		try {
-			if (needsServiceUninstall) {
-				this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+			try {
+				if (needsServiceUninstall) {
+					this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+				}
+			} catch (e) {
+				this._logger.error(e);
 			}
-		} catch (e) {
-			this._logger.error(e);
 		}
 
 		try {
@@ -268,10 +266,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 			// split and find the line, since in dev builds additional noise is
 			// added by cargo to the output.
-			const status: {
+			let status: {
 				service_installed: boolean;
 				tunnel: object | null;
-			} = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+			};
+
+			try {
+				status = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+			} catch (e) {
+				this._logger.error(`Could not parse status output: ${JSON.stringify(output.trim())}`);
+				this.setTunnelStatus(TunnelStates.disconnected());
+				return;
+			}
 
 			isServiceInstalled = status.service_installed;
 			this._logger.info(status.tunnel ? 'Other tunnel running, attaching...' : 'No other tunnel running');

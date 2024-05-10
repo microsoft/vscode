@@ -25,9 +25,10 @@ import { status } from 'vs/base/browser/ui/aria/aria';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import type { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find (\u21C5 for history)");
+const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
@@ -73,7 +74,8 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		options: IFindOptions,
 		contextViewService: IContextViewService,
 		contextKeyService: IContextKeyService,
-		private readonly _keybindingService: IKeybindingService
+		hoverService: IHoverService,
+		private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -104,7 +106,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			toggleStyles: defaultToggleStyles
 		}, contextKeyService));
 		// Find History with update delayer
-		this._updateHistoryDelayer = new Delayer<void>(500);
+		this._updateHistoryDelayer = this._register(new Delayer<void>(500));
 
 		this._register(this._findInput.onInput(async (e) => {
 			if (!options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
@@ -143,7 +145,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			onTrigger: () => {
 				this.find(true);
 			}
-		}));
+		}, hoverService));
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL + (options.nextMatchActionId ? this._getKeybinding(options.nextMatchActionId) : ''),
@@ -151,7 +153,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			onTrigger: () => {
 				this.find(false);
 			}
-		}));
+		}, hoverService));
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL + (options.closeWidgetActionId ? this._getKeybinding(options.closeWidgetActionId) : ''),
@@ -159,7 +161,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			onTrigger: () => {
 				this.hide();
 			}
-		}));
+		}, hoverService));
 
 		this._innerDomNode = document.createElement('div');
 		this._innerDomNode.classList.add('simple-find-part');
@@ -220,7 +222,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			let originalWidth = _initialMinWidth;
 
 			// sash
-			const resizeSash = new Sash(this._innerDomNode, this, { orientation: Orientation.VERTICAL, size: 1 });
+			const resizeSash = this._register(new Sash(this._innerDomNode, this, { orientation: Orientation.VERTICAL, size: 1 }));
 			this._register(resizeSash.onDidStart(() => {
 				originalWidth = parseFloat(dom.getComputedStyle(this._domNode).width);
 			}));
@@ -287,6 +289,10 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 	public getDomNode() {
 		return this._domNode;
+	}
+
+	public getFindInputDomNode() {
+		return this._findInput.domNode;
 	}
 
 	public reveal(initialInput?: string, animated = true): void {

@@ -47,6 +47,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		this.extHostTelemetryLogFile = URI.revive(this.initData.environment.extensionTelemetryLogResource);
 		this._inLoggingOnlyMode = this.initData.environment.isExtensionTelemetryLoggingOnly;
 		this._outputLogger = loggerService.createLogger(this.extHostTelemetryLogFile, { id: extensionTelemetryLogChannelId, name: localize('extensionTelemetryLog', "Extension Telemetry{0}", this._inLoggingOnlyMode ? ' (Not Sent)' : ''), hidden: true });
+		this._register(this._outputLogger);
 		this._register(loggerService.onDidChangeLogLevel(arg => {
 			if (isLogLevel(arg)) {
 				this.updateLoggerVisibility();
@@ -103,6 +104,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		commonProperties['common.extversion'] = extension.version;
 		commonProperties['common.vscodemachineid'] = this.initData.telemetryInfo.machineId;
 		commonProperties['common.vscodesessionid'] = this.initData.telemetryInfo.sessionId;
+		commonProperties['common.sqmid'] = this.initData.telemetryInfo.sqmId;
 		commonProperties['common.vscodeversion'] = this.initData.version;
 		commonProperties['common.isnewappinstall'] = isNewAppInstall(this.initData.telemetryInfo.firstSessionDate);
 		commonProperties['common.product'] = this.initData.environment.appHost;

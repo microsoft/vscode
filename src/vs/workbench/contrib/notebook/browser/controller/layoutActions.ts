@@ -5,10 +5,11 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -25,10 +26,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.select',
-			title: {
-				value: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
-				original: 'Select between Notebook Layouts'
-			},
+			title: localize2('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
@@ -64,10 +62,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.configure',
-			title: {
-				value: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
-				original: 'Customize Notebook Layout'
-			},
+			title: localize2('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
@@ -89,10 +84,7 @@ registerAction2(class NotebookConfigureLayoutFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.configure.editorTitle',
-			title: {
-				value: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
-				original: 'Customize Notebook Layout'
-			},
+			title: localize2('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
 			f1: false,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
@@ -113,7 +105,7 @@ registerAction2(class NotebookConfigureLayoutFromEditorTitle extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: MenuId.NotebookEditorLayoutConfigure,
 	rememberDefaultAction: false,
-	title: { value: localize('customizeNotebook', "Customize Notebook..."), original: 'Customize Notebook...', },
+	title: localize2('customizeNotebook', "Customize Notebook..."),
 	icon: Codicon.gear,
 	group: 'navigation',
 	order: -1,
@@ -124,7 +116,7 @@ registerAction2(class ToggleLineNumberFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLineNumbersFromEditorTitle',
-			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			title: localize2('notebook.toggleLineNumbers', 'Toggle Notebook Line Numbers'),
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{
@@ -151,7 +143,7 @@ registerAction2(class ToggleCellToolbarPositionFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleCellToolbarPositionFromEditorTitle',
-			title: { value: localize('notebook.toggleCellToolbarPosition', "Toggle Cell Toolbar Position"), original: 'Toggle Cell Toolbar Position' },
+			title: localize2('notebook.toggleCellToolbarPosition', 'Toggle Cell Toolbar Position'),
 			menu: [{
 				id: MenuId.NotebookEditorLayoutConfigure,
 				group: 'notebookLayoutDetails',
@@ -171,7 +163,7 @@ registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.toggleFromEditorTitle',
-			title: { value: localize('notebook.toggleBreadcrumb', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+			title: localize2('notebook.toggleBreadcrumb', 'Toggle Breadcrumbs'),
 			menu: [{
 				id: MenuId.NotebookEditorLayoutConfigure,
 				group: 'notebookLayoutDetails',
@@ -190,10 +182,7 @@ registerAction2(class SaveMimeTypeDisplayOrder extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.saveMimeTypeOrder',
-			title: {
-				value: localize('notebook.saveMimeTypeOrder', 'Save Mimetype Display Order'),
-				original: 'Save Mimetype Display Order'
-			},
+			title: localize2('notebook.saveMimeTypeOrder', "Save Mimetype Display Order"),
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -227,10 +216,7 @@ registerAction2(class NotebookWebviewResetAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.webview.reset',
-			title: {
-				value: localize('workbench.notebook.layout.webview.reset.label', "Reset Notebook Webview"),
-				original: 'Reset Notebook Webview'
-			},
+			title: localize2('workbench.notebook.layout.webview.reset.label', "Reset Notebook Webview"),
 			f1: false,
 			category: NOTEBOOK_ACTIONS_CATEGORY
 		});
@@ -255,5 +241,37 @@ registerAction2(class NotebookWebviewResetAction extends Action2 {
 
 			editor.getInnerWebview()?.reload();
 		}
+	}
+});
+
+registerAction2(class ToggleNotebookStickyScroll extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.action.toggleNotebookStickyScroll',
+			title: {
+				...localize2('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+			},
+			category: Categories.View,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true),
+				title: localize('notebookStickyScroll', "Toggle Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+			},
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{
+					id: MenuId.NotebookStickyScrollContext,
+					group: 'notebookView',
+					order: 2
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue('notebook.stickyScroll.enabled');
+		return configurationService.updateValue('notebook.stickyScroll.enabled', newValue);
 	}
 });

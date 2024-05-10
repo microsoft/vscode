@@ -36,8 +36,10 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
-import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 
 interface IActionShowOptions {
@@ -78,6 +80,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -88,7 +91,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._editor.getContribution<LightBulbWidget>(LightBulbWidget.ID);
 			if (widget) {
-				this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
+				this._register(widget.onClick(e => this.showCodeActionsFromLightbulb(e.actions, e)));
 			}
 			return widget;
 		});
@@ -101,6 +104,44 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	override dispose() {
 		this._disposed = true;
 		super.dispose();
+	}
+
+	private async showCodeActionsFromLightbulb(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
+
+		// Telemetry for showing code actions from lightbulb. Shows us how often it was clicked.
+		type ShowCodeActionListEvent = {
+			codeActionListLength: number;
+			codeActions: string[];
+			codeActionProviders: string[];
+		};
+
+		type ShowListEventClassification = {
+			codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list from the lightbulb widget.' };
+			codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
+			codeActionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of code actions in this menu.' };
+			owner: 'justschen';
+			comment: 'Event used to gain insights into what code actions are being shown';
+		};
+
+		this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionsFromLightbulb', {
+			codeActionListLength: actions.validActions.length,
+			codeActions: actions.validActions.map(action => action.action.title),
+			codeActionProviders: actions.validActions.map(action => action.provider?.displayName ?? ''),
+		});
+
+
+		if (actions.allAIFixes && actions.validActions.length === 1) {
+			const actionItem = actions.validActions[0];
+			const command = actionItem.action.command;
+			if (command && command.id === 'inlineChat.start') {
+				if (command.arguments && command.arguments.length >= 1) {
+					command.arguments[0] = { ...command.arguments[0], autoSend: false };
+				}
+			}
+			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
+			return;
+		}
+		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
 	}
 
 	public showCodeActions(_trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
@@ -130,9 +171,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this._model.trigger(trigger);
 	}
 
-	private async _applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean): Promise<void> {
+	private async _applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
 		try {
-			await this._instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.FromCodeActions, { preview, editor: this._editor });
+			await this._instantiationService.invokeFunction(applyCodeAction, action, actionReason, { preview, editor: this._editor });
 		} finally {
 			if (retrigger) {
 				this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
@@ -172,7 +213,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				if (validActionToApply) {
 					try {
 						this._lightBulbWidget.value?.hide();
-						await this._applyCodeAction(validActionToApply, false, false);
+						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
 					}
@@ -264,28 +305,76 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this._applyCodeAction(action, /* retrigger */ true, !!preview);
-				this._actionWidgetService.hide();
+				this._applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
+				this._actionWidgetService.hide(false);
 				currentDecorations.clear();
 			},
-			onHide: () => {
+			onHide: (didCancel?) => {
 				this._editor?.focus();
 				currentDecorations.clear();
+				// Telemetry for showing code actions here. only log on `showLightbulb`. Logs when code action list is quit out.
+				if (options.fromLightbulb && didCancel !== undefined) {
+					type ShowCodeActionListEvent = {
+						codeActionListLength: number;
+						didCancel: boolean;
+					};
+
+					type ShowListEventClassification = {
+						codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list when quit out. Can be from any code action menu.' };
+						didCancel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code action was cancelled or selected.' };
+						owner: 'justschen';
+						comment: 'Event used to gain insights into how many valid code actions are being shown';
+					};
+
+					this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionList.onHide', {
+						codeActionListLength: actions.validActions.length,
+						didCancel: didCancel,
+					});
+				}
 			},
 			onHover: async (action: CodeActionItem, token: CancellationToken) => {
-				await action.resolve(token);
 				if (token.isCancellationRequested) {
 					return;
 				}
-				return { canPreview: !!action.action.edit?.edits.length };
+
+				let canPreview = false;
+				const actionKind = action.action.kind;
+
+				if (actionKind) {
+					const hierarchicalKind = new HierarchicalKind(actionKind);
+					const refactorKinds = [
+						CodeActionKind.RefactorExtract,
+						CodeActionKind.RefactorInline,
+						CodeActionKind.RefactorRewrite,
+						CodeActionKind.RefactorMove,
+						CodeActionKind.Source
+					];
+
+					canPreview = refactorKinds.some(refactorKind => refactorKind.contains(hierarchicalKind));
+				}
+
+				return { canPreview: canPreview || !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
-				if (action && action.highlightRange && action.action.diagnostics) {
-					const decorations: IModelDeltaDecoration[] = [{ range: action.action.diagnostics[0], options: CodeActionController.DECORATION }];
-					currentDecorations.set(decorations);
-					const diagnostic = action.action.diagnostics[0];
-					const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
-					aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
+				if (action && action.action) {
+					const ranges = action.action.ranges;
+					const diagnostics = action.action.diagnostics;
+					currentDecorations.clear();
+					if (ranges && ranges.length > 0) {
+						// Handles case for `fix all` where there are multiple diagnostics.
+						const decorations: IModelDeltaDecoration[] = (diagnostics && diagnostics?.length > 1)
+							? diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }))
+							: ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+						currentDecorations.set(decorations);
+					} else if (diagnostics && diagnostics.length > 0) {
+						const decorations: IModelDeltaDecoration[] = diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
+						currentDecorations.set(decorations);
+						const diagnostic = diagnostics[0];
+						if (diagnostic.startLineNumber && diagnostic.startColumn) {
+							const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
+							aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
+						}
+					}
 				} else {
 					currentDecorations.clear();
 				}

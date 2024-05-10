@@ -20,6 +20,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
@@ -27,6 +28,7 @@ const DEFAULT_QUERY_PROPS = {};
 const DEFAULT_TEXT_QUERY_PROPS = { usePCRE2: false };
 
 suite('QueryBuilder', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
 	const ROOT_1_URI = getUri(ROOT_1);

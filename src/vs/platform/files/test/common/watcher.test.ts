@@ -10,8 +10,8 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { IDiskFileChange, coalesceEvents, toFileChanges, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { FileChangeFilter, FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { coalesceEvents, reviveFileChanges, parseWatcherPatterns, isFiltered } from 'vs/platform/files/common/watcher';
 
 class TestFileWatcher extends Disposable {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>;
@@ -26,23 +26,23 @@ class TestFileWatcher extends Disposable {
 		return this._onDidFilesChange.event;
 	}
 
-	report(changes: IDiskFileChange[]): void {
+	report(changes: IFileChange[]): void {
 		this.onRawFileEvents(changes);
 	}
 
-	private onRawFileEvents(events: IDiskFileChange[]): void {
+	private onRawFileEvents(events: IFileChange[]): void {
 
 		// Coalesce
 		const coalescedEvents = coalesceEvents(events);
 
 		// Emit through event emitter
 		if (coalescedEvents.length > 0) {
-			this._onDidFilesChange.fire({ raw: toFileChanges(coalescedEvents), event: this.toFileChangesEvent(coalescedEvents) });
+			this._onDidFilesChange.fire({ raw: reviveFileChanges(coalescedEvents), event: this.toFileChangesEvent(coalescedEvents) });
 		}
 	}
 
-	private toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
-		return new FileChangesEvent(toFileChanges(changes), !isLinux);
+	private toFileChangesEvent(changes: IFileChange[]): FileChangesEvent {
+		return new FileChangesEvent(reviveFileChanges(changes), !isLinux);
 	}
 }
 
@@ -126,7 +126,7 @@ suite('Watcher Events Normalizer', () => {
 		const updated = URI.file('/users/data/src/updated.txt');
 		const deleted = URI.file('/users/data/src/deleted.txt');
 
-		const raw: IDiskFileChange[] = [
+		const raw: IFileChange[] = [
 			{ resource: added, type: FileChangeType.ADDED },
 			{ resource: updated, type: FileChangeType.UPDATED },
 			{ resource: deleted, type: FileChangeType.DELETED },
@@ -159,7 +159,7 @@ suite('Watcher Events Normalizer', () => {
 			const addedFile = URI.file(path === Path.UNIX ? '/users/data/src/added.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\added.txt' : '\\\\localhost\\users\\data\\src\\added.txt');
 			const updatedFile = URI.file(path === Path.UNIX ? '/users/data/src/updated.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\updated.txt' : '\\\\localhost\\users\\data\\src\\updated.txt');
 
-			const raw: IDiskFileChange[] = [
+			const raw: IFileChange[] = [
 				{ resource: deletedFolderA, type: FileChangeType.DELETED },
 				{ resource: deletedFolderB, type: FileChangeType.DELETED },
 				{ resource: deletedFolderBF1, type: FileChangeType.DELETED },
@@ -194,7 +194,7 @@ suite('Watcher Events Normalizer', () => {
 		const deleted = URI.file('/users/data/src/related');
 		const unrelated = URI.file('/users/data/src/unrelated');
 
-		const raw: IDiskFileChange[] = [
+		const raw: IFileChange[] = [
 			{ resource: created, type: FileChangeType.ADDED },
 			{ resource: deleted, type: FileChangeType.DELETED },
 			{ resource: unrelated, type: FileChangeType.UPDATED },
@@ -219,7 +219,7 @@ suite('Watcher Events Normalizer', () => {
 		const created = URI.file('/users/data/src/related');
 		const unrelated = URI.file('/users/data/src/unrelated');
 
-		const raw: IDiskFileChange[] = [
+		const raw: IFileChange[] = [
 			{ resource: deleted, type: FileChangeType.DELETED },
 			{ resource: created, type: FileChangeType.ADDED },
 			{ resource: unrelated, type: FileChangeType.UPDATED },
@@ -245,7 +245,7 @@ suite('Watcher Events Normalizer', () => {
 		const updated = URI.file('/users/data/src/related');
 		const unrelated = URI.file('/users/data/src/unrelated');
 
-		const raw: IDiskFileChange[] = [
+		const raw: IFileChange[] = [
 			{ resource: created, type: FileChangeType.ADDED },
 			{ resource: updated, type: FileChangeType.UPDATED },
 			{ resource: unrelated, type: FileChangeType.UPDATED },
@@ -273,7 +273,7 @@ suite('Watcher Events Normalizer', () => {
 		const deleted = URI.file('/users/data/src/related');
 		const unrelated = URI.file('/users/data/src/unrelated');
 
-		const raw: IDiskFileChange[] = [
+		const raw: IFileChange[] = [
 			{ resource: updated, type: FileChangeType.UPDATED },
 			{ resource: updated2, type: FileChangeType.UPDATED },
 			{ resource: unrelated, type: FileChangeType.UPDATED },
@@ -300,7 +300,7 @@ suite('Watcher Events Normalizer', () => {
 		const oldPath = URI.file('/users/data/src/added');
 		const newPath = URI.file('/users/data/src/ADDED');
 
-		const raw: IDiskFileChange[] = [
+		const raw: IFileChange[] = [
 			{ resource: newPath, type: FileChangeType.ADDED },
 			{ resource: oldPath, type: FileChangeType.DELETED }
 		];
@@ -323,6 +323,35 @@ suite('Watcher Events Normalizer', () => {
 		}));
 
 		watch.report(raw);
+	});
+
+	test('event type filter', () => {
+		const resource = URI.file('/users/data/src/related');
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, undefined), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, undefined), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, undefined), false);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.UPDATED), true);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.UPDATED | FileChangeFilter.DELETED), true);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.ADDED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.ADDED | FileChangeFilter.UPDATED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.ADDED | FileChangeFilter.UPDATED | FileChangeFilter.DELETED), false);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.UPDATED), true);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.UPDATED | FileChangeFilter.ADDED), true);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.DELETED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.ADDED | FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.ADDED), true);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.DELETED | FileChangeFilter.ADDED), true);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.UPDATED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.ADDED | FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

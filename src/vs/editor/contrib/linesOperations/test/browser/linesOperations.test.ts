@@ -12,7 +12,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { CamelCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
+import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -50,6 +50,25 @@ suite('Editor Contrib - Line Operations', () => {
 						'omicron'
 					]);
 					assertSelection(editor, new Selection(1, 1, 3, 7));
+				});
+		});
+
+		test('should sort lines in ascending order', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					executeAction(sortLinesAscendingAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
 				});
 		});
 
@@ -148,7 +167,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	suite('DeleteDuplicateLinesAction', () => {
-		test('should remove duplicate lines', function () {
+		test('should remove duplicate lines within selection', function () {
 			withTestCodeEditor(
 				[
 					'alpha',
@@ -169,6 +188,29 @@ suite('Editor Contrib - Line Operations', () => {
 						'omicron',
 					]);
 					assertSelection(editor, new Selection(1, 1, 3, 7));
+				});
+		});
+
+		test('should remove duplicate lines', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'beta',
+					'beta',
+					'alpha',
+					'omicron',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+
+					executeAction(deleteDuplicateLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron',
+					]);
+					assert.ok(editor.getSelection().isEmpty());
 				});
 		});
 
@@ -933,6 +975,74 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(kebabCaseAction, editor);
 				assert.strictEqual(model.getLineContent(11), 'kebab-case');
 				assertSelection(editor, new Selection(11, 1, 11, 11));
+			}
+		);
+
+		withTestCodeEditor(
+			[
+				'hello world',
+				'öçşğü',
+				'parseHTMLString',
+				'getElementById',
+				'PascalCase',
+				'öçşÖÇŞğüĞÜ',
+				'audioConverter.convertM4AToMP3();',
+				'Capital_Snake_Case',
+				'parseHTML4String',
+				'Kebab-Case',
+			], {}, (editor) => {
+				const model = editor.getModel()!;
+				const pascalCaseAction = new PascalCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(1), 'HelloWorld');
+				assertSelection(editor, new Selection(1, 1, 1, 11));
+
+				editor.setSelection(new Selection(2, 1, 2, 6));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(2), 'Öçşğü');
+				assertSelection(editor, new Selection(2, 1, 2, 6));
+
+				editor.setSelection(new Selection(3, 1, 3, 16));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(3), 'ParseHTMLString');
+				assertSelection(editor, new Selection(3, 1, 3, 16));
+
+				editor.setSelection(new Selection(4, 1, 4, 15));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(4), 'GetElementById');
+				assertSelection(editor, new Selection(4, 1, 4, 15));
+
+				editor.setSelection(new Selection(5, 1, 5, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(5), 'PascalCase');
+				assertSelection(editor, new Selection(5, 1, 5, 11));
+
+				editor.setSelection(new Selection(6, 1, 6, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(6), 'ÖçşÖÇŞğüĞÜ');
+				assertSelection(editor, new Selection(6, 1, 6, 11));
+
+				editor.setSelection(new Selection(7, 1, 7, 34));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(7), 'AudioConverter.ConvertM4AToMP3();');
+				assertSelection(editor, new Selection(7, 1, 7, 34));
+
+				editor.setSelection(new Selection(8, 1, 8, 19));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(8), 'CapitalSnakeCase');
+				assertSelection(editor, new Selection(8, 1, 8, 17));
+
+				editor.setSelection(new Selection(9, 1, 9, 17));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(9), 'ParseHTML4String');
+				assertSelection(editor, new Selection(9, 1, 9, 17));
+
+				editor.setSelection(new Selection(10, 1, 10, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(10), 'KebabCase');
+				assertSelection(editor, new Selection(10, 1, 10, 10));
 			}
 		);
 	});

@@ -501,6 +501,11 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 	}
 
 	public async $OnDidEndTask(execution: tasks.ITaskExecutionDTO): Promise<void> {
+		if (!this._taskExecutionPromises.has(execution.id)) {
+			// Event already fired by the main thread
+			// See https://github.com/microsoft/vscode/commit/aaf73920aeae171096d205efb2c58804a32b6846
+			return;
+		}
 		const _execution = await this.getTaskExecution(execution);
 		this._taskExecutionPromises.delete(execution.id);
 		this._taskExecutions.delete(execution.id);
@@ -633,29 +638,22 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		if (result) {
 			return result;
 		}
-		const createdResult: Promise<TaskExecutionImpl> = new Promise((resolve, reject) => {
-			function resolvePromiseWithCreatedTask(that: ExtHostTaskBase, execution: tasks.ITaskExecutionDTO, taskToCreate: vscode.Task | types.Task | undefined) {
-				if (!taskToCreate) {
-					reject('Unexpected: Task does not exist.');
-				} else {
-					resolve(new TaskExecutionImpl(that, execution.id, taskToCreate));
+
+		let executionPromise: Promise<TaskExecutionImpl>;
+		if (!task) {
+			executionPromise = TaskDTO.to(execution.task, this._workspaceProvider, this._providedCustomExecutions2).then(t => {
+				if (!t) {
+					throw new ErrorNoTelemetry('Unexpected: Task does not exist.');
 				}
-			}
-
-			if (task) {
-				resolvePromiseWithCreatedTask(this, execution, task);
-			} else {
-				TaskDTO.to(execution.task, this._workspaceProvider, this._providedCustomExecutions2)
-					.then(task => resolvePromiseWithCreatedTask(this, execution, task));
-			}
-		});
-
-		this._taskExecutionPromises.set(execution.id, createdResult);
-		return createdResult.then(executionCreatedResult => {
-			this._taskExecutions.set(execution.id, executionCreatedResult);
-			return executionCreatedResult;
-		}, rejected => {
-			return Promise.reject(rejected);
+				return new TaskExecutionImpl(this, execution.id, t);
+			});
+		} else {
+			executionPromise = Promise.resolve(new TaskExecutionImpl(this, execution.id, task));
+		}
+		this._taskExecutionPromises.set(execution.id, executionPromise);
+		return executionPromise.then(taskExecution => {
+			this._taskExecutions.set(execution.id, taskExecution);
+			return taskExecution;
 		});
 	}
 
@@ -746,7 +744,8 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 			for (const task of value) {
 				this.checkDeprecation(task, handler);
 				if (!task.definition || !validTypes[task.definition.type]) {
-					this._logService.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+					const source = task.source ? task.source : 'No task source';
+					this._logService.warn(`The task [${source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
 
 				const taskDTO: tasks.ITaskDTO | undefined = TaskDTO.from(task, handler.extension);

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { IsMainWindowFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -34,6 +34,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { getActiveElement, getActiveWindow } from 'vs/base/browser/dom';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -236,9 +237,8 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		super({
 			id: OpenRecentAction.ID,
 			title: {
-				value: localize('openRecent', "Open Recent..."),
+				...localize2('openRecent', "Open Recent..."),
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
-				original: 'Open Recent...'
 			},
 			category: Categories.File,
 			f1: true,
@@ -265,7 +265,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenRecent',
-			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
+			title: localize2('quickOpenRecent', 'Quick Open Recent...'),
 			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
@@ -282,9 +282,8 @@ class ToggleFullScreenAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleFullScreen',
 			title: {
-				value: localize('toggleFullScreen', "Toggle Full Screen"),
+				...localize2('toggleFullScreen', "Toggle Full Screen"),
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
-				original: 'Toggle Full Screen'
 			},
 			category: Categories.View,
 			f1: true,
@@ -296,7 +295,7 @@ class ToggleFullScreenAction extends Action2 {
 				}
 			},
 			precondition: IsIOSContext.toNegated(),
-			toggled: IsFullscreenContext,
+			toggled: IsMainWindowFullscreenContext,
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
@@ -308,7 +307,7 @@ class ToggleFullScreenAction extends Action2 {
 	override run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
-		return hostService.toggleFullScreen();
+		return hostService.toggleFullScreen(getActiveWindow());
 	}
 }
 
@@ -319,7 +318,7 @@ export class ReloadWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: ReloadWindowAction.ID,
-			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
+			title: localize2('reloadWindow', 'Reload Window'),
 			category: Categories.Developer,
 			f1: true,
 			keybinding: {
@@ -330,7 +329,7 @@ export class ReloadWindowAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
 		return hostService.reload();
@@ -343,9 +342,8 @@ class ShowAboutDialogAction extends Action2 {
 		super({
 			id: 'workbench.action.showAboutDialog',
 			title: {
-				value: localize('about', "About"),
+				...localize2('about', "About"),
 				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
-				original: 'About'
 			},
 			category: Categories.Help,
 			f1: true,
@@ -371,9 +369,8 @@ class NewWindowAction extends Action2 {
 		super({
 			id: 'workbench.action.newWindow',
 			title: {
-				value: localize('newWindow', "New Window"),
+				...localize2('newWindow', "New Window"),
 				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
-				original: 'New Window'
 			},
 			f1: true,
 			keybinding: {
@@ -401,15 +398,14 @@ class BlurAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.blur',
-			title: { value: localize('blur', "Remove keyboard focus from focused element"), original: 'Remove keyboard focus from focused element' }
+			title: localize2('blur', 'Remove keyboard focus from focused element')
 		});
 	}
 
 	run(): void {
-		const el = document.activeElement;
-
-		if (el instanceof HTMLElement) {
-			el.blur();
+		const activeElement = getActiveElement();
+		if (activeElement instanceof HTMLElement) {
+			activeElement.blur();
 		}
 	}
 }

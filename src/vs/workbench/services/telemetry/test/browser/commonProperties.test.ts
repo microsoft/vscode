@@ -4,13 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Browser Telemetry - common properties', function () {
 
 	const commit: string = (undefined)!;
 	const version: string = (undefined)!;
-	let testStorageService: IStorageService;
+	let testStorageService: InMemoryStorageService;
+
+	teardown(() => {
+		testStorageService.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		testStorageService = new InMemoryStorageService();

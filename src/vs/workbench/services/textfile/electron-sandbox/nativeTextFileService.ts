@@ -61,7 +61,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), { id: 'join.textFiles', label: localize('join.textFiles', "Saving text files") }));
+		this._register(this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), { id: 'join.textFiles', label: localize('join.textFiles', "Saving text files") })));
 	}
 
 	private async onWillShutdown(): Promise<void> {

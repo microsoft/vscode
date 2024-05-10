@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -14,7 +14,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
+import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.format',
-			title: { value: localize('format.title', "Format Notebook"), original: 'Format Notebook' },
+			title: localize2('format.title', 'Format Notebook'),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE),
 			keybinding: {
@@ -78,11 +78,11 @@ registerAction2(class extends Action2 {
 
 				const model = ref.object.textEditorModel;
 
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
+				const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
 					editorWorkerService,
 					languageFeaturesService,
 					model,
-					model.getOptions(),
+					FormattingMode.Explicit,
 					CancellationToken.None
 				);
 
@@ -131,7 +131,7 @@ registerEditorAction(class FormatCellAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
 			const instaService = accessor.get(IInstantiationService);
-			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None);
+			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None, true);
 		}
 	}
 });
@@ -177,12 +177,11 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 
 				const model = ref.object.textEditorModel;
 
-				// todo: eventually support cancellation. potential leak if cell deleted mid execution
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
+				const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
 					this.editorWorkerService,
 					this.languageFeaturesService,
 					model,
-					model.getOptions(),
+					FormattingMode.Silent,
 					CancellationToken.None
 				);
 

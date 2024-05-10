@@ -6,7 +6,7 @@ import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -21,20 +21,17 @@ registerAction2(class CopyMatchCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.CopyMatchCommandId,
-			title: {
-				value: nls.localize('copyMatchLabel', "Copy"),
-				original: 'Copy'
-			},
+			id: Constants.SearchCommandIds.CopyMatchCommandId,
+			title: nls.localize2('copyMatchLabel', "Copy"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: Constants.FileMatchOrMatchFocusKey,
+				when: Constants.SearchContext.FileMatchOrMatchFocusKey,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 			},
 			menu: [{
 				id: MenuId.SearchContext,
-				when: Constants.FileMatchOrMatchFocusKey,
+				when: Constants.SearchContext.FileMatchOrMatchFocusKey,
 				group: 'search_2',
 				order: 1
 			}]
@@ -52,15 +49,12 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.CopyPathCommandId,
-			title: {
-				value: nls.localize('copyPathLabel', "Copy Path"),
-				original: 'Copy Path'
-			},
+			id: Constants.SearchCommandIds.CopyPathCommandId,
+			title: nls.localize2('copyPathLabel', "Copy Path"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: Constants.FileMatchOrFolderMatchWithResourceFocusKey,
+				when: Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
 				win: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC
@@ -68,7 +62,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 			},
 			menu: [{
 				id: MenuId.SearchContext,
-				when: Constants.FileMatchOrFolderMatchWithResourceFocusKey,
+				when: Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey,
 				group: 'search_2',
 				order: 2
 			}]
@@ -86,15 +80,12 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.CopyAllCommandId,
-			title: {
-				value: nls.localize('copyAllLabel', "Copy All"),
-				original: 'Copy All'
-			},
+			id: Constants.SearchCommandIds.CopyAllCommandId,
+			title: nls.localize2('copyAllLabel', "Copy All"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
-				when: Constants.HasSearchResults,
+				when: Constants.SearchContext.HasSearchResults,
 				group: 'search_2',
 				order: 3
 			}]

@@ -81,7 +81,7 @@ export class IconSelectBox extends Disposable {
 		dom.append(iconSelectBoxContainer, this.scrollableElement.getDomNode());
 
 		if (this.options.showIconInfo) {
-			this.iconIdElement = new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label')));
+			this.iconIdElement = this._register(new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label'))));
 		}
 
 		const iconsDisposables = disposables.add(new MutableDisposable());
@@ -97,8 +97,10 @@ export class IconSelectBox extends Disposable {
 					matches.push(match);
 				}
 			}
-			iconsDisposables.value = this.renderIcons(icons, matches, iconsContainer);
-			this.scrollableElement?.scanDomNode();
+			if (icons.length) {
+				iconsDisposables.value = this.renderIcons(icons, matches, iconsContainer);
+				this.scrollableElement?.scanDomNode();
+			}
 		}));
 
 		this.inputBox.inputElement.role = 'combobox';
@@ -132,10 +134,6 @@ export class IconSelectBox extends Disposable {
 				disposables.add(dom.addDisposableListener(iconContainer, dom.EventType.CLICK, (e: MouseEvent) => {
 					e.stopPropagation();
 					this.setSelection(index);
-				}));
-
-				disposables.add(dom.addDisposableListener(iconContainer, dom.EventType.MOUSE_OVER, (e: MouseEvent) => {
-					this.focusIcon(index);
 				}));
 
 				if (icon === focusedIcon) {

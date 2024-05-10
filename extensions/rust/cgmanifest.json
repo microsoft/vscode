@@ -6,7 +6,7 @@
 				"git": {
 					"name": "rust-syntax",
 					"repositoryUrl": "https://github.com/dustypomerleau/rust-syntax",
-					"commitHash": "328a68299533bc2b8c71028be741cce78a9e0d53"
+					"commitHash": "cf3c686a50295380ce9994218138691f8767870c"
 				}
 			},
 			"license": "MIT",

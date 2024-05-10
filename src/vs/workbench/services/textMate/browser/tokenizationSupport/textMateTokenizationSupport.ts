@@ -55,7 +55,7 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 		if (shouldMeasure) {
 			const timeMS = sw!.elapsed();
 			if (isRandomSample || timeMS > 32) {
-				this._reportTokenizationTime!(timeMS, line.length, isRandomSample);
+				this._reportTokenizationTime(timeMS, line.length, isRandomSample);
 			}
 		}
 

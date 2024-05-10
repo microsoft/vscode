@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import { parseLinkedText } from 'vs/base/common/linkedText';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('LinkedText', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('parses correctly', () => {
 		assert.deepStrictEqual(parseLinkedText('').nodes, []);
 		assert.deepStrictEqual(parseLinkedText('hello').nodes, ['hello']);

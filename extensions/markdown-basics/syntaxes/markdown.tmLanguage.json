@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/0a4b23580308fdcfb4ab7b526e3e13ba17d436fb",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/f75d5f55730e72ee7ff386841949048b2395e440",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1257,7 +1257,7 @@
 			]
 		},
 		"fenced_code_block_powershell": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1|pwsh)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -2255,12 +2255,7 @@
 					]
 				}
 			},
-			"name": "markup.heading.markdown",
-			"patterns": [
-				{
-					"include": "#inline"
-				}
-			]
+			"name": "markup.heading.markdown"
 		},
 		"heading-setext": {
 			"patterns": [

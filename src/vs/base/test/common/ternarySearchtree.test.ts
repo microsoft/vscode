@@ -9,8 +9,11 @@ import { randomPath } from 'vs/base/common/extpath';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ConfigKeysIterator, PathIterator, StringIterator, TernarySearchTree, UriIterator } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Ternary Search Tree', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('PathIterator', () => {
 		const iter = new PathIterator();

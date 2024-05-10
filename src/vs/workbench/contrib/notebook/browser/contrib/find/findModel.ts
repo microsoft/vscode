@@ -281,7 +281,7 @@ export class FindModel extends Disposable {
 			const index = this._notebookEditor.getCellIndex(findMatch.cell);
 			if (index !== undefined) {
 				// const range: ICellRange = { start: index, end: index + 1 };
-				this._notebookEditor.revealCellOffsetInCenterAsync(findMatch.cell, outputOffset ?? 0);
+				this._notebookEditor.revealCellOffsetInCenter(findMatch.cell, outputOffset ?? 0);
 			}
 		} else {
 			const match = findMatch.getMatch(matchIndex) as FindMatch;
@@ -499,8 +499,8 @@ export class FindModel extends Disposable {
 	}
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
-		this.set(findMatches, false);
 		this._currentMatch = currentMatchesPosition % findMatches.length;
+		this.set(findMatches, false);
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 

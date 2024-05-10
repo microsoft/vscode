@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, IResolvedNotebookEditorModel, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -21,6 +21,7 @@ import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/noteb
 import { assertIsDefined } from 'vs/base/common/types';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileReadLimits } from 'vs/platform/files/common/files';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -58,7 +59,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		return this._dirtyStates.get(resource) ?? false;
 	}
 
-	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean): Promise<IResolvedNotebookEditorModel> {
+	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean, limits?: IFileReadLimits): Promise<IResolvedNotebookEditorModel> {
 		// Untrack as being disposed
 		this.modelsToDispose.delete(key);
 
@@ -76,8 +77,9 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			);
 			this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 		}
-		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
-		const result = await model.load();
+		const scratchPad = viewType === 'interactive' && this._configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
+		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager, scratchPad);
+		const result = await model.load({ limits });
 
 
 		// Whenever a notebook model is dirty we automatically reference it so that
@@ -172,9 +174,9 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		return this._data.isDirty(resource);
 	}
 
-	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	async resolve(resource: IUntitledNotebookResource, viewType: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {
+	async resolve(resource: URI, viewType?: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>>;
+	async resolve(resource: IUntitledNotebookResource, viewType: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>>;
+	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>> {
 		let resource: URI;
 		let hasAssociatedFilePath = false;
 		if (URI.isUri(arg0)) {
@@ -235,7 +237,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 			}
 		}
 
-		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath);
+		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath, limits);
 		try {
 			const model = await reference.object;
 			return {

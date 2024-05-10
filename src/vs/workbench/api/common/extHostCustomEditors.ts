@@ -133,22 +133,22 @@ class EditorProviderStore {
 	private readonly _providers = new Map<string, ProviderEntry>();
 
 	public addTextProvider(viewType: string, extension: IExtensionDescription, provider: vscode.CustomTextEditorProvider): vscode.Disposable {
-		return this.add(CustomEditorType.Text, viewType, extension, provider);
+		return this.add(viewType, { type: CustomEditorType.Text, extension, provider });
 	}
 
 	public addCustomProvider(viewType: string, extension: IExtensionDescription, provider: vscode.CustomReadonlyEditorProvider): vscode.Disposable {
-		return this.add(CustomEditorType.Custom, viewType, extension, provider);
+		return this.add(viewType, { type: CustomEditorType.Custom, extension, provider });
 	}
 
 	public get(viewType: string): ProviderEntry | undefined {
 		return this._providers.get(viewType);
 	}
 
-	private add(type: CustomEditorType, viewType: string, extension: IExtensionDescription, provider: vscode.CustomTextEditorProvider | vscode.CustomReadonlyEditorProvider): vscode.Disposable {
+	private add(viewType: string, entry: ProviderEntry): vscode.Disposable {
 		if (this._providers.has(viewType)) {
 			throw new Error(`Provider for viewType:${viewType} already registered`);
 		}
-		this._providers.set(viewType, { type, extension, provider } as ProviderEntry);
+		this._providers.set(viewType, entry);
 		return new extHostTypes.Disposable(() => this._providers.delete(viewType));
 	}
 }

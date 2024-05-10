@@ -21,7 +21,7 @@ import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapabilit
 import { ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import type { ILink, Terminal } from 'xterm';
+import type { ILink, Terminal } from '@xterm/xterm';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 import { importAMDNodeModule } from 'vs/amdX';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -35,7 +35,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
 	unicodeVersion: '11',
-	wordSeparators: ' ()[]{}\',"`─‘’'
+	wordSeparators: ' ()[]{}\',"`─‘’“”'
 };
 
 class TestLinkManager extends TerminalLinkManager {
@@ -86,7 +86,7 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
 		linkManager = store.add(instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
 			get initialCwd() {
@@ -97,6 +97,14 @@ suite('TerminalLinkManager', () => {
 				return undefined;
 			}
 		} as Partial<ITerminalCapabilityStore> as any, instantiationService.createInstance(TerminalLinkResolver)));
+	});
+
+	suite('registerExternalLinkProvider', () => {
+		test('should not leak disposables if the link manager is already disposed', () => {
+			linkManager.externalProvideLinksCb = async () => undefined;
+			linkManager.dispose();
+			linkManager.externalProvideLinksCb = async () => undefined;
+		});
 	});
 
 	suite('getLinks and open recent link', () => {

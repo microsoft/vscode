@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from 'vs/workbench/services/textMate/browser/arrayOperation';
 
 suite('array operation', () => {
@@ -74,4 +75,6 @@ suite('array operation', () => {
 			]
 		);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

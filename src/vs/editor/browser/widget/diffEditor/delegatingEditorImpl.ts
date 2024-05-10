@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition, Position } from 'vs/editor/common/core/position';

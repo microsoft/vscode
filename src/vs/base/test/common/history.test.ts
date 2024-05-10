@@ -184,6 +184,8 @@ suite('History Navigator', () => {
 
 suite('History Navigator 2', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('constructor', () => {
 		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
 

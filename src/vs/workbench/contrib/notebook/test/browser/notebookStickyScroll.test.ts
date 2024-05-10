@@ -50,7 +50,7 @@ suite('NotebookEditorStickyScroll', () => {
 	}
 
 	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[], disposables: Pick<DisposableStore, 'add'>) {
-		const output = computeContent(domNode, notebookEditor, notebookCellList, notebookOutlineEntries);
+		const output = computeContent(notebookEditor, notebookCellList, notebookOutlineEntries, 0);
 		for (const stickyLine of output.values()) {
 			disposables.add(stickyLine.line);
 		}
@@ -181,7 +181,7 @@ suite('NotebookEditorStickyScroll', () => {
 			});
 	});
 
-	test('test3: should render 0->1, 	collapsing against equivalent level header', async function () {
+	test('test3: should render 0->2, 	collapsing against equivalent level header', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],	// 0
@@ -222,7 +222,7 @@ suite('NotebookEditorStickyScroll', () => {
 	});
 
 	// outdated/improper behavior
-	test.skip('test4: should render 0, 		scrolltop halfway through cell 0', async function () {
+	test('test4: should render 0, 		scrolltop halfway through cell 0', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
@@ -260,8 +260,7 @@ suite('NotebookEditorStickyScroll', () => {
 			});
 	});
 
-	// outdated/improper behavior
-	test.skip('test5: should render 0->2, 	scrolltop halfway through cell 2', async function () {
+	test('test5: should render 0->2, 	scrolltop halfway through cell 2', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
@@ -301,8 +300,7 @@ suite('NotebookEditorStickyScroll', () => {
 			});
 	});
 
-	// outdated/improper behavior
-	test.skip('test6: should render 6->7, 	scrolltop halfway through cell 7', async function () {
+	test('test6: should render 6->7, 	scrolltop halfway through cell 7', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
@@ -342,7 +340,6 @@ suite('NotebookEditorStickyScroll', () => {
 			});
 	});
 
-	// waiting on behavior push to fix this.
 	test('test7: should render 0->1, 	collapsing against next section', async function () {
 		await withTestNotebook(
 			[
@@ -384,6 +381,4 @@ suite('NotebookEditorStickyScroll', () => {
 				outline.dispose();
 			});
 	});
-
-
 });

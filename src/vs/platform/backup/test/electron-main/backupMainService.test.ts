@@ -37,7 +37,7 @@ flakySuite('BackupMainService', () => {
 
 	function toWorkspace(path: string): IWorkspaceIdentifier {
 		return {
-			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+			id: createHash('md5').update(sanitizePath(path)).digest('hex'), // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 			configPath: URI.file(path)
 		};
 	}
@@ -45,7 +45,7 @@ flakySuite('BackupMainService', () => {
 	function toWorkspaceBackupInfo(path: string, remoteAuthority?: string): IWorkspaceBackupInfo {
 		return {
 			workspace: {
-				id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+				id: createHash('md5').update(sanitizePath(path)).digest('hex'), // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 				configPath: URI.file(path)
 			},
 			remoteAuthority
@@ -293,7 +293,7 @@ flakySuite('BackupMainService', () => {
 
 		const emptyBackups = service.getEmptyWindowBackups();
 		assert.strictEqual(1, emptyBackups.length);
-		assert.strictEqual(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder!)).length);
+		assert.strictEqual(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder)).length);
 	});
 
 	suite('loadSync', () => {

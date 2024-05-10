@@ -414,7 +414,7 @@ module _nls {
 		const { localizeCalls, nlsExpressions } = analyze(ts, typescript, 'localize');
 		const { localizeCalls: localize2Calls, nlsExpressions: nls2Expressions } = analyze(ts, typescript, 'localize2');
 
-		if (localizeCalls.length === 0) {
+		if (localizeCalls.length === 0 && localize2Calls.length === 0) {
 			return { javascript, sourcemap };
 		}
 
@@ -422,32 +422,43 @@ module _nls {
 		const nls = template(localizeCalls.map(lc => lc.value).concat(localize2Calls.map(lc => lc.value)));
 		const smc = new sm.SourceMapConsumer(sourcemap);
 		const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
-		let i = 0;
 
 		// build patches
+		const toPatch = (c: { range: ISpan; content: string }): IPatch => {
+			const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));
+			const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
+			return { span: { start, end }, content: c.content };
+		};
+
+		let i = 0;
 		const localizePatches = lazy(localizeCalls)
 			.map(lc => ([
 				{ range: lc.keySpan, content: '' + (i++) },
 				{ range: lc.valueSpan, content: 'null' }
 			]))
 			.flatten()
-			.map<IPatch>(c => {
-				const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));
-				const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
-				return { span: { start, end }, content: c.content };
-			});
+			.map(toPatch);
 
 		const localize2Patches = lazy(localize2Calls)
-			.map(lc => ([
+			.map(lc => (
 				{ range: lc.keySpan, content: '' + (i++) }
-			])).flatten()
-			.map<IPatch>(c => {
-				const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));
-				const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
-				return { span: { start, end }, content: c.content };
-			});
+			))
+			.map(toPatch);
 
-		const patches = localizePatches.concat(localize2Patches).toArray();
+		// Sort patches by their start position
+		const patches = localizePatches.concat(localize2Patches).toArray().sort((a, b) => {
+			if (a.span.start.line < b.span.start.line) {
+				return -1;
+			} else if (a.span.start.line > b.span.start.line) {
+				return 1;
+			} else if (a.span.start.character < b.span.start.character) {
+				return -1;
+			} else if (a.span.start.character > b.span.start.character) {
+				return 1;
+			} else {
+				return 0;
+			}
+		});
 
 		javascript = patchJavascript(patches, javascript, moduleId);
 

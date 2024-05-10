@@ -19,9 +19,9 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -812,7 +812,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	//#region File Watching
 
 	protected createUniversalWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractUniversalWatcherClient {
@@ -820,7 +820,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	protected createNonRecursiveWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractNonRecursiveWatcherClient {

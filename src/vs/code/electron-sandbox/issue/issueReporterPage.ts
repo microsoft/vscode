@@ -11,6 +11,7 @@ const sendProcessInfoLabel = escape(localize('sendProcessInfo', "Include my curr
 const sendWorkspaceInfoLabel = escape(localize('sendWorkspaceInfo', "Include my workspace metadata"));
 const sendExtensionsLabel = escape(localize('sendExtensions', "Include my enabled extensions"));
 const sendExperimentsLabel = escape(localize('sendExperiments', "Include A/B experiment info"));
+const sendExtensionData = escape(localize('sendExtensionData', "Include additional extension info"));
 const reviewGuidanceLabel = localize( // intentionally not escaped because of its embedded tags
 	{
 		key: 'reviewGuidanceLabel',
@@ -37,7 +38,7 @@ export default (): string => `
 		</div>
 
 		<div class="input-group" id="problem-source">
-			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))} <span class="required-input">*</span></label>
+			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "For"))} <span class="required-input">*</span></label>
 			<select id="issue-source" class="inline-form-control" required>
 				<!-- To be dynamically filled -->
 			</select>
@@ -82,9 +83,22 @@ export default (): string => `
 			<textarea name="description" id="description" placeholder="${escape(localize('details', "Please enter details."))}" required></textarea>
 		</div>
 		<div id="description-empty-error" class="validation-error hidden" role="alert">${escape(localize('descriptionEmptyValidation', "A description is required."))}</div>
+		<div id="description-short-error" class="validation-error hidden" role="alert">${escape(localize('descriptionTooShortValidation', "Please provide a longer description."))}</div>
 	</div>
 
 	<div class="system-info" id="block-container">
+		<div class="block block-extension-data">
+			<input class="send-extension-data" aria-label="${sendExtensionData}" type="checkbox" id="includeExtensionData" checked/>
+			<label class="extension-caption" id="extension-caption" for="includeExtensionData">
+				${sendExtensionData}
+				<span id="ext-loading" hidden></span>
+				<span class="ext-parens" hidden>(</span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a><span class="ext-parens" hidden>)</span>
+			</label>
+			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}" style="white-space: pre-wrap;">
+				<!-- To be dynamically filled -->
+			</pre>
+		</div>
+
 		<div class="block block-system">
 			<input class="sendData" aria-label="${sendSystemInfoLabel}" type="checkbox" id="includeSystemInfo" checked/>
 			<label class="caption" for="includeSystemInfo">

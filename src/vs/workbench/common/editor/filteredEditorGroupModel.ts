@@ -38,6 +38,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	get previewEditor(): EditorInput | null { return this.model.previewEditor && this.filter(this.model.previewEditor) ? this.model.previewEditor : null; }
 
 	isPinned(editorOrIndex: EditorInput | number): boolean { return this.model.isPinned(editorOrIndex); }
+	isTransient(editorOrIndex: EditorInput | number): boolean { return this.model.isTransient(editorOrIndex); }
 	isSticky(editorOrIndex: EditorInput | number): boolean { return this.model.isSticky(editorOrIndex); }
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean { return this.model.isActive(editor); }
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -16,12 +15,12 @@ import * as vscode from 'vscode';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
 
-	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
+	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
+	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>();
+	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
+	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
+	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>();
 
 	readonly onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent> = this._onDidChangeTextEditorSelection.event;
 	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;

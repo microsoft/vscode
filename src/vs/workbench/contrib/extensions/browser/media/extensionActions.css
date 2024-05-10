@@ -48,12 +48,12 @@
 	background-color: var(--vscode-extensionButton-hoverBackground) !important;
 }
 
-.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div  {
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
 	background-color: var(--vscode-extensionButton-separator);
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.label.prominent,
-.monaco-action-bar .action-item.action-dropdown-item>.action-dropdown-item-separator.prominent {
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator.prominent {
 	background-color: var(--vscode-extensionButton-prominentBackground);
 }
 
@@ -90,7 +90,8 @@
 .monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label,
 .monaco-action-bar .action-item .action-label.extension-action.icon,
 .monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
-	margin-top: 2px; /* margin for outline */
+	margin-top: 2px;
+	/* margin for outline */
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action.hide,
@@ -111,6 +112,10 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-status.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
 .monaco-action-bar .action-item .action-label.extension-action.manage.hide {
+	display: none;
+}
+
+.monaco-action-bar .action-item.checkbox-action-item.disabled {
 	display: none;
 }
 

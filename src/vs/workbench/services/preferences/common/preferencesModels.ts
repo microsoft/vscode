@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail, coalesce } from 'vs/base/common/arrays';
+import { tail, coalesce } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
@@ -687,6 +687,10 @@ export class DefaultSettings extends Disposable {
 					}
 				}
 
+				if (!enumToUse && (prop.enumItemLabels || enumDescriptions || enumDescriptionsAreMarkdown)) {
+					console.error(`The setting ${key} has enum-related fields, but doesn't have an enum field. This setting may render improperly in the Settings editor.`);
+				}
+
 				result.push({
 					key,
 					value,
@@ -706,6 +710,7 @@ export class DefaultSettings extends Disposable {
 					enum: enumToUse,
 					enumDescriptions: enumDescriptions,
 					enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
+					enumItemLabels: prop.enumItemLabels,
 					uniqueItems: prop.uniqueItems,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
@@ -714,7 +719,6 @@ export class DefaultSettings extends Disposable {
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop),
-					enumItemLabels: prop.enumItemLabels,
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
 					order: prop.order,
@@ -825,7 +829,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			.sort((a, b) => a.order - b.order);
 		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
-		const startLine = tail(this.settingsGroups).range.endLineNumber + 2;
+		const startLine = tail(this.settingsGroups)!.range.endLineNumber + 2;
 		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
 		const metadata = this.collectMetadata(resultGroups);
@@ -896,19 +900,18 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		builder.pushGroup(settingsGroup);
 
 		// builder has rewritten settings ranges, fix match ranges
-		const fixedMatches = flatten(
-			filterMatches
-				.map(m => m.matches || [])
-				.map((settingMatches, i) => {
-					const setting = settingsGroup.sections[0].settings[i];
-					return settingMatches.map(range => {
-						return new Range(
-							range.startLineNumber + setting.range.startLineNumber,
-							range.startColumn,
-							range.endLineNumber + setting.range.startLineNumber,
-							range.endColumn);
-					});
-				}));
+		const fixedMatches = filterMatches
+			.map(m => m.matches || [])
+			.flatMap((settingMatches, i) => {
+				const setting = settingsGroup.sections[0].settings[i];
+				return settingMatches.map(range => {
+					return new Range(
+						range.startLineNumber + setting.range.startLineNumber,
+						range.startColumn,
+						range.endLineNumber + setting.range.startLineNumber,
+						range.endColumn);
+				});
+			});
 
 		return fixedMatches;
 	}
@@ -1058,7 +1061,7 @@ class SettingsContentBuilder {
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 		}
 
-		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+		if (setting.enum && setting.enumDescriptions?.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
 				const displayEnum = escapeInvisibleChars(String(setting.enum![i]));
 				const line = desc ?

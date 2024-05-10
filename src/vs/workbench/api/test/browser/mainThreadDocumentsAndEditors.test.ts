@@ -77,7 +77,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 				onDidChangeDirty: Event.None
 			};
 		};
-		const workbenchEditorService = new TestEditorService();
+		const workbenchEditorService = disposables.add(new TestEditorService());
 		const editorGroupService = new TestEditorGroupsService();
 
 		const fileService = new class extends mock<IFileService>() {

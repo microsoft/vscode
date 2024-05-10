@@ -593,8 +593,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	async openParentRepository(repoPath: string): Promise<void> {
-		await this.openRepository(repoPath);
 		this._parentRepositoriesManager.openRepository(repoPath);
+		await this.openRepository(repoPath);
 	}
 
 	private async getRepositoryRoot(repoPath: string): Promise<{ repositoryRoot: string; unsafeRepositoryMatch: RegExpMatchArray | null }> {
@@ -788,7 +788,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Use the repository real path
 			const repoPathRealPath = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
 			const openRepositoryRealPath = this.openRepositories
-				.find(r => pathEquals(r.repository.rootRealPath ?? '', repoPathRealPath));
+				.find(r => pathEquals(r.repository.rootRealPath ?? r.repository.root, repoPathRealPath));
 
 			return openRepositoryRealPath?.repository;
 		} catch (err) {

@@ -477,7 +477,7 @@ function getEditToInsertAtLocation(content: string, key: string, value: any, loc
 
 			const isPreviouisSettingIncludesComment = previousSettingCommaOffset !== undefined && previousSettingCommaOffset > node.endOffset;
 			edits.push({
-				offset: isPreviouisSettingIncludesComment ? previousSettingCommaOffset! + 1 : node.endOffset,
+				offset: isPreviouisSettingIncludesComment ? previousSettingCommaOffset + 1 : node.endOffset,
 				length: 0,
 				content: nextSettingNode ? eol + newProperty + ',' : eol + newProperty
 			});

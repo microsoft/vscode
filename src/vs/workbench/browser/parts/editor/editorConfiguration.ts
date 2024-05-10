@@ -19,7 +19,13 @@ import { ByteSize, getLargeFileConfirmationLimit } from 'vs/platform/files/commo
 
 export class DynamicEditorConfigurations extends Disposable implements IWorkbenchContribution {
 
-	private static readonly AUTO_LOCK_DEFAULT_ENABLED = new Set<string>(['terminalEditor']);
+	static readonly ID = 'workbench.contrib.dynamicEditorConfigurations';
+
+	private static readonly AUTO_LOCK_DEFAULT_ENABLED = new Set<string>([
+		'terminalEditor',
+		'mainThreadWebview-simpleBrowser.view',
+		'mainThreadWebview-browserPreview'
+	]);
 
 	private static readonly AUTO_LOCK_EXTRA_EDITORS: RegisteredEditorInfo[] = [
 
@@ -34,6 +40,16 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 		{
 			id: 'mainThreadWebview-markdown.preview',
 			label: localize('markdownPreview', "Markdown Preview"),
+			priority: RegisteredEditorPriority.builtin
+		},
+		{
+			id: 'mainThreadWebview-simpleBrowser.view',
+			label: localize('simpleBrowser', "Simple Browser"),
+			priority: RegisteredEditorPriority.builtin
+		},
+		{
+			id: 'mainThreadWebview-browserPreview',
+			label: localize('livePreview', "Live Preview"),
 			priority: RegisteredEditorPriority.builtin
 		}
 	];
@@ -77,7 +93,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 	private registerListeners(): void {
 
 		// Registered editors (debounced to reduce perf overhead)
-		Event.debounce(this.editorResolverService.onDidChangeEditorRegistrations, (_, e) => e)(() => this.updateDynamicEditorConfigurations());
+		this._register(Event.debounce(this.editorResolverService.onDidChangeEditorRegistrations, (_, e) => e)(() => this.updateDynamicEditorConfigurations()));
 	}
 
 	private updateDynamicEditorConfigurations(): void {

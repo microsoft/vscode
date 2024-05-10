@@ -144,6 +144,7 @@ export class ExtHostTextEditorOptions {
 
 	private _tabSize!: number;
 	private _indentSize!: number;
+	private _originalIndentSize!: number | 'tabSize';
 	private _insertSpaces!: boolean;
 	private _cursorStyle!: TextEditorCursorStyle;
 	private _lineNumbers!: TextEditorLineNumbersStyle;
@@ -195,6 +196,7 @@ export class ExtHostTextEditorOptions {
 	public _accept(source: IResolvedTextEditorConfiguration): void {
 		this._tabSize = source.tabSize;
 		this._indentSize = source.indentSize;
+		this._originalIndentSize = source.originalIndentSize;
 		this._insertSpaces = source.insertSpaces;
 		this._cursorStyle = source.cursorStyle;
 		this._lineNumbers = TypeConverters.TextEditorLineNumbersStyle.to(source.lineNumbers);
@@ -266,12 +268,13 @@ export class ExtHostTextEditorOptions {
 			return;
 		}
 		if (typeof indentSize === 'number') {
-			if (this._indentSize === indentSize) {
+			if (this._originalIndentSize === indentSize) {
 				// nothing to do
 				return;
 			}
 			// reflect the new indentSize value immediately
 			this._indentSize = indentSize;
+			this._originalIndentSize = indentSize;
 		}
 		this._warnOnError('setIndentSize', this._proxy.$trySetOptions(this._id, {
 			indentSize: indentSize
@@ -350,9 +353,10 @@ export class ExtHostTextEditorOptions {
 			if (indentSize === 'tabSize') {
 				hasUpdate = true;
 				bulkConfigurationUpdate.indentSize = indentSize;
-			} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {
+			} else if (typeof indentSize === 'number' && this._originalIndentSize !== indentSize) {
 				// reflect the new indentSize value immediately
 				this._indentSize = indentSize;
+				this._originalIndentSize = indentSize;
 				hasUpdate = true;
 				bulkConfigurationUpdate.indentSize = indentSize;
 			}

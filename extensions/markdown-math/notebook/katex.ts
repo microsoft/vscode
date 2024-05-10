@@ -45,7 +45,7 @@ export async function activate(ctx: RendererContext<void>) {
 	styleTemplate.content.appendChild(link);
 	document.head.appendChild(styleTemplate);
 
-	const katex = require('@vscode/markdown-it-katex');
+	const katex = require('@vscode/markdown-it-katex').default;
 	const macros = {};
 	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
 		return md.use(katex, {

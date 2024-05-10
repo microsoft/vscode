@@ -557,7 +557,6 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-base64 0.13.0 - MIT/Apache-2.0
 base64 0.21.2 - MIT OR Apache-2.0
 https://github.com/marshallpierce/rust-base64
 
@@ -619,6 +618,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 bitflags 1.3.2 - MIT/Apache-2.0
+bitflags 2.4.1 - MIT OR Apache-2.0
 https://github.com/bitflags/bitflags
 
 Copyright (c) 2014 The Rust Project Developers
@@ -1812,7 +1812,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-crossbeam-channel 0.5.6 - MIT OR Apache-2.0
+crossbeam-channel 0.5.12 - MIT OR Apache-2.0
 https://github.com/crossbeam-rs/crossbeam
 
 The MIT License (MIT)
@@ -1846,7 +1846,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-crossbeam-utils 0.8.16 - MIT OR Apache-2.0
+crossbeam-utils 0.8.19 - MIT OR Apache-2.0
 https://github.com/crossbeam-rs/crossbeam
 
 The MIT License (MIT)
@@ -2341,6 +2341,38 @@ enumflags2_derive 0.7.7 - MIT OR Apache-2.0
 https://github.com/meithecatte/enumflags2
 
 Copyright (c) 2017-2023 Maik Klein, Maja Kądziołka
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+equivalent 1.0.1 - Apache-2.0 OR MIT
+https://github.com/indexmap-rs/equivalent
+
+Copyright (c) 2016--2023
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -3236,7 +3268,7 @@ getrandom 0.1.16 - MIT OR Apache-2.0
 getrandom 0.2.7 - MIT OR Apache-2.0
 https://github.com/rust-random/getrandom
 
-Copyright 2018 Developers of the Rand project
+Copyright (c) 2018-2024 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
@@ -3266,7 +3298,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-h2 0.3.17 - MIT
+h2 0.3.26 - MIT
 https://github.com/hyperium/h2
 
 The MIT License (MIT)
@@ -3301,6 +3333,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 hashbrown 0.12.3 - MIT OR Apache-2.0
+hashbrown 0.14.3 - MIT OR Apache-2.0
 https://github.com/rust-lang/hashbrown
 
 Copyright (c) 2016 Amanieu d'Antras
@@ -3792,8 +3825,9 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-indexmap 1.9.1 - Apache-2.0 OR MIT
-https://github.com/bluss/indexmap
+indexmap 1.9.3 - Apache-2.0 OR MIT
+indexmap 2.1.0 - Apache-2.0 OR MIT
+https://github.com/indexmap-rs/indexmap
 
 Copyright (c) 2016--2017
 
@@ -4198,7 +4232,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-libc 0.2.144 - MIT OR Apache-2.0
+libc 0.2.153 - MIT OR Apache-2.0
 https://github.com/rust-lang/libc
 
 Copyright (c) 2014-2020 The Rust Project Developers
@@ -4432,7 +4466,7 @@ The following two notices apply to every file of the project.
 ## The Apache License
 
 ```
-Copyright 2015–2019 The md5 Developers
+Copyright 2015–2024 The md5 Developers
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 this file except in compliance with the License. You may obtain a copy of the
@@ -4449,7 +4483,7 @@ specific language governing permissions and limitations under the License.
 ## The MIT License
 
 ```
-Copyright 2015–2019 The md5 Developers
+Copyright 2015–2024 The md5 Developers
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -4563,7 +4597,7 @@ The parts of miniz that are not covered by the unlicense is [some Zip64 code](ht
 
 ---------------------------------------------------------
 
-mio 0.8.4 - MIT
+mio 0.8.11 - MIT
 https://github.com/tokio-rs/mio
 
 The MIT License (MIT)
@@ -4591,7 +4625,7 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-native-tls 0.2.10 - MIT/Apache-2.0
+native-tls 0.2.11 - MIT/Apache-2.0
 https://github.com/sfackler/rust-native-tls
 
 Copyright (c) 2016 The rust-native-tls Developers
@@ -5008,7 +5042,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl 0.10.55 - Apache-2.0
+openssl 0.10.60 - Apache-2.0
 https://github.com/sfackler/rust-openssl
 
 Copyright 2011-2017 Google Inc.
@@ -5087,7 +5121,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl-sys 0.9.90 - MIT
+openssl-sys 0.9.96 - MIT
 https://github.com/sfackler/rust-openssl
 
 The MIT License (MIT)
@@ -5312,7 +5346,7 @@ Apache License
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright The OpenTelemetry Authors
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -5520,7 +5554,7 @@ Apache License
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright The OpenTelemetry Authors
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -5728,7 +5762,7 @@ Apache License
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright The OpenTelemetry Authors
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -6151,6 +6185,34 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+os_info 3.7.0 - MIT
+https://github.com/stanislav-tkach/os_info
+
+The MIT License (MIT)
+
+Copyright (c) 2017 Stanislav Tkach
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -6617,7 +6679,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-proc-macro2 1.0.59 - MIT OR Apache-2.0
+proc-macro2 1.0.80 - MIT OR Apache-2.0
 https://github.com/dtolnay/proc-macro2
 
 Permission is hereby granted, free of charge, to any
@@ -6934,7 +6996,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-reqwest 0.11.18 - MIT OR Apache-2.0
+reqwest 0.11.22 - MIT OR Apache-2.0
 https://github.com/seanmonstar/reqwest
 
 Copyright (c) 2016 Sean McArthur
@@ -7640,7 +7702,7 @@ Apache License
 
 ---------------------------------------------------------
 
-rustix 0.37.19 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+rustix 0.37.25 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 https://github.com/bytecodealliance/rustix
 
 Permission is hereby granted, free of charge, to any
@@ -8036,106 +8098,13 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-sha-1 0.10.0 - MIT OR Apache-2.0
-https://github.com/RustCrypto/hashes
-
-All crates licensed under either of
-
- * [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
- * [MIT license](http://opensource.org/licenses/MIT)
-
-at your option.
-
-### Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
-
-[//]: # (badges)
-
-[chat-image]: https://img.shields.io/badge/zulip-join_chat-blue.svg
-[chat-link]: https://rustcrypto.zulipchat.com/#narrow/stream/260041-hashes
-[license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
-[deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
-[deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-
-[//]: # (crates)
-
-[`ascon‑hash`]: ./ascon-hash
-[`belt‑hash`]: ./belt-hash
-[`blake2`]: ./blake2
-[`fsb`]: ./fsb
-[`gost94`]: ./gost94
-[`groestl`]: ./groestl
-[`jh`]: ./jh
-[`k12`]: ./k12
-[`md2`]: ./md2
-[`md4`]: ./md4
-[`md5`]: ./md5
-[`ripemd`]: ./ripemd
-[`sha1`]: ./sha1
-[`sha2`]: ./sha2
-[`sha3`]: ./sha3
-[`shabal`]: ./shabal
-[`skein`]: ./skein
-[`sm3`]: ./sm3
-[`streebog`]: ./streebog
-[`tiger`]: ./tiger
-[`whirlpool`]: ./whirlpool
-
-[//]: # (footnotes)
-
-[1]: https://en.wikipedia.org/wiki/Cryptographic_hash_function
-[`blake3`]: https://github.com/BLAKE3-team/BLAKE3
-[`base16ct`]: https://docs.rs/base16ct
-[`base64ct`]: https://docs.rs/base64ct
-[`digest`]: https://docs.rs/digest
-[`Digest`]: https://docs.rs/digest/0.10.0/digest/trait.Digest.html
-[`Digest::digest`]: https://docs.rs/digest/0.10.0/digest/trait.Digest.html#tymethod.digest
-[`DynDigest`]: https://docs.rs/digest/0.10.0/digest/trait.DynDigest.html
-[`generic-array`]: https://docs.rs/generic-array
-[HMAC]: https://en.wikipedia.org/wiki/Hash-based_message_authentication_code
-[`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html
-[`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html
-[`hmac`]: https://docs.rs/hmac
-[RustCrypto/MACs]: https://github.com/RustCrypto/MACs
-
-[//]: # (algorithms)
-
-[Ascon]: https://ascon.iaik.tugraz.at
-[BelT]: https://ru.wikipedia.org/wiki/BelT
-[BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
-[FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
-[GOST94]: https://en.wikipedia.org/wiki/GOST_(hash_function)
-[Grøstl]: https://en.wikipedia.org/wiki/Grøstl
-[JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
-[KangarooTwelve]: https://keccak.team/kangarootwelve.html
-[MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
-[MD4]: https://en.wikipedia.org/wiki/MD4
-[MD5]: https://en.wikipedia.org/wiki/MD5
-[RIPEMD]: https://en.wikipedia.org/wiki/RIPEMD
-[SHA-1]: https://en.wikipedia.org/wiki/SHA-1
-[SHA-2]: https://en.wikipedia.org/wiki/SHA-2
-[SHA-3]: https://en.wikipedia.org/wiki/SHA-3
-[SHABAL]: https://www.cs.rit.edu/~ark/20090927/Round2Candidates/Shabal.pdf
-[Skein]: https://schneier.com/academic/skein
-[SM3]: https://en.wikipedia.org/wiki/SM3_(hash_function)
-[Streebog]: https://en.wikipedia.org/wiki/Streebog
-[Whirlpool]: https://en.wikipedia.org/wiki/Whirlpool_(cryptography)
-[Tiger]: http://www.cs.technion.ac.il/~biham/Reports/Tiger/tiger/tiger.html
----------------------------------------------------------
-
----------------------------------------------------------
-
 sha1 0.10.5 - MIT OR Apache-2.0
 https://github.com/RustCrypto/hashes
 
-All crates licensed under either of
+All crates in this repository are licensed under either of
 
- * [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
- * [MIT license](http://opensource.org/licenses/MIT)
+* [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+* [MIT license](http://opensource.org/licenses/MIT)
 
 at your option.
 
@@ -8150,9 +8119,9 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
+[msrv-1.71]: https://img.shields.io/badge/rustc-1.71.0+-blue.svg
+[msrv-1.72]: https://img.shields.io/badge/rustc-1.72.0+-blue.svg
+[msrv-1.74]: https://img.shields.io/badge/rustc-1.74.0+-blue.svg
 
 [//]: # (crates)
 
@@ -8169,6 +8138,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`md5`]: ./md5
 [`ripemd`]: ./ripemd
 [`sha1`]: ./sha1
+[`sha1-checked`]: ./sha1-checked
 [`sha2`]: ./sha2
 [`sha3`]: ./sha3
 [`shabal`]: ./shabal
@@ -8210,6 +8180,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [MD5]: https://en.wikipedia.org/wiki/MD5
 [RIPEMD]: https://en.wikipedia.org/wiki/RIPEMD
 [SHA-1]: https://en.wikipedia.org/wiki/SHA-1
+[SHA-1 Checked]: https://github.com/cr-marcstevens/sha1collisiondetection
 [SHA-2]: https://en.wikipedia.org/wiki/SHA-2
 [SHA-3]: https://en.wikipedia.org/wiki/SHA-3
 [SHABAL]: https://www.cs.rit.edu/~ark/20090927/Round2Candidates/Shabal.pdf
@@ -8225,10 +8196,10 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 sha2 0.10.6 - MIT OR Apache-2.0
 https://github.com/RustCrypto/hashes
 
-All crates licensed under either of
+All crates in this repository are licensed under either of
 
- * [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
- * [MIT license](http://opensource.org/licenses/MIT)
+* [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+* [MIT license](http://opensource.org/licenses/MIT)
 
 at your option.
 
@@ -8243,9 +8214,9 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
+[msrv-1.71]: https://img.shields.io/badge/rustc-1.71.0+-blue.svg
+[msrv-1.72]: https://img.shields.io/badge/rustc-1.72.0+-blue.svg
+[msrv-1.74]: https://img.shields.io/badge/rustc-1.74.0+-blue.svg
 
 [//]: # (crates)
 
@@ -8262,6 +8233,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`md5`]: ./md5
 [`ripemd`]: ./ripemd
 [`sha1`]: ./sha1
+[`sha1-checked`]: ./sha1-checked
 [`sha2`]: ./sha2
 [`sha3`]: ./sha3
 [`shabal`]: ./shabal
@@ -8303,6 +8275,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [MD5]: https://en.wikipedia.org/wiki/MD5
 [RIPEMD]: https://en.wikipedia.org/wiki/RIPEMD
 [SHA-1]: https://en.wikipedia.org/wiki/SHA-1
+[SHA-1 Checked]: https://github.com/cr-marcstevens/sha1collisiondetection
 [SHA-2]: https://en.wikipedia.org/wiki/SHA-2
 [SHA-3]: https://en.wikipedia.org/wiki/SHA-3
 [SHABAL]: https://www.cs.rit.edu/~ark/20090927/Round2Candidates/Shabal.pdf
@@ -8570,7 +8543,7 @@ SOFTWARE.
 ---------------------------------------------------------
 
 strsim 0.10.0 - MIT
-https://github.com/dguo/strsim-rs
+https://github.com/rapidfuzz/strsim-rs
 
 The MIT License (MIT)
 
@@ -8689,6 +8662,70 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+system-configuration 0.5.1 - MIT OR Apache-2.0
+https://github.com/mullvad/system-configuration-rs
+
+Copyright (c) 2024 Mullvad VPN AB
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+system-configuration-sys 0.5.0 - MIT OR Apache-2.0
+https://github.com/mullvad/system-configuration-rs
+
+Copyright (c) 2024 Mullvad VPN AB
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -8848,7 +8885,7 @@ DEALINGS IN THE SOFTWARE.
 time 0.3.21 - MIT OR Apache-2.0
 https://github.com/time-rs/time
 
-Copyright (c) 2022 Jacob Pratt et al.
+Copyright (c) 2024 Jacob Pratt et al.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -8874,7 +8911,7 @@ SOFTWARE.
 time-core 0.1.1 - MIT OR Apache-2.0
 https://github.com/time-rs/time
 
-Copyright (c) 2022 Jacob Pratt et al.
+Copyright (c) 2024 Jacob Pratt et al.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -9005,7 +9042,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tokio-native-tls 0.3.0 - MIT
+tokio-native-tls 0.3.1 - MIT
 https://github.com/tokio-rs/tls
 
 The MIT License (MIT)
@@ -9073,7 +9110,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tokio-tungstenite 0.17.2 - MIT
+tokio-tungstenite 0.20.1 - MIT
 https://github.com/snapview/tokio-tungstenite
 
 The MIT License (MIT)
@@ -9303,7 +9340,7 @@ https://github.com/seanmonstar/try-lock
 
 The MIT License (MIT)
 
-Copyright (c) 2018 Sean McArthur
+Copyright (c) 2018-2023 Sean McArthur
 Copyright (c) 2016 Alex Crichton
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -9327,7 +9364,7 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tungstenite 0.17.3 - MIT/Apache-2.0
+tungstenite 0.20.1 - MIT OR Apache-2.0
 https://github.com/snapview/tungstenite-rs
 
 Copyright (c) 2017 Alexey Galakhov
@@ -9354,7 +9391,7 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tunnels 3141ad7be00e18c4231f7c4fb6c11f9219ac49af
+tunnels 8cae9b2a24c65c6c1958f5a0e77d72b23b5c6c30
 https://github.com/microsoft/dev-tunnels
 
 MIT License
@@ -9608,7 +9645,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-urlencoding 2.1.2 - MIT
+urlencoding 2.1.3 - MIT
 https://github.com/kornelski/rust_urlencoding
 
 The MIT License (MIT)
@@ -9699,8 +9736,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-uuid 0.8.2 - Apache-2.0 OR MIT
-uuid 1.3.3 - Apache-2.0 OR MIT
+uuid 1.4.1 - Apache-2.0 OR MIT
 https://github.com/uuid-rs/uuid
 
 Copyright (c) 2014 The Rust Project Developers
@@ -10072,7 +10108,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-wasm-streams 0.2.3 - MIT OR Apache-2.0
+wasm-streams 0.3.0 - MIT OR Apache-2.0
 https://github.com/MattiasBuelens/wasm-streams/
 
 Permission is hereby granted, free of charge, to any
@@ -10590,8 +10626,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-winreg 0.10.1 - MIT
 winreg 0.50.0 - MIT
+winreg 0.8.0 - MIT
 https://github.com/gentoo90/winreg-rs
 
 The MIT License (MIT)
@@ -10702,6 +10738,8 @@ https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
 
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the
@@ -10734,6 +10772,8 @@ https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
 
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the
@@ -10765,6 +10805,8 @@ zbus_names 2.5.1 - MIT
 https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -10848,7 +10890,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 ---------------------------------------------------------
 
 zip 0.6.6 - MIT
-https://github.com/zip-rs/zip
+https://github.com/Pr0methean/zip
 
 The MIT License (MIT)
 
@@ -10879,6 +10921,8 @@ zvariant 3.14.0 - MIT
 https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -10912,6 +10956,8 @@ https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
 
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the
@@ -10943,6 +10989,8 @@ zvariant_utils 1.0.1 - MIT
 https://github.com/dbus2/zbus/
 
 The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated

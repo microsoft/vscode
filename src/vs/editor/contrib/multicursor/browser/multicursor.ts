@@ -1037,7 +1037,8 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		const hasSemanticHighlights = this._languageFeaturesService.documentHighlightProvider.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const occurrenceHighlighting: boolean = this.editor.getOption(EditorOption.occurrencesHighlight) !== 'off';
+		const hasSemanticHighlights = this._languageFeaturesService.documentHighlightProvider.has(model) && occurrenceHighlighting;
 		const decorations = matches.map(r => {
 			return {
 				range: r,

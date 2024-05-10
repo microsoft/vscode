@@ -79,9 +79,10 @@
 	align-items: center;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .action-item:first-child {
-	margin-right: 16px;
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .action-item {
+	margin-left: 8px;
+	margin-right: 8px;
 }
 
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container span.codicon,

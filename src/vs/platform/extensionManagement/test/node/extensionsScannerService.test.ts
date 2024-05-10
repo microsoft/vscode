@@ -348,6 +348,8 @@ suite('NativeExtensionsScanerService Test', () => {
 
 suite('ExtensionScannerInput', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('compare inputs - location', () => {
 		const anInput = (location: URI, mtime: number | undefined) => new ExtensionScannerInput(location, mtime, undefined, undefined, false, undefined, ExtensionType.User, true, true, '1.1.1', undefined, undefined, true, undefined, {});
 

@@ -413,8 +413,12 @@ suite('UserDataSyncRequestsSession', () => {
 	const requestService: IRequestService = {
 		_serviceBrand: undefined,
 		async request() { return { res: { headers: {} }, stream: newWriteableBufferStream() }; },
-		async resolveProxy() { return undefined; }
+		async resolveProxy() { return undefined; },
+		async loadCertificates() { return []; }
 	};
+
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());

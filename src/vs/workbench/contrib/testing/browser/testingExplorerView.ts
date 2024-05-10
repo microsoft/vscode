@@ -5,8 +5,11 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -24,7 +27,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -33,6 +36,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -83,10 +87,10 @@ const enum LastFocusState {
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
-	private filterActionBar = this._register(new MutableDisposable());
+	private readonly filterActionBar = this._register(new MutableDisposable());
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
-	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
+	private readonly discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
 	private readonly filterFocusListener = this._register(new MutableDisposable());
 	private readonly dimensions = { width: 0, height: 0 };
@@ -108,10 +112,11 @@ export class TestingExplorerView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITestService private readonly testService: ITestService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
 		this._register(this.onDidChangeViewWelcomeState(() => {
@@ -144,7 +149,7 @@ export class TestingExplorerView extends ViewPane {
 	 * Gets include/exclude items in the tree, based either on visible tests
 	 * or a use selection.
 	 */
-	public getTreeIncludeExclude(profile?: ITestRunProfile, filterToType: 'visible' | 'selected' = 'visible') {
+	public getTreeIncludeExclude(withinItems?: InternalTestItem[], profile?: ITestRunProfile, filterToType: 'visible' | 'selected' = 'visible') {
 		const projection = this.viewModel.projection.value;
 		if (!projection) {
 			return { include: [], exclude: [] };
@@ -215,7 +220,7 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		for (const root of this.testService.collection.rootItems) {
+		for (const root of withinItems || this.testService.collection.rootItems) {
 			const element = projection.getElementByTestId(root.item.extId);
 			if (!element) {
 				continue;
@@ -249,6 +254,7 @@ export class TestingExplorerView extends ViewPane {
 	override render(): void {
 		super.render();
 		this._register(registerNavigableContainer({
+			name: 'testingExplorerView',
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (!this.viewModel.tree.isDOMFocused()) {
@@ -285,18 +291,18 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	/** @override  */
-	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	public override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TestCommandId.FilterAction:
-				this.filter.value = this.instantiationService.createInstance(TestingExplorerFilter, action);
+				this.filter.value = this.instantiationService.createInstance(TestingExplorerFilter, action, options);
 				this.filterFocusListener.value = this.filter.value.onDidFocus(() => this.lastFocusState = LastFocusState.Input);
 				return this.filter.value;
 			case TestCommandId.RunSelectedAction:
-				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
+				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action, options);
 			case TestCommandId.DebugSelectedAction:
-				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action);
+				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action, options);
 			default:
-				return super.getActionViewItem(action);
+				return super.getActionViewItem(action, options);
 		}
 	}
 
@@ -328,7 +334,7 @@ export class TestingExplorerView extends ViewPane {
 					undefined,
 					undefined,
 					() => {
-						const { include, exclude } = this.getTreeIncludeExclude(profile);
+						const { include, exclude } = this.getTreeIncludeExclude(undefined, profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
 							targets: [{
@@ -380,10 +386,10 @@ export class TestingExplorerView extends ViewPane {
 		super.saveState();
 	}
 
-	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction) {
+	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction, options: IActionViewItemOptions) {
 		const dropdownActions = this.getTestConfigGroupActions(group);
 		if (dropdownActions.length < 2) {
-			return super.getActionViewItem(defaultAction);
+			return super.getActionViewItem(defaultAction, options);
 		}
 
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -392,7 +398,7 @@ export class TestingExplorerView extends ViewPane {
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
 				: icons.testingDebugAllIcon,
-		}, undefined, undefined, undefined);
+		}, undefined, undefined, undefined, undefined);
 
 		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
 
@@ -401,13 +407,13 @@ export class TestingExplorerView extends ViewPane {
 			primaryAction, dropdownAction, dropdownActions,
 			'',
 			this.contextMenuService,
-			{}
+			options
 		);
 	}
 
 	private createFilterActionBar() {
 		const bar = new ActionBar(this.treeHeader, {
-			actionViewItemProvider: action => this.getActionViewItem(action),
+			actionViewItemProvider: (action, options) => this.getActionViewItem(action, options),
 			triggerKeys: { keyDown: false, keys: [] },
 		});
 		bar.push(new Action(TestCommandId.FilterAction));
@@ -442,6 +448,7 @@ class ResultSummaryView extends Disposable {
 	private elementsWereAttached = false;
 	private badgeType: TestingCountBadge;
 	private lastBadge?: NumberBadge | IconBadge;
+	private countHover: IUpdatableHover;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly renderLoop = this._register(new RunOnceScheduler(() => this.render(), SUMMARY_RENDER_INTERVAL));
 	private readonly elements = dom.h('div.result-summary', [
@@ -460,6 +467,7 @@ class ResultSummaryView extends Disposable {
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -472,14 +480,16 @@ class ResultSummaryView extends Disposable {
 			}
 		}));
 
+		this.countHover = this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
+
 		const ab = this._register(new ActionBar(this.elements.rerun, {
-			actionViewItemProvider: action => createActionViewItem(instantiationService, action),
+			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
 		}));
 		ab.push(instantiationService.createInstance(MenuItemAction,
 			{ ...new ReRunLastRun().desc, icon: icons.testingRerunIcon },
 			{ ...new DebugLastRun().desc, icon: icons.testingDebugIcon },
 			{},
-			undefined,
+			undefined, undefined
 		), { icon: true, label: false });
 
 		this.render();
@@ -518,7 +528,7 @@ class ResultSummaryView extends Disposable {
 		}
 
 		count.textContent = `${counts.passed}/${counts.totalWillBeRun}`;
-		count.title = getTestProgressText(counts);
+		this.countHover.update(getTestProgressText(counts));
 		this.renderActivityBadge(counts);
 
 		if (!this.elementsWereAttached) {
@@ -573,7 +583,7 @@ const enum WelcomeExperience {
 class TestingExplorerViewModel extends Disposable {
 	public tree: TestingObjectTree<FuzzyScore>;
 	private filter: TestsFilter;
-	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
+	public readonly projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
 	private readonly revealTimeout = new MutableDisposable();
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
@@ -1280,8 +1290,8 @@ class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelPro
 }
 
 class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement> {
-	getHeight(_element: TestExplorerTreeElement) {
-		return 22;
+	getHeight(element: TestExplorerTreeElement) {
+		return element instanceof TestTreeErrorMessage ? 17 + 10 : 22;
 	}
 
 	getTemplateId(element: TestExplorerTreeElement) {
@@ -1301,6 +1311,7 @@ class IdentityProvider implements IIdentityProvider<TestExplorerTreeElement> {
 
 interface IErrorTemplateData {
 	label: HTMLElement;
+	disposable: DisposableStore;
 }
 
 class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, IErrorTemplateData> {
@@ -1308,7 +1319,10 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 
 	private readonly renderer: MarkdownRenderer;
 
-	constructor(@IInstantiationService instantionService: IInstantiationService) {
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService instantionService: IInstantiationService,
+	) {
 		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
 	}
 
@@ -1318,22 +1332,23 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 
 	renderTemplate(container: HTMLElement): IErrorTemplateData {
 		const label = dom.append(container, dom.$('.error'));
-		return { label };
+		return { label, disposable: new DisposableStore() };
 	}
 
 	renderElement({ element }: ITreeNode<TestTreeErrorMessage, FuzzyScore>, _: number, data: IErrorTemplateData): void {
+		dom.clearNode(data.label);
+
 		if (typeof element.message === 'string') {
 			data.label.innerText = element.message;
 		} else {
 			const result = this.renderer.render(element.message, { inline: true });
 			data.label.appendChild(result.element);
 		}
-
-		data.label.title = element.description;
+		data.disposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
 	}
 
-	disposeTemplate(): void {
-		// noop
+	disposeTemplate(data: IErrorTemplateData): void {
+		data.disposable.dispose();
 	}
 }
 
@@ -1359,6 +1374,7 @@ class TestItemRenderer extends Disposable
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -1381,9 +1397,9 @@ class TestItemRenderer extends Disposable
 		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(icons.testingHiddenIcon)));
 		const actionBar = disposable.add(new ActionBar(wrapper, {
 			actionRunner: this.actionRunner,
-			actionViewItemProvider: action =>
+			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
 					: undefined
 		}));
 
@@ -1449,7 +1465,7 @@ class TestItemRenderer extends Disposable
 			data.icon.className += ' retired';
 		}
 
-		data.label.title = getLabelForTestTreeElement(node.element);
+		data.elementDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
 		if (node.element.test.item.label.trim()) {
 			dom.reset(data.label, ...renderLabelWithIcons(node.element.test.item.label));
 		} else {

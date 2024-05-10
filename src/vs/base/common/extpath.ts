@@ -282,6 +282,10 @@ export function sanitizeFilePath(candidate: string, cwd: string): string {
 	candidate = normalize(candidate);
 
 	// Ensure no trailing slash/backslash
+	return removeTrailingPathSeparator(candidate);
+}
+
+export function removeTrailingPathSeparator(candidate: string): string {
 	if (isWindows) {
 		candidate = rtrim(candidate, sep);
 

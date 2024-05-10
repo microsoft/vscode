@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { FileAccess } from 'vs/base/common/network';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
@@ -14,6 +15,9 @@ import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServ
 
 
 suite('Getting Started Markdown Renderer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('renders theme picker markdown with images', async () => {
 		const fileService = new TestFileService();
 		const languageService = new LanguageService();

@@ -26,6 +26,11 @@ type LinkPart = {
 	captures: string[];
 };
 
+export type LinkOptions = {
+	trustHtml?: boolean;
+	linkifyFilePaths: boolean;
+};
+
 export class LinkDetector {
 
 	// used by unit tests
@@ -51,7 +56,7 @@ export class LinkDetector {
 	 * When splitLines is true, each line of the text, even if it contains no links, is wrapped in a <span>
 	 * and added as a child of the returned <span>.
 	 */
-	linkify(text: string, splitLines?: boolean, workspaceFolder?: string, trustHtml?: boolean): HTMLElement {
+	linkify(text: string, options: LinkOptions, splitLines?: boolean): HTMLElement {
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {
@@ -61,7 +66,7 @@ export class LinkDetector {
 				// Remove the last element ('') that split added.
 				lines.pop();
 			}
-			const elements = lines.map(line => this.linkify(line, false, workspaceFolder, trustHtml));
+			const elements = lines.map(line => this.linkify(line, options, false));
 			if (elements.length === 1) {
 				// Do not wrap single line with extra span.
 				return elements[0];
@@ -72,8 +77,9 @@ export class LinkDetector {
 		}
 
 		const container = document.createElement('span');
-		for (const part of this.detectLinks(text)) {
+		for (const part of this.detectLinks(text, !!options.trustHtml, options.linkifyFilePaths)) {
 			try {
+				let span: HTMLSpanElement | null = null;
 				switch (part.kind) {
 					case 'text':
 						container.appendChild(document.createTextNode(part.value));
@@ -83,13 +89,9 @@ export class LinkDetector {
 						container.appendChild(this.createWebLink(part.value));
 						break;
 					case 'html':
-						if (this.shouldGenerateHtml(!!trustHtml)) {
-							const span = document.createElement('span');
-							span.innerHTML = this.createHtml(part.value)!;
-							container.appendChild(span);
-						} else {
-							container.appendChild(document.createTextNode(part.value));
-						}
+						span = document.createElement('span');
+						span.innerHTML = this.createHtml(part.value)!;
+						container.appendChild(span);
 						break;
 				}
 			} catch (e) {
@@ -149,14 +151,26 @@ export class LinkDetector {
 		return link;
 	}
 
-	private detectLinks(text: string): LinkPart[] {
+	private detectLinks(text: string, trustHtml: boolean, detectFilepaths: boolean): LinkPart[] {
 		if (text.length > MAX_LENGTH) {
 			return [{ kind: 'text', value: text, captures: [] }];
 		}
 
-		const regexes: RegExp[] = [HTML_LINK_REGEX, WEB_LINK_REGEX, PATH_LINK_REGEX];
-		const kinds: LinkKind[] = ['html', 'web', 'path'];
+		const regexes: RegExp[] = [];
+		const kinds: LinkKind[] = [];
 		const result: LinkPart[] = [];
+
+		if (this.shouldGenerateHtml(trustHtml)) {
+			regexes.push(HTML_LINK_REGEX);
+			kinds.push('html');
+		}
+		regexes.push(WEB_LINK_REGEX);
+		kinds.push('web');
+		if (detectFilepaths) {
+			regexes.push(PATH_LINK_REGEX);
+			kinds.push('path');
+		}
+
 
 		const splitOne = (text: string, regexIndex: number) => {
 			if (regexIndex >= regexes.length) {
@@ -192,6 +206,6 @@ export class LinkDetector {
 }
 
 const linkDetector = new LinkDetector();
-export function linkify(text: string, splitLines?: boolean, workspaceFolder?: string, trustHtml = false) {
-	return linkDetector.linkify(text, splitLines, workspaceFolder, trustHtml);
+export function linkify(text: string, linkOptions: LinkOptions, splitLines?: boolean) {
+	return linkDetector.linkify(text, linkOptions, splitLines);
 }

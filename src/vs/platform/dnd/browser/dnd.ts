@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { mainWindow } from 'vs/base/browser/window';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
@@ -182,7 +183,7 @@ interface IFileTransferData {
 async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent): Promise<IFileTransferData[]> {
 
 	// Try to extract via `FileSystemHandle`
-	if (WebFileSystemAccess.supported(window)) {
+	if (WebFileSystemAccess.supported(mainWindow)) {
 		const items = event.dataTransfer?.items;
 		if (items) {
 			return extractFileTransferData(accessor, items);

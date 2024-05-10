@@ -84,7 +84,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Resolve untitled workspaces
 		try {
-			const untitledWorkspacePaths = (await Promises.readdir(this.untitledWorkspacesHome.with({ scheme: Schemas.file }).fsPath)).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));//
+			const untitledWorkspacePaths = (await Promises.readdir(this.untitledWorkspacesHome.with({ scheme: Schemas.file }).fsPath)).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 			for (const untitledWorkspacePath of untitledWorkspacePaths) {
 				const workspace = getWorkspaceIdentifier(untitledWorkspacePath);
 				const resolvedWorkspace = await this.resolveLocalWorkspace(untitledWorkspacePath);

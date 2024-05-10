@@ -4,33 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorAction } from 'vs/editor/common/editorCommon';
-import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class InternalEditorAction implements IEditorAction {
 
-	public readonly id: string;
-	public readonly label: string;
-	public readonly alias: string;
-
-	private readonly _precondition: ContextKeyExpression | undefined;
-	private readonly _run: (args: unknown) => Promise<void>;
-	private readonly _contextKeyService: IContextKeyService;
-
 	constructor(
-		id: string,
-		label: string,
-		alias: string,
-		precondition: ContextKeyExpression | undefined,
-		run: () => Promise<void>,
-		contextKeyService: IContextKeyService
-	) {
-		this.id = id;
-		this.label = label;
-		this.alias = alias;
-		this._precondition = precondition;
-		this._run = run;
-		this._contextKeyService = contextKeyService;
-	}
+		public readonly id: string,
+		public readonly label: string,
+		public readonly alias: string,
+		public readonly metadata: ICommandMetadata | undefined,
+		private readonly _precondition: ContextKeyExpression | undefined,
+		private readonly _run: (args: unknown) => Promise<void>,
+		private readonly _contextKeyService: IContextKeyService
+	) { }
 
 	public isSupported(): boolean {
 		return this._contextKeyService.contextMatchesRules(this._precondition);

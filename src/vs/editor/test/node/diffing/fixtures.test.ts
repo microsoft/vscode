@@ -12,8 +12,11 @@ import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 import { Range } from 'vs/editor/common/core/range';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('diffing fixtures', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		setUnexpectedErrorHandler(e => {
 			throw e;

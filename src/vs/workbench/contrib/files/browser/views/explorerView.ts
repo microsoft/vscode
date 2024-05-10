@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -42,8 +42,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -51,10 +51,11 @@ import { IExplorerService, IExplorerView } from 'vs/workbench/contrib/files/brow
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { isInputElement } from 'vs/base/browser/ui/list/listWidget';
+import { AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -93,7 +94,7 @@ const identityProvider = {
 };
 
 export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], respectMultiSelection: boolean,
-	compressedNavigationControllerProvider: { getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined }): ExplorerItem[] {
+	compressedNavigationControllerProvider: { getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController[] | undefined }): ExplorerItem[] {
 
 	let focusedStat: ExplorerItem | undefined;
 	focusedStat = focus.length ? focus[0] : undefined;
@@ -103,13 +104,15 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 		focusedStat = undefined;
 	}
 
-	const compressedNavigationController = focusedStat && compressedNavigationControllerProvider.getCompressedNavigationController(focusedStat);
+	const compressedNavigationControllers = focusedStat && compressedNavigationControllerProvider.getCompressedNavigationController(focusedStat);
+	const compressedNavigationController = compressedNavigationControllers && compressedNavigationControllers.length ? compressedNavigationControllers[0] : undefined;
 	focusedStat = compressedNavigationController ? compressedNavigationController.current : focusedStat;
 
 	const selectedStats: ExplorerItem[] = [];
 
 	for (const stat of selection) {
-		const controller = compressedNavigationControllerProvider.getCompressedNavigationController(stat);
+		const controllers = compressedNavigationControllerProvider.getCompressedNavigationController(stat);
+		const controller = controllers && controllers.length ? controllers[0] : undefined;
 		if (controller && focusedStat && controller === compressedNavigationController) {
 			if (stat === focusedStat) {
 				selectedStats.push(stat);
@@ -177,7 +180,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
-	private autoReveal: boolean | 'force' | 'focusNoScroll' = false;
+	private _autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
@@ -198,6 +201,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService themeService: IWorkbenchThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
@@ -206,7 +210,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.delegate = options.delegate;
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
@@ -225,6 +229,14 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 
 		this.explorerService.registerView(this);
+	}
+
+	get autoReveal() {
+		return this._autoReveal;
+	}
+
+	set autoReveal(autoReveal: boolean | 'force' | 'focusNoScroll') {
+		this._autoReveal = autoReveal;
 	}
 
 	get name(): string {
@@ -262,10 +274,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
-			const workspace = this.contextService.getWorkspace();
-			const title = workspace.folders.map(folder => folder.name).join();
 			titleElement.textContent = this.name;
-			titleElement.title = title;
+			this.updateTitle(this.name);
 			this.ariaHeaderLabel = nls.localize('explorerSection', "Explorer Section: {0}", this.name);
 			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};
@@ -313,23 +323,51 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				this.selectActiveFile(true);
 			}
 		}));
+
+		// Support for paste of files into explorer
+		this._register(DOM.addDisposableListener(DOM.getWindow(this.container), DOM.EventType.PASTE, async event => {
+			if (!this.hasFocus() || this.readonlyContext.get()) {
+				return;
+			}
+			if (event.clipboardData?.files?.length) {
+				await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
+			}
+		}));
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 
-		const focused = this.tree.getFocus();
-		if (focused.length === 1 && this.autoReveal) {
-			this.tree.reveal(focused[0], 0.5);
+		if (this.tree.getFocusedPart() === AbstractTreePart.Tree) {
+			const focused = this.tree.getFocus();
+			if (focused.length === 1 && this._autoReveal) {
+				this.tree.reveal(focused[0], 0.5);
+			}
 		}
 	}
 
 	hasFocus(): boolean {
-		return DOM.isAncestor(document.activeElement, this.container);
+		return DOM.isAncestorOfActiveElement(this.container);
+	}
+
+	getFocus(): ExplorerItem[] {
+		return this.tree.getFocus();
+	}
+
+	focusNext(): void {
+		this.tree.focusNext();
+	}
+
+	focusLast(): void {
+		this.tree.focusLast();
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
-		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
+		const focusedItems = this.tree.getFocusedPart() === AbstractTreePart.StickyScroll ?
+			this.tree.getStickyScrollFocus() :
+			this.tree.getFocus();
+		return getContext(focusedItems, this.tree.getSelection(), respectMultiSelection, this.renderer);
 	}
 
 	isItemVisible(item: ExplorerItem): boolean {
@@ -372,8 +410,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 	}
 
-	private selectActiveFile(reveal = this.autoReveal): void {
-		if (this.autoReveal) {
+	private async selectActiveFile(reveal = this._autoReveal): Promise<void> {
+		if (this._autoReveal) {
 			const activeFile = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 			if (activeFile) {
@@ -383,7 +421,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 					// No action needed, active file is already focused and selected
 					return;
 				}
-				this.explorerService.select(activeFile, reveal);
+				return this.explorerService.select(activeFile, reveal);
 			}
 		}
 	}
@@ -451,9 +489,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return false;
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
-			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
@@ -506,8 +542,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			const element = e.node.element?.element;
 			if (element) {
-				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
-				navigationController?.updateCollapsed(e.node.collapsed);
+				const navigationControllers = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
+				navigationControllers?.forEach(controller => controller.updateCollapsed(e.node.collapsed));
 			}
 			// Update showing expand / collapse button
 			this.updateAnyCollapsedContext();
@@ -535,7 +571,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private onConfigurationUpdated(event: IConfigurationChangeEvent | undefined): void {
 		if (!event || event.affectsConfiguration('explorer.autoReveal')) {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>();
-			this.autoReveal = configuration?.explorer?.autoReveal;
+			this._autoReveal = configuration?.explorer?.autoReveal;
 		}
 
 		// Push down config updates to components of viewer
@@ -576,13 +612,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// Adjust for compressed folders (except when mouse is used)
 		if (anchor instanceof HTMLElement) {
 			if (stat) {
-				const controller = this.renderer.getCompressedNavigationController(stat);
+				const controllers = this.renderer.getCompressedNavigationController(stat);
 
-				if (controller) {
+				if (controllers && controllers.length > 0) {
 					if (DOM.isKeyboardEvent(e.browserEvent) || isCompressedFolderName(e.browserEvent.target)) {
-						anchor = controller.labels[controller.index];
+						anchor = controllers[0].labels[controllers[0].index];
 					} else {
-						controller.last();
+						controllers.forEach(controller => controller.last());
 					}
 				}
 			}
@@ -597,8 +633,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const roots = this.explorerService.roots; // If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
 		let arg: URI | {};
 		if (stat instanceof ExplorerItem) {
-			const compressedController = this.renderer.getCompressedNavigationController(stat);
-			arg = compressedController ? compressedController.current.resource : stat.resource;
+			const compressedControllers = this.renderer.getCompressedNavigationController(stat);
+			arg = compressedControllers && compressedControllers.length ? compressedControllers[0].current.resource : stat.resource;
 		} else {
 			arg = roots.length === 1 ? roots[0].resource : {};
 		}
@@ -631,15 +667,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			this.resourceMoveableToTrash.reset();
 		}
 
-		const compressedNavigationController = stat && this.renderer.getCompressedNavigationController(stat);
+		const compressedNavigationControllers = stat && this.renderer.getCompressedNavigationController(stat);
 
-		if (!compressedNavigationController) {
+		if (!compressedNavigationControllers) {
 			this.compressedFocusContext.set(false);
 			return;
 		}
 
 		this.compressedFocusContext.set(true);
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		compressedNavigationControllers.forEach(controller => {
+			this.updateCompressedNavigationContextKeys(controller);
+		});
 	}
 
 	// General methods
@@ -659,9 +697,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, !!item, {
-			diffIdentityProvider: identityProvider
-		});
+		return this.tree.updateChildren(toRefresh, recursive, !!item);
 	}
 
 	override getOptimalWidth(): number {
@@ -749,7 +785,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 	}
 
-	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
+	public async selectResource(resource: URI | undefined, reveal = this._autoReveal, retry = 0): Promise<void> {
 		// do no retry more than once to prevent infinite loops in cases of inconsistent model
 		if (retry === 2) {
 			return;
@@ -757,6 +793,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		if (!resource || !this.isBodyVisible()) {
 			return;
+		}
+
+		// If something is refreshing the explorer, we must await it or else a selection race condition can occur
+		if (this.setTreeInputPromise) {
+			await this.setTreeInputPromise;
 		}
 
 		// Expand all stats in the parent chain.
@@ -768,13 +809,16 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			} catch (e) {
 				return this.selectResource(resource, reveal, retry + 1);
 			}
-
-			for (const child of item.children.values()) {
-				if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
-					item = child;
-					break;
-				}
+			if (!item.children.size) {
 				item = null;
+			} else {
+				for (const child of item.children.values()) {
+					if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
+						item = child;
+						break;
+					}
+					item = null;
+				}
 			}
 		}
 
@@ -847,9 +891,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			return;
 		}
 
-		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
-		compressedNavigationController.previous();
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		const compressedNavigationControllers = this.renderer.getCompressedNavigationController(focused[0])!;
+		compressedNavigationControllers.forEach(controller => {
+			controller.previous();
+			this.updateCompressedNavigationContextKeys(controller);
+		});
 	}
 
 	nextCompressedStat(): void {
@@ -858,9 +904,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			return;
 		}
 
-		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
-		compressedNavigationController.next();
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		const compressedNavigationControllers = this.renderer.getCompressedNavigationController(focused[0])!;
+		compressedNavigationControllers.forEach(controller => {
+			controller.next();
+			this.updateCompressedNavigationContextKeys(controller);
+		});
 	}
 
 	firstCompressedStat(): void {
@@ -869,9 +917,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			return;
 		}
 
-		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
-		compressedNavigationController.first();
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		const compressedNavigationControllers = this.renderer.getCompressedNavigationController(focused[0])!;
+		compressedNavigationControllers.forEach(controller => {
+			controller.first();
+			this.updateCompressedNavigationContextKeys(controller);
+		});
 	}
 
 	lastCompressedStat(): void {
@@ -880,9 +930,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			return;
 		}
 
-		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
-		compressedNavigationController.last();
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		const compressedNavigationControllers = this.renderer.getCompressedNavigationController(focused[0])!;
+		compressedNavigationControllers.forEach(controller => {
+			controller.last();
+			this.updateCompressedNavigationContextKeys(controller);
+		});
 	}
 
 	private updateCompressedNavigationContextKeys(controller: ICompressedNavigationController): void {
@@ -971,7 +1023,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.refreshFilesExplorer',
-			title: { value: nls.localize('refreshExplorer', "Refresh Explorer"), original: 'Refresh Explorer' },
+			title: nls.localize2('refreshExplorer', "Refresh Explorer"),
 			f1: true,
 			icon: Codicon.refresh,
 			menu: {
@@ -979,14 +1031,17 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 30
+			},
+			metadata: {
+				description: nls.localize2('refreshExplorerMetadata', "Forces a refresh of the Explorer.")
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewsService = accessor.get(IViewsService);
 		const explorerService = accessor.get(IExplorerService);
-		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+		await viewsService.openView(VIEW_ID);
 		await explorerService.refresh();
 	}
 });
@@ -995,7 +1050,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.collapseExplorerFolders',
-			title: { value: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"), original: 'Collapse Folders in Explorer' },
+			title: nls.localize2('collapseExplorerFolders', "Collapse Folders in Explorer"),
 			f1: true,
 			icon: Codicon.collapseAll,
 			menu: {
@@ -1003,6 +1058,9 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 40
+			},
+			metadata: {
+				description: nls.localize2('collapseExplorerFoldersMetadata', "Folds all folders in the Explorer.")
 			}
 		});
 	}

@@ -11,12 +11,12 @@ import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { runWhenIdle } from 'vs/base/common/async';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { Schemas } from 'vs/base/common/network';
+import { getActiveWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 
 class KernelInfo {
 
@@ -105,6 +105,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private readonly _onDidRemoveKernel = this._register(new Emitter<INotebookKernel>());
 	private readonly _onDidChangeNotebookAffinity = this._register(new Emitter<void>());
 	private readonly _onDidChangeSourceActions = this._register(new Emitter<INotebookSourceActionChangeEvent>());
+	private readonly _onDidNotebookVariablesChange = this._register(new Emitter<URI>());
 	private readonly _kernelSources = new Map<string, IKernelInfoCache>();
 	private readonly _kernelSourceActionsUpdates = new Map<string, IDisposable>();
 	private readonly _kernelDetectionTasks = new Map<string, INotebookKernelDetectionTask[]>();
@@ -117,6 +118,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	readonly onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;
 	readonly onDidChangeSourceActions: Event<INotebookSourceActionChangeEvent> = this._onDidChangeSourceActions.event;
 	readonly onDidChangeKernelDetectionTasks: Event<string> = this._onDidChangeKernelDetectionTasks.event;
+	readonly onDidNotebookVariablesUpdate: Event<URI> = this._onDidNotebookVariablesChange.event;
 
 	private static _storageNotebookBinding = 'notebook.controller2NotebookBindings';
 
@@ -168,7 +170,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 
 	private _persistMementos(): void {
 		this._persistSoonHandle?.dispose();
-		this._persistSoonHandle = runWhenIdle(() => {
+		this._persistSoonHandle = runWhenWindowIdle(getActiveWindow(), () => {
 			this._storageService.store(NotebookKernelService._storageNotebookBinding, JSON.stringify(this._notebookBindings), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}, 100);
 	}
@@ -198,6 +200,10 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		if (!onlyThisKernel || existingKernel.kernel === onlyThisKernel) {
 			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: undefined, newKernel: existingKernel.kernel.id });
 		}
+	}
+
+	notifyVariablesChange(notebookUri: URI): void {
+		this._onDidNotebookVariablesChange.fire(notebookUri);
 	}
 
 	registerKernel(kernel: INotebookKernel): IDisposable {

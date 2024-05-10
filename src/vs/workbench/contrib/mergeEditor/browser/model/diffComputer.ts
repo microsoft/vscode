@@ -35,6 +35,9 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
 		const diffAlgorithm = this.mergeAlgorithm.read(reader);
+		const inputVersion = textModel1.getVersionId();
+		const outputVersion = textModel2.getVersionId();
+
 		const result = await this.editorWorkerService.computeDiff(
 			textModel1.uri,
 			textModel2.uri,
@@ -63,6 +66,13 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 				c.innerChanges?.map(ic => toRangeMapping(ic))
 			)
 		);
+
+		const newInputVersion = textModel1.getVersionId();
+		const newOutputVersion = textModel2.getVersionId();
+
+		if (inputVersion !== newInputVersion || outputVersion !== newOutputVersion) {
+			return { diffs: null };
+		}
 
 		assertFn(() => {
 			for (const c of changes) {

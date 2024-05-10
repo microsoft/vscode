@@ -61,7 +61,7 @@ suite('EditorModel', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(IUndoRedoService, undoRedoService);
-		instantiationService.stub(IEditorService, new TestEditorService());
+		instantiationService.stub(IEditorService, disposables.add(new TestEditorService()));
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
 		instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));

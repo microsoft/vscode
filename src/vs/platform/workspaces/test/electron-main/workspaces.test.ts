@@ -10,6 +10,7 @@ import * as path from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
 
@@ -64,4 +65,6 @@ flakySuite('Workspaces', () => {
 		// single folder identifier (remote)
 		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test'))?.id, '786de4f224d57691f218dc7f31ee2ee3');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

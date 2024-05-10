@@ -8,7 +8,7 @@ import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { isDefined } from 'vs/base/common/types';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
+import { TextLength } from 'vs/editor/common/core/textLength';
 import { RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { addLength, lengthBetweenPositions, lengthOfRange } from 'vs/workbench/contrib/mergeEditor/browser/model/rangeUtils';
@@ -49,7 +49,7 @@ export function getAlignments(m: ModifiedBaseRange): LineAlignment[] {
 		if (shouldAdd) {
 			result.push(lineAlignment);
 		} else {
-			if (m.length.isGreaterThan(new LengthObj(1, 0))) {
+			if (m.length.isGreaterThan(new TextLength(1, 0))) {
 				result.push([
 					m.output1Pos ? m.output1Pos.lineNumber + 1 : undefined,
 					m.inputPos.lineNumber + 1,
@@ -75,7 +75,7 @@ interface CommonRangeMapping {
 	output1Pos: Position | undefined;
 	output2Pos: Position | undefined;
 	inputPos: Position;
-	length: LengthObj;
+	length: TextLength;
 }
 
 function toEqualRangeMappings(diffs: RangeMapping[], inputRange: Range, outputRange: Range): RangeMapping[] {

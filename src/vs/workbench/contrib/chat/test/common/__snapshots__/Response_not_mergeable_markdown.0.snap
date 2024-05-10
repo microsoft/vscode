@@ -1,0 +1,20 @@
+[
+  {
+    content: {
+      value: "markdown1",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: true
+    },
+    kind: "markdownContent"
+  },
+  {
+    content: {
+      value: "markdown2",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false
+    },
+    kind: "markdownContent"
+  }
+]

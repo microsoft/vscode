@@ -10,7 +10,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { timeout } from 'vs/base/common/async';
 import { strictEqual } from 'assert';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
@@ -152,7 +152,7 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 		resolver = instantiationService.createInstance(TerminalLinkResolver);
 		validResources = [];
 
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 	});
 

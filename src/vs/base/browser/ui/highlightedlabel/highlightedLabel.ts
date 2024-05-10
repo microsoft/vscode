@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 
 /**
@@ -22,13 +27,15 @@ export interface IHighlightedLabelOptions {
 	 * Whether the label supports rendering icons.
 	 */
 	readonly supportIcons?: boolean;
+
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 /**
  * A widget which can render a label with substring highlights, often
  * originating from a filter function like the fuzzy matcher.
  */
-export class HighlightedLabel {
+export class HighlightedLabel extends Disposable {
 
 	private readonly domNode: HTMLElement;
 	private text: string = '';
@@ -36,13 +43,16 @@ export class HighlightedLabel {
 	private highlights: readonly IHighlight[] = [];
 	private supportIcons: boolean;
 	private didEverRender: boolean = false;
+	private customHover: IUpdatableHover | undefined;
 
 	/**
 	 * Create a new {@link HighlightedLabel}.
 	 *
 	 * @param container The parent container to append to.
 	 */
-	constructor(container: HTMLElement, options?: IHighlightedLabelOptions) {
+	constructor(container: HTMLElement, private readonly options?: IHighlightedLabelOptions) {
+		super();
+
 		this.supportIcons = options?.supportIcons ?? false;
 		this.domNode = dom.append(container, dom.$('span.monaco-highlighted-label'));
 	}
@@ -125,10 +135,16 @@ export class HighlightedLabel {
 
 		dom.reset(this.domNode, ...children);
 
-		if (this.title) {
+		if (this.options?.hoverDelegate?.showNativeHover) {
+			/* While custom hover is not inside custom hover */
 			this.domNode.title = this.title;
 		} else {
-			this.domNode.removeAttribute('title');
+			if (!this.customHover && this.title !== '') {
+				const hoverDelegate = this.options?.hoverDelegate ?? getDefaultHoverDelegate('mouse');
+				this.customHover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(hoverDelegate, this.domNode, this.title));
+			} else if (this.customHover) {
+				this.customHover.update(this.title);
+			}
 		}
 
 		this.didEverRender = true;

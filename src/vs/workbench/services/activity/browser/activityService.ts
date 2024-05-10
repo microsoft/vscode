@@ -10,6 +10,7 @@ import { IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views
 import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isUndefined } from 'vs/base/common/types';
 
 class ViewContainerActivityByView extends Disposable {
 
@@ -46,6 +47,7 @@ class ViewContainerActivityByView extends Disposable {
 
 	override dispose() {
 		this.activityDisposable.dispose();
+		super.dispose();
 	}
 }
 
@@ -82,18 +84,18 @@ export class ActivityService extends Disposable implements IActivityService {
 				this.viewContainerActivities.set(viewContainerId, activities);
 			}
 			for (let i = 0; i <= activities.length; i++) {
-				if (i === activities.length) {
+				if (i === activities.length || isUndefined(activity.priority)) {
 					activities.push(activity);
 					break;
-				} else if (activities[i].priority ?? 0 <= (activity.priority ?? 0)) {
+				} else if (isUndefined(activities[i].priority) || activities[i].priority! <= activity.priority) {
 					activities.splice(i, 0, activity);
 					break;
 				}
 			}
 			this._onDidChangeActivity.fire(viewContainer);
 			return toDisposable(() => {
-				activities!.splice(activities!.indexOf(activity), 1);
-				if (activities!.length === 0) {
+				activities.splice(activities.indexOf(activity), 1);
+				if (activities.length === 0) {
 					this.viewContainerActivities.delete(viewContainerId);
 				}
 				this._onDidChangeActivity.fire(viewContainer);
@@ -157,8 +159,8 @@ export class ActivityService extends Disposable implements IActivityService {
 		activities.push(activity);
 		this._onDidChangeActivity.fire(id);
 		return toDisposable(() => {
-			activities!.splice(activities!.indexOf(activity), 1);
-			if (activities!.length === 0) {
+			activities.splice(activities.indexOf(activity), 1);
+			if (activities.length === 0) {
 				this.globalActivities.delete(id);
 			}
 			this._onDidChangeActivity.fire(id);

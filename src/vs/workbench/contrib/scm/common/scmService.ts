@@ -130,7 +130,7 @@ class SCMInput implements ISCMInput {
 		}
 
 		if (!transient) {
-			this.saveValue();
+			this.historyNavigator.add(this._value);
 			this.historyNavigator.add(value);
 			this.didChangeHistory = true;
 		}
@@ -392,4 +392,5 @@ export class SCMService implements ISCMService {
 	getRepository(id: string): ISCMRepository | undefined {
 		return this._repositories.get(id);
 	}
+
 }

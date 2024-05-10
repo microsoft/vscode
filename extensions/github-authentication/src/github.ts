@@ -296,13 +296,15 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				scopes: JSON.stringify(scopes),
 			});
 
+			const sessions = await this._sessionsPromise;
 
+			const accounts = new Set(sessions.map(session => session.account.label));
+			const existingLogin = accounts.size <= 1 ? sessions[0]?.account.label : await vscode.window.showQuickPick([...accounts], { placeHolder: 'Choose an account that you would like to log in to' });
 			const scopeString = sortedScopes.join(' ');
-			const token = await this._githubServer.login(scopeString);
+			const token = await this._githubServer.login(scopeString, existingLogin);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			const sessions = await this._sessionsPromise;
 			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
 			if (sessionIndex > -1) {
 				sessions.splice(sessionIndex, 1, session);

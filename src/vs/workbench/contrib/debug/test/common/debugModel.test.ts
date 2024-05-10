@@ -7,15 +7,18 @@ import * as assert from 'assert';
 import { DeferredPromise } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mockObject } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockDebugStorage } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('DebugModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('FunctionBreakpoint', () => {
 		test('Id is saved', () => {
-			const fbp = new FunctionBreakpoint('function', true, 'hit condition', 'condition', 'log message');
+			const fbp = new FunctionBreakpoint({ name: 'function', enabled: true, hitCondition: 'hit condition', condition: 'condition', logMessage: 'log message' });
 			const strigified = JSON.stringify(fbp);
 			const parsed = JSON.parse(strigified);
 			assert.equal(parsed.id, fbp.getId());
@@ -24,10 +27,17 @@ suite('DebugModel', () => {
 
 	suite('ExceptionBreakpoint', () => {
 		test('Restored matches new', () => {
-			const ebp = new ExceptionBreakpoint('id', 'label', true, true, 'condition', 'description', 'condition description', false);
+			const ebp = new ExceptionBreakpoint({
+				conditionDescription: 'condition description',
+				description: 'description',
+				filter: 'condition',
+				label: 'label',
+				supportsCondition: true,
+				enabled: true,
+			}, 'id');
 			const strigified = JSON.stringify(ebp);
 			const parsed = JSON.parse(strigified);
-			const newEbp = new ExceptionBreakpoint(parsed.filter, parsed.label, parsed.enabled, parsed.supportsCondition, parsed.condition, parsed.description, parsed.conditionDescription, !!parsed.fallback);
+			const newEbp = new ExceptionBreakpoint(parsed);
 			assert.ok(ebp.matches(newEbp));
 		});
 	});

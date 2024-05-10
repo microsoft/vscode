@@ -169,7 +169,7 @@ class LanguagePacksCache extends Disposable {
 
 	private updateHash(languagePack: ILanguagePack): void {
 		if (languagePack) {
-			const md5 = createHash('md5');
+			const md5 = createHash('md5'); // CodeQL [SM04514] Used to create an hash for language pack extension version, which is not a security issue
 			for (const extension of languagePack.extensions) {
 				md5.update(extension.extensionIdentifier.uuid || extension.extensionIdentifier.id).update(extension.version); // CodeQL [SM01510] The extension UUID is not sensitive info and is not manually created by a user
 			}

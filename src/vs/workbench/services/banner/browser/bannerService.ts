@@ -16,6 +16,7 @@ export interface IBannerItem {
 	readonly actions?: ILinkDescriptor[];
 	readonly ariaLabel?: string;
 	readonly onClose?: () => void;
+	readonly closeLabel?: string;
 }
 
 export const IBannerService = createDecorator<IBannerService>('bannerService');

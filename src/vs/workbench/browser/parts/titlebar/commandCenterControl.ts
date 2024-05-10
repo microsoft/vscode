@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
+import { isActiveDocument, reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -20,6 +20,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class CommandCenterControl {
 
@@ -45,17 +47,17 @@ export class CommandCenterControl {
 				primaryGroup: () => true,
 			},
 			telemetrySource: 'commandCenter',
-			actionViewItemProvider: (action) => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.CommandCenterCenter) {
-					return instantiationService.createInstance(CommandCenterCenterViewItem, action, windowTitle, hoverDelegate, {});
+					return instantiationService.createInstance(CommandCenterCenterViewItem, action, windowTitle, { ...options, hoverDelegate });
 				} else {
-					return createActionViewItem(instantiationService, action, { hoverDelegate });
+					return createActionViewItem(instantiationService, action, { ...options, hoverDelegate });
 				}
 			}
 		});
 
-		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
-		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
+		this._disposables.add(Event.filter(quickInputService.onHide, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, true)));
 		this._disposables.add(titleToolbar);
 	}
 
@@ -74,15 +76,19 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 	private static readonly _quickOpenCommandId = 'workbench.action.quickOpenWithModes';
 
+	private readonly _hoverDelegate: IHoverDelegate;
+
 	constructor(
 		private readonly _submenu: SubmenuItemAction,
 		private readonly _windowTitle: WindowTitle,
-		private readonly _hoverDelegate: IHoverDelegate,
 		options: IBaseActionViewItemOptions,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
+		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
+		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
 	}
 
 	override render(container: HTMLElement): void {
@@ -90,7 +96,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		container.classList.add('command-center-center');
 		container.classList.toggle('multiple', (this._submenu.actions.length > 1));
 
-		const hover = this._store.add(setupCustomHover(this._hoverDelegate, container, this.getTooltip()));
+		const hover = this._store.add(this._hoverService.setupUpdatableHover(this._hoverDelegate, container, this.getTooltip()));
 
 		// update label & tooltip when window title changes
 		this._store.add(this._windowTitle.onDidChange(() => {
@@ -140,6 +146,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 							// icon (search)
 							const searchIcon = document.createElement('span');
+							searchIcon.ariaHidden = 'true';
 							searchIcon.className = action.class ?? '';
 							searchIcon.classList.add('search-icon');
 
@@ -150,12 +157,20 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							labelElement.innerText = label;
 							reset(container, searchIcon, labelElement);
 
-							const hover = this._store.add(setupCustomHover(that._hoverDelegate, container, this.getTooltip()));
+							const hover = this._store.add(that._hoverService.setupUpdatableHover(that._hoverDelegate, container, this.getTooltip()));
 
 							// update label & tooltip when window title changes
 							this._store.add(that._windowTitle.onDidChange(() => {
 								hover.update(this.getTooltip());
 								labelElement.innerText = this._getLabel();
+							}));
+
+							// update label & tooltip when tabs visibility changes
+							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
+								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
+									hover.update(this.getTooltip());
+									labelElement.innerText = this._getLabel();
+								}
 							}));
 						}
 
@@ -165,7 +180,12 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 						private _getLabel(): string {
 							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
-							let label = that._windowTitle.isCustomTitleFormat() ? that._windowTitle.getWindowTitle() : that._windowTitle.workspaceName;
+							let label = that._windowTitle.workspaceName;
+							if (that._windowTitle.isCustomTitleFormat()) {
+								label = that._windowTitle.getWindowTitle();
+							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
+								label = that._windowTitle.fileName ?? label;
+							}
 							if (!label) {
 								label = localize('label.dfl', "Search");
 							}
@@ -175,7 +195,8 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							if (suffix) {
 								label = localize('label2', "{0} {1}", label, suffix);
 							}
-							return label;
+
+							return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
 						}
 					});
 				}

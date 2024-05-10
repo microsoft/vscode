@@ -8,16 +8,19 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -25,10 +28,8 @@ import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { isDefined } from 'vs/base/common/types';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
@@ -67,7 +68,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly collection = new MainThreadTestCollection(this.expandTest.bind(this));
+	public readonly collection = new MainThreadTestCollection(this.uriIdentityService, this.expandTest.bind(this));
 
 	/**
 	 * @inheritdoc
@@ -86,6 +87,7 @@ export class TestService extends Disposable implements ITestService {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService private readonly storage: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
@@ -364,7 +366,7 @@ export class TestService extends Disposable implements ITestService {
 	}
 
 	private async saveAllBeforeTest(req: ResolvedTestRunRequest, configurationService: IConfigurationService = this.configurationService, editorService: IEditorService = this.editorService): Promise<void> {
-		if (req.isUiTriggered === false) {
+		if (req.preserveFocus === true) {
 			return;
 		}
 		const saveBeforeTest = getTestingConfiguration(this.configurationService, TestingConfigKeys.SaveBeforeTest);

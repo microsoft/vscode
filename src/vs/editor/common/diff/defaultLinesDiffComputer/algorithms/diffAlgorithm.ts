@@ -125,6 +125,17 @@ export class OffsetPair {
 	public toString(): string {
 		return `${this.offset1} <-> ${this.offset2}`;
 	}
+
+	public delta(offset: number): OffsetPair {
+		if (offset === 0) {
+			return this;
+		}
+		return new OffsetPair(this.offset1 + offset, this.offset2 + offset);
+	}
+
+	public equals(other: OffsetPair): boolean {
+		return this.offset1 === other.offset1 && this.offset2 === other.offset2;
+	}
 }
 
 export interface ISequence {

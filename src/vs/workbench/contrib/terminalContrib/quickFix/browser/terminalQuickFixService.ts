@@ -6,6 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
 import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -28,7 +29,9 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 
 	readonly extensionQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 
-	constructor() {
+	constructor(
+		@ILogService private readonly _logService: ILogService,
+	) {
 		this.extensionQuickFixes = new Promise((r) => quickFixExtensionPoint.setHandler(fixes => {
 			r(fixes.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => {
 				if (!c.value) {
@@ -61,7 +64,8 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 			this._providers.set(id, provider);
 			const selector = this._selectors.get(id);
 			if (!selector) {
-				throw new Error(`No registered selector for ID: ${id}`);
+				this._logService.error(`No registered selector for ID: ${id}`);
+				return;
 			}
 			this._onDidRegisterProvider.fire({ selector, provider });
 		});

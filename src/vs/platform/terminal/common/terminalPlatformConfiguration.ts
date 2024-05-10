@@ -42,7 +42,7 @@ const terminalProfileBaseProperties: IJSONSchemaMap = {
 		}
 	},
 	overrideName: {
-		description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+		description: localize('terminalProfile.overrideName', 'Whether or not to replace the dynamic terminal title that detects what program is running with the static profile name.'),
 		type: 'boolean'
 	},
 	icon: {

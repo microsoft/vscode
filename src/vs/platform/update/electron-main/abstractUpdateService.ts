@@ -20,8 +20,14 @@ export function createUpdateURL(platform: string, quality: string, productServic
 
 export type UpdateNotAvailableClassification = {
 	owner: 'joaomoreno';
-	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user has manually checked for updates, or this was an automatic check.' };
+	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has manually checked for updates, or this was an automatic check.' };
 	comment: 'This is used to understand how often VS Code pings the update server for an update and there\'s none available.';
+};
+
+export type UpdateErrorClassification = {
+	owner: 'joaomoreno';
+	messageHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the error message.' };
+	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
 export abstract class AbstractUpdateService implements IUpdateService {
@@ -94,6 +100,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.setState(State.Disabled(DisablementReason.InvalidConfiguration));
 			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
+		}
+
+		// hidden setting
+		if (this.configurationService.getValue<boolean>('_update.prss')) {
+			const url = new URL(this.url);
+			url.searchParams.set('prss', 'true');
+			this.url = url.toString();
 		}
 
 		this.setState(State.Idle(this.getUpdateType()));

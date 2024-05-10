@@ -142,6 +142,28 @@ export class Terminal {
 		await this._waitForTerminal(expectedLocation);
 	}
 
+	/**
+	 * Creates an empty terminal by opening a regular terminal and resetting its state such that it
+	 * essentially acts like an Pseudoterminal extension API-based terminal. This can then be paired
+	 * with `TerminalCommandIdWithValue.WriteDataToTerminal` to make more reliable tests.
+	 */
+	async createEmptyTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
+		await this.createTerminal(expectedLocation);
+
+		// Run a command to ensure the shell has started, this is used to ensure the shell's data
+		// does not leak into the "empty terminal"
+		await this.runCommandInTerminal('echo "initialized"');
+		await this.waitForTerminalText(buffer => buffer.some(line => line.startsWith('initialized')));
+
+		// Erase all content and reset cursor to top
+		await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
+
+		// Force windows pty mode off; assume all sequences are rendered in correct position
+		if (process.platform === 'win32') {
+			await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('P;IsWindows=False')}`);
+		}
+	}
+
 	async assertEditorGroupCount(count: number): Promise<void> {
 		await this.code.waitForElements(Selector.EditorGroups, true, editorGroups => editorGroups && editorGroups.length === count);
 	}
@@ -288,4 +310,20 @@ export class Terminal {
 		await this.code.waitForElement(Selector.XtermFocused);
 		await this.code.waitForTerminalBuffer(expectedLocation === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
+}
+
+function vsc(data: string) {
+	return setTextParams(`633;${data}`);
+}
+
+function setTextParams(data: string) {
+	return osc(`${data}\\x07`);
+}
+
+function osc(data: string) {
+	return `\\x1b]${data}`;
+}
+
+function csi(data: string) {
+	return `\\x1b[${data}`;
 }
