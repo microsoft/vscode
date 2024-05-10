@@ -339,41 +339,6 @@ const isTest = !process.contextIsolated
 
 if (isTest) {
 	const { ipcRenderer } = require('electron');
-	const assert = require('assert')
-	const path = require('path')
-	const glob = require('glob')
-	const minimist = require('minimist')
-	const util = require('util')
-	const events = require('events')
-	const os = require('os')
-	const url = require('url')
-	const sinon = require('sinon')
-	const childProcess = require('child_process')
-	const stringDecoder = require('string_decoder')
-	const sinonTest = require('sinon-test')
-	const fs = require('fs')
-	const net = require('net')
-	const yauzl = require('yauzl')
-	const gracefulFs = require('graceful-fs')
-	const stream = require('stream')
-	const vscodeRipgrep = require('@vscode/ripgrep')
-	const parcelWatcher = require('@parcel/watcher')
-	const electron = require('electron')
-	const cookie = require('cookie')
-	const jschardet = require('jschardet')
-	const vscodeRegexpp = require('vscode-regexpp')
-	const crypto = require('crypto')
-	const kerberos = require('kerberos')
-	const nativeIsElevated = require('native-is-elevated')
-	const xterm = require('@xterm/xterm')
-	const nativeWatchdog = require('native-watchdog')
-	const zlib = require('zlib')
-	const xtermHeadless = require('@xterm/headless')
-	const vscodeSqlite3 = require('@vscode/sqlite3')
-	// const xtermAddonCanvas = require('@xterm/addon-canvas')
-	const inspector = require('inspector')
-	const nativeKeymap = require('native-keymap')
-	const vscodeWindowsRegistry = require('@vscode/windows-registry')
 
 	let runCallback
 	let args
@@ -395,59 +360,8 @@ if (isTest) {
 		maybeRun()
 	})
 
-	const testGlobals = {
-		ipcRenderer,
-		assert,
-		path,
-		glob,
-		sinon,
-		nativeWatchdog,
-		nativeKeymap,
-		inspector,
-		util,
-		yauzl,
-		events,
-		fs,
-		kerberos,
-		os,
-		stringDecoder,
-		setRun,
-		cookie,
-		url,
-		nativeIsElevated,
-		xterm,
-		net,
-		crypto,
-		vscodeRegexpp,
-		electron,
-		stream,
-		zlib,
-		minimist,
-		gracefulFs,
-		childProcess,
-		// xtermAddonCanvas,
-		vscodeRipgrep,
-		vscodeSqlite3,
-		sinonTest,
-		parcelWatcher,
-		jschardet,
-		xtermHeadless,
-		vscodeWindowsRegistry,
-		require,
-		get vscodeWindowsCaCerts() {
-			// @ts-ignore
-			return require('@vscode/windows-ca-certs')
-		},
-		get windowsForegroundLove() {
-			// @ts-ignore
-			return require('windows-foreground-love')
-		},
-		get vscodeWindowsProcessTree() {
-			return require('@vscode/windows-process-tree')
-		}
-	}
-	// @ts-ignore
-	window.testGlobals = testGlobals
 	// @ts-ignore
 	window.testGlobalRequire = require
+	// @ts-ignore
+	window.testIpcRenderer = ipcRenderer
 }
