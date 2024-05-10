@@ -12,6 +12,7 @@ import { testGlobals } from './import-map/testGlobals.js'
 
 const { setRun, fs, ipcRenderer, assert, path, url, glob, util } = testGlobals;
 
+const globPromise = util.promisify(glob);
 
 (function () {
 	const originals = {};
@@ -155,7 +156,7 @@ async function loadTestModules(opts) {
 
 	const pattern = opts.runGlob || _tests_glob;
 
-	const files = await glob(pattern, {
+	const files = await globPromise(pattern, {
 		cwd: _out
 	})
 	return loadModules(files)
@@ -194,14 +195,14 @@ async function loadTests(opts) {
 
 	let _testsWithUnexpectedOutput = false;
 
-	// for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
-	// 	console[consoleFn.name] = function (msg) {
-	// 		if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
-	// 			_testsWithUnexpectedOutput = true;
-	// 			consoleFn.apply(console, arguments);
-	// 		}
-	// 	};
-	// }
+	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
+		console[consoleFn.name] = function (msg) {
+			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
+				_testsWithUnexpectedOutput = true;
+				consoleFn.apply(console, arguments);
+			}
+		};
+	}
 
 	//#endregion
 
