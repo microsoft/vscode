@@ -363,5 +363,5 @@ if (isTest) {
 	// @ts-ignore
 	window.testGlobalRequire = require
 	// @ts-ignore
-	window.testIpcRenderer = ipcRenderer
+	window.testSetRun = setRun
 }

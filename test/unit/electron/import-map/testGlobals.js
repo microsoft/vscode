@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-ignore
-const { testGlobalRequire } = globalThis;
+const { testGlobalRequire, testSetRun } = globalThis;
 
 const modules = [
 	'@parcel/watcher',
@@ -57,6 +57,7 @@ const createTestGlobals = () => {
 			},
 		})
 	}
+	map.setRun = testSetRun
 	return map
 }
 
