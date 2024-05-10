@@ -40,7 +40,6 @@ import { ChatResponseAccessibleView } from 'vs/workbench/contrib/chat/browser/ch
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/codeBlockContextProviderService';
-import 'vs/workbench/contrib/chat/browser/contrib/chatHistoryVariables';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputCompletions';
 import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';

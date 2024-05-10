@@ -15,6 +15,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, IOutputDto, NotebookData, NotebookSetting, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
@@ -27,6 +28,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	const configurationService = new TestConfigurationService();
+	const telemetryService = new class extends mock<ITelemetryService>() { };
 
 	teardown(() => disposables.dispose());
 
@@ -62,7 +64,8 @@ suite('NotebookFileWorkingCopyModel', function () {
 						}
 					}
 				),
-				configurationService
+				configurationService,
+				telemetryService
 			));
 
 			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
@@ -84,7 +87,8 @@ suite('NotebookFileWorkingCopyModel', function () {
 						}
 					}
 				),
-				configurationService
+				configurationService,
+				telemetryService
 			));
 			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
@@ -118,7 +122,8 @@ suite('NotebookFileWorkingCopyModel', function () {
 						}
 					}
 				),
-				configurationService
+				configurationService,
+				telemetryService
 			));
 
 			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
@@ -140,7 +145,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 						}
 					}
 				),
-				configurationService
+				configurationService,
+				telemetryService,
+
 			));
 			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
@@ -173,7 +180,8 @@ suite('NotebookFileWorkingCopyModel', function () {
 						}
 					}
 				),
-				configurationService
+				configurationService,
+				telemetryService
 			));
 
 			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
@@ -195,7 +203,8 @@ suite('NotebookFileWorkingCopyModel', function () {
 						}
 					}
 				),
-				configurationService
+				configurationService,
+				telemetryService
 			));
 			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
 			assert.strictEqual(callCount, 1);
@@ -229,7 +238,8 @@ suite('NotebookFileWorkingCopyModel', function () {
 					}
 				}
 			),
-			configurationService
+			configurationService,
+			telemetryService
 		));
 
 		try {
@@ -271,7 +281,8 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const model = disposables.add(new NotebookFileWorkingCopyModel(
 			notebook,
 			notebookService,
-			configurationService
+			configurationService,
+			telemetryService
 		));
 
 		// the save method should not be set if the serializer is not yet resolved

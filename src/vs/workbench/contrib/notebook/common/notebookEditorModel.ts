@@ -196,7 +196,8 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	constructor(
 		private readonly _notebookModel: NotebookTextModel,
 		private readonly _notebookService: INotebookService,
-		private readonly _configurationService: IConfigurationService
+		private readonly _configurationService: IConfigurationService,
+		private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -257,8 +258,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 						isRemote: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the save is happening on a remote file system' };
 						versionMismatch: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the error was because of a version mismatch' };
 					};
-					const telemetry = {} as ITelemetryService;
-					telemetry.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
+					this._telemetryService.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
 						versionMismatch: error instanceof Error && error.message === 'Document version mismatch'
 					});
@@ -358,6 +358,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 		private readonly _viewType: string,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) { }
 
 	async createModel(resource: URI, stream: VSBufferReadableStream, token: CancellationToken): Promise<NotebookFileWorkingCopyModel> {
@@ -375,7 +376,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 		}
 
 		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, resource, data, info.serializer.options);
-		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService, this._configurationService);
+		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService, this._configurationService, this._telemetryService);
 	}
 }
 
