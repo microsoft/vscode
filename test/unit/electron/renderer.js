@@ -290,7 +290,7 @@ async function loadTests(opts) {
 		assertCleanState();
 	});
 
-	return loadTestModules(opts);
+	await loadTestModules(opts);
 }
 
 function serializeSuite(suite) {
