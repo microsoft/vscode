@@ -3,25 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-if (typeof require === 'undefined') {
-	globalThis.require = globalThis['testGlobalRequire']
-}
+import * as minimatch from "minimatch";
+import * as fs from "fs";
+import * as path from "path";
+import * as iLibInstrument from "istanbul-lib-instrument";
+import * as iLibCoverage from "istanbul-lib-coverage";
+import * as iLibSourceMaps from "istanbul-lib-source-maps";
+import * as iLibReport from "istanbul-lib-report";
+import * as iReports from "istanbul-reports";
 
-const minimatch = require('minimatch');
-const fs = require('fs');
-const path = require('path');
-const iLibInstrument = require('istanbul-lib-instrument');
-const iLibCoverage = require('istanbul-lib-coverage');
-const iLibSourceMaps = require('istanbul-lib-source-maps');
-const iLibReport = require('istanbul-lib-report');
-const iReports = require('istanbul-reports');
+const REPO_PATH = toUpperDriveLetter(path.join(__dirname, "../../"));
 
-const REPO_PATH = toUpperDriveLetter(path.join(__dirname, '../../'));
-
-exports.initialize = function (loaderConfig) {
+export const initialize = function (loaderConfig) {
 	const instrumenter = iLibInstrument.createInstrumenter();
 	loaderConfig.nodeInstrumenter = function (contents, source) {
-		if (minimatch(source, '**/test/**')) {
+		if (minimatch(source, "**/test/**")) {
 			// tests don't get instrumented
 			return contents;
 		}
@@ -41,7 +37,7 @@ exports.initialize = function (loaderConfig) {
 	};
 };
 
-exports.createReport = function (isSingle, coveragePath, formats) {
+export const createReport = function (isSingle, coveragePath, formats) {
 	const mapStore = iLibSourceMaps.createSourceMapStore();
 	const coverageMap = iLibCoverage.createCoverageMap(global.__coverage__);
 	return mapStore.transformCoverage(coverageMap).then((transformed) => {
@@ -56,27 +52,29 @@ exports.createReport = function (isSingle, coveragePath, formats) {
 		transformed.data = newData;
 
 		const context = iLibReport.createContext({
-			dir: coveragePath || path.join(REPO_PATH, `.build/coverage${isSingle ? '-single' : ''}`),
-			coverageMap: transformed
+			dir:
+				coveragePath ||
+				path.join(REPO_PATH, `.build/coverage${isSingle ? "-single" : ""}`),
+			coverageMap: transformed,
 		});
-		const tree = context.getTree('flat');
+		const tree = context.getTree("flat");
 
 		const reports = [];
 		if (formats) {
-			if (typeof formats === 'string') {
+			if (typeof formats === "string") {
 				formats = [formats];
 			}
-			formats.forEach(format => {
+			formats.forEach((format) => {
 				reports.push(iReports.create(format));
 			});
 		} else if (isSingle) {
-			reports.push(iReports.create('lcovonly'));
+			reports.push(iReports.create("lcovonly"));
 		} else {
-			reports.push(iReports.create('json'));
-			reports.push(iReports.create('lcov'));
-			reports.push(iReports.create('html'));
+			reports.push(iReports.create("json"));
+			reports.push(iReports.create("lcov"));
+			reports.push(iReports.create("html"));
 		}
-		reports.forEach(report => tree.visit(report, context));
+		reports.forEach((report) => tree.visit(report, context));
 	});
 };
 
