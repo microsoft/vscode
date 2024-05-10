@@ -401,6 +401,84 @@
 	opacity: 0.7;
 }
 
+.coverage-summary-widget {
+	color: var(--vscode-editor-foreground);
+	z-index: 1;
+	line-height: 25px;
+
+	> div {
+		display: flex;
+		align-items: center;
+		border-bottom: 1px solid var(--vscode-menu-border);
+	}
+
+	.toggleInline, .perTestFilter {
+		border-left: 1px solid var(--vscode-menu-border);
+		padding: 0 6px;
+	}
+
+	.stat, .toggleInline {
+		padding-right: 6px;
+	}
+
+	> span, > a {
+		display: inline;
+		position: relative;
+		padding: 0 6px;
+
+		&:first-child {
+			padding-left: 0;
+		}
+
+		&:last-child {
+			padding-right: 0;
+		}
+	}
+
+
+	a {
+		color: var(--vscode-textLink-foreground);
+		cursor: pointer;
+	}
+
+	a:hover {
+		color: var(--vscode-textLink-activeForeground);
+	}
+
+	.toggleInline, .perTestFilter {
+		border-left: 1px solid var(--vscode-menu-border);
+	}
+}
+
+.test-coverage-tree-per-test-switcher {
+	display: flex;
+	background-color: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	border: 1px solid var(--vscode-dropdown-border);
+
+	margin: 3px 0;
+	cursor: pointer;
+	margin-right: 22px;
+	line-height: 20px;
+	padding: 0 6px;
+	width: fit-content;
+	max-width: calc(100% - 44px);
+
+	span {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	&::after {
+		content: '';
+		content: var(--vscode-icon-chevron-right-content);
+		font-family: var(--vscode-icon-chevron-right-font-family);
+		font-size: 18px;
+		padding-left: 22px;
+	}
+}
+
 /** -- coverage in the explorer  */
 
 .explorer-item-with-test-coverage {
