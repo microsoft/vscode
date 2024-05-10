@@ -1,13 +1,14 @@
-
-export async function initialize({ number, port }) {
-	// Receives data from `register`.
-}
-
 export async function resolve(specifier, context, nextResolve) {
-	console.log({ specifier, context, nextResolve })
-	// Take an `import` or `require` specifier and resolve it to a URL.
+	// if (specifier === "vscode") {
+	// 	return {
+	// 		shortCircuit: true,
+	// 		format: "module",
+	// 		url: new URL("./fake-vscode.js", import.meta.url).toString(),
+	// 	};
+	// }
+	return nextResolve(specifier, context);
 }
 
-export async function load(url, context, nextLoad) {
-	// Take a resolved URL and return the source code to be evaluated.
+export function load(url, context, nextLoad) {
+	return nextLoad(url);
 }
