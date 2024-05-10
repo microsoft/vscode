@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { pathToFileURL } = testGlobals['url'];
+const { pathToFileURL, fileURLToPath } = testGlobals['url'];
 
-export { pathToFileURL };
+export { pathToFileURL, fileURLToPath };
