@@ -1,3 +1,7 @@
+console.log('HELLO FROM LOADER!!!')
+console.log('HELLO FROM LOADER!!!')
+console.log('HELLO FROM LOADER!!!')
+console.log('HELLO FROM LOADER!!!')
 export async function initialize({ number, port }) {
 	// Receives data from `register`.
 }
