@@ -7,7 +7,6 @@
 
 const { setRun, } = globalThis.testGlobals;
 
-const inspector = require('inspector')
 const fs = require('fs')
 const { ipcRenderer } = require('electron');
 const assert = require('assert');
