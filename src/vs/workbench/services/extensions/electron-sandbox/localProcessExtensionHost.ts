@@ -39,7 +39,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { isESM } from 'vs/base/common/amd';
-import { join } from 'path';
 import { root } from 'vs/base/common/root.js';
 
 export interface ILocalProcessExtensionHostInitData {
@@ -80,7 +79,7 @@ export class ExtensionHostProcess {
 	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number | undefined }> {
 		let actualOptions: IExtensionHostProcessOptions = opts
 		if (isESM) {
-			const loaderRegisterPath = join(root, 'src', 'extension-loader-register.js')
+			const loaderRegisterPath = URI.joinPath(URI.parse(root), 'src', 'extension-loader-register.js');
 			actualOptions = {
 				...opts,
 				env: {
