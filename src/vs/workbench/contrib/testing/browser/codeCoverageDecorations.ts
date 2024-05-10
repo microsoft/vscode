@@ -5,8 +5,8 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ActionBar, ActionsOrientation, IActionOptions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Action } from 'vs/base/common/actions';
 import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { assert, assertNever } from 'vs/base/common/assert';
