@@ -95,6 +95,11 @@ const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
 
+function initLoader(opts) {
+	const outdir = opts.build ? 'out-build' : 'out';
+	_out = path.join(__dirname, `../../../${outdir}`);
+}
+
 
 function createCoverageReport(opts) {
 	if (opts.coverage) {
