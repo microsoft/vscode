@@ -10,7 +10,7 @@ import * as coverage from '../coverage.js'
 import { takeSnapshotAndCountClasses } from '../analyzeSnapshot.js'
 import { testGlobals } from './import-map/testGlobals.js'
 
-const { setRun, fs, ipcRenderer, assert, path, url, glob, util, } = testGlobals;
+const { setRun, fs, ipcRenderer, assert, path, url, glob, util } = testGlobals;
 
 (function () {
 	const originals = {};
@@ -94,30 +94,6 @@ const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
 
-function initLoader(opts) {
-	const outdir = opts.build ? 'out-build' : 'out';
-	_out = path.join(__dirname, `../../../${outdir}`);
-
-	// setup loader
-	// loader = require(`${_out}/vs/loader`);
-	// const loaderConfig = {
-	// 	nodeRequire: require,
-	// 	catchError: true,
-	// 	baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
-	// 	paths: {
-	// 		'vs': `../${outdir}/vs`,
-	// 		'lib': `../${outdir}/lib`,
-	// 		'bootstrap-fork': `../${outdir}/bootstrap-fork`
-	// 	}
-	// };
-
-	// if (opts.coverage) {
-	// 	// initialize coverage if requested
-	// 	coverage.initialize(loaderConfig);
-	// }
-
-	// loader.require.config(loaderConfig);
-}
 
 function createCoverageReport(opts) {
 	if (opts.coverage) {
@@ -128,9 +104,13 @@ function createCoverageReport(opts) {
 
 
 async function loadWorkbenchTestingUtilsModule() {
-	const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString();
-	const module = await import(utilsPath);
-	return module;
+	try {
+		const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString();
+		const module = await import(utilsPath);
+		return module;
+	} catch (error) {
+		throw new Error(`Failed to load utils module: ${error}`)
+	}
 }
 
 const doImportUrl = async url => {
@@ -184,7 +164,6 @@ function loadTestModules(opts) {
 let currentTest;
 
 async function loadTests(opts) {
-
 	//#region Unexpected Output
 
 	const _allowedTestOutput = [
@@ -398,41 +377,39 @@ class IPCReporter {
 	}
 }
 
-function runTests(opts) {
+async function runTests(opts) {
 	// this *must* come before loadTests, or it doesn't work.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
 	}
 
-	return loadTests(opts).then(() => {
+	await loadTests(opts)
 
-		if (opts.grep) {
-			mocha.grep(opts.grep);
-		}
+	if (opts.grep) {
+		mocha.grep(opts.grep);
+	}
 
-		if (!opts.dev) {
-			mocha.reporter(IPCReporter);
-		}
+	if (!opts.dev) {
+		mocha.reporter(IPCReporter);
+	}
 
-		const runner = mocha.run(() => {
-			createCoverageReport(opts).then(() => {
-				ipcRenderer.send('all done');
-			});
+	const runner = mocha.run(() => {
+		createCoverageReport(opts).then(() => {
+			ipcRenderer.send('all done');
 		});
-
-		runner.on('test', test => currentTest = test);
-
-		if (opts.dev) {
-			runner.on('fail', (test, err) => {
-				console.error(test.fullTitle());
-				console.error(err.stack);
-			});
-		}
 	});
+
+	runner.on('test', test => currentTest = test);
+
+	if (opts.dev) {
+		runner.on('fail', (test, err) => {
+			console.error(test.fullTitle());
+			console.error(err.stack);
+		});
+	}
 }
 
 const main = (e, opts) => {
-	initLoader(opts);
 	runTests(opts).catch(err => {
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
