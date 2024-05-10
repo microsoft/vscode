@@ -82,6 +82,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		widgetManager: TerminalWidgetManager | undefined,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
@@ -101,6 +102,10 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	private _createHint(): void {
 		const instance = this._instance instanceof TerminalInstance ? this._instance : undefined;
 		if (!instance || !this._xterm || this._hintWidget || instance?.capabilities.get(TerminalCapability.CommandDetection)?.hasInput) {
+			return;
+		}
+
+		if (!this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
 			return;
 		}
 
@@ -291,4 +296,3 @@ class TerminalInitialHintWidget extends Disposable {
 		super.dispose();
 	}
 }
-
