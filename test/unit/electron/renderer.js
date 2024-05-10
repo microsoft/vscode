@@ -103,24 +103,27 @@ function createCoverageReport(opts) {
 }
 
 
-async function loadWorkbenchTestingUtilsModule() {
-	try {
-		const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString();
-		const module = await import(utilsPath);
-		return module;
-	} catch (error) {
-		throw new Error(`Failed to load utils module: ${error}`)
-	}
-}
-
 const doImportUrl = async url => {
 	try {
-		// console.log('import', url)
+		console.log('import', url)
 		return await import(url);
 	} catch (error) {
 		throw new Error(`Failed to import ${url}: ${error}`);
 	}
 };
+
+
+async function loadWorkbenchTestingUtilsModule() {
+	try {
+		const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString();
+		const module = doImportUrl(utilsPath)
+		return module;
+	} catch (error) {
+		console.log(error)
+		throw new Error(`Failed to load utils module: ${error}`)
+	}
+}
+
 
 async function loadModules(modules) {
 	// console.log({ modules })
@@ -193,14 +196,14 @@ async function loadTests(opts) {
 
 	let _testsWithUnexpectedOutput = false;
 
-	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
-		console[consoleFn.name] = function (msg) {
-			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
-				_testsWithUnexpectedOutput = true;
-				consoleFn.apply(console, arguments);
-			}
-		};
-	}
+	// for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
+	// 	console[consoleFn.name] = function (msg) {
+	// 		if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
+	// 			_testsWithUnexpectedOutput = true;
+	// 			consoleFn.apply(console, arguments);
+	// 		}
+	// 	};
+	// }
 
 	//#endregion
 
@@ -409,15 +412,16 @@ async function runTests(opts) {
 	}
 }
 
-const main = (e, opts) => {
-	runTests(opts).catch(err => {
+const main = async (e, opts) => {
+	try {
+		await runTests(opts)
+	} catch (err) {
+		console.error(err);
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
-
-		console.error(err);
 		ipcRenderer.send('error', err);
-	});
+	};
 }
 
 setRun(main)
