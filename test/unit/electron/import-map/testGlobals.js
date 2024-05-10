@@ -41,6 +41,11 @@ const modules = [
 	'vscode-regexpp',
 	'yauzl',
 	'zlib',
+	"istanbul-lib-coverage",
+	"istanbul-lib-instrument",
+	"istanbul-lib-report",
+	"istanbul-lib-source-maps",
+	"istanbul-reports",
 ]
 
 const createTestGlobals = () => {
@@ -50,8 +55,6 @@ const createTestGlobals = () => {
 			get() {
 				return testGlobalRequire(module)
 			},
-			// enumerable: true,
-			// writable: true
 		})
 	}
 	return map
