@@ -12,6 +12,7 @@ import { testGlobals } from './import-map/testGlobals.js'
 
 const { setRun, fs, ipcRenderer, assert, path, url, glob, util } = testGlobals;
 
+
 (function () {
 	const originals = {};
 	let logging = false;
@@ -119,14 +120,12 @@ async function loadWorkbenchTestingUtilsModule() {
 		const module = doImportUrl(utilsPath)
 		return module;
 	} catch (error) {
-		console.log(error)
 		throw new Error(`Failed to load utils module: ${error}`)
 	}
 }
 
 
 async function loadModules(modules) {
-	// console.log({ modules })
 	for (const file of modules) {
 		const importUrl = url.pathToFileURL(path.join(_out, file)).toString();
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
@@ -137,7 +136,7 @@ async function loadModules(modules) {
 }
 
 
-function loadTestModules(opts) {
+async function loadTestModules(opts) {
 
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
@@ -151,16 +150,10 @@ function loadTestModules(opts) {
 
 	const pattern = opts.runGlob || _tests_glob;
 
-	return new Promise((resolve, reject) => {
-		glob(pattern, { cwd: _out }, (err, files) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			const modules = files;
-			resolve(modules);
-		});
-	}).then(loadModules);
+	const files = await glob(pattern, {
+		cwd: _out
+	})
+	return loadModules(files)
 }
 
 /** @type Mocha.Test */
@@ -256,6 +249,7 @@ async function loadTests(opts) {
 	const workbenchTestingModule = await loadWorkbenchTestingUtilsModule()
 
 	const assertCleanState = workbenchTestingModule.assertCleanState;
+
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
