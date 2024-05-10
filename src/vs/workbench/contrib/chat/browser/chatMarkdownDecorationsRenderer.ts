@@ -18,12 +18,14 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { asCssVariable } from 'vs/platform/theme/common/colorUtils';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentHover } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
+import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, chatSubcommandLeader, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { contentRefUrl } from '../common/annotations';
+import { Lazy } from 'vs/base/common/lazy';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -66,6 +68,7 @@ export class ChatMarkdownDecorationsRenderer {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
+		@ICommandService private readonly commandService: ICommandService,
 	) { }
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
@@ -174,11 +177,11 @@ export class ChatMarkdownDecorationsRenderer {
 			container = this.renderResourceWidget(name, undefined);
 		}
 
+		const hover: Lazy<ChatAgentHover> = new Lazy(() => store.add(this.instantiationService.createInstance(ChatAgentHover)));
 		store.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, () => {
-			const hover = store.add(this.instantiationService.createInstance(ChatAgentHover));
-			hover.setAgent(args.agentId);
-			return hover.domNode;
-		}));
+			hover.value.setAgent(args.agentId);
+			return hover.value.domNode;
+		}, agent && getChatAgentHoverOptions(() => agent, this.commandService)));
 		return container;
 	}
 
