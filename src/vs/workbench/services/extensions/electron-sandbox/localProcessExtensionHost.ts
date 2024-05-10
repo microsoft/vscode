@@ -90,8 +90,6 @@ export class ExtensionHostProcess {
 			}
 		}
 
-		console.log('OPTIONS' + JSON.stringify(actualOptions, null, 2));
-
 		return this._extensionHostStarter.start(this._id, actualOptions);
 	}
 
