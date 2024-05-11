@@ -180,7 +180,6 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-<<<<<<< HEAD
     {
         target: '**/vs/workbench/api/node/extHostExtensionService.ts',
         allowedTypes: [
@@ -188,7 +187,7 @@ const RULES = [
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: []
-=======
+    },
     // Common: vs/workbench/api/common/extHostTypes.ts
     {
         target: '**/vs/workbench/api/common/extHostTypes.ts',
@@ -244,7 +243,6 @@ const RULES = [
             'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
->>>>>>> origin/main
     },
     // Common
     {
