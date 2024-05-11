@@ -5,6 +5,6 @@
 
 import { testGlobals } from './testGlobals.js';
 
-const { setup } = testGlobals.mocha;
+const { beforeEach, afterEach, setup, suite, timeout, grep, reporter, run, Suite } = testGlobals.mocha;
 
-export { setup };
+export { beforeEach, afterEach, setup, suite, timeout, grep, reporter, run, Suite };

@@ -26,6 +26,7 @@ const modules = [
 	'jschardet',
 	'kerberos',
 	'minimist',
+	'minimatch',
 	'mocha',
 	'native-is-elevated',
 	'native-keymap',

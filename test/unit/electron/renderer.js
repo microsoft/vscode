@@ -10,7 +10,7 @@ import * as coverage from '../coverage.js'
 import { takeSnapshotAndCountClasses } from '../analyzeSnapshot.js'
 import { testGlobals } from './import-map/testGlobals.js'
 
-const { setRun, fs, ipcRenderer, assert, path, url, glob, util } = testGlobals;
+const { setRun, fs, ipcRenderer, assert, path, url, glob, util, mocha } = testGlobals;
 
 const globPromise = util.promisify(glob);
 
