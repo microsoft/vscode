@@ -915,7 +915,7 @@ export class ReadChatResponseAloud extends Action2 {
 			return;
 		}
 
-		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).start(item.model);
+		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).start(stringifyItem(item, false));
 	}
 }
 
