@@ -10,8 +10,9 @@ const modules = [
 	'@parcel/watcher',
 	'@vscode/ripgrep',
 	'@vscode/sqlite3',
-	'@vscode/windows-registry',
 	'@vscode/windows-ca-certs',
+	'@vscode/windows-registry',
+	'@vscode/windows-process-tree',
 	'@xterm/headless',
 	'@xterm/xterm',
 	'assert',
@@ -26,8 +27,8 @@ const modules = [
 	'inspector',
 	'jschardet',
 	'kerberos',
-	'minimist',
 	'minimatch',
+	'minimist',
 	'mocha',
 	'native-is-elevated',
 	'native-keymap',
@@ -49,6 +50,7 @@ const modules = [
 	"istanbul-lib-report",
 	"istanbul-lib-source-maps",
 	"istanbul-reports",
+	"windows-foreground-love",
 ]
 
 const createTestGlobals = () => {
