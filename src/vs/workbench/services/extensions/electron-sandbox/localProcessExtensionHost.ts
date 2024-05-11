@@ -79,7 +79,7 @@ export class ExtensionHostProcess {
 	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number | undefined }> {
 		let actualOptions: IExtensionHostProcessOptions = opts
 		if (isESM) {
-			const loaderRegisterPath = URI.joinPath(URI.parse(root), 'src', 'extension-loader-register.js');
+			const loaderRegisterPath = URI.joinPath(URI.parse(root), 'src', 'extension-loader-register.js').fsPath;
 			actualOptions = {
 				...opts,
 				env: {
