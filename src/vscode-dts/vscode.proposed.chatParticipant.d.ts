@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequestTurn.references}.
+		 * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -268,7 +268,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequest.references}.
+		 * Information about references used in this request is stored in {@link ChatRequest.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -282,11 +282,11 @@ declare module 'vscode' {
 
 
 		/**
-		 * The list of variables and their values that are referenced in the prompt.
+		 * The list of references and their values that are referenced in the prompt.
 		 *
 		 * *Note* that the prompt contains varibale references as authored and that it is up to the participant
 		 * to further modify the prompt, for instance by inlining variable values or creating links to
-		 * headings which contain the resolved values. Variables are sorted in reverse by their range
+		 * headings which contain the resolved values. References are sorted in reverse by their range
 		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
