@@ -24,7 +24,7 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -252,7 +252,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 		}
 
-		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
+		// Determine whether the action source is contributed via a proxy (e.g. from an external extension)
+		// Context will need to be serializable (e.g. no recursive structures)
+		const contributedAction = (actionToRun instanceof MenuItemAction) && actionToRun?.item?.source;
+		const context = delegate.getActionsContext ? delegate.getActionsContext(event, !!contributedAction) : undefined;
 
 		const runnable = actionRunner.run(actionToRun, context);
 		try {
