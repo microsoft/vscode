@@ -13,6 +13,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
@@ -62,7 +63,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService
+		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
+		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -79,11 +81,22 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				}
 			});
 		}));
+
+		this._registerEnvContributedAuthenticationProviders();
 	}
 
 	private _declaredProviders: AuthenticationProviderInformation[] = [];
 	get declaredProviders(): AuthenticationProviderInformation[] {
 		return this._declaredProviders;
+	}
+
+	private _registerEnvContributedAuthenticationProviders(): void {
+		if (!this._environmentService.options?.authenticationProviders?.length) {
+			return;
+		}
+		for (const provider of this._environmentService.options.authenticationProviders) {
+			this.registerAuthenticationProvider(provider.id, provider);
+		}
 	}
 
 	registerDeclaredAuthenticationProvider(provider: AuthenticationProviderInformation): void {

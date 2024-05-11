@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener, getActiveDocument, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { $, addDisposableListener, getActiveDocument, getActiveWindow, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
@@ -66,7 +66,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			// This allows us to pass in a Promise that will either be cancelled by another event or
 			// resolved with the contents of the first call to this.writeText.
 			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
-			navigator.clipboard.write([new ClipboardItem({
+			getActiveWindow().navigator.clipboard.write([new ClipboardItem({
 				'text/plain': currentWritePromise.p,
 			})]).catch(async err => {
 				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentWritePromise.isRejected) {
@@ -106,7 +106,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
-			return await navigator.clipboard.writeText(text);
+			return await getActiveWindow().navigator.clipboard.writeText(text);
 		} catch (error) {
 			console.error(error);
 		}
@@ -148,7 +148,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
-			return await navigator.clipboard.readText();
+			return await getActiveWindow().navigator.clipboard.readText();
 		} catch (error) {
 			console.error(error);
 		}

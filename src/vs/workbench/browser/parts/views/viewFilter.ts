@@ -81,6 +81,7 @@ export class FilterWidget extends Widget {
 
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
 	private isMoreFiltersChecked: boolean = false;
+	private lastWidth?: number;
 
 	private focusTracker: DOM.IFocusTracker;
 	public get onDidFocus() { return this.focusTracker.onDidFocus; }
@@ -147,6 +148,13 @@ export class FilterWidget extends Widget {
 		this.element.parentElement?.classList.toggle('grow', width > 700);
 		this.element.classList.toggle('small', width < 400);
 		this.adjustInputBox();
+		this.lastWidth = width;
+	}
+
+	relayout() {
+		if (this.lastWidth) {
+			this.layout(this.lastWidth);
+		}
 	}
 
 	checkMoreFilters(checked: boolean): void {

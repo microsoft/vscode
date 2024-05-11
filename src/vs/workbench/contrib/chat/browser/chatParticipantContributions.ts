@@ -39,7 +39,12 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					type: 'string'
 				},
 				name: {
-					description: localize('chatParticipantName', "User-facing display name for this chat participant. The user will use '@' with this name to invoke the participant."),
+					description: localize('chatParticipantName', "User-facing name for this chat participant. The user will use '@' with this name to invoke the participant."),
+					type: 'string',
+					pattern: '^[\\w0-9_-]+$'
+				},
+				fullName: {
+					markdownDescription: localize('chatParticipantFullName', "The full name of this chat participant, which is shown as the label for responses coming from this participant. If not provided, {0} is used.", '`name`'),
 					type: 'string'
 				},
 				description: {
@@ -53,6 +58,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 				isSticky: {
 					description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
 					type: 'boolean'
+				},
+				sampleRequest: {
+					description: localize('chatSampleRequest', "When the user clicks this participant in `/help`, this text will be submitted to the participant."),
+					type: 'string'
 				},
 				defaultImplicitVariables: {
 					markdownDescription: '**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default',
@@ -83,7 +92,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								type: 'string'
 							},
 							sampleRequest: {
-								description: localize('chatCommandSampleRequest', "When the user clicks this command in `/help`, this text will be submitted to this participant."),
+								description: localize('chatCommandSampleRequest', "When the user clicks this command in `/help`, this text will be submitted to the participant."),
 								type: 'string'
 							},
 							isSticky: {
@@ -202,14 +211,17 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						providerDescriptor.id,
 						{
 							extensionId: extension.description.identifier,
-							extensionPublisher: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
+							publisherDisplayName: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
+							extensionPublisherId: extension.description.publisher,
 							extensionDisplayName: extension.description.displayName ?? extension.description.name,
 							id: providerDescriptor.id,
 							description: providerDescriptor.description,
 							metadata: {
 								isSticky: providerDescriptor.isSticky,
+								sampleRequest: providerDescriptor.sampleRequest,
 							},
 							name: providerDescriptor.name,
+							fullName: providerDescriptor.fullName,
 							isDefault: providerDescriptor.isDefault,
 							defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
 							locations: isNonEmptyArray(providerDescriptor.locations) ?
