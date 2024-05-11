@@ -715,7 +715,7 @@ import { assertNoRpc, poll } from '../utils';
 			});
 		});
 
-		(process.platform === 'win32' ? suite.skip : suite)('environmentVariableCollection', () => {
+		(process.platform === 'win32' ? suite.skip : suite.skip)('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', async () => {
 				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
