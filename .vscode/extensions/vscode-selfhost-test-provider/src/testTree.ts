@@ -58,7 +58,7 @@ export class TestFile {
 	constructor(
 		public readonly uri: vscode.Uri,
 		public readonly workspaceFolder: vscode.WorkspaceFolder
-	) { }
+	) {}
 
 	public getId() {
 		return this.uri.toString().toLowerCase();
@@ -169,8 +169,8 @@ export abstract class TestConstruct {
 	}
 }
 
-export class TestSuite extends TestConstruct { }
+export class TestSuite extends TestConstruct {}
 
-export class TestCase extends TestConstruct { }
+export class TestCase extends TestConstruct {}
 
 export type VSCodeTest = TestFile | TestSuite | TestCase;
