@@ -10,7 +10,7 @@ import { assertNoRpc } from '../utils';
 
 // Terminal integration tests are disabled on web https://github.com/microsoft/vscode/issues/92826
 // Windows images will often not have functional shell integration
-(env.uiKind === UIKind.Web || platform() === 'win32' ? suite.skip : suite)('vscode API - Terminal.shellIntegration', () => {
+(env.uiKind === UIKind.Web || platform() === 'win32' ? suite.skip : suite.skip)('vscode API - Terminal.shellIntegration', () => {
 	const disposables: Disposable[] = [];
 
 	suiteSetup(async () => {
