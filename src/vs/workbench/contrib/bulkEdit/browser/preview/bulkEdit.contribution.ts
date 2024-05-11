@@ -178,7 +178,7 @@ registerAction2(class ApplyAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
 				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, FocusedViewContext.isEqualTo(BulkEditPane.ID)),
-				primary: KeyMod.Shift + KeyCode.Enter,
+				primary: KeyMod.CtrlCmd + KeyCode.Enter,
 			}
 		});
 	}

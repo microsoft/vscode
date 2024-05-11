@@ -85,7 +85,8 @@ function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): 
  * @example /@attr/ will be replaced with the value of lexer[attr]
  * @example /@@text/ will not be replaced and will become /@text/.
  */
-function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
+function compileRegExp<S extends true | false>(lexer: monarchCommon.ILexerMin, str: string, handleSn: S): S extends true ? RegExp | DynamicRegExp : RegExp;
+function compileRegExp(lexer: monarchCommon.ILexerMin, str: string, handleSn: true | false): RegExp | DynamicRegExp {
 	// @@ must be interpreted as a literal @, so we replace all occurences of @@ with a placeholder character
 	str = str.replace(/@@/g, `\x01`);
 
@@ -116,6 +117,24 @@ function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
 	str = str.replace(/\x01/g, '@');
 
 	const flags = (lexer.ignoreCase ? 'i' : '') + (lexer.unicode ? 'u' : '');
+
+	// handle $Sn
+	if (handleSn) {
+		const match = str.match(/\$[sS](\d\d?)/g);
+		if (match) {
+			let lastState: string | null = null;
+			let lastRegEx: RegExp | null = null;
+			return (state: string) => {
+				if (lastRegEx && lastState === state) {
+					return lastRegEx;
+				}
+				lastState = state;
+				lastRegEx = new RegExp(monarchCommon.substituteMatchesRe(lexer, str, state), flags);
+				return lastRegEx;
+			};
+		}
+	}
+
 	return new RegExp(str, flags);
 }
 
@@ -196,12 +215,12 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 	else if (op === '~' || op === '!~') {
 		if (pat.indexOf('$') < 0) {
 			// precompile regular expression
-			const re = compileRegExp(lexer, '^' + pat + '$');
+			const re = compileRegExp(lexer, '^' + pat + '$', false);
 			tester = function (s) { return (op === '~' ? re.test(s) : !re.test(s)); };
 		}
 		else {
 			tester = function (s, id, matches, state) {
-				const re = compileRegExp(lexer, '^' + monarchCommon.substituteMatches(lexer, pat, id, matches, state) + '$');
+				const re = compileRegExp(lexer, '^' + monarchCommon.substituteMatches(lexer, pat, id, matches, state) + '$', false);
 				return re.test(s);
 			};
 		}
@@ -355,11 +374,13 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 	}
 }
 
+type DynamicRegExp = (state: string) => RegExp;
+
 /**
  * Helper class for creating matching rules
  */
 class Rule implements monarchCommon.IRule {
-	public regex: RegExp = new RegExp('');
+	private regex: RegExp | DynamicRegExp = new RegExp('');
 	public action: monarchCommon.FuzzyAction = { token: '' };
 	public matchOnlyAtLineStart: boolean = false;
 	public name: string = '';
@@ -382,11 +403,19 @@ class Rule implements monarchCommon.IRule {
 
 		this.matchOnlyAtLineStart = (sregex.length > 0 && sregex[0] === '^');
 		this.name = this.name + ': ' + sregex;
-		this.regex = compileRegExp(lexer, '^(?:' + (this.matchOnlyAtLineStart ? sregex.substr(1) : sregex) + ')');
+		this.regex = compileRegExp(lexer, '^(?:' + (this.matchOnlyAtLineStart ? sregex.substr(1) : sregex) + ')', true);
 	}
 
 	public setAction(lexer: monarchCommon.ILexerMin, act: monarchCommon.IAction) {
 		this.action = compileAction(lexer, this.name, act);
+	}
+
+	public resolveRegex(state: string): RegExp {
+		if (this.regex instanceof RegExp) {
+			return this.regex;
+		} else {
+			return this.regex(state);
+		}
 	}
 }
 

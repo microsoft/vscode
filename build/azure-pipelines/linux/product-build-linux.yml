@@ -25,7 +25,7 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../distro/download-distro.yml
+    - template: ../distro/download-distro.yml@self
 
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
@@ -103,6 +103,8 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
+        # To workaround the issue of yarn not respecting the registry value from .npmrc
+        yarn config set registry "$NPM_REGISTRY"
 
         for i in {1..5}; do # try 5 times
           yarn --cwd build --frozen-lockfile --check-files && break
@@ -113,7 +115,16 @@ steps:
           echo "Yarn failed $i, trying again..."
         done
 
-        ./build/azure-pipelines/linux/install.sh
+        source ./build/azure-pipelines/linux/setup-env.sh
+
+        for i in {1..5}; do # try 5 times
+          yarn --frozen-lockfile --check-files && break
+          if [ $i -eq 3 ]; then
+            echo "Yarn failed too many times" >&2
+            exit 1
+          fi
+          echo "Yarn failed $i, trying again..."
+        done
       env:
         npm_config_arch: $(NPM_ARCH)
         VSCODE_ARCH: $(VSCODE_ARCH)
@@ -121,23 +132,17 @@ steps:
         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
-        ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
-          VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
-        ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
-          VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-arm32v7
       displayName: Install dependencies (non-OSS)
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-    - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
-      - script: |
-          set -e
+    - script: |
+        set -e
 
-          EXPECTED_GLIBC_VERSION="2.17" \
-          EXPECTED_GLIBCXX_VERSION="3.4.19" \
-          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
+        EXPECTED_GLIBC_VERSION="2.28" \
+        EXPECTED_GLIBCXX_VERSION="3.4.25" \
+        ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
 
     - script: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -180,7 +185,7 @@ steps:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
-  - template: ../common/install-builtin-extensions.yml
+  - template: ../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
@@ -218,7 +223,6 @@ steps:
 
     - script: |
         set -e
-        export VSCODE_NODE_GLIBC='-glibc-2.17'
         yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
@@ -231,7 +235,6 @@ steps:
 
     - script: |
         set -e
-        export VSCODE_NODE_GLIBC='-glibc-2.17'
         yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
@@ -249,12 +252,14 @@ steps:
       displayName: Transpile client and extensions
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - template: product-build-linux-test.yml
+    - template: product-build-linux-test.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
+        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - script:  |
@@ -308,53 +313,60 @@ steps:
       condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
       displayName: Generate artifact prefix
 
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM (client)
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
-        BuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-        PackageName: Visual Studio Code
-
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM (server)
-      inputs:
-        BuildComponentPath: $(Build.SourcesDirectory)/remote
-        BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
-        PackageName: Visual Studio Code Server
-
-    - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (client)
-      artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_linux_$(VSCODE_ARCH)
-
-    - publish: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (server)
-      artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_linux_$(VSCODE_ARCH)
-
-    - publish: $(CLIENT_PATH)
-      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+        targetPath: $(CLIENT_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
       displayName: Publish client archive
 
-    - publish: $(SERVER_PATH)
-      artifact: $(ARTIFACT_PREFIX)vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(SERVER_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
-    - publish: $(WEB_PATH)
-      artifact: $(ARTIFACT_PREFIX)vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(WEB_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+        sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive
 
-    - publish: $(DEB_PATH)
-      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(DEB_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
+        sbomBuildDropPath: .build/linux/deb
+        sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
       displayName: Publish deb package
 
-    - publish: $(RPM_PATH)
-      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(RPM_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+        sbomBuildDropPath: .build/linux/rpm
+        sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
       displayName: Publish rpm package
 
-    - publish: $(SNAP_PATH)
-      artifact: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(SNAP_PATH)
+        artifactName: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
+        sbomEnabled: false
       condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
       displayName: Publish snap pre-package

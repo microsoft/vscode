@@ -19,6 +19,7 @@
     "documentFiltersExclusive",
     "documentPaste",
     "editorInsets",
+    "embeddings",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -44,8 +45,8 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
+    "terminalShellIntegration",
     "tunnels",
-    "testCoverage",
     "testObserver",
     "textSearchProvider",
     "timeline",
@@ -53,8 +54,7 @@
     "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry",
-    "windowActivity"
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],
@@ -66,6 +66,7 @@
   "contributes": {
     "chatParticipants": [
       {
+        "id": "api-test.participant",
         "name": "participant",
         "description": "test",
         "isDefault": true,
@@ -75,6 +76,12 @@
             "description": "Hello"
           }
         ]
+      },
+      {
+        "id": "api-test.participant2",
+        "name": "participant2",
+        "description": "test",
+        "commands": []
       }
     ],
     "configuration": {
@@ -236,7 +243,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "repository": {
     "type": "git",

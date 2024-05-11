@@ -841,7 +841,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private rendering = false;
-	private rerenderDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	@debounce(100)
 	private async render() {
 		if (this.rendering) {

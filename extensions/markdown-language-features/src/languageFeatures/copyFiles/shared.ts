@@ -74,7 +74,6 @@ export function createInsertUriListEdit(
 		return;
 	}
 
-
 	const edits: vscode.SnippetTextEdit[] = [];
 
 	let insertedLinkCount = 0;
@@ -266,5 +265,5 @@ export interface DropOrPasteEdit {
 	readonly snippet: vscode.SnippetString;
 	readonly label: string;
 	readonly additionalEdits: vscode.WorkspaceEdit;
-	readonly yieldTo: vscode.DocumentPasteEditKind[];
+	readonly yieldTo: vscode.DocumentDropOrPasteEditKind[];
 }

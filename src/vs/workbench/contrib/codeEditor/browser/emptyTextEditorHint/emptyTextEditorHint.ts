@@ -34,8 +34,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
 import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -73,6 +73,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IHoverService protected readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInlineChatSessionService private readonly inlineChatSessionService: IInlineChatSessionService,
 		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
@@ -159,6 +160,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 				this.editorGroupsService,
 				this.commandService,
 				this.configurationService,
+				this.hoverService,
 				this.keybindingService,
 				this.inlineChatService,
 				this.telemetryService,
@@ -181,7 +183,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 	private static readonly ID = 'editor.widget.emptyHint';
 
 	private domNode: HTMLElement | undefined;
-	private toDispose: DisposableStore;
+	private readonly toDispose: DisposableStore;
 	private isVisible = false;
 	private ariaLabel: string = '';
 
@@ -191,6 +193,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
+		private readonly hoverService: IHoverService,
 		private readonly keybindingService: IKeybindingService,
 		private readonly inlineChatService: IInlineChatService,
 		private readonly telemetryService: ITelemetryService,
@@ -384,7 +387,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			anchor.style.cursor = 'pointer';
 			const id = keybindingsLookup.shift();
 			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
-			hintHandler.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
+			hintHandler.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
 		}
 
 		return { hintElement, ariaLabel };

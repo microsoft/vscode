@@ -29,7 +29,7 @@ import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/no
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, TransientOptions, NotebookExtensionDescription, INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditorInputFactory } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -71,7 +71,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		// Process the notebook contributions but buffer changes from the resolver
 		this._editorResolverService.bufferChangeEvents(() => {
 			for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
-				this.add(new NotebookProviderInfo(info));
+				this.add(new NotebookProviderInfo(info), false);
 			}
 		});
 
@@ -196,7 +196,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				}
 
 				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
-				const editor = this._instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(notebookUri, preferredResource, notebookProviderInfo.id));
+				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
 
@@ -209,7 +209,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					ref.dispose();
 				});
 
-				return { editor: this._instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(ref.object.resource, undefined, notebookProviderInfo.id)), options };
+				return { editor: NotebookEditorInput.getOrCreate(this._instantiationService, ref.object.resource, undefined, notebookProviderInfo.id), options };
 			};
 			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original, label, description }) => {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };
@@ -280,7 +280,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		return this._contributedEditors.get(viewType);
 	}
 
-	add(info: NotebookProviderInfo): IDisposable {
+	add(info: NotebookProviderInfo, saveMemento = true): IDisposable {
 		if (this._contributedEditors.has(info.id)) {
 			throw new Error(`notebook type '${info.id}' ALREADY EXISTS`);
 		}
@@ -293,9 +293,11 @@ export class NotebookProviderInfoStore extends Disposable {
 			this._contributedEditorDisposables.add(editorRegistration);
 		}
 
-		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
-		this._memento.saveMemento();
+		if (saveMemento) {
+			const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+			mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
+			this._memento.saveMemento();
+		}
 
 		return this._register(toDisposable(() => {
 			const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);

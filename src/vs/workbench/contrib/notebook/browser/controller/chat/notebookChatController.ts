@@ -34,12 +34,13 @@ import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
 import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
-import { EditorBasedInlineChatWidget, IInlineChatMessageAppender } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { IInlineChatMessageAppender, InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -48,10 +49,6 @@ import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebook
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-
-
-
-const WIDGET_MARGIN_BOTTOM = 16;
 
 class NotebookChatWidget extends Disposable implements INotebookViewZone {
 	set afterModelPosition(afterModelPosition: number) {
@@ -82,14 +79,14 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		readonly notebookViewZone: INotebookViewZone,
 		readonly domNode: HTMLElement,
 		readonly widgetContainer: HTMLElement,
-		readonly inlineChatWidget: EditorBasedInlineChatWidget,
+		readonly inlineChatWidget: InlineChatWidget,
 		readonly parentEditor: CodeEditorWidget,
 		private readonly _languageService: ILanguageService,
 	) {
 		super();
 
 		this._register(inlineChatWidget.onDidChangeHeight(() => {
-			this.heightInPx = inlineChatWidget.getHeight() + WIDGET_MARGIN_BOTTOM;
+			this.heightInPx = inlineChatWidget.contentHeight;
 			this._notebookEditor.changeViewZones(accessor => {
 				accessor.layoutZone(id);
 			});
@@ -193,14 +190,14 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		}
 	}
 
-	private _layoutWidget(inlineChatWidget: EditorBasedInlineChatWidget, widgetContainer: HTMLElement) {
+	private _layoutWidget(inlineChatWidget: InlineChatWidget, widgetContainer: HTMLElement) {
 		const layoutConfiguration = this._notebookEditor.notebookOptions.getLayoutConfiguration();
 		const rightMargin = layoutConfiguration.cellRightMargin;
 		const leftMargin = this._notebookEditor.notebookOptions.getCellEditorContainerLeftMargin();
-		const maxWidth = !inlineChatWidget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
+		const maxWidth = 640;
 		const width = Math.min(maxWidth, this._notebookEditor.getLayoutInfo().width - leftMargin - rightMargin);
 
-		inlineChatWidget.layout(new Dimension(width, 80 + WIDGET_MARGIN_BOTTOM));
+		inlineChatWidget.layout(new Dimension(width, this.heightInPx));
 		inlineChatWidget.domNode.style.width = `${width}px`;
 		widgetContainer.style.left = `${leftMargin}px`;
 	}
@@ -258,7 +255,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private readonly _userEditingDisposables = this._register(new DisposableStore());
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private _widget: NotebookChatWidget | undefined;
-	private _widgetDisposableStore = this._register(new DisposableStore());
+	private readonly _widgetDisposableStore = this._register(new DisposableStore());
 	private _focusTracker: IFocusTracker | undefined;
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -319,8 +316,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	run(index: number, input: string | undefined, autoSend: boolean | undefined): void {
 		if (this._widget) {
 			if (this._widget.afterModelPosition !== index) {
-				this._disposeWidget();
 				const window = getWindow(this._widget.domNode);
+				this._disposeWidget();
 
 				scheduleAtNextAnimationFrame(window, () => {
 					this._createWidget(index, input, autoSend, undefined);
@@ -407,8 +404,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		fakeParentEditor.setModel(result);
 
 		const inlineChatWidget = this._widgetDisposableStore.add(this._instantiationService.createInstance(
-			EditorBasedInlineChatWidget,
-			fakeParentEditor,
+			InlineChatWidget,
+			ChatAgentLocation.Notebook,
 			{
 				telemetrySource: 'notebook-generate-cell',
 				inputMenuId: MENU_CELL_CHAT_INPUT,
@@ -428,7 +425,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._notebookEditor.changeViewZones(accessor => {
 			const notebookViewZone = {
 				afterModelPosition: index,
-				heightInPx: 80 + WIDGET_MARGIN_BOTTOM,
+				heightInPx: 80,
 				domNode: viewZoneContainer
 			};
 
@@ -563,7 +560,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		const request: IInlineChatRequest = {
 			requestId: generateUuid(),
 			prompt: value,
-			attempt: this._activeSession.lastInput.attempt,
+			attempt: 0,
 			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
 			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			live: true,
@@ -617,7 +614,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				if (!progressiveChatResponse) {
 					const message = {
 						message: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false }),
-						providerId: this._activeSession!.provider.debugName,
 						requestId: request.requestId,
 					};
 					progressiveChatResponse = this._widget?.inlineChatWidget.updateChatMessage(message, true);
@@ -648,7 +644,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				response = new EmptyResponse();
 			} else {
 				const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-				const replyResponse = response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId);
+				const replyResponse = response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId, undefined);
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);
 				}
@@ -751,7 +747,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-		const response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), [], request.requestId);
+		const response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), [], request.requestId, undefined);
 		const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, response.raw, token);
 		if (followups && this._widget) {
 			const widget = this._widget;

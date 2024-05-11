@@ -209,7 +209,7 @@ export interface IEditorGroupsView {
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
-	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
+	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -349,15 +349,10 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	readonly context?: EditorCloseContext;
 }
 
-export interface IInternalEditorMoveCopyOpenOptions extends IInternalEditorOpenOptions {
+export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
 
 	/**
 	 * Whether to close the editor at the source or keep it.
 	 */
 	readonly keepCopy?: boolean;
-
-	/**
-	 * The source group an editor is moved or copied from.
-	 */
-	readonly sourceGroup?: IEditorGroupView;
 }

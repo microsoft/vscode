@@ -48,7 +48,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 
 		// Show Remote Start Action
 		const startEntry = this;
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: RemoteStartEntry.REMOTE_WEB_START_ENTRY_ACTIONS_COMMAND_ID,
@@ -61,7 +61,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 			async run(): Promise<void> {
 				await startEntry.showWebRemoteStartActions();
 			}
-		});
+		}));
 	}
 
 	private registerListeners(): void {

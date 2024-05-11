@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
+import { ILocalizedString, localize, localize2 } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -19,11 +19,12 @@ import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from 'vs/pla
 
 class ToggleConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean) {
+	constructor(private readonly section: string, title: string, description: string | ILocalizedString | undefined, order: number, mainWindowOnly: boolean) {
 		const when = mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true();
 		super({
 			id: `toggle.${section}`,
 			title,
+			metadata: description ? { description } : undefined,
 			toggled: ContextKeyExpr.equals(`config.${section}`, true),
 			menu: [
 				{
@@ -51,13 +52,13 @@ class ToggleConfigAction extends Action2 {
 
 registerAction2(class ToggleCommandCenter extends ToggleConfigAction {
 	constructor() {
-		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1, false);
+		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), localize('toggle.commandCenterDescription', "Toggle visibility of the Command Center in title bar"), 1, false);
 	}
 });
 
 registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2, true);
+		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 2, true);
 	}
 });
 

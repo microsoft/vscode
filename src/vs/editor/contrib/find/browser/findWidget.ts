@@ -43,9 +43,9 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { assertIsDefined } from 'vs/base/common/types';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Selection } from 'vs/editor/common/core/selection';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -172,6 +172,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		themeService: IThemeService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
+		private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -1024,7 +1025,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			onTrigger: () => {
 				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
-		}));
+		}, this._hoverService));
 
 		// Next button
 		this._nextBtn = this._register(new SimpleButton({
@@ -1034,7 +1035,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			onTrigger: () => {
 				assertIsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
-		}));
+		}, this._hoverService));
 
 		const findPart = document.createElement('div');
 		findPart.className = 'find-part';
@@ -1102,7 +1103,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					}
 				}
 			}
-		}));
+		}, this._hoverService));
 
 		// Replace input
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
@@ -1165,7 +1166,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					e.preventDefault();
 				}
 			}
-		}));
+		}, this._hoverService));
 
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
@@ -1175,7 +1176,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			onTrigger: () => {
 				this._controller.replaceAll();
 			}
-		}));
+		}, this._hoverService));
 
 		const replacePart = document.createElement('div');
 		replacePart.className = 'replace-part';
@@ -1200,7 +1201,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				}
 				this._showViewZone();
 			}
-		}));
+		}, this._hoverService));
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
 		// Widget
@@ -1324,7 +1325,10 @@ export class SimpleButton extends Widget {
 	private readonly _opts: ISimpleButtonOpts;
 	private readonly _domNode: HTMLElement;
 
-	constructor(opts: ISimpleButtonOpts) {
+	constructor(
+		opts: ISimpleButtonOpts,
+		hoverService: IHoverService
+	) {
 		super();
 		this._opts = opts;
 
@@ -1341,7 +1345,7 @@ export class SimpleButton extends Widget {
 		this._domNode.className = className;
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-label', this._opts.label);
-		this._register(setupCustomHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
+		this._register(hoverService.setupUpdatableHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
 
 		this.onclick(this._domNode, (e) => {
 			this._opts.onTrigger();

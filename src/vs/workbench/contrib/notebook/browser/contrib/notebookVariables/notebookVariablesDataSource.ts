@@ -21,6 +21,7 @@ export interface INotebookVariableElement {
 	readonly name: string;
 	readonly value: string;
 	readonly type?: string;
+	readonly interfaces?: string[];
 	readonly expression?: string;
 	readonly language?: string;
 	readonly indexedChildrenCount: number;

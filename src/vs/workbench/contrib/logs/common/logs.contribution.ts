@@ -195,7 +195,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerShowWindowLogAction(): void {
-		registerAction2(class ShowWindowLogAction extends Action2 {
+		this._register(registerAction2(class ShowWindowLogAction extends Action2 {
 			constructor() {
 				super({
 					id: showWindowLogActionId,
@@ -208,9 +208,8 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 				const outputService = servicesAccessor.get(IOutputService);
 				outputService.showChannel(windowLogId);
 			}
-		});
+		}));
 	}
-
 }
 
 class LogLevelMigration implements IWorkbenchContribution {

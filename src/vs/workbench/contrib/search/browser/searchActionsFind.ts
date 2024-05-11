@@ -77,6 +77,31 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	}
 });
 
+
+registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
+	constructor(
+	) {
+		super({
+			id: Constants.SearchCommandIds.ExpandRecursivelyCommandId,
+			title: nls.localize('search.expandRecursively', "Expand Recursively"),
+			category,
+			menu: [{
+				id: MenuId.SearchContext,
+				when: ContextKeyExpr.and(
+					Constants.SearchContext.FolderFocusKey,
+					Constants.SearchContext.HasSearchResults
+				),
+				group: 'search',
+				order: 4
+			}]
+		});
+	}
+
+	override run(accessor: any) {
+		expandSelectSubtree(accessor);
+	}
+});
+
 registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	constructor() {
 		super({
@@ -270,6 +295,16 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 });
 
 //#region Helpers
+function expandSelectSubtree(accessor: ServicesAccessor) {
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	if (searchView) {
+		const viewer = searchView.getControl();
+		const selected = viewer.getFocus()[0];
+		viewer.expand(selected, true);
+	}
+}
+
 async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) {
 	const listService = accessor.get(IListService);
 	const fileService = accessor.get(IFileService);

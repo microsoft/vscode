@@ -92,7 +92,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 						});
 					}),
 				].filter(r => !this.state.text.value.includes(r.label)),
-			} as SuggestResultsProvider,
+			} satisfies SuggestResultsProvider,
 			resourceHandle: 'testing:filter',
 			suggestOptions: {
 				value: this.state.text.value,

@@ -13,7 +13,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CompleteEnterAction, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
-import * as indentUtils from 'vs/editor/contrib/indentation/browser/indentUtils';
+import * as indentUtils from 'vs/editor/contrib/indentation/common/indentUtils';
 import { getGoodIndentForLine, getIndentMetadata, IIndentConverter, IVirtualModel } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 

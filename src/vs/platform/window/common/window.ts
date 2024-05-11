@@ -221,6 +221,8 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	return isLinux ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all macOS and Windows
 }
 
+export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
+
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (!isWindows || isWeb) {
 		return false; // only supported on a desktop Windows instance

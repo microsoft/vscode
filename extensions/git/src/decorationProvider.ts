@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
-import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource, combinedDisposable } from './util';
+import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource, combinedDisposable, runAndSubscribeEvent } from './util';
 import { Change, GitErrorCodes, Status } from './api/git';
 
 class GitIgnoreDecorationProvider implements FileDecorationProvider {
@@ -101,7 +101,7 @@ class GitDecorationProvider implements FileDecorationProvider {
 	constructor(private repository: Repository) {
 		this.disposables.push(
 			window.registerFileDecorationProvider(this),
-			repository.onDidRunGitStatus(this.onDidRunGitStatus, this)
+			runAndSubscribeEvent(repository.onDidRunGitStatus, () => this.onDidRunGitStatus())
 		);
 	}
 
@@ -162,8 +162,10 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 	private readonly disposables: Disposable[] = [];
 
 	constructor(private readonly repository: Repository) {
-		this.disposables.push(window.registerFileDecorationProvider(this));
-		repository.historyProvider.onDidChangeCurrentHistoryItemGroup(this.onDidChangeCurrentHistoryItemGroup, this, this.disposables);
+		this.disposables.push(
+			window.registerFileDecorationProvider(this),
+			runAndSubscribeEvent(repository.historyProvider.onDidChangeCurrentHistoryItemGroup, () => this.onDidChangeCurrentHistoryItemGroup())
+		);
 	}
 
 	private async onDidChangeCurrentHistoryItemGroup(): Promise<void> {

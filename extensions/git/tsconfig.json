@@ -18,6 +18,7 @@
 		"../../src/vscode-dts/vscode.proposed.scmValidation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmMultiDiffEditor.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmTextDocument.d.ts",
+		"../../src/vscode-dts/vscode.proposed.tabInputMultiDiff.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputTextMerge.d.ts",
 		"../../src/vscode-dts/vscode.proposed.timeline.d.ts",
 		"../types/lib.textEncoder.d.ts"

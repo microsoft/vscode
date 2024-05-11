@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 
 // Import the effects we need
 import { Color } from 'vs/base/common/color';
-import { registerColor, darken, lighten, ifDefinedThenElse, transparent } from 'vs/platform/theme/common/colorUtils';
+import { registerColor, darken, lighten, transparent, ifDefinedThenElse } from 'vs/platform/theme/common/colorUtils';
 
 // Import the colors we need
 import { foreground, contrastBorder, activeContrastBorder, focusBorder, iconForeground } from 'vs/platform/theme/common/colors/baseColors';

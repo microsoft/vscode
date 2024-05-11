@@ -118,6 +118,7 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
 import { getOSReleaseInfo } from 'vs/base/node/osReleaseInfo';
 import { getDesktopEnvironment } from 'vs/base/common/desktopEnvironmentInfo';
+import { getCodeDisplayProtocol, getDisplayProtocol } from 'vs/base/node/osDisplayProtocolInfo';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -465,14 +466,20 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 	private async reportClientOSInfo(telemetryService: ITelemetryService, logService: ILogService): Promise<void> {
 		if (isLinux) {
-			const releaseInfo = await getOSReleaseInfo(logService.error.bind(logService));
+			const [releaseInfo, displayProtocol] = await Promise.all([
+				getOSReleaseInfo(logService.error.bind(logService)),
+				getDisplayProtocol(logService.error.bind(logService))
+			]);
 			const desktopEnvironment = getDesktopEnvironment();
+			const codeSessionType = getCodeDisplayProtocol(displayProtocol, this.configuration.args['ozone-platform']);
 			if (releaseInfo) {
 				type ClientPlatformInfoClassification = {
 					platformId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system without any version information.' };
 					platformVersionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system version excluding any name information or release code.' };
 					platformIdLike: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system the current OS derivate is closely related to.' };
 					desktopEnvironment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the desktop environment the user is using.' };
+					displayProtocol: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the users display protocol type.' };
+					codeDisplayProtocol: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the vscode display protocol type.' };
 					owner: 'benibenj';
 					comment: 'Provides insight into the distro and desktop environment information on Linux.';
 				};
@@ -481,12 +488,16 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 					platformVersionId: string | undefined;
 					platformIdLike: string | undefined;
 					desktopEnvironment: string | undefined;
+					displayProtocol: string | undefined;
+					codeDisplayProtocol: string | undefined;
 				};
 				telemetryService.publicLog2<ClientPlatformInfoEvent, ClientPlatformInfoClassification>('clientPlatformInfo', {
 					platformId: releaseInfo.id,
 					platformVersionId: releaseInfo.version_id,
 					platformIdLike: releaseInfo.id_like,
-					desktopEnvironment: desktopEnvironment
+					desktopEnvironment: desktopEnvironment,
+					displayProtocol: displayProtocol,
+					codeDisplayProtocol: codeSessionType
 				});
 			}
 		}

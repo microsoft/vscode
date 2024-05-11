@@ -21,7 +21,6 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -31,6 +30,8 @@ import { TestLayoutService, TestLifecycleService } from 'vs/workbench/test/brows
 import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { Terminal } from '@xterm/xterm';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -51,7 +52,6 @@ suite('Buffer Content Tracker', () => {
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let capabilities: TerminalCapabilityStore;
-	let configHelper: TerminalConfigHelper;
 	let bufferTracker: BufferContentTracker;
 	const prompt = 'vscode-git:(prompt/more-tests)';
 	const promptPlusData = 'vscode-git:(prompt/more-tests) ' + 'some data';
@@ -61,6 +61,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService = store.add(new TestInstantiationService());
 		themeService = new TestThemeService();
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(ILoggerService, store.add(new TestLoggerService()));
@@ -73,13 +74,12 @@ suite('Buffer Content Tracker', () => {
 		} as any);
 
 		instantiationService.stub(ILayoutService, new TestLayoutService());
-		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
 		capabilities = store.add(new TerminalCapabilityStore());
 		if (!isWindows) {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(instantiationService.createInstance(XtermTerminal, TerminalCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', true));
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, TerminalCtor, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', true));
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });

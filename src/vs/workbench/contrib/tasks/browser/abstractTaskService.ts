@@ -337,9 +337,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return task._label;
 		});
-		this._lifecycleService.onBeforeShutdown(e => {
+		this._register(this._lifecycleService.onBeforeShutdown(e => {
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
-		});
+		}));
 		this._register(this.onDidStateChange(e => {
 			this._log(nls.localize('taskEvent', 'Task Event kind: {0}', e.kind), true);
 			if (e.kind === TaskEventKind.Changed) {
@@ -388,7 +388,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// update tasks so an incomplete list isn't returned when getWorkspaceTasks is called
 		this._workspaceTasksPromise = undefined;
 		this._onDidRegisterSupportedExecutions.fire();
-		if (custom && shell && process) {
+		if (Platform.isWeb || (custom && shell && process)) {
 			this._onDidRegisterAllSupportedExecutions.fire();
 		}
 	}
@@ -1286,7 +1286,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (type === undefined) {
 			return true;
 		}
-		const settingValueMap: IStringDictionary<boolean> = <any>settingValue;
+		const settingValueMap: IStringDictionary<boolean> = settingValue as any;
 		return !settingValueMap[type];
 	}
 
@@ -1865,7 +1865,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				message: nls.localize('TaskSystem.saveBeforeRun.prompt.title', "Save all editors?"),
 				detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
 				primaryButton: nls.localize({ key: 'saveBeforeRun.save', comment: ['&& denotes a mnemonic'] }, '&&Save'),
-				cancelButton: nls.localize('saveBeforeRun.dontSave', 'Don\'t save'),
+				cancelButton: nls.localize({ key: 'saveBeforeRun.dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
 			});
 
 			if (!confirmed) {
@@ -2574,7 +2574,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _handleError(err: any): void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
-			const buildError = <TaskError>err;
+			const buildError = err;
 			const needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
 			const needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
@@ -2592,7 +2592,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
 		} else if (err instanceof Error) {
-			const error = <Error>err;
+			const error = err;
 			this._notificationService.error(error.message);
 			showOutput = false;
 		} else if (Types.isString(err)) {
@@ -2948,7 +2948,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	 */
 	private _getDefaultTasks(tasks: Task[], taskGlobsInList: boolean = false): Task[] {
 		const defaults: Task[] = [];
-		for (const task of tasks) {
+		for (const task of tasks.filter(t => !!t.configurationProperties.group)) {
 			// At this point (assuming taskGlobsInList is true) there are tasks with matching globs, so only put those in defaults
 			if (taskGlobsInList && typeof (task.configurationProperties.group as TaskGroup).isDefault === 'string') {
 				defaults.push(task);
@@ -2973,7 +2973,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-			let groupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
@@ -3001,33 +3000,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						});
 				});
 			};
-			let globTasksDetected = false;
-			// First check for globs before checking for the default tasks of the task group
-			const absoluteURI = EditorResourceAccessor.getOriginalUri(this._editorService.activeEditor);
-			if (absoluteURI) {
-				const workspaceFolder = this._contextService.getWorkspaceFolder(absoluteURI);
-				if (workspaceFolder) {
-					const configuredTasks = this._getConfiguration(workspaceFolder)?.config?.tasks;
-					if (configuredTasks) {
-						globTasksDetected = configuredTasks.filter(task => task.group && typeof task.group !== 'string' && typeof task.group.isDefault === 'string').length > 0;
-						// This will activate extensions, so only do so if necessary #185960
-						if (globTasksDetected) {
-							// Fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
-							const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
-
-							groupTasks = await this._findWorkspaceTasks((task) => {
-								const currentTaskGroup = task.configurationProperties.group;
-								if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
-									return (currentTaskGroup._id === taskGroup._id && glob.match(currentTaskGroup.isDefault, relativePath));
-								}
-
-								return false;
-							});
-						}
-					}
-				}
-			}
-
+			let groupTasks: (Task | ConfiguringTask)[] = [];
+			const { globGroupTasks, globTasksDetected } = await this._getGlobTasks(taskGroup._id);
+			groupTasks = [...globGroupTasks];
 			if (!globTasksDetected && groupTasks.length === 0) {
 				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
 			}
@@ -3075,18 +3050,50 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			// If no globs are found or matched fallback to checking for default tasks of the task group
 			if (!groupTasks.length) {
-				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
+				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
 			}
 
-			// A single default task was returned, just run it directly
 			if (groupTasks.length === 1) {
+				// A single default task was returned, just run it directly
 				return resolveTaskAndRun(groupTasks[0]);
 			}
-
 			// Multiple default tasks returned, show the quickPicker
 			return handleMultipleTasks(false);
 		})();
 		this._progressService.withProgress(options, () => promise);
+	}
+
+	private async _getGlobTasks(taskGroupId: string): Promise<{ globGroupTasks: (Task | ConfiguringTask)[]; globTasksDetected: boolean }> {
+		let globTasksDetected = false;
+		// First check for globs before checking for the default tasks of the task group
+		const absoluteURI = EditorResourceAccessor.getOriginalUri(this._editorService.activeEditor);
+		if (absoluteURI) {
+			const workspaceFolder = this._contextService.getWorkspaceFolder(absoluteURI);
+			if (workspaceFolder) {
+				const configuredTasks = this._getConfiguration(workspaceFolder)?.config?.tasks;
+				if (configuredTasks) {
+					globTasksDetected = configuredTasks.filter(task => task.group && typeof task.group !== 'string' && typeof task.group.isDefault === 'string').length > 0;
+					// This will activate extensions, so only do so if necessary #185960
+					if (globTasksDetected) {
+						// Fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
+						const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
+
+						const globGroupTasks = await this._findWorkspaceTasks((task) => {
+							const currentTaskGroup = task.configurationProperties.group;
+							if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
+								return (currentTaskGroup._id === taskGroupId && glob.match(currentTaskGroup.isDefault, relativePath));
+							}
+
+							globTasksDetected = false;
+							return false;
+						});
+						return { globGroupTasks, globTasksDetected };
+					}
+				}
+			}
+		}
+		return { globGroupTasks: [], globTasksDetected };
+
 	}
 
 	private _runBuildCommand(): void {
@@ -3261,10 +3268,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return result[0].resource;
 				});
 			} else if (fileExists && (tasksExistInFile || content)) {
-				if (content) {
-					this._configurationService.updateValue('tasks', json.parse(content), target);
+				const statResource = stat?.resource;
+				if (content && statResource) {
+					this._configurationService.updateValue('tasks', json.parse(content), { resource: statResource }, target);
 				}
-				return stat?.resource;
+				return statResource;
 			}
 			return undefined;
 		}).then((resource) => {
@@ -3396,7 +3404,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		})]);
 
 		if (!timeout && ((await entries).length === 1) && this._configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-			const entry: any = <any>((await entries)[0]);
+			const entry: any = (await entries)[0];
 			if (entry.task) {
 				this._handleSelection(entry);
 				return;
@@ -3432,10 +3440,25 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const entries: QuickPickInput<TaskQuickPickEntryType>[] = [];
 				let selectedTask: Task | undefined;
 				let selectedEntry: TaskQuickPickEntryType | undefined;
-				this._showIgnoredFoldersMessage().then(() => {
+				this._showIgnoredFoldersMessage().then(async () => {
+					const { globGroupTasks } = await this._getGlobTasks(TaskGroup.Build._id);
+					let defaultTasks = globGroupTasks;
+					if (!defaultTasks?.length) {
+						defaultTasks = this._getDefaultTasks(tasks, false);
+					}
+					let defaultBuildTask;
+					if (defaultTasks.length === 1) {
+						const group: string | TaskGroup | undefined = defaultTasks[0].configurationProperties.group;
+						if (group) {
+							if (typeof group === 'string' && group === TaskGroup.Build._id) {
+								defaultBuildTask = defaultTasks[0];
+							} else {
+								defaultBuildTask = defaultTasks[0];
+							}
+						}
+					}
 					for (const task of tasks) {
-						const taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
-						if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
+						if (task === defaultBuildTask) {
 							const label = nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', TaskQuickPick.getTaskLabelWithIcon(task, task.getQualifiedLabel()));
 							selectedTask = task;
 							selectedEntry = { label, task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };

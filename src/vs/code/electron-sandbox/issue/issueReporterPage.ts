@@ -38,7 +38,7 @@ export default (): string => `
 		</div>
 
 		<div class="input-group" id="problem-source">
-			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))} <span class="required-input">*</span></label>
+			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "For"))} <span class="required-input">*</span></label>
 			<select id="issue-source" class="inline-form-control" required>
 				<!-- To be dynamically filled -->
 			</select>
@@ -83,6 +83,7 @@ export default (): string => `
 			<textarea name="description" id="description" placeholder="${escape(localize('details', "Please enter details."))}" required></textarea>
 		</div>
 		<div id="description-empty-error" class="validation-error hidden" role="alert">${escape(localize('descriptionEmptyValidation', "A description is required."))}</div>
+		<div id="description-short-error" class="validation-error hidden" role="alert">${escape(localize('descriptionTooShortValidation', "Please provide a longer description."))}</div>
 	</div>
 
 	<div class="system-info" id="block-container">

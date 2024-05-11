@@ -36,7 +36,7 @@ class NativeIssueContribution extends BaseIssueContribution {
 		super(productService, configurationService);
 
 		if (productService.reportIssueUrl) {
-			registerAction2(ReportPerformanceIssueUsingReporterAction);
+			this._register(registerAction2(ReportPerformanceIssueUsingReporterAction));
 		}
 
 		let disposable: IDisposable | undefined;
@@ -54,14 +54,14 @@ class NativeIssueContribution extends BaseIssueContribution {
 			});
 		};
 
-		configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (!configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess') && disposable) {
 				disposable.dispose();
 				disposable = undefined;
 			} else if (!disposable) {
 				registerQuickAccessProvider();
 			}
-		});
+		}));
 
 		if (configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess')) {
 			registerQuickAccessProvider();

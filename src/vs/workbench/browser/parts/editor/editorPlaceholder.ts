@@ -52,7 +52,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
-	private inputDisposable = this._register(new MutableDisposable());
+	private readonly inputDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		id: string,

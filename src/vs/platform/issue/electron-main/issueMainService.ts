@@ -5,13 +5,12 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
 import { arch, release, type } from 'os';
-import { Promises, raceTimeout, timeout } from 'vs/base/common/async';
+import { raceTimeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
 import { listProcesses } from 'vs/base/node/ps';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { localize } from 'vs/nls';
@@ -373,86 +372,6 @@ export class IssueMainService implements IIssueMainService {
 		}
 		return window;
 	}
-
-	async $getIssueReporterUri(extensionId: string): Promise<URI> {
-		const window = this.issueReporterWindowCheck();
-		const replyChannel = `vscode:triggerIssueUriRequestHandlerResponse${window.id}`;
-		return Promises.withAsyncBody<URI>(async (resolve, reject) => {
-
-			const cts = new CancellationTokenSource();
-			window.sendWhenReady('vscode:triggerIssueUriRequestHandler', cts.token, { replyChannel, extensionId });
-
-			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
-				resolve(URI.parse(data));
-			});
-
-			try {
-				await timeout(5000);
-				cts.cancel();
-				reject(new Error('Timed out waiting for issue reporter URI'));
-			} finally {
-				validatedIpcMain.removeHandler(replyChannel);
-			}
-		});
-	}
-
-	async $getIssueReporterData(extensionId: string): Promise<string> {
-		const window = this.issueReporterWindowCheck();
-		const replyChannel = `vscode:triggerIssueDataProviderResponse${window.id}`;
-		return Promises.withAsyncBody<string>(async (resolve) => {
-
-			const cts = new CancellationTokenSource();
-			window.sendWhenReady('vscode:triggerIssueDataProvider', cts.token, { replyChannel, extensionId });
-
-			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
-				resolve(data);
-			});
-
-			try {
-				await timeout(5000);
-				cts.cancel();
-				resolve('Error: Extension timed out waiting for issue reporter data');
-			} finally {
-				validatedIpcMain.removeHandler(replyChannel);
-			}
-		});
-	}
-
-	async $getIssueReporterTemplate(extensionId: string): Promise<string> {
-		const window = this.issueReporterWindowCheck();
-		const replyChannel = `vscode:triggerIssueDataTemplateResponse${window.id}`;
-		return Promises.withAsyncBody<string>(async (resolve) => {
-
-			const cts = new CancellationTokenSource();
-			window.sendWhenReady('vscode:triggerIssueDataTemplate', cts.token, { replyChannel, extensionId });
-
-			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
-				resolve(data);
-			});
-
-			try {
-				await timeout(5000);
-				cts.cancel();
-				resolve('Error: Extension timed out waiting for issue reporter template');
-			} finally {
-				validatedIpcMain.removeHandler(replyChannel);
-			}
-		});
-	}
-
-	async $getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
-		const defaultResult = [false, false];
-		const window = this.issueReporterWindowCheck();
-		const replyChannel = `vscode:triggerReporterStatus`;
-		const cts = new CancellationTokenSource();
-		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
-		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterStatusResponse', (_: unknown, data: boolean[]) => resolve(data))), 2000, () => {
-			this.logService.error('Error: Extension timed out waiting for reporter status');
-			cts.cancel();
-		});
-		return (result ?? defaultResult) as boolean[];
-	}
-
 
 	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
 		const window = this.issueReporterWindowCheck();

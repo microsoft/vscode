@@ -46,7 +46,7 @@ class TestObjectTree<T> extends ObjectTree<T, any> {
 					disposeElement: (_el, _index, { store }) => store.clear(),
 					renderTemplate: container => ({ container, store: new DisposableStore() }),
 					templateId: 'default'
-				} as ITreeRenderer<T, any, { store: DisposableStore; container: HTMLElement }>
+				} satisfies ITreeRenderer<T, any, { store: DisposableStore; container: HTMLElement }>
 			],
 			{
 				sorter: sorter ?? {

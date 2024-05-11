@@ -2518,7 +2518,7 @@ declare module 'vscode' {
 		/**
 		 * Checks if this code action kind intersects `other`.
 		 *
-		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and ``"refactor.extract.function"`,
+		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and `"refactor.extract.function"`,
 		 * but not `"unicorn.refactor.extract"`, or `"refactor.extractAll"`.
 		 *
 		 * @param other Kind to check.
@@ -10299,6 +10299,12 @@ declare module 'vscode' {
 		 * Whether the current window is focused.
 		 */
 		readonly focused: boolean;
+
+		/**
+		 * Whether the window has been interacted with recently. This will change
+		 * immediately on activity, or after a short time of user inactivity.
+		 */
+		readonly active: boolean;
 	}
 
 	/**
@@ -10450,7 +10456,7 @@ declare module 'vscode' {
 		export const state: WindowState;
 
 		/**
-		 * An {@link Event} which fires when the focus state of the current window
+		 * An {@link Event} which fires when the focus or activity state of the current window
 		 * changes. The value of the event represents whether the window is focused.
 		 */
 		export const onDidChangeWindowState: Event<WindowState>;
@@ -16190,6 +16196,50 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a thread in a debug session.
+	 */
+	export class DebugThread {
+		/**
+		 * Debug session for thread.
+		 */
+		readonly session: DebugSession;
+
+		/**
+		 * ID of the associated thread in the debug protocol.
+		 */
+		readonly threadId: number;
+
+		/**
+		 * @hidden
+		 */
+		private constructor(session: DebugSession, threadId: number);
+	}
+
+	/**
+	 * Represents a stack frame in a debug session.
+	 */
+	export class DebugStackFrame {
+		/**
+		 * Debug session for thread.
+		 */
+		readonly session: DebugSession;
+
+		/**
+		 * ID of the associated thread in the debug protocol.
+		 */
+		readonly threadId: number;
+		/**
+		 * ID of the stack frame in the debug protocol.
+		 */
+		readonly frameId: number;
+
+		/**
+		 * @hidden
+		 */
+		private constructor(session: DebugSession, threadId: number, frameId: number);
+	}
+
+	/**
 	 * Namespace for debug functionality.
 	 */
 	export namespace debug {
@@ -16238,6 +16288,19 @@ declare module 'vscode' {
 		 * An {@link Event} that is emitted when the set of breakpoints is added, removed, or changed.
 		 */
 		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+
+		/**
+		 * The currently focused thread or stack frame, or `undefined` if no
+		 * thread or stack is focused. A thread can be focused any time there is
+		 * an active debug session, while a stack frame can only be focused when
+		 * a session is paused and the call stack has been retrieved.
+		 */
+		export const activeStackItem: DebugThread | DebugStackFrame | undefined;
+
+		/**
+		 * An event which fires when the {@link debug.activeStackItem} has changed.
+		 */
+		export const onDidChangeActiveStackItem: Event<DebugThread | DebugStackFrame | undefined>;
 
 		/**
 		 * Register a {@link DebugConfigurationProvider debug configuration provider} for a specific debug type.
@@ -17195,6 +17258,17 @@ declare module 'vscode' {
 		runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
 
 		/**
+		 * An extension-provided function that provides detailed statement and
+		 * function-level coverage for a file. The editor will call this when more
+		 * detail is needed for a file, such as when it's opened in an editor or
+		 * expanded in the **Test Coverage** view.
+		 *
+		 * The {@link FileCoverage} object passed to this function is the same instance
+		 * emitted on {@link TestRun.addCoverage} calls associated with this profile.
+		 */
+		loadDetailedCoverage?: (testRun: TestRun, fileCoverage: FileCoverage, token: CancellationToken) => Thenable<FileCoverageDetail[]>;
+
+		/**
 		 * Deletes the run profile.
 		 */
 		dispose(): void;
@@ -17384,12 +17458,21 @@ declare module 'vscode' {
 		readonly continuous?: boolean;
 
 		/**
+		 * Controls how test Test Results view is focused.  If true, the editor
+		 * will keep the maintain the user's focus. If false, the editor will
+		 * prefer to move focus into the Test Results view, although
+		 * this may be configured by users.
+		 */
+		readonly preserveFocus: boolean;
+
+		/**
 		 * @param include Array of specific tests to run, or undefined to run all tests
 		 * @param exclude An array of tests to exclude from the run.
 		 * @param profile The run profile used for this request.
 		 * @param continuous Whether to run tests continuously as source changes.
+		 * @param preserveFocus Whether to preserve the user's focus when the run is started
 		 */
-		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile, continuous?: boolean);
+		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile, continuous?: boolean, preserveFocus?: boolean);
 	}
 
 	/**
@@ -17474,10 +17557,21 @@ declare module 'vscode' {
 		appendOutput(output: string, location?: Location, test?: TestItem): void;
 
 		/**
+		 * Adds coverage for a file in the run.
+		 */
+		addCoverage(fileCoverage: FileCoverage): void;
+
+		/**
 		 * Signals the end of the test run. Any tests included in the run whose
 		 * states have not been updated will have their state reset.
 		 */
 		end(): void;
+
+		/**
+		 * An event fired when the editor is no longer interested in data
+		 * associated with the test run.
+		 */
+		onDidDispose: Event<void>;
 	}
 
 	/**
@@ -17686,6 +17780,177 @@ declare module 'vscode' {
 		 */
 		constructor(message: string | MarkdownString);
 	}
+
+	/**
+	 * A class that contains information about a covered resource. A count can
+	 * be give for lines, branches, and declarations in a file.
+	 */
+	export class TestCoverageCount {
+		/**
+		 * Number of items covered in the file.
+		 */
+		covered: number;
+		/**
+		 * Total number of covered items in the file.
+		 */
+		total: number;
+
+		/**
+		 * @param covered Value for {@link TestCoverageCount.covered}
+		 * @param total Value for {@link TestCoverageCount.total}
+		 */
+		constructor(covered: number, total: number);
+	}
+
+	/**
+	 * Contains coverage metadata for a file.
+	 */
+	export class FileCoverage {
+		/**
+		 * File URI.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Statement coverage information. If the reporter does not provide statement
+		 * coverage information, this can instead be used to represent line coverage.
+		 */
+		statementCoverage: TestCoverageCount;
+
+		/**
+		 * Branch coverage information.
+		 */
+		branchCoverage?: TestCoverageCount;
+
+		/**
+		 * Declaration coverage information. Depending on the reporter and
+		 * language, this may be types such as functions, methods, or namespaces.
+		 */
+		declarationCoverage?: TestCoverageCount;
+
+		/**
+		 * Creates a {@link FileCoverage} instance with counts filled in from
+		 * the coverage details.
+		 * @param uri Covered file URI
+		 * @param detailed Detailed coverage information
+		 */
+		static fromDetails(uri: Uri, details: readonly FileCoverageDetail[]): FileCoverage;
+
+		/**
+		 * @param uri Covered file URI
+		 * @param statementCoverage Statement coverage information. If the reporter
+		 * does not provide statement coverage information, this can instead be
+		 * used to represent line coverage.
+		 * @param branchCoverage Branch coverage information
+		 * @param declarationCoverage Declaration coverage information
+		 */
+		constructor(
+			uri: Uri,
+			statementCoverage: TestCoverageCount,
+			branchCoverage?: TestCoverageCount,
+			declarationCoverage?: TestCoverageCount,
+		);
+	}
+
+	/**
+	 * Contains coverage information for a single statement or line.
+	 */
+	export class StatementCoverage {
+		/**
+		 * The number of times this statement was executed, or a boolean indicating
+		 * whether it was executed if the exact count is unknown. If zero or false,
+		 * the statement will be marked as un-covered.
+		 */
+		executed: number | boolean;
+
+		/**
+		 * Statement location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * Coverage from branches of this line or statement. If it's not a
+		 * conditional, this will be empty.
+		 */
+		branches: BranchCoverage[];
+
+		/**
+		 * @param location The statement position.
+		 * @param executed The number of times this statement was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the statement will be marked as un-covered.
+		 * @param branches Coverage from branches of this line.  If it's not a
+		 * conditional, this should be omitted.
+		 */
+		constructor(executed: number | boolean, location: Position | Range, branches?: BranchCoverage[]);
+	}
+
+	/**
+	 * Contains coverage information for a branch of a {@link StatementCoverage}.
+	 */
+	export class BranchCoverage {
+		/**
+		 * The number of times this branch was executed, or a boolean indicating
+		 * whether it was executed if the exact count is unknown. If zero or false,
+		 * the branch will be marked as un-covered.
+		 */
+		executed: number | boolean;
+
+		/**
+		 * Branch location.
+		 */
+		location?: Position | Range;
+
+		/**
+		 * Label for the branch, used in the context of "the ${label} branch was
+		 * not taken," for example.
+		 */
+		label?: string;
+
+		/**
+		 * @param executed The number of times this branch was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the branch will be marked as un-covered.
+		 * @param location The branch position.
+		 */
+		constructor(executed: number | boolean, location?: Position | Range, label?: string);
+	}
+
+	/**
+	 * Contains coverage information for a declaration. Depending on the reporter
+	 * and language, this may be types such as functions, methods, or namespaces.
+	 */
+	export class DeclarationCoverage {
+		/**
+		 * Name of the declaration.
+		 */
+		name: string;
+
+		/**
+		 * The number of times this declaration was executed, or a boolean
+		 * indicating whether it was executed if the exact count is unknown. If
+		 * zero or false, the declaration will be marked as un-covered.
+		 */
+		executed: number | boolean;
+
+		/**
+		 * Declaration location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * @param executed The number of times this declaration was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the declaration will be marked as un-covered.
+		 * @param location The declaration position.
+		 */
+		constructor(name: string, executed: number | boolean, location: Position | Range);
+	}
+
+	/**
+	 * Coverage details returned from {@link TestRunProfile.loadDetailedCoverage}.
+	 */
+	export type FileCoverageDetail = StatementCoverage | DeclarationCoverage;
 
 	/**
 	 * The tab represents a single text based resource.

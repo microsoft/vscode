@@ -396,6 +396,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		this.options.getApiFor(oldActual).listener = undefined;
 
 		internal.actual = actual;
+		internal.resolveBarrier = undefined;
 		internal.expand = TestItemExpandState.NotExpandable; // updated by `connectItemAndChildren`
 
 		if (update) {
@@ -414,6 +415,19 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			if (!this.options.getChildren(actual).get(child.id)) {
 				this.removeItem(TestId.joinToString(fullId, child.id));
 			}
+		}
+
+		// Re-expand the element if it was previous expanded (#207574)
+		const expandLevels = internal.expandLevels;
+		if (expandLevels !== undefined) {
+			// Wait until a microtask to allow the extension to finish setting up
+			// properties of the element and children before we ask it to expand.
+			queueMicrotask(() => {
+				if (internal.expand === TestItemExpandState.Expandable) {
+					internal.expandLevels = undefined;
+					this.expand(fullId.toString(), expandLevels);
+				}
+			});
 		}
 
 		// Mark ranges in the document as synced (#161320)

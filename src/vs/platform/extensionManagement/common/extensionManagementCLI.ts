@@ -100,7 +100,7 @@ export class ExtensionManagementCLI {
 				}
 			}
 
-			const installed = await this.extensionManagementService.getInstalled(ExtensionType.User, installOptions.profileLocation);
+			const installed = await this.extensionManagementService.getInstalled(undefined, installOptions.profileLocation);
 
 			if (installVSIXInfos.length) {
 				await Promise.all(installVSIXInfos.map(async ({ vsix, installOptions }) => {
@@ -146,7 +146,7 @@ export class ExtensionManagementCLI {
 				if (areSameExtensions(oldVersion.identifier, newVersion.identifier) && gt(newVersion.version, oldVersion.manifest.version)) {
 					extensionsToUpdate.push({
 						extension: newVersion,
-						options: { operation: InstallOperation.Update, installPreReleaseVersion: oldVersion.isPreReleaseVersion }
+						options: { operation: InstallOperation.Update, installPreReleaseVersion: oldVersion.preRelease, profileLocation }
 					});
 				}
 			}

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from 'vs/base/common/observable';
 import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
@@ -299,6 +299,49 @@ suite('observables', () => {
 			// which could cause memory-leaks.
 			// So instead, when the last observer of a derived is disposed, we dispose our subscriptions to our dependencies.
 			// `keepObserved` just prevents this from happening.
+		});
+
+		test('autorun that receives deltas of signals', () => {
+			const log = new Log();
+
+			// A signal is an observable without a value.
+			// However, it can ship change information when it is triggered.
+			// Readers can process/aggregate this change information.
+			const signal = observableSignal<{ msg: string }>('signal');
+
+			const disposable = autorunHandleChanges({
+				// The change summary is used to collect the changes
+				createEmptyChangeSummary: () => ({ msgs: [] as string[] }),
+				handleChange(context, changeSummary) {
+					if (context.didChange(signal)) {
+						// We just push the changes into an array
+						changeSummary.msgs.push(context.change.msg);
+					}
+					return true; // We want to handle the change
+				},
+			}, (reader, changeSummary) => {
+				// When handling the change, make sure to read the signal!
+				signal.read(reader);
+				log.log('msgs: ' + changeSummary.msgs.join(', '));
+			});
+
+
+			signal.trigger(undefined, { msg: 'foobar' });
+
+			transaction(tx => {
+				// You can batch triggering signals.
+				// No delta information is lost!
+				signal.trigger(tx, { msg: 'hello' });
+				signal.trigger(tx, { msg: 'world' });
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'msgs: ',
+				'msgs: foobar',
+				'msgs: hello, world'
+			]);
+
+			disposable.dispose();
 		});
 
 		// That is the end of the tutorial.
@@ -1193,6 +1236,38 @@ suite('observables', () => {
 				'rejected {\"state\":\"error\"}'
 			]);
 		});
+	});
+
+	test('observableValue', () => {
+		const log = new Log();
+		const myObservable1 = observableValue<number>('myObservable1', 0);
+		const myObservable2 = observableValue<number, { message: string }>('myObservable2', 0);
+
+		const d = autorun(reader => {
+			/** @description update */
+			const v1 = myObservable1.read(reader);
+			const v2 = myObservable2.read(reader);
+			log.log('autorun, myObservable1:' + v1 + ', myObservable2:' + v2);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		// Doesn't trigger the autorun, because no delta was provided and the value did not change
+		myObservable1.set(0, undefined);
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+		]);
+
+		// Triggers the autorun. The value did not change, but a delta value was provided
+		myObservable2.set(0, undefined, { message: 'change1' });
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		d.dispose();
 	});
 });
 

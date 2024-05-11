@@ -43,7 +43,7 @@ export interface ISCMHistoryOptions {
 
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
-	readonly label: string;
+	readonly name: string;
 	readonly base?: Omit<ISCMHistoryItemGroup, 'base'>;
 }
 
@@ -69,8 +69,8 @@ export interface ISCMHistoryItemStatistics {
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
-	readonly label: string;
-	readonly description?: string;
+	readonly message: string;
+	readonly author?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;

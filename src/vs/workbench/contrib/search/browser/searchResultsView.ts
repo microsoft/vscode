@@ -30,8 +30,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -196,7 +196,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: folder };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: folder } satisfies ISearchActionContext;
 	}
 }
 
@@ -267,7 +267,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: fileMatch } satisfies ISearchActionContext;
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
 
@@ -301,6 +301,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 	}
@@ -364,7 +365,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.after.textContent = preview.after;
 
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
-		templateData.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
+		templateData.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isReadonly()));
 
@@ -376,9 +377,9 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
+		templateData.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: match };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 
 	}
 

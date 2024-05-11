@@ -63,6 +63,16 @@ export interface IInstantiationService {
 	 * and adds/overwrites the given services.
 	 */
 	createChild(services: ServiceCollection): IInstantiationService;
+
+	/**
+	 * Disposes this instantiation service.
+	 *
+	 * - Will dispose all services that this instantiation service has created.
+	 * - Will dispose all its children but not its parent.
+	 * - Will NOT dispose services-instances that this service has been created with
+	 * - Will NOT dispose consumer-instances this service has created
+	 */
+	dispose(): void;
 }
 
 

@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { isLinux } from 'vs/base/common/platform';
-import { INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isEqual } from 'vs/base/common/extpath';
 
@@ -28,9 +28,11 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 	readonly onDidError = Event.None;
 
-	protected readonly watchers = new Set<INodeJSWatcherInstance>();
+	readonly watchers = new Set<INodeJSWatcherInstance>();
 
-	private verboseLogging = false;
+	constructor(protected readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined) {
+		super();
+	}
 
 	protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 
@@ -47,7 +49,6 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 			} else {
 				requestsToStart.push(request); // start watching
 			}
-
 		}
 
 		// Logging
@@ -95,7 +96,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	private startWatching(request: INonRecursiveWatchRequest): void {
 
 		// Start via node.js lib
-		const instance = new NodeJSFileWatcherLibrary(request, changes => this._onDidChangeFile.fire(changes), () => this._onDidWatchFail.fire(request), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+		const instance = new NodeJSFileWatcherLibrary(request, this.recursiveWatcher, changes => this._onDidChangeFile.fire(changes), () => this._onDidWatchFail.fire(request), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 		// Remember as watcher instance
 		const watcher: INodeJSWatcherInstance = { request, instance };
@@ -141,8 +142,8 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		return Array.from(mapCorrelationtoRequests.values()).map(requests => Array.from(requests.values())).flat();
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
+	override async setVerboseLogging(enabled: boolean): Promise<void> {
+		super.setVerboseLogging(enabled);
 
 		for (const watcher of this.watchers) {
 			watcher.instance.setVerboseLogging(enabled);

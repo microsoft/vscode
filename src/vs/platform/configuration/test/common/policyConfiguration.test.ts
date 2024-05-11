@@ -61,7 +61,7 @@ suite('PolicyConfiguration', () => {
 	suiteTeardown(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([policyConfigurationNode]));
 
 	setup(async () => {
-		const defaultConfiguration = disposables.add(new DefaultConfiguration());
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());

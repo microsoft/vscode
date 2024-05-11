@@ -8,14 +8,15 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize, localize2 } from 'vs/nls';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ChatTreeItem, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -50,7 +51,6 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
@@ -90,7 +90,6 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
@@ -129,7 +128,6 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
@@ -253,6 +251,89 @@ export function registerChatTitleActions() {
 			if (requestId) {
 				const chatService = accessor.get(IChatService);
 				chatService.removeRequest(item.sessionId, requestId);
+			}
+		}
+	});
+
+	const rerunMenu = MenuId.for('ChatMessageTitle#Rerun');
+
+	MenuRegistry.appendMenuItem(MenuId.ChatMessageTitle, {
+		submenu: rerunMenu,
+		title: localize('reunmenu', "Rerun..."),
+		icon: Codicon.refresh,
+		group: 'navigation',
+		order: -10,
+		when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor)) // TODO@jrieken needs extension adoption
+
+	});
+
+	registerAction2(class RerunAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.rerun',
+				title: localize2('chat.rerun.label', "Rerun Request"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.refresh,
+				precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), // TODO@jrieken needs extension adoption
+				menu: {
+					id: rerunMenu,
+					group: 'navigation',
+					order: -1,
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: [ChatTreeItem | unknown]) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
+			const widget = chatWidgetService.lastFocusedWidget;
+			let item = args[0];
+			if (!isResponseVM(item)) {
+				item = widget?.getFocus();
+			}
+			if (!isResponseVM(item) || !widget) {
+				return;
+			}
+			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
+			if (request) {
+				await chatService.resendRequest(request, { noCommandDetection: false, attempt: request.attempt + 1, location: widget.location, implicitVariablesEnabled: true });
+			}
+		}
+	});
+
+	registerAction2(class RerunWithoutCommandDetectionAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.rerunWithoutCommandDetection',
+				title: localize2('chat.rerunWithoutCommandDetection.label', "Rerun without Command Detection"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.refresh,
+				precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), // TODO@jrieken needs extension adoption
+				menu: {
+					when: CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND,
+					id: rerunMenu,
+					group: 'navigation',
+					order: -1,
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
+			const widget = chatWidgetService.lastFocusedWidget;
+			let item = args[0];
+			if (!isResponseVM(item)) {
+				item = widget?.getFocus();
+			}
+			if (!isResponseVM(item) || !widget) {
+				return;
+			}
+			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
+			if (request) {
+				await chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: widget.location, implicitVariablesEnabled: true });
 			}
 		}
 	});

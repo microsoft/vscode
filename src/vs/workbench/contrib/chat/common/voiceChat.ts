@@ -88,15 +88,15 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		const phrases = new Map<string, IPhraseValue>();
 
 		for (const agent of this.chatAgentService.getActivatedAgents()) {
-			const agentPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.AGENT_PREFIX]} ${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.id) ?? agent.id}`.toLowerCase();
-			phrases.set(agentPhrase, { agent: agent.id });
+			const agentPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.AGENT_PREFIX]} ${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.name) ?? agent.name}`.toLowerCase();
+			phrases.set(agentPhrase, { agent: agent.name });
 
 			for (const slashCommand of agent.slashCommands) {
 				const slashCommandPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.COMMAND_PREFIX]} ${slashCommand.name}`.toLowerCase();
-				phrases.set(slashCommandPhrase, { agent: agent.id, command: slashCommand.name });
+				phrases.set(slashCommandPhrase, { agent: agent.name, command: slashCommand.name });
 
 				const agentSlashCommandPhrase = `${agentPhrase} ${slashCommandPhrase}`.toLowerCase();
-				phrases.set(agentSlashCommandPhrase, { agent: agent.id, command: slashCommand.name });
+				phrases.set(agentSlashCommandPhrase, { agent: agent.name, command: slashCommand.name });
 			}
 		}
 

@@ -73,7 +73,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		const lastSyncUserData = await this.getLastSyncUserData();
 		const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
 		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-		const parser = new ConfigurationModelParser(USER_DATA_SYNC_CONFIGURATION_SCOPE);
+		const parser = new ConfigurationModelParser(USER_DATA_SYNC_CONFIGURATION_SCOPE, this.logService);
 		if (remoteSettingsSyncContent?.settings) {
 			parser.parse(remoteSettingsSyncContent.settings);
 		}

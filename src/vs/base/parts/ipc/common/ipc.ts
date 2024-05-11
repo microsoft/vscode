@@ -806,7 +806,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		return result;
 	}
 
-	constructor(onDidClientConnect: Event<ClientConnectionEvent>) {
+	constructor(onDidClientConnect: Event<ClientConnectionEvent>, ipcLogger?: IIPCLogger | null, timeoutDelay?: number) {
 		this.disposables.add(onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
 			const onFirstMessage = Event.once(protocol.onMessage);
 
@@ -814,8 +814,8 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				const reader = new BufferReader(msg);
 				const ctx = deserialize(reader) as TContext;
 
-				const channelServer = new ChannelServer(protocol, ctx);
-				const channelClient = new ChannelClient(protocol);
+				const channelServer = new ChannelServer(protocol, ctx, ipcLogger, timeoutDelay);
+				const channelClient = new ChannelClient(protocol, ipcLogger);
 
 				this.channels.forEach((channel, name) => channelServer.registerChannel(name, channel));
 

@@ -533,7 +533,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 			const newQuality = quality === 'stable' ? 'insider' : 'stable';
 			const commandId = `update.switchQuality.${newQuality}`;
 			const isSwitchingToInsiders = newQuality === 'insider';
-			registerAction2(class SwitchQuality extends Action2 {
+			this._register(registerAction2(class SwitchQuality extends Action2 {
 				constructor() {
 					super({
 						id: commandId,
@@ -628,7 +628,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					});
 					return result;
 				}
-			});
+			}));
 		}
 	}
 }
