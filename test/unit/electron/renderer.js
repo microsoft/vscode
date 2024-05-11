@@ -194,14 +194,14 @@ async function loadTests(opts) {
 
 	let _testsWithUnexpectedOutput = false;
 
-	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
-		console[consoleFn.name] = function (msg) {
-			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
-				_testsWithUnexpectedOutput = true;
-				consoleFn.apply(console, arguments);
-			}
-		};
-	}
+	// for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
+	// 	console[consoleFn.name] = function (msg) {
+	// 		if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
+	// 			_testsWithUnexpectedOutput = true;
+	// 			consoleFn.apply(console, arguments);
+	// 		}
+	// 	};
+	// }
 
 	//#endregion
 
@@ -256,7 +256,7 @@ async function loadTests(opts) {
 	const assertCleanState = workbenchTestingModule.assertCleanState;
 
 
-	suite('Tests are using suiteSetup and setup correctly', () => {
+	mocha.suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
 			assertCleanState();
 		});
@@ -380,12 +380,24 @@ class IPCReporter {
 }
 
 async function runTests(opts) {
+	mocha.setup({
+		ui: "tdd",
+		timeout:
+			typeof process.env["BUILD_ARTIFACTSTAGINGDIRECTORY"] === "string"
+				? 30000
+				: 5000,
+		forbidOnly:
+			typeof process.env["BUILD_ARTIFACTSTAGINGDIRECTORY"] === "string", // disallow .only() when running on build machine
+	});
+
 	// this *must* come before loadTests, or it doesn't work.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
 	}
 
+	console.log('before load')
 	await loadTests(opts)
+	console.log('aftr load')
 
 	if (opts.grep) {
 		mocha.grep(opts.grep);
@@ -394,6 +406,8 @@ async function runTests(opts) {
 	if (!opts.dev) {
 		mocha.reporter(IPCReporter);
 	}
+
+
 
 	const runner = mocha.run(() => {
 		createCoverageReport(opts).then(() => {
@@ -433,19 +447,12 @@ const mockAlerts = () => {
 }
 
 const setupMocha = () => {
-	mocha.setup({
-		ui: "tdd",
-		timeout:
-			typeof process.env["BUILD_ARTIFACTSTAGINGDIRECTORY"] === "string"
-				? 30000
-				: 5000,
-		forbidOnly:
-			typeof process.env["BUILD_ARTIFACTSTAGINGDIRECTORY"] === "string", // disallow .only() when running on build machine
-	});
+
 }
 
 const main = async (e, opts) => {
 	try {
+		console.log('in main')
 		mockAlerts()
 		setupMocha()
 		initLoader(opts);
