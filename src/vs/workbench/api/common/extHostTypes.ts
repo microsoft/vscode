@@ -4425,7 +4425,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly variables: vscode.ChatValueReference[],
+		readonly references: vscode.ChatValueReference[],
 		readonly participant: string,
 	) { }
 }

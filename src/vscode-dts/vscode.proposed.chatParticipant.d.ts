@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequestTurn.variables}.
+		 * Information about variables used in this request is stored in {@link ChatRequestTurn.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -32,7 +32,7 @@ declare module 'vscode' {
 		/**
 		 * The references that were used in this message.
 		 */
-		readonly variables: ChatValueReference[];
+		readonly references: ChatValueReference[];
 
 		private constructor(prompt: string, command: string | undefined, references: ChatValueReference[], participant: string);
 	}
@@ -268,7 +268,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequest.variables}.
+		 * Information about variables used in this request is stored in {@link ChatRequest.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -290,7 +290,7 @@ declare module 'vscode' {
 		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		readonly variables: readonly ChatValueReference[];
+		readonly references: readonly ChatValueReference[];
 	}
 
 	/**
