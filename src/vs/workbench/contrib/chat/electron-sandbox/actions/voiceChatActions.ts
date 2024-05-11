@@ -330,7 +330,7 @@ class VoiceChatSessions {
 			controller,
 			disposables: new DisposableStore(),
 			setTimeoutDisabled: (disabled: boolean) => { disableTimeout = disabled; },
-			accept: () => session.controller.acceptInput(),
+			accept: () => this.accept(sessionId),
 			stop: () => this.stop(sessionId, controller.context)
 		};
 
@@ -353,7 +353,7 @@ class VoiceChatSessions {
 			voiceChatTimeout = SpeechTimeoutDefault;
 		}
 
-		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), voiceChatTimeout));
+		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => this.accept(sessionId), voiceChatTimeout));
 		session.disposables.add(voiceChatSession.onDidChange(({ status, text, waitingForInput }) => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -915,7 +915,7 @@ export class ReadChatResponseAloud extends Action2 {
 			return;
 		}
 
-		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).start(stringifyItem(item, false));
+		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).start(item.model);
 	}
 }
 
