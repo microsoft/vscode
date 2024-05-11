@@ -296,26 +296,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
-      - name: Cache node modules
-        id: cacheNodeModules
-        uses: actions/cache@v4
-        with:
-          path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
-      - name: Cache yarn directory
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarncachedir2-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarncachedir2-
+      # - name: Compute node modules cache key
+      #   id: nodeModulesCacheKey
+      #   run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
+      # - name: Cache node modules
+      #   id: cacheNodeModules
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: "**/node_modules"
+      #     key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
+      # - name: Get yarn cache directory path
+      #   id: yarnCacheDirPath
+      #   if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+      #   run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+      # - name: Cache yarn directory
+      #   if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+      #     key: ${{ runner.os }}-yarncachedir2-${{ steps.nodeModulesCacheKey.outputs.value }}
+      #     restore-keys: ${{ runner.os }}-yarncachedir2-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
