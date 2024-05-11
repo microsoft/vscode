@@ -30,12 +30,11 @@ declare module 'vscode' {
 		readonly command?: string;
 
 		/**
-		 * The variables that were used in this message.
-		 * TODO@API rename to `references`?
+		 * The references that were used in this message.
 		 */
 		readonly variables: ChatValueReference[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatValueReference[], participant: string);
+		private constructor(prompt: string, command: string | undefined, references: ChatValueReference[], participant: string);
 	}
 
 	/**
@@ -236,8 +235,13 @@ declare module 'vscode' {
 
 	export interface ChatValueReference {
 		/**
+		 * A unique identifier for this reference.
+		 */
+		readonly id: string;
+
+		/**
 		 * The name of the reference.
-		 * TODO@API How to handle name conflicts? Need id vs name?
+		 * TODO@API should name be provided at all, or only ID?
 		 */
 		readonly name: string;
 
@@ -248,6 +252,11 @@ declare module 'vscode' {
 		 * used to modify the prompt as-is.
 		 */
 		readonly range: [start: number, end: number];
+
+		/**
+		 * A description of this value that could be used in an LLM prompt.
+		 */
+		readonly modelDescription?: string;
 
 		/**
 		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.

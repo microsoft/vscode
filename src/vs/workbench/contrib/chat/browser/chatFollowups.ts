@@ -63,7 +63,7 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 
 		const tooltip = tooltipPrefix +
 			('tooltip' in followup && followup.tooltip || baseTitle);
-		const button = this._register(new Button(container, { ...this.options, supportIcons: true, title: tooltip }));
+		const button = this._register(new Button(container, { ...this.options, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');
 		} else if (followup.kind === 'command') {

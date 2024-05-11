@@ -381,7 +381,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		// MARK: implicit variable for editor selection and (tracked) whole range
 
 		this._store.add(chatVariableService.registerVariable(
-			{ name: _inlineChatContext, description: '', hidden: true },
+			{ id: _inlineChatContext, name: _inlineChatContext, description: '', hidden: true },
 			async (_message, _arg, model) => {
 				for (const [, data] of this._sessions) {
 					if (data.session.chatModel === model) {
@@ -392,7 +392,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			}
 		));
 		this._store.add(chatVariableService.registerVariable(
-			{ name: _inlineChatDocument, description: '', hidden: true },
+			{ id: _inlineChatDocument, name: _inlineChatDocument, description: '', hidden: true },
 			async (_message, _arg, model) => {
 				for (const [, data] of this._sessions) {
 					if (data.session.chatModel === model) {
@@ -798,6 +798,7 @@ export class AgentInlineChatProvider implements IInlineChatSessionProvider {
 			location: ChatAgentLocation.Editor,
 			variables: {
 				variables: [{
+					id: InlineChatContext.variableName,
 					name: InlineChatContext.variableName,
 					value: JSON.stringify(new InlineChatContext(request.previewDocument, request.selection, request.wholeRange))
 				}]
