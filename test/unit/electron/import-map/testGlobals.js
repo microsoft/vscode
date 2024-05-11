@@ -11,6 +11,7 @@ const modules = [
 	'@vscode/ripgrep',
 	'@vscode/sqlite3',
 	'@vscode/windows-registry',
+	'@vscode/windows-ca-certs',
 	'@xterm/headless',
 	'@xterm/xterm',
 	'assert',
