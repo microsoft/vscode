@@ -214,13 +214,21 @@ export class Response implements IResponse {
 			const responsePosition = this._responseParts.push(progress) - 1;
 			this._updateRepr(quiet);
 
+			const disp = progress.onDidAddProgress(() => {
+				this._updateRepr(false);
+			});
+
 			progress.task?.().then((content) => {
+				// Stop listening for progress updates once the task settles
+				disp.dispose();
+
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
 					this._responseParts[responsePosition] = { ...progress, content: new MarkdownString(content) };
 				}
 				this._updateRepr(false);
 			});
+
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -956,7 +964,7 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	public get username(): string {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName ?? '';
+		return this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel)?.fullName ?? '';
 	}
 
 	public get avatarIcon(): ThemeIcon | undefined {

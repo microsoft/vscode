@@ -149,6 +149,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		@ICommandService commandService: ICommandService,
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IChatVariablesService chatVariablesService: IChatVariablesService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -184,7 +185,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';
-					const agentLine = `- ${agentToMarkdown(a, true)} ${description}`;
+					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, true, accessor));
+					const agentLine = `- ${agentMarkdown} ${description}`;
 					const commandText = a.slashCommands.map(c => {
 						const description = c.description ? `- ${c.description}` : '';
 						return `\t* ${agentSlashCommandToMarkdown(a, c)} ${description}`;

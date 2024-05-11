@@ -165,6 +165,10 @@
 	width: 100%;
 }
 
+.interactive-item-container .chat-progress-task {
+	padding-bottom: 8px;
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
@@ -429,6 +433,14 @@
 
 .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
+}
+
+.chat-used-context-list .codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground); /* Have to override default styles which apply to all lists */
+}
+
+.chat-used-context-list .monaco-icon-label-container {
+	color: var(--vscode-interactive-session-foreground);
 }
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning {
@@ -710,28 +722,4 @@
 .interactive-item-container .chat-command-button .monaco-button .codicon {
 	margin-left: 0;
 	margin-top: 1px;
-}
-
-.chat-confirmation-widget {
-	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
-	margin-bottom: 16px;
-	padding: 12px 16px 16px;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-title {
-	font-weight: 600;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-title p {
-	margin: 0 0 4px 0;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-message .rendered-markdown p {
-	margin-top: 0;
-}
-
-.chat-confirmation-widget .chat-confirmation-buttons-container {
-	display: flex;
-	gap: 8px;
 }

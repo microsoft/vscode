@@ -12,7 +12,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/languages';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -36,13 +36,24 @@ const agentRefUrl = `http://_chatagent_`;
 /** For rendering agent decorations with hover */
 const agentSlashRefUrl = `http://_chatslash_`;
 
-export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean): string {
-	const args: IAgentWidgetArgs = { agentId: agent.id, isClickable };
+export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean, accessor: ServicesAccessor): string {
+	const chatAgentNameService = accessor.get(IChatAgentNameService);
+	const chatAgentService = accessor.get(IChatAgentService);
+
+	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent).get();
+	let name = `${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
+	const isDupe = isAllowed && chatAgentService.getAgentsByName(agent.name).length > 1;
+	if (isDupe) {
+		name += ` (${agent.publisherDisplayName})`;
+	}
+
+	const args: IAgentWidgetArgs = { agentId: agent.id, name, isClickable };
 	return `[${agent.name}](${agentRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 }
 
 interface IAgentWidgetArgs {
 	agentId: string;
+	name: string;
 	isClickable?: boolean;
 }
 
@@ -67,7 +78,6 @@ export class ChatMarkdownDecorationsRenderer {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 		@ICommandService private readonly commandService: ICommandService,
 	) { }
 
@@ -77,7 +87,7 @@ export class ChatMarkdownDecorationsRenderer {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
-				result += agentToMarkdown(part.agent, false);
+				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, false, accessor));
 			} else {
 				const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 					part.data :
@@ -142,20 +152,7 @@ export class ChatMarkdownDecorationsRenderer {
 	}
 
 	private renderAgentWidget(args: IAgentWidgetArgs, store: DisposableStore): HTMLElement {
-		const agent = this.chatAgentService.getAgent(args.agentId);
-		let name: string;
-		if (agent) {
-			const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent).get();
-			name = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
-
-			const isDupe = isAllowed && this.chatAgentService.getAgentsByName(agent.name).length > 1;
-			if (isDupe) {
-				name += ` (${agent.publisherDisplayName})`;
-			}
-		} else {
-			name = args.agentId;
-		}
-
+		const nameWithLeader = `${chatAgentLeader}${args.name}`;
 		let container: HTMLElement;
 		if (args.isClickable) {
 			container = dom.$('span.chat-agent-widget');
@@ -164,8 +161,9 @@ export class ChatMarkdownDecorationsRenderer {
 				buttonForeground: asCssVariable(chatSlashCommandForeground),
 				buttonHoverBackground: undefined
 			}));
-			button.label = name;
+			button.label = nameWithLeader;
 			store.add(button.onDidClick(() => {
+				const agent = this.chatAgentService.getAgent(args.agentId);
 				const widget = this.chatWidgetService.lastFocusedWidget;
 				if (!widget || !agent) {
 					return;
@@ -174,9 +172,10 @@ export class ChatMarkdownDecorationsRenderer {
 				this.chatService.sendRequest(widget.viewModel!.sessionId, agent.metadata.sampleRequest ?? '', { location: widget.location, agentId: agent.id });
 			}));
 		} else {
-			container = this.renderResourceWidget(name, undefined);
+			container = this.renderResourceWidget(nameWithLeader, undefined);
 		}
 
+		const agent = this.chatAgentService.getAgent(args.agentId);
 		const hover: Lazy<ChatAgentHover> = new Lazy(() => store.add(this.instantiationService.createInstance(ChatAgentHover)));
 		store.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, () => {
 			hover.value.setAgent(args.agentId);

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -107,6 +108,12 @@ export interface IChatProgressMessage {
 }
 
 export interface IChatTask extends IChatTaskDto {
+	deferred: DeferredPromise<string | void>;
+	progress: (IChatWarningMessage | IChatContentReference)[];
+	onDidAddProgress: Event<IChatWarningMessage | IChatContentReference>;
+	add(progress: IChatWarningMessage | IChatContentReference): void;
+
+	complete: (result: string | void) => void;
 	task: () => Promise<string | void>;
 	isSettled: () => boolean;
 }
@@ -152,6 +159,7 @@ export interface IChatConfirmation {
 	title: string;
 	message: string;
 	data: any;
+	isUsed?: boolean;
 	kind: 'confirmation';
 }
 
