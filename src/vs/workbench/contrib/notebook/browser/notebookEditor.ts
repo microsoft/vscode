@@ -430,6 +430,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 		const startTime = perfMarks['startTime'];
 		const extensionActivated = perfMarks['extensionActivated'];
 		const inputLoaded = perfMarks['inputLoaded'];
+		const webviewCommLoaded = perfMarks['webviewCommLoaded'];
 		const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
 		const editorLoaded = perfMarks['editorLoaded'];
 
@@ -444,7 +445,11 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 
 			if (inputLoaded !== undefined) {
 				inputLoadingTimespan = inputLoaded - extensionActivated;
-				webviewCommLoadingTimespan = inputLoaded - extensionActivated; // TODO@rebornix, we don't track webview comm anymore
+			}
+
+			if (webviewCommLoaded !== undefined) {
+				webviewCommLoadingTimespan = webviewCommLoaded - extensionActivated;
+
 			}
 
 			if (customMarkdownLoaded !== undefined) {

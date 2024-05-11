@@ -59,23 +59,6 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
 }
 
-export const enum AccessibleViewProviderId {
-	Terminal = 'terminal',
-	TerminalChat = 'terminal-chat',
-	TerminalHelp = 'terminal-help',
-	DiffEditor = 'diffEditor',
-	Chat = 'panelChat',
-	InlineChat = 'inlineChat',
-	InlineCompletions = 'inlineCompletions',
-	KeybindingsEditor = 'keybindingsEditor',
-	Notebook = 'notebook',
-	Editor = 'editor',
-	Hover = 'hover',
-	Notification = 'notification',
-	EmptyEditorHint = 'emptyEditorHint',
-	Comments = 'comments'
-}
-
 const baseVerbosityProperty: IConfigurationPropertySchema = {
 	type: 'boolean',
 	default: true,
@@ -686,7 +669,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'tags': ['accessibility']
 				},
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
-					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition"),
+					'markdownDescription': localize('voice.speechLanguage', "The language that text-to-speech and speech-to-text should use. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition and synthesizers."),
 					'type': 'string',
 					'enum': languagesSorted,
 					'default': 'auto',

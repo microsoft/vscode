@@ -60,10 +60,11 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
-import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
