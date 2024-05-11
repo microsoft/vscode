@@ -1034,11 +1034,11 @@ export class InlineChatController implements IEditorContribution {
 		this._updatePlaceholder();
 	}
 
-	acceptInput(): void {
+	acceptInput() {
 		if (this._input.value.isVisible) {
-			this._input.value.chatWidget.acceptInput();
+			return this._input.value.chatWidget.acceptInput();
 		} else {
-			this._zone.value.widget.chatWidget.acceptInput();
+			return this._zone.value.widget.chatWidget.acceptInput();
 		}
 	}
 

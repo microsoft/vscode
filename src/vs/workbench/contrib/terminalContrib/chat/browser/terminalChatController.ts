@@ -20,9 +20,10 @@ import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/te
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, IChatRequestVariableData, IChatResponseModel, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { DeferredPromise } from 'vs/base/common/async';
 
 const enum Message {
 	NONE = 0,
@@ -245,7 +246,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey.reset();
 	}
 
-	async acceptInput(): Promise<void> {
+	async acceptInput(): Promise<IChatResponseModel | undefined> {
 		if (!this._model.value) {
 			this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, CancellationToken.None);
 			if (!this._model.value) {
@@ -259,6 +260,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!this._lastInput) {
 			return;
 		}
+		const responseCreated = new DeferredPromise<IChatResponseModel>();
 		const accessibilityRequestId = this._chatAccessibilityService.acceptRequest();
 		this._requestActiveContextKey.set(true);
 		const cancellationToken = new CancellationTokenSource().token;
@@ -273,6 +275,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			}
 			if (this._currentRequest) {
 				model.acceptResponseProgress(this._currentRequest, progress);
+				if (this._currentRequest.response) {
+					responseCreated.complete(this._currentRequest.response);
+				}
 			}
 		};
 
@@ -310,6 +315,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 			if (this._currentRequest) {
 				model.completeResponse(this._currentRequest);
+				if (this._currentRequest.response) {
+					responseCreated.complete(this._currentRequest.response);
+				}
 			}
 			this._lastResponseContent = responseContent;
 			if (this._currentRequest) {
@@ -327,6 +335,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				this._responseSupportsIssueReportingContextKey.set(supportIssueReporting);
 			}
 		}
+		return responseCreated.p;
 	}
 
 	updateInput(text: string, selectAll = true): void {

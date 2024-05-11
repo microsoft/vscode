@@ -54,6 +54,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 
 //#region Speech to Text
 
@@ -81,7 +82,7 @@ interface IVoiceChatSessionController {
 	readonly context: VoiceChatSessionContext;
 
 	focusInput(): void;
-	acceptInput(): void;
+	acceptInput(): Promise<IChatResponseModel | undefined>;
 	updateInput(text: string): void;
 	getInput(): string;
 
@@ -447,7 +448,7 @@ class VoiceChatSessions {
 		this.voiceChatInEditorInProgressKey.set(false);
 	}
 
-	accept(voiceChatSessionId = this.voiceChatSessionIds): void {
+	async accept(voiceChatSessionId = this.voiceChatSessionIds): Promise<void> {
 		if (
 			!this.currentVoiceChatSession ||
 			this.voiceChatSessionIds !== voiceChatSessionId
@@ -455,7 +456,10 @@ class VoiceChatSessions {
 			return;
 		}
 
-		this.currentVoiceChatSession.controller.acceptInput();
+		const result = await this.currentVoiceChatSession.controller.acceptInput();
+		if (result) {
+			ChatSynthesizerSessions.getInstance(this.instantiationService).start(result.response.asString());
+		}
 	}
 }
 
