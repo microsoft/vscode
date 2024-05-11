@@ -411,8 +411,43 @@ async function runTests(opts) {
 	}
 }
 
+
+const mockAlerts = () => {
+	// !!! DO NOT CHANGE !!!
+	// Our unit tests may run in environments without
+	// display (e.g. from builds) and tests may by
+	// accident bring up native dialogs or even open
+	// windows. This we cannot allow as it may crash
+	// the test run.
+	// !!! DO NOT CHANGE !!!
+	window.open = function () {
+		throw new Error("window.open() is not supported in tests!");
+	};
+	window.alert = function () {
+		throw new Error("window.alert() is not supported in tests!");
+	};
+	window.confirm = function () {
+		throw new Error("window.confirm() is not supported in tests!");
+	};
+
+}
+
+const setupMocha = () => {
+	mocha.setup({
+		ui: "tdd",
+		timeout:
+			typeof process.env["BUILD_ARTIFACTSTAGINGDIRECTORY"] === "string"
+				? 30000
+				: 5000,
+		forbidOnly:
+			typeof process.env["BUILD_ARTIFACTSTAGINGDIRECTORY"] === "string", // disallow .only() when running on build machine
+	});
+}
+
 const main = async (e, opts) => {
 	try {
+		mockAlerts()
+		setupMocha()
 		initLoader(opts);
 		await runTests(opts)
 	} catch (err) {
