@@ -9,7 +9,7 @@ import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/e
 import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
-import { ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap, IRelaxedExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IExtensionApiFactory, IExtensionRegistries } from 'vs/workbench/api/common/extHost.api.impl';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -60,6 +60,24 @@ export abstract class RequireInterceptor {
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
 		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
+
+		const fakeExtension: IRelaxedExtensionDescription = {
+			identifier: { value: 'test', _lower: 'test' },
+			engines: {
+				vscode: '1.89.0'
+			},
+			isBuiltin: true,
+			extensionLocation: URI.parse(''),
+			name: 'test',
+			targetPlatform: TargetPlatform.UNDEFINED,
+			isUserBuiltin: false,
+			isUnderDevelopment: false,
+			publisher: 'test',
+			version: '0.0.0'
+		}
+
+		const api = this._apiFactory(fakeExtension, this._extensionRegistry, configProvider)
+		console.log({ api })
 		this.register(this._instaService.createInstance(NodeModuleAliasingModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
