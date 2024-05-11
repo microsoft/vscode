@@ -888,11 +888,11 @@ export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpe
 	}
 }
 
-export class ReadChatItemAloud extends Action2 {
+export class ReadChatResponseAloud extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.readChatItemAloud',
-			title: localize2('workbench.action.chat.readChatItemAloud', "Read Aloud"),
+			id: 'workbench.action.chat.readChatResponseAloud',
+			title: localize2('workbench.action.chat.readChatResponseAloud', "Read Aloud"),
 			f1: false,
 			icon: Codicon.unmute,
 			precondition: CanVoiceChat,
@@ -952,7 +952,7 @@ export class StopReadAloud extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor) {
 		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).stop();
 	}
 }
