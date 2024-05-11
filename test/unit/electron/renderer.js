@@ -397,9 +397,7 @@ async function runTests(opts) {
 		mocha.timeout(opts.timeout);
 	}
 
-	console.log('before load')
 	await loadTests(opts)
-	console.log('aftr load')
 
 	if (opts.grep) {
 		mocha.grep(opts.grep);
@@ -454,7 +452,6 @@ const setupMocha = () => {
 
 const main = async (e, opts) => {
 	try {
-		console.log('in main')
 		mockAlerts()
 		setupMocha()
 		initLoader(opts);
