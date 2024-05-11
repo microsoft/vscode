@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.90.0",
-  "distro": "75eed367612c65f6edd69c54373da84495e0d0b8",
+  "distro": "fdf8ae1d8f85249891bd9670ac010fae9162eecc",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -117,7 +117,7 @@
     "@types/kerberos": "^1.1.2",
     "@types/minimist": "^1.2.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
@@ -148,7 +148,7 @@
     "cssnano": "^6.0.3",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "28.2.8",
+    "electron": "29.3.1",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^46.5.0",
