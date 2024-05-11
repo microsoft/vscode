@@ -24,17 +24,18 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { DisassemblyView, IDisassembledInstructionEntry } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_IN_DEBUG_MODE, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugConfiguration, IDebugEditorContribution, IDebugService, REPL_VIEW_ID, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { TOGGLE_BREAKPOINT_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 
 class ToggleBreakpointAction extends Action2 {
 	constructor() {
 		super({
-			id: 'editor.debug.action.toggleBreakpoint',
+			id: TOGGLE_BREAKPOINT_ID,
 			title: {
 				...nls.localize2('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
 				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint"),
@@ -54,13 +55,13 @@ class ToggleBreakpointAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, entry?: IDisassembledInstructionEntry): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const debugService = accessor.get(IDebugService);
 
 		const activePane = editorService.activeEditorPane;
 		if (activePane instanceof DisassemblyView) {
-			const location = activePane.focusedAddressAndOffset;
+			const location = entry ? activePane.getAddressAndOffset(entry) : activePane.focusedAddressAndOffset;
 			if (location) {
 				const bps = debugService.getModel().getInstructionBreakpoints();
 				const toRemove = bps.find(bp => bp.address === location.address);

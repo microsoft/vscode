@@ -38,6 +38,8 @@ import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
+export const COPY_ADDRESS_ID = 'editor.debug.action.copyAddress';
+export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
 export const COPY_STACK_TRACE_ID = 'debug.copyStackTrace';
 export const REVERSE_CONTINUE_ID = 'workbench.action.debug.reverseContinue';
@@ -102,6 +104,7 @@ export const CALLSTACK_UP_LABEL = nls.localize2('callStackUp', "Navigate Up Call
 export const CALLSTACK_DOWN_LABEL = nls.localize2('callStackDown', "Navigate Down Call Stack");
 export const COPY_EVALUATE_PATH_LABEL = nls.localize2('copyAsExpression', "Copy as Expression");
 export const COPY_VALUE_LABEL = nls.localize2('copyValue', "Copy Value");
+export const COPY_ADDRESS_LABEL = nls.localize2('copyAddress', "Copy Address");
 export const ADD_TO_WATCH_LABEL = nls.localize2('addToWatchExpressions', "Add to Watch");
 
 export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize2('selectDebugConsole', "Select Debug Console");

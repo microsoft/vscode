@@ -6,7 +6,7 @@
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { $, Dimension, addStandardDisposableListener, append } from 'vs/base/browser/dom';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { ITableContextMenuEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { binarySearch2 } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
@@ -25,7 +25,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -43,8 +43,15 @@ import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource'
 import { isUri, sourcesEqual } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { COPY_ADDRESS_ID, COPY_ADDRESS_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IAction } from 'vs/base/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
-interface IDisassembledInstructionEntry {
+export interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
 	isBreakpointSet: boolean;
 	isBreakpointEnabled: boolean;
@@ -61,7 +68,6 @@ interface IDisassembledInstructionEntry {
 	/** Parsed instruction address */
 	address: bigint;
 }
-
 
 // Special entry as a placeholer when disassembly is not available
 const disassemblyNotAvailable: IDisassembledInstructionEntry = {
@@ -91,6 +97,7 @@ export class DisassemblyView extends EditorPane {
 	private _enableSourceCodeRender: boolean = true;
 	private _loadingLock: boolean = false;
 	private readonly _referenceToMemoryAddress = new Map<string, bigint>();
+	private menu: IMenu;
 
 	constructor(
 		group: IEditorGroup,
@@ -100,9 +107,14 @@ export class DisassemblyView extends EditorPane {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDebugService private readonly _debugService: IDebugService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(DISASSEMBLY_VIEW_ID, group, telemetryService, themeService, storageService);
 
+		this.menu = menuService.createMenu(MenuId.DebugDisassemblyContext, contextKeyService);
+		this._register(this.menu);
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000 }));
 		this._previousDebuggingState = _debugService.state;
@@ -180,6 +192,10 @@ export class DisassemblyView extends EditorPane {
 			return undefined;
 		}
 
+		return this.getAddressAndOffset(element);
+	}
+
+	getAddressAndOffset(element: IDisassembledInstructionEntry) {
 		const reference = element.instructionReference;
 		const offset = Number(element.address - this.getReferenceAddress(reference)!);
 		return { reference, offset, address: element.address };
@@ -270,6 +286,8 @@ export class DisassemblyView extends EditorPane {
 				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => { this._loadingLock = false; });
 			}
 		}));
+
+		this._register(this._disassembledInstructions.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this._debugService.getViewModel().onDidFocusStackFrame(({ stackFrame }) => {
 			if (this._disassembledInstructions && stackFrame?.instructionPointerReference) {
@@ -630,6 +648,16 @@ export class DisassemblyView extends EditorPane {
 	private clear() {
 		this._referenceToMemoryAddress.clear();
 		this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
+	}
+
+	private onContextMenu(e: ITableContextMenuEvent<IDisassembledInstructionEntry>): void {
+		const actions: IAction[] = [];
+		createAndFillInContextMenuActions(this.menu, { shouldForwardArgs: true }, actions);
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => actions,
+			getActionsContext: () => e.element
+		});
 	}
 }
 
@@ -1005,3 +1033,16 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 		this._onDidChangeModelLanguage?.dispose();
 	}
 }
+
+CommandsRegistry.registerCommand({
+	metadata: {
+		description: COPY_ADDRESS_LABEL,
+	},
+	id: COPY_ADDRESS_ID,
+	handler: async (accessor: ServicesAccessor, entry?: IDisassembledInstructionEntry) => {
+		if (entry?.instruction?.address) {
+			const clipboardService = accessor.get(IClipboardService);
+			clipboardService.writeText(entry.instruction.address);
+		}
+	}
+});
