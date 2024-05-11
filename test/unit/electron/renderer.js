@@ -5,14 +5,16 @@
 
 /*eslint-env mocha*/
 
-
+import '../../../node_modules/mocha/mocha.js'
 import * as coverage from '../coverage.js'
 import { takeSnapshotAndCountClasses } from '../analyzeSnapshot.js'
 import { testGlobals } from './import-map/testGlobals.js'
 
-const { setRun, fs, ipcRenderer, assert, path, url, glob, util, mocha } = testGlobals;
+const { setRun, fs, ipcRenderer, assert, path, url, glob, util } = testGlobals;
 
 const globPromise = util.promisify(glob);
+
+
 
 (function () {
 	const originals = {};
@@ -256,7 +258,7 @@ async function loadTests(opts) {
 	const assertCleanState = workbenchTestingModule.assertCleanState;
 
 
-	mocha.suite('Tests are using suiteSetup and setup correctly', () => {
+	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
 			assertCleanState();
 		});
