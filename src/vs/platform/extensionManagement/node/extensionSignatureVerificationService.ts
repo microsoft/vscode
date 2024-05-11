@@ -121,6 +121,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		let result: ExtensionSignatureVerificationResult;
 
 		try {
+			this.logService.trace(`Verifying extension signature for ${extensionId}...`);
 			result = await module.verify(vsixFilePath, signatureArchiveFilePath, this.logService.getLevel() === LogLevel.Trace);
 		} catch (e) {
 			result = {
@@ -132,7 +133,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 		const duration = new Date().getTime() - startTime;
 
-		this.logService.info(`Extension signature verification result for ${extensionId}: ${result.code}. Duration: ${duration}ms.`);
+		this.logService.info(`Extension signature verification result for ${extensionId}: ${result.code}. Executed: ${result.didExecute}. Duration: ${duration}ms.`);
 		this.logService.trace(`Extension signature verification output for ${extensionId}:\n${result.output}`);
 
 		type ExtensionSignatureVerificationClassification = {

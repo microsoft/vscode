@@ -790,7 +790,7 @@ export interface INotebookEditorModel extends IDisposable {
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
 	readonly hasErrorState: boolean;
-	isResolved(): this is IResolvedNotebookEditorModel;
+	isResolved(): boolean;
 	isDirty(): boolean;
 	isModified(): boolean;
 	isReadonly(): boolean | IMarkdownString;

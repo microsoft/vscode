@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
@@ -63,7 +63,9 @@ export type IChatProgressResponseContent =
 	| IChatProgressMessage
 	| IChatCommandButton
 	| IChatWarningMessage
-	| IChatTextEditGroup;
+	| IChatTask
+	| IChatTextEditGroup
+	| IChatConfirmation;
 
 export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>;
 
@@ -169,7 +171,7 @@ export class Response implements IResponse {
 		this._updateRepr(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatTask, quiet?: boolean): void {
 		if (progress.kind === 'markdownContent') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -207,6 +209,25 @@ export class Response implements IResponse {
 				}
 				this._updateRepr(quiet);
 			}
+		} else if (progress.kind === 'progressTask') {
+			// Add a new resolving part
+			const responsePosition = this._responseParts.push(progress) - 1;
+			this._updateRepr(quiet);
+
+			const disp = progress.onDidAddProgress(() => {
+				this._updateRepr(false);
+			});
+
+			progress.task?.().then((content) => {
+				// Stop listening for progress updates once the task settles
+				disp.dispose();
+
+				// Replace the resolving part's content with the resolved response
+				if (typeof content === 'string') {
+					this._responseParts[responsePosition] = { ...progress, content: new MarkdownString(content) };
+				}
+				this._updateRepr(false);
+			});
 
 		} else {
 			this._responseParts.push(progress);
@@ -226,8 +247,8 @@ export class Response implements IResponse {
 				return '';
 			} else if (part.kind === 'progressMessage') {
 				return '';
-			} else if (part.kind === 'warning') {
-				return '';
+			} else if (part.kind === 'confirmation') {
+				return `${part.title}\n${part.message}`;
 			} else {
 				return part.content.value;
 			}
@@ -567,7 +588,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get responderUsername(): string {
 		return (this._defaultAgent ?
-			this._defaultAgent.metadata.fullName :
+			this._defaultAgent.fullName :
 			this.initialData?.responderUsername) ?? '';
 	}
 
@@ -780,7 +801,17 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-		if (progress.kind === 'markdownContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage' || progress.kind === 'command' || progress.kind === 'textEdit' || progress.kind === 'warning') {
+		if (progress.kind === 'markdownContent' ||
+			progress.kind === 'treeData' ||
+			progress.kind === 'inlineReference' ||
+			progress.kind === 'markdownVuln' ||
+			progress.kind === 'progressMessage' ||
+			progress.kind === 'command' ||
+			progress.kind === 'textEdit' ||
+			progress.kind === 'warning' ||
+			progress.kind === 'progressTask' ||
+			progress.kind === 'confirmation'
+		) {
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
@@ -933,7 +964,7 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	public get username(): string {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.fullName ?? '';
+		return this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel)?.fullName ?? '';
 	}
 
 	public get avatarIcon(): ThemeIcon | undefined {

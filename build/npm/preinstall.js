@@ -10,12 +10,9 @@ const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
-	if (majorNodeVersion < 18 || (majorNodeVersion === 18 && minorNodeVersion < 15)) {
-		console.error('\x1b[1;31m*** Please use node.js versions >=18.15.x and <19.\x1b[0;0m');
+	if (majorNodeVersion < 20) {
+		console.error('\x1b[1;31m*** Please use latest Node.js v20 LTS for development.\x1b[0;0m');
 		err = true;
-	}
-	if (majorNodeVersion >= 19) {
-		console.warn('\x1b[1;31m*** Warning: Versions of node.js >= 19 have not been tested.\x1b[0;0m')
 	}
 }
 
