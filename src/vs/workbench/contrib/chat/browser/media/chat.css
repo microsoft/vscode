@@ -165,6 +165,10 @@
 	width: 100%;
 }
 
+.interactive-item-container .chat-progress-task {
+	padding-bottom: 8px;
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
@@ -429,6 +433,14 @@
 
 .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
+}
+
+.chat-used-context-list .codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground); /* Have to override default styles which apply to all lists */
+}
+
+.chat-used-context-list .monaco-icon-label-container {
+	color: var(--vscode-interactive-session-foreground);
 }
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning {
