@@ -42,14 +42,14 @@ jobs:
       #   if: ${{ steps.cacheNodeModules.outputs.cache-hit == 'true' }}
       #   run: 7z.exe x .build/node_modules_cache/cache.7z -aos
       # - name: Get yarn cache directory path
-      #   id: yarncachedir2Path
+      #   id: yarnCacheDirPath
       #   if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
       #   run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
       # - name: Cache yarn directory
       #   if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
       #   uses: actions/cache@v4
       #   with:
-      #     path: ${{ steps.yarncachedir2Path.outputs.dir }}
+      #     path: ${{ steps.yarnCacheDirPath.outputs.dir }}
       #     key: ${{ runner.os }}-yarncachedir2-${{ steps.nodeModulesCacheKey.outputs.value }}
       #     restore-keys: ${{ runner.os }}-yarncachedir2-
       - name: Execute yarn
@@ -137,14 +137,14 @@ jobs:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
       - name: Get yarn cache directory path
-        id: yarncachedir2Path
+        id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
       - name: Cache yarn directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarncachedir2Path.outputs.dir }}
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-yarncachedir2-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-yarncachedir2-
       - name: Execute yarn
@@ -223,14 +223,14 @@ jobs:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModulesMacOS-${{ steps.nodeModulesCacheKey.outputs.value }}
       - name: Get yarn cache directory path
-        id: yarncachedir2Path
+        id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
       - name: Cache yarn directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarncachedir2Path.outputs.dir }}
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-yarncachedir2-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-yarncachedir2-
       - name: Execute yarn
@@ -306,14 +306,14 @@ jobs:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
       - name: Get yarn cache directory path
-        id: yarncachedir2Path
+        id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
       - name: Cache yarn directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarncachedir2Path.outputs.dir }}
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-yarncachedir2-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-yarncachedir2-
       - name: Execute yarn
