@@ -497,6 +497,13 @@ export class ChatService extends Disposable implements IChatService {
 		const requestType = commandPart ? 'slashCommand' : 'string';
 
 		const responseCreated = new DeferredPromise<IChatResponseModel>();
+		let responseCreatedComplete = false;
+		function completeResponseCreated(): void {
+			if (!responseCreatedComplete && request?.response) {
+				responseCreated.complete(request.response);
+				responseCreatedComplete = true;
+			}
+		}
 
 		const source = new CancellationTokenSource();
 		const token = source.token;
@@ -515,9 +522,7 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				model.acceptResponseProgress(request, progress);
-				if (request.response) {
-					responseCreated.complete(request.response);
-				}
+				completeResponseCreated();
 			};
 
 			const stopWatch = new StopWatch(false);
@@ -548,6 +553,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					const initVariableData: IChatRequestVariableData = { variables: [] };
 					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command);
+					completeResponseCreated();
 					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, progressCallback, token);
 					request.variableData = variableData;
 
@@ -583,6 +589,7 @@ export class ChatService extends Disposable implements IChatService {
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest, { variables: [] }, attempt);
+					completeResponseCreated();
 					// contributed slash commands
 					// TODO: spell this out in the UI
 					const history: IChatMessage[] = [];
@@ -626,9 +633,7 @@ export class ChatService extends Disposable implements IChatService {
 						chatSessionId: model.sessionId
 					});
 					model.setResponse(request, rawResult);
-					if (request.response) {
-						responseCreated.complete(request.response);
-					}
+					completeResponseCreated();
 					this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
 
 					model.completeResponse(request);
