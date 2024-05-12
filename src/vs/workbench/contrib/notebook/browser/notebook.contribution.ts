@@ -1041,9 +1041,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.remoteSaving]: {
-			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks in Remote environment. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
+			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
 			type: 'boolean',
-			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
+			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
+			tags: ['experimental']
 		},
 		[NotebookSetting.scrollToRevealCell]: {
 			markdownDescription: nls.localize('notebook.scrolling.revealNextCellOnExecute.description', "How far to scroll when revealing the next cell upon running {0}.", 'notebook.cell.executeAndSelectBelow'),
