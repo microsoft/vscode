@@ -114,6 +114,7 @@ export interface IChatLiveUpdateData {
 }
 
 export interface IChatResponseViewModel {
+	readonly model: IChatResponseModel;
 	readonly id: string;
 	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
@@ -361,6 +362,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+
+	get model() {
+		return this._model;
+	}
 
 	get id() {
 		return this._model.id;

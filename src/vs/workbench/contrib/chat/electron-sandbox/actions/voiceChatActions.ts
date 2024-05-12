@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/voiceChatActions';
-import { RunOnceScheduler, disposableTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { RunOnceScheduler, disposableTimeout, raceCancellation } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
@@ -34,7 +34,7 @@ import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { CHAT_CATEGORY, stringifyItem } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -46,7 +46,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatContextKeys, TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -55,6 +55,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 //#region Speech to Text
 
@@ -314,7 +315,8 @@ class VoiceChatSessions {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IVoiceChatService private readonly voiceChatService: IVoiceChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) { }
 
 	async start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): Promise<IVoiceChatSession> {
@@ -456,9 +458,16 @@ class VoiceChatSessions {
 			return;
 		}
 
-		const result = await this.currentVoiceChatSession.controller.acceptInput();
-		if (result) {
-			ChatSynthesizerSessions.getInstance(this.instantiationService).start(result.response.asString());
+		const response = await this.currentVoiceChatSession.controller.acceptInput();
+		if (!response) {
+			return;
+		}
+
+		if (
+			!this.accessibilityService.isScreenReaderOptimized() && // do not synthesize when screen reader is active
+			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
+		) {
+			ChatSynthesizerSessions.getInstance(this.instantiationService).start(response);
 		}
 	}
 }
@@ -851,7 +860,7 @@ class ChatSynthesizerSessions {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	async start(text: string): Promise<void> {
+	async start(response: IChatResponseModel): Promise<void> {
 
 		// Stop running text-to-speech or speech-to-text sessions in chats
 		this.stop();
@@ -860,7 +869,69 @@ class ChatSynthesizerSessions {
 		const activeSession = this.activeSession = new CancellationTokenSource();
 
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
-		session.synthesize(text);
+
+		if (activeSession.token.isCancellationRequested) {
+			return;
+		}
+
+		if (response.isComplete) {
+			this.synthesizeCompletedResponse(session, response);
+		} else {
+			this.synthesizePendingResponse(session, response, activeSession.token);
+		}
+	}
+
+	private synthesizeCompletedResponse(session: ITextToSpeechSession, response: IChatResponseModel): void {
+		session.synthesize(response.response.asString());
+	}
+
+	private async synthesizePendingResponse(session: ITextToSpeechSession, response: IChatResponseModel, token: CancellationToken): Promise<void> {
+		for await (const chunk of this.nextChatResponseChunk(response, token)) {
+			if (token.isCancellationRequested) {
+				break;
+			}
+
+			await raceCancellation(session.synthesize(chunk), token);
+		}
+	}
+
+	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
+		let totalOffset = 0;
+		let complete = false;
+		do {
+			const text = response.response.asString();
+			const { chunks, offset, tail } = this.toChunks(text, totalOffset);
+			totalOffset = offset;
+			complete = response.isComplete;
+
+			for (const chunk of chunks) {
+				yield chunk;
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+			}
+
+			if (complete) {
+				yield tail;
+			} else if (text === response.response.asString()) {
+				await raceCancellation(Event.toPromise(response.onDidChange), token); // wait for the response to change
+			}
+		} while (!token.isCancellationRequested && !complete);
+	}
+
+	private toChunks(text: string, offset: number): { readonly chunks: string[]; readonly offset: number; readonly tail: string } {
+		const chunks: string[] = [];
+
+		for (let i = offset; i < text.length; i++) {
+			const char = text[i];
+			if (char === '.' || char === '!' || char === '?' || char === ':') {
+				chunks.push(text.substring(offset, i + 1));
+				offset = i + 1;
+			}
+		}
+
+		return { chunks, offset, tail: text.substring(offset) };
 	}
 
 	stop(): void {
@@ -914,12 +985,12 @@ export class ReadChatResponseAloud extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const item = args[0];
-		if (!isResponseVM(item)) {
+		const response = args[0];
+		if (!isResponseVM(response)) {
 			return;
 		}
 
-		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).start(stringifyItem(item, false));
+		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).start(response.model);
 	}
 }
 

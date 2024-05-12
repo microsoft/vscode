@@ -264,9 +264,11 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 		const disposables = new DisposableStore();
 
-		const onSessionStoppedOrCanceled = () => {
+		const onSessionStoppedOrCanceled = (canceled: boolean) => {
 			if (session === this._activeTextToSpeechSession) {
-				this._activeTextToSpeechSession = undefined;
+				if (canceled) {
+					this._activeTextToSpeechSession = undefined;
+				}
 				this.textToSpeechInProgress.reset();
 				this._onDidEndTextToSpeechSession.fire();
 
@@ -292,12 +294,14 @@ export class SpeechService extends Disposable implements ISpeechService {
 				});
 			}
 
-			disposables.dispose();
+			if (canceled) {
+				disposables.dispose();
+			}
 		};
 
-		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled(true)));
 		if (token.isCancellationRequested) {
-			onSessionStoppedOrCanceled();
+			onSessionStoppedOrCanceled(true);
 		}
 
 		disposables.add(session.onDidChange(e => {
@@ -309,7 +313,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 					}
 					break;
 				case TextToSpeechStatus.Stopped:
-					onSessionStoppedOrCanceled();
+					onSessionStoppedOrCanceled(false);
 					break;
 				case TextToSpeechStatus.Error:
 					this.logService.error(`Speech provider error in text to speech session: ${e.text}`);
