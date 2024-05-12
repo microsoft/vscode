@@ -17,7 +17,6 @@ type SpeechToTextSession = {
 
 type TextToSpeechSession = {
 	readonly onDidChange: Emitter<ITextToSpeechEvent>;
-	synthesize(text: string): Promise<void>;
 };
 
 type KeywordRecognitionSession = {
@@ -87,10 +86,7 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 				this.proxy.$createTextToSpeechSession(handle, session, options?.language);
 
 				const onDidChange = disposables.add(new Emitter<ITextToSpeechEvent>());
-				this.textToSpeechSessions.set(session, {
-					onDidChange,
-					synthesize: text => this.proxy.$synthesizeSpeech(session, text)
-				});
+				this.textToSpeechSessions.set(session, { onDidChange });
 
 				disposables.add(token.onCancellationRequested(() => {
 					this.proxy.$cancelTextToSpeechSession(session);
