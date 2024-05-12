@@ -188,15 +188,14 @@ export interface IChatFollowup {
 	tooltip?: string;
 }
 
-// Name has to match the one in vscode.d.ts for some reason
-export enum InteractiveSessionVoteDirection {
+export enum ChatAgentVoteDirection {
 	Down = 0,
 	Up = 1
 }
 
 export interface IChatVoteAction {
 	kind: 'vote';
-	direction: InteractiveSessionVoteDirection;
+	direction: ChatAgentVoteDirection;
 	reportIssue?: boolean;
 }
 
