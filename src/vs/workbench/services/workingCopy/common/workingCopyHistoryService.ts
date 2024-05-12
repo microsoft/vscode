@@ -28,7 +28,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { lastOrDefault } from 'vs/base/common/arrays';
+import { distinct, lastOrDefault } from 'vs/base/common/arrays';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 interface ISerializedWorkingCopyHistoryModel {
@@ -357,28 +357,57 @@ export class WorkingCopyHistoryModel {
 		return entries;
 	}
 
-	async moveEntries(targetWorkingCopyResource: URI, source: SaveSource, token: CancellationToken): Promise<void> {
+	async moveEntries(target: WorkingCopyHistoryModel, source: SaveSource, token: CancellationToken): Promise<void> {
 
-		// Ensure model stored so that any pending data is flushed
+		// Ensure source and target models are stored so that any pending data is flushed
+		await target.store(token);
 		await this.store(token);
 
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
-		// Rename existing entries folder
+		// Move all entries into the target folder so that we preserve
+		// any existing history entries that might already be present
 		const sourceHistoryEntriesFolder = assertIsDefined(this.historyEntriesFolder);
-		const targetHistoryFolder = this.toHistoryEntriesFolder(this.historyHome, targetWorkingCopyResource);
+		const targetHistoryEntriesFolder = assertIsDefined(target.historyEntriesFolder);
 		try {
-			await this.fileService.move(sourceHistoryEntriesFolder, targetHistoryFolder, true);
+			for (const entry of this.entries) {
+				await this.fileService.move(entry.location, joinPath(targetHistoryEntriesFolder, entry.id), true);
+			}
+			await this.fileService.del(sourceHistoryEntriesFolder, { recursive: true });
 		} catch (error) {
-			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
-				this.traceError(error);
+			if (!this.isFileNotFound(error)) {
+				try {
+					// In case of an error (unless not found), fallback to moving the entire folder
+					await this.fileService.move(sourceHistoryEntriesFolder, targetHistoryEntriesFolder, true);
+				} catch (error) {
+					if (!this.isFileNotFound(error)) {
+						this.traceError(error);
+					}
+				}
 			}
 		}
 
+		// Merge our entries with target entries before updating associated working copy
+		const allEntries = distinct([...this.entries, ...target.entries], entry => entry.id).sort((entryA, entryB) => entryA.timestamp - entryB.timestamp);
+
 		// Update our associated working copy
-		this.setWorkingCopy(targetWorkingCopyResource);
+		this.setWorkingCopy(assertIsDefined(target.workingCopyResource));
+
+		// Restore our entries and ensure correct metadata
+		for (const entry of allEntries) {
+			this.entries.push({
+				id: entry.id,
+				location: joinPath(targetHistoryEntriesFolder, entry.id),
+				source: entry.source,
+				timestamp: entry.timestamp,
+				workingCopy: {
+					resource: assertIsDefined(target.workingCopyResource),
+					name: assertIsDefined(target.workingCopyName)
+				}
+			});
+		}
 
 		// Add entry for the move
 		await this.addEntry(source, undefined, token);
@@ -493,12 +522,11 @@ export class WorkingCopyHistoryModel {
 
 	private async readEntriesFile(): Promise<ISerializedWorkingCopyHistoryModel | undefined> {
 		const historyEntriesListingFile = assertIsDefined(this.historyEntriesListingFile);
-
 		let serializedModel: ISerializedWorkingCopyHistoryModel | undefined = undefined;
 		try {
 			serializedModel = JSON.parse((await this.fileService.readFile(historyEntriesListingFile)).value.toString());
 		} catch (error) {
-			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+			if (!this.isFileNotFound(error)) {
 				this.traceError(error);
 			}
 		}
@@ -516,7 +544,7 @@ export class WorkingCopyHistoryModel {
 		try {
 			rawEntries = (await this.fileService.resolve(historyEntriesFolder, { resolveMetadata: true })).children;
 		} catch (error) {
-			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+			if (!this.isFileNotFound(error)) {
 				this.traceError(error);
 			}
 		}
@@ -530,6 +558,10 @@ export class WorkingCopyHistoryModel {
 			!isEqual(entry.resource, this.historyEntriesListingFile) && // not the listings file
 			historyEntriesNameMatcher.test(entry.name)					// matching our expected file pattern for entries
 		);
+	}
+
+	private isFileNotFound(error: unknown): boolean {
+		return error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 	}
 
 	private traceError(error: Error): void {
@@ -644,14 +676,15 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		return resources;
 	}
 
-	private async doMoveEntries(model: WorkingCopyHistoryModel, source: SaveSource, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<URI> {
+	private async doMoveEntries(source: WorkingCopyHistoryModel, saveSource: SaveSource, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<URI> {
 
 		// Move to target via model
-		await model.moveEntries(targetWorkingCopyResource, source, CancellationToken.None);
+		const target = await this.getModel(targetWorkingCopyResource);
+		await source.moveEntries(target, saveSource, CancellationToken.None);
 
 		// Update model in our map
 		this.models.delete(sourceWorkingCopyResource);
-		this.models.set(targetWorkingCopyResource, model);
+		this.models.set(targetWorkingCopyResource, source);
 
 		return targetWorkingCopyResource;
 	}
