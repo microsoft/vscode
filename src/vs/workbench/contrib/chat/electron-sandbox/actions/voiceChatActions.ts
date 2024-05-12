@@ -888,7 +888,7 @@ class ChatSynthesizerSessions {
 	private async synthesizePendingResponse(session: ITextToSpeechSession, response: IChatResponseModel, token: CancellationToken): Promise<void> {
 		for await (const chunk of this.nextChatResponseChunk(response, token)) {
 			if (token.isCancellationRequested) {
-				break;
+				return;
 			}
 
 			await raceCancellation(session.synthesize(chunk), token);
