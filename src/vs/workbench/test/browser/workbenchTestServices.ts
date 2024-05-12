@@ -884,6 +884,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	groupsView: IEditorGroupsView = undefined!;
 	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: EditorInput;
+	selectedEditors: EditorInput[] = [];
 	previewEditor!: EditorInput;
 	count!: number;
 	stickyCount!: number;
@@ -914,7 +915,6 @@ export class TestEditorGroupView implements IEditorGroupView {
 	onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
 	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
 	onDidActiveEditorChange: Event<IActiveEditorChangeEvent> = Event.None;
-	onDidChangeSelection: Event<EditorInput[]> = Event.None;
 
 	getEditors(_order?: EditorsOrder): readonly EditorInput[] { return []; }
 	findEditors(_resource: URI): readonly EditorInput[] { return []; }
@@ -928,12 +928,11 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isSticky(_editor: EditorInput): boolean { return false; }
 	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
-	selectEditor(_editor: EditorInput): void { }
-	selectEditorsUntil(_editor: EditorInput): void { }
+	selectEditor(_editor: EditorInput, _active?: boolean): void { }
+	selectEditors(_editors: EditorInput[], _activeEditor?: EditorInput): void { }
 	unSelectEditor(_editor: EditorInput): void { }
-	unSelectAllEditors(): void { }
+	unSelectEditors(_editors: EditorInput[]): void { }
 	isSelected(_editor: EditorInput): boolean { return false; }
-	getSelectedEditors(): EditorInput[] { return []; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): boolean { return true; }
 	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): boolean { return true; }

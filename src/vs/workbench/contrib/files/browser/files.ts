@@ -138,7 +138,7 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 	}
 
 	const activeGroup = editorGroupService.activeGroup;
-	const selection = activeGroup.getSelectedEditors();
+	const selection = activeGroup.selectedEditors;
 	if (selection.length) {
 		const selectedResources = selection.map(editor => EditorResourceAccessor.getOriginalUri(editor)).filter(uri => !!uri) as URI[];
 		if (selectedResources.some(r => r.toString() === resource?.toString())) {

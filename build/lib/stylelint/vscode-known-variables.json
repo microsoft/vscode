@@ -648,6 +648,8 @@
 		"--vscode-tab-activeBorder",
 		"--vscode-tab-activeBorderTop",
 		"--vscode-tab-selectedBorderTop",
+		"--vscode-tab-selectedBackground",
+		"--vscode-tab-selectedForeground",
 		"--vscode-tab-activeForeground",
 		"--vscode-tab-activeModifiedBorder",
 		"--vscode-tab-border",

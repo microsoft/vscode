@@ -56,7 +56,6 @@ import { EditorTitleControl } from 'vs/workbench/browser/parts/editor/editorTitl
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { BugIndicatingError } from 'vs/base/common/errors';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -109,9 +108,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly _onWillOpenEditor = this._register(new Emitter<IEditorWillOpenEvent>());
 	readonly onWillOpenEditor = this._onWillOpenEditor.event;
-
-	private readonly _onDidChangeSelection = this._register(new Emitter<EditorInput[]>());
-	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	//#endregion
 
@@ -317,6 +313,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
 					break;
+				case GroupModelChangeKind.EDITOR_SELECTION:
+					multipleEditorsSelectedContext.set(this.model.selectedEditors.length > 1);
+					twoEditorsSelectedContext.set(this.model.selectedEditors.length === 2);
+					break;
 			}
 
 			// Group editors count context
@@ -324,10 +324,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		};
 
 		this._register(this.onDidModelChange(e => updateGroupContextKeys(e)));
-		this._register(this.onDidChangeSelection(selectedEditors => {
-			multipleEditorsSelectedContext.set(selectedEditors.length > 1);
-			twoEditorsSelectedContext.set(selectedEditors.length === 2);
-		}));
 
 		// Track the active editor and update context key that reflects
 		// the dirty state of this editor
@@ -598,6 +594,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			case GroupModelChangeKind.EDITOR_LABEL:
 				this.onDidChangeEditorLabel(e.editor);
 				break;
+			case GroupModelChangeKind.EDITOR_SELECTION:
+				this.onDidChangeEditorSelection(e.editor);
+				break;
 		}
 	}
 
@@ -828,6 +827,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleControl.updateEditorLabel(editor);
 	}
 
+	private onDidChangeEditorSelection(editor: EditorInput): void {
+
+		// Forward to title control
+		this.titleControl.setEditorSelections([editor], this.model.isSelected(editor));
+	}
+
 	private onDidVisibilityChange(visible: boolean): void {
 
 		// Forward to active editor pane
@@ -904,11 +909,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('active', isActive);
 		this.element.classList.toggle('inactive', !isActive);
 
-		// Only active group can have selected editors
-		if (!isActive) {
-			this.unSelectAllEditors();
-		}
-
 		// Update title control
 		this.titleControl.setActive(isActive);
 
@@ -951,6 +951,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.activeEditor;
 	}
 
+	get selectedEditors(): EditorInput[] {
+		return this.model.selectedEditors;
+	}
+
 	get previewEditor(): EditorInput | null {
 		return this.model.previewEditor;
 	}
@@ -963,6 +967,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isSticky(editorOrIndex);
 	}
 
+	isSelected(editor: EditorInput): boolean {
+		return this.model.isSelected(editor);
+	}
+
 	isTransient(editorOrIndex: EditorInput | number): boolean {
 		return this.model.isTransient(editorOrIndex);
 	}
@@ -971,124 +979,29 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isActive(editor);
 	}
 
-	private selectedEditors: EditorInput[] = [];
-	private selectedEditorAnchors: EditorInput[] = [];
-	selectEditor(editor: EditorInput | undefined = this.activeEditor || undefined): void {
-		if (!editor) {
+	selectEditor(editor: EditorInput, active?: boolean): void {
+		if (!this.model.selectEditor(editor)) {
 			return;
 		}
 
-		const addedSelection = this.doSelectEditor(editor);
-		if (!addedSelection) {
-			return;
-		}
-		this.selectedEditorAnchors.push(editor);
-
-		this.openEditor(editor, { activation: EditorActivation.ACTIVATE }, { skipTitleUpdate: true });
 		this.titleControl.setEditorSelections([editor], true);
-		this._onDidChangeSelection.fire(this.selectedEditors);
 	}
 
-	private doSelectEditor(editor: EditorInput): boolean {
-		if (this.selectedEditors.includes(editor)) {
-			return false;
-		}
-
-		const editorIndex = this.model.indexOf(editor);
-		if (editorIndex === -1) {
-			throw new BugIndicatingError();
-		}
-
-		for (let i = 0; i < this.selectedEditors.length; i++) {
-			const currentSelectedEditorIndex = this.model.indexOf(this.selectedEditors[i]);
-			if (currentSelectedEditorIndex > editorIndex) {
-				this.selectedEditors.splice(i, 0, editor);
-				return true;
-			}
-		}
-
-		this.selectedEditors.push(editor);
-		return true;
+	selectEditors(editors: EditorInput[], activeEditor?: EditorInput): void {
+		editors.forEach(editor => this.model.selectEditor(editor, editor === activeEditor));
+		this.titleControl.setEditorSelections(editors, true);
 	}
 
-	selectEditorsUntil(editor: EditorInput): void {
-		const editorIndex = this.model.indexOf(editor);
-		if (editorIndex === -1) {
-			throw new BugIndicatingError();
-		}
-
-		const hadAnchor = this.selectedEditorAnchors.length > 0;
-		const anchorEditor = hadAnchor ? this.selectedEditorAnchors[this.selectedEditorAnchors.length - 1] : this.activeEditor;
-		if (!anchorEditor) {
-			throw new BugIndicatingError();
-		}
-
-		const anchorIndex = this.model.indexOf(anchorEditor);
-		if (anchorIndex === -1) {
-			throw new BugIndicatingError();
-		}
-
-		// Unselect editors on other side of anchor in relation to the target
-		let currentIndex = anchorIndex;
-		while (hadAnchor && currentIndex >= 0 && currentIndex <= this.model.count - 1) {
-			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
-
-			const currentEditor = this.model.getEditorByIndex(currentIndex);
-			if (!currentEditor || !this.isSelected(currentEditor)) {
-				break;
-			}
-
-			this.unSelectEditor(currentEditor);
-		}
-
-		// Select editors between anchor and target
-		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
-		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
-
-		const selectedEditors = this.model.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
-		selectedEditors.forEach(editor => this.doSelectEditor(editor));
-
-		// Create an anchor if we did not have one before
-		if (!hadAnchor) {
-			this.selectedEditorAnchors.push(anchorEditor);
-		}
-
-		this.openEditor(editor, { activation: EditorActivation.ACTIVATE }, { skipTitleUpdate: true });
-		this.titleControl.setEditorSelections(selectedEditors, true);
-		this._onDidChangeSelection.fire(this.selectedEditors);
-	}
-
-	unSelectEditor(editor: EditorInput | undefined = this.activeEditor || undefined): void {
-		if (!editor) {
-			return;
-		}
-
-		this.selectedEditors = this.selectedEditors.filter(selectedEditor => selectedEditor !== editor);
-		this.selectedEditorAnchors = this.selectedEditorAnchors.filter(selectedEditor => selectedEditor !== editor);
-
-		// Make sure active editor is part of remaining selections
-		if (this.selectedEditors.length > 0 && this.activeEditor === editor) {
-			this.openEditor(this.selectedEditors[0], { activation: EditorActivation.ACTIVATE }, { skipTitleUpdate: true });
-		}
-
+	unSelectEditor(editor: EditorInput): void {
+		this.model.unselectEditor(editor);
 		this.titleControl.setEditorSelections([editor], false);
-		this._onDidChangeSelection.fire(this.selectedEditors);
 	}
 
-	unSelectAllEditors(): void {
-		const previouslySelected = this.selectedEditors;
-		this.selectedEditors = [];
-		this.selectedEditorAnchors = [];
-		this.titleControl.setEditorSelections(previouslySelected, false);
-		this._onDidChangeSelection.fire([]);
-	}
-
-	isSelected(editor: EditorInput): boolean {
-		return this.selectedEditors.includes(editor);
-	}
-
-	getSelectedEditors(): EditorInput[] {
-		return [...this.selectedEditors];
+	unSelectEditors(editors: EditorInput[]): void {
+		for (const editor of editors) {
+			this.model.unselectEditor(editor);
+		}
+		this.titleControl.setEditorSelections(editors, false);
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
@@ -1274,20 +1187,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			restoreGroup = !activateGroup;
 		}
 
-		const indexOfEditor = this.model.indexOf(editor);
-
 		// Actually move the editor if a specific index is provided and we figure
 		// out that the editor is already opened at a different index. This
 		// ensures the right set of events are fired to the outside.
 		if (typeof openEditorOptions.index === 'number') {
+			const indexOfEditor = this.model.indexOf(editor);
 			if (indexOfEditor !== -1 && indexOfEditor !== openEditorOptions.index) {
 				this.doMoveEditorInsideGroup(editor, openEditorOptions);
 			}
-		}
-
-		// If a new editor is being opened, unselect all editors
-		if (indexOfEditor === -1) {
-			this.unSelectAllEditors();
 		}
 
 		// Update model and make sure to continue to use the editor we get from
@@ -1309,11 +1216,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Show editor
 		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
-
-		// When setting an editor active which is not part of a selection, make sure to unselect all
-		if (!!openEditorOptions.active && this.getSelectedEditors().length > 0 && !this.isSelected(openedEditor)) {
-			this.unSelectAllEditors();
-		}
 
 		// Finally make sure the group is active or restored as instructed
 		if (activateGroup) {

@@ -308,11 +308,11 @@ class DropOverlay extends Themable {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 			if (Array.isArray(data)) {
 				const draggedEditors = data;
-				const draggedEditor = data[0].identifier;
+				const firstDraggedEditor = data[0].identifier;
 
-				const sourceGroup = this.editorGroupService.getGroup(draggedEditor.groupId);
+				const sourceGroup = this.editorGroupService.getGroup(firstDraggedEditor.groupId);
 				if (sourceGroup) {
-					const copyEditor = this.isCopyOperation(event, draggedEditor);
+					const copyEditor = this.isCopyOperation(event, firstDraggedEditor);
 					let targetGroup: IEditorGroup | undefined = undefined;
 
 					// Optimization: if we move the last editor of an editor group
@@ -329,12 +329,12 @@ class DropOverlay extends Themable {
 							return;
 						}
 
-						const editors = draggedEditors.map(de => (
+						const editors = draggedEditors.map(draggedEditor => (
 							{
-								editor: de.identifier.editor,
-								options: fillActiveEditorViewState(sourceGroup, de.identifier.editor, {
+								editor: draggedEditor.identifier.editor,
+								options: fillActiveEditorViewState(sourceGroup, draggedEditor.identifier.editor, {
 									pinned: true,										// always pin dropped editor
-									sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
+									sticky: sourceGroup.isSticky(firstDraggedEditor.editor),	// preserve sticky state
 								})
 							}
 						));

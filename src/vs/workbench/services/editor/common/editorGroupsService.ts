@@ -650,6 +650,12 @@ export interface IEditorGroup {
 	readonly activeEditor: EditorInput | null;
 
 	/**
+	 * All editors that are currently selected in this group.
+	 * The active editor is always selected.
+	 */
+	readonly selectedEditors: EditorInput[];
+
+	/**
 	 * The editor in the group that is in preview mode if any. There can
 	 * only ever be one editor in preview mode.
 	 */
@@ -768,14 +774,17 @@ export interface IEditorGroup {
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
 
 	/**
-	 * Selects the editor in the group. If the editor is not specified, selects the active editor.
+	 * Selects the editor in the group. If active is set to true,
+	 * it will be the active editor in the group.
 	 */
-	selectEditor(editor?: EditorInput): void;
+	selectEditor(editor: EditorInput, active?: boolean): void;
+
 
 	/**
-	 * Selects the editor from the last selected editor until the provided editor.
+	 * Selects the editors in the group. If activeEditor is provided,
+	 * it will be the active editor in the group.
 	 */
-	selectEditorsUntil(editor: EditorInput): void;
+	selectEditors(editors: EditorInput[], activeEditor?: EditorInput): void;
 
 	/**
 	 * Unselects the editor in the group. If the editor is not specified, unselects the active editor.
@@ -783,19 +792,14 @@ export interface IEditorGroup {
 	unSelectEditor(editor: EditorInput): void;
 
 	/**
-	 * Unselects all editors in the group
+	 * Unselects the editors in the group. If the editor is not specified, unselects the active editor.
 	 */
-	unSelectAllEditors(): void;
+	unSelectEditors(editors: EditorInput[]): void;
 
 	/**
 	 * Whether the editor is selected in the group.
 	 */
 	isSelected(editor: EditorInput): boolean;
-
-	/**
-	 * Returns all selected editors in the group.
-	 */
-	getSelectedEditors(): EditorInput[];
 
 	/**
 	 * Find out if a certain editor is included in the group.

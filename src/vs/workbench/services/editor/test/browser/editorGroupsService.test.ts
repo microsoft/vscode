@@ -1553,7 +1553,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isSelected(input2), false);
 		assert.strictEqual(group.isSelected(input3), false);
 
-		assert.deepStrictEqual(group.getSelectedEditors(), []);
+		assert.deepStrictEqual(group.selectedEditors, []);
 
 		group.selectEditor(input1);
 		group.selectEditor(input3);
@@ -1563,7 +1563,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isSelected(input2), false);
 		assert.strictEqual(group.isSelected(input3), true);
 
-		assert.deepStrictEqual(group.getSelectedEditors(), [input1, input3]);
+		assert.deepStrictEqual(group.selectedEditors, [input1, input3]);
 
 		group.unSelectEditor(input1);
 
@@ -1572,7 +1572,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isSelected(input2), false);
 		assert.strictEqual(group.isSelected(input3), true);
 
-		assert.deepStrictEqual(group.getSelectedEditors(), [input3]);
+		assert.deepStrictEqual(group.selectedEditors, [input3]);
 
 		group.unSelectEditor(input3);
 
@@ -1581,33 +1581,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isSelected(input2), false);
 		assert.strictEqual(group.isSelected(input3), false);
 
-		assert.deepStrictEqual(group.getSelectedEditors(), []);
-	});
-
-	test('selection: selectUntil, unselectAll', async () => {
-		const [part] = await createPart();
-		const group = part.activeGroup;
-
-		const input1 = createTestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = createTestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = createTestFileEditorInput(URI.file('foo/bar4'), TEST_EDITOR_INPUT_ID);
-		const input5 = createTestFileEditorInput(URI.file('foo/bar5'), TEST_EDITOR_INPUT_ID);
-		const input6 = createTestFileEditorInput(URI.file('foo/bar6'), TEST_EDITOR_INPUT_ID);
-		const input7 = createTestFileEditorInput(URI.file('foo/bar7'), TEST_EDITOR_INPUT_ID);
-
-		await group.openEditors([input1, input2, input3, input4, input5, input6, input7].map(editor => ({ editor, options: { pinned: true } })));
-
-		group.selectEditor(input1);
-		group.selectEditorsUntil(input3);
-		assert.deepStrictEqual(group.getSelectedEditors(), [input1, input2, input3]);
-
-		group.selectEditor(input5);
-		group.selectEditorsUntil(input7);
-		assert.deepStrictEqual(group.getSelectedEditors(), [input1, input2, input3, input5, input6, input7]);
-
-		group.unSelectAllEditors();
-		assert.deepStrictEqual(group.getSelectedEditors(), []);
+		assert.deepStrictEqual(group.selectedEditors, []);
 	});
 
 	test('moveEditor with context (across groups)', async () => {

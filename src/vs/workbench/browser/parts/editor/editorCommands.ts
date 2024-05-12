@@ -1472,10 +1472,10 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 			if (editorContext && editorContext.editorIndex !== undefined) {
 				const editor = group?.getEditorByIndex(editorContext.editorIndex);
 				if (editor && group.isSelected(editor)) {
-					selectedEditors.push(...group.getSelectedEditors());
+					selectedEditors.push(...group.selectedEditors);
 				}
 			} else {
-				selectedEditors.push(...group.getSelectedEditors());
+				selectedEditors.push(...group.selectedEditors);
 			}
 			if (selectedEditors.length > 1) {
 				return selectedEditors.map(se => ({ groupId: group.id, editorIndex: group.getIndexOfEditor(se) }));

@@ -56,6 +56,7 @@ import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -683,10 +684,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	setEditorSelections(editors: EditorInput[], selected: boolean): void {
-		this.redrawTabSelections();
-	}
-
-	private redrawTabSelections(): void {
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 		});
@@ -863,6 +860,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return this.groupView.getIndexOfEditor(editor);
 	}
 
+	private lastSelectedEditor: EditorInput | undefined;
 	private registerTabListeners(tab: HTMLElement, tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
 		const disposables = new DisposableStore();
 
@@ -885,12 +883,22 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const editor = this.tabsModel.getEditorByIndex(tabIndex);
 			if (editor) {
 				if (e.shiftKey) {
-					this.groupView.selectEditorsUntil(editor);
+					let anchor;
+					if (this.lastSelectedEditor && this.groupView.isSelected(this.lastSelectedEditor)) {
+						// The last selected editor is the anchor
+						anchor = this.lastSelectedEditor;
+					} else {
+						// The active editor is the anchor
+						this.lastSelectedEditor = this.groupView.activeEditor!;
+						anchor = this.groupView.activeEditor!;
+					}
+					this.selectEditorsBetween(editor, anchor);
 				} else if (e.ctrlKey) {
 					if (this.groupView.isSelected(editor)) {
 						this.groupView.unSelectEditor(editor);
 					} else {
-						this.groupView.selectEditor(editor);
+						this.groupView.selectEditor(editor, true);
+						this.lastSelectedEditor = editor;
 					}
 				} else {
 					// Even if focus is preserved make sure to activate the group.
@@ -937,8 +945,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				return; // not when clicking on actions
 			}
 
-			if (!e.ctrlKey && !e.shiftKey && this.groupView.getSelectedEditors().length > 0) {
-				this.groupView.unSelectAllEditors();
+			if (!e.ctrlKey && !e.shiftKey && this.groupView.selectedEditors.length > 1) {
+				this.unselectAllEditors();
 			}
 
 		}));
@@ -1067,7 +1075,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				isNewWindowOperation = this.isNewWindowOperation(e);
 
-				const selectedEditors = this.groupView.getSelectedEditors();
+				const selectedEditors = this.groupView.selectedEditors;
 
 				const draggedEditors = [];
 				const isMultiSelected = this.groupView.isSelected(editor) && selectedEditors.length > 1;
@@ -1082,7 +1090,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				if (e.dataTransfer) {
 					e.dataTransfer.effectAllowed = 'copyMove';
 					if (isMultiSelected) {
-						const label = `${editor.getName()} + ${this.groupView.getSelectedEditors().length - 1}`;
+						const label = `${editor.getName()} + ${selectedEditors.length - 1}`;
 						setupMultiselectDragLabel(label, e.dataTransfer, tab);
 					} else {
 						e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
@@ -1269,6 +1277,42 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const tabAfter = isLeftSideOfTab ? targetTab : targetTab.nextElementSibling;
 
 		return { leftElement: tabBefore as HTMLElement, rightElement: tabAfter as HTMLElement };
+	}
+
+	private selectEditorsBetween(target: EditorInput, anchor: EditorInput): void {
+		const editorIndex = this.groupView.getIndexOfEditor(target);
+		if (editorIndex === -1) {
+			throw new BugIndicatingError();
+		}
+
+		const anchorIndex = this.groupView.getIndexOfEditor(anchor);
+		if (anchorIndex === -1) {
+			throw new BugIndicatingError();
+		}
+
+		// Unselect editors on other side of anchor in relation to the target
+		let currentIndex = anchorIndex;
+		while (currentIndex >= 0 && currentIndex <= this.groupView.count - 1) {
+			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
+
+			const currentEditor = this.groupView.getEditorByIndex(currentIndex);
+			if (!currentEditor || !this.groupView.isSelected(currentEditor)) {
+				break;
+			}
+
+			this.groupView.unSelectEditor(currentEditor);
+		}
+
+		// Select editors between anchor and target
+		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
+		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
+
+		const selectedEditors = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
+		this.groupView.selectEditors(selectedEditors, target);
+	}
+
+	private unselectAllEditors(): void {
+		this.groupView.unSelectEditors(this.groupView.selectedEditors.filter(editor => !this.groupView.isActive(editor)));
 	}
 
 	private computeTabLabels(): void {
@@ -1551,50 +1595,39 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const isTabActive = this.tabsModel.isActive(editor);
 		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
 
-		this.doRedrawTabActive(isGroupActive, editor, tabContainer, tabActionBar);
-		this.redrawTabBorderTop(isGroupActive, !hasModifiedBorderTop, editor, tabContainer);
+		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabActionBar);
 	}
 
-	private doRedrawTabActive(isGroupActive: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
+	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 
 		const isActive = this.tabsModel.isActive(editor);
+		const isSelected = this.groupView.isSelected(editor); // TODO, move to model
 
 		tabContainer.classList.toggle('active', isActive);
+		tabContainer.classList.toggle('selected', isSelected);
 		tabContainer.setAttribute('aria-selected', isActive ? 'true' : 'false');
 		tabContainer.tabIndex = isActive ? 0 : -1; // Only active tab can be focused into
 		tabActionBar.setFocusable(isActive);
 
+		// Set border BOTTOM if theme defined color
 		if (isActive) {
-			// Set border BOTTOM if theme defined color
 			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
 			tabContainer.classList.toggle('tab-border-bottom', !!activeTabBorderColorBottom);
 			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom?.toString() ?? '');
 		}
-	}
 
-	private redrawTabBorderTop(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement): void {
-		const isSelected = this.groupView.isSelected(editor);
-		tabContainer.classList.toggle('editor-selected', isSelected);
+		// Set border TOP if theme defined color
+		let color: string | null = null;
+		if (allowBorderTop) {
+			if (isActive) {
+				color = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
+			}
 
-		// Set border top if selected
-		if (isSelected) {
-			const selectedTabBorderColor = this.getColor(TAB_SELECTED_BORDER_TOP);
-			this.setTabBorderTop(tabContainer, isSelected && selectedTabBorderColor ? selectedTabBorderColor : undefined);
-			return;
+			if (color === null && isSelected) {
+				color = this.getColor(TAB_SELECTED_BORDER_TOP);
+			}
 		}
 
-		// Set border top if theme defined color
-		const isActive = this.tabsModel.isActive(editor);
-		if (isActive) {
-			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : undefined;
-			this.setTabBorderTop(tabContainer, isActive && activeTabBorderColorTop ? activeTabBorderColorTop : undefined);
-			return;
-		}
-
-		this.setTabBorderTop(tabContainer, undefined);
-	}
-
-	private setTabBorderTop(tabContainer: HTMLElement, color: string | undefined): void {
 		tabContainer.classList.toggle('tab-border-top', !!color);
 		tabContainer.style.setProperty('--tab-border-top-color', color ?? '');
 	}
@@ -2279,7 +2312,7 @@ registerThemingParticipant((theme, collector) => {
 	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
 	if (tabHoverBackground) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:not(.selected):hover {
 				background-color: ${tabHoverBackground} !important;
 			}
 		`);
@@ -2288,7 +2321,7 @@ registerThemingParticipant((theme, collector) => {
 	const tabUnfocusedHoverBackground = theme.getColor(TAB_UNFOCUSED_HOVER_BACKGROUND);
 	if (tabUnfocusedHoverBackground) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.selected):hover  {
 				background-color: ${tabUnfocusedHoverBackground} !important;
 			}
 		`);
@@ -2298,7 +2331,7 @@ registerThemingParticipant((theme, collector) => {
 	const tabHoverForeground = theme.getColor(TAB_HOVER_FOREGROUND);
 	if (tabHoverForeground) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:not(.selected):hover  {
 				color: ${tabHoverForeground} !important;
 			}
 		`);
@@ -2307,7 +2340,7 @@ registerThemingParticipant((theme, collector) => {
 	const tabUnfocusedHoverForeground = theme.getColor(TAB_UNFOCUSED_HOVER_FOREGROUND);
 	if (tabUnfocusedHoverForeground) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.selected):hover  {
 				color: ${tabUnfocusedHoverForeground} !important;
 			}
 		`);
