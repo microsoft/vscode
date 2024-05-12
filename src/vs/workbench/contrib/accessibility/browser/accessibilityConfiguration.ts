@@ -682,7 +682,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 				},
 				[AccessibilityVoiceSettingId.AutoSynthesize]: {
 					'type': 'boolean',
-					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud to speech when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used to input text."),
+					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
 					'default': this.productService.quality !== 'stable', // TODO@bpasero decide on a default
 					'tags': ['accessibility']
 				}
