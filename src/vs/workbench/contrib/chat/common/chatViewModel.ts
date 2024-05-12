@@ -98,6 +98,7 @@ export interface IChatProgressMessageRenderData {
 export interface IChatTaskRenderData {
 	task: IChatTask;
 	isSettled: boolean;
+	progressLength: number;
 }
 
 export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEditGroup | IChatConfirmation | IChatTaskRenderData | IChatWarningMessage;
