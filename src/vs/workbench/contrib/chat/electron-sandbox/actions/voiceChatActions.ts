@@ -875,14 +875,14 @@ class ChatSynthesizerSessions {
 		}
 
 		if (response.isComplete) {
-			this.synthesizeCompletedResponse(session, response);
+			return this.synthesizeCompletedResponse(session, response);
 		} else {
-			this.synthesizePendingResponse(session, response, activeSession.token);
+			return this.synthesizePendingResponse(session, response, activeSession.token);
 		}
 	}
 
-	private synthesizeCompletedResponse(session: ITextToSpeechSession, response: IChatResponseModel): void {
-		session.synthesize(response.response.asString());
+	private synthesizeCompletedResponse(session: ITextToSpeechSession, response: IChatResponseModel): Promise<void> {
+		return session.synthesize(response.response.asString());
 	}
 
 	private async synthesizePendingResponse(session: ITextToSpeechSession, response: IChatResponseModel, token: CancellationToken): Promise<void> {
