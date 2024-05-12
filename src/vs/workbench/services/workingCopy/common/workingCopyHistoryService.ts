@@ -43,7 +43,6 @@ interface ISerializedWorkingCopyHistoryModelEntry {
 	readonly source?: SaveSource;
 }
 
-
 export interface IWorkingCopyHistoryModelOptions {
 
 	/**
@@ -359,14 +358,6 @@ export class WorkingCopyHistoryModel {
 
 	async moveEntries(target: WorkingCopyHistoryModel, source: SaveSource, token: CancellationToken): Promise<void> {
 
-		// Ensure source and target models are stored so that any pending data is flushed
-		await target.store(token);
-		await this.store(token);
-
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-
 		// Move all entries into the target folder so that we preserve
 		// any existing history entries that might already be present
 		const sourceHistoryEntriesFolder = assertIsDefined(this.historyEntriesFolder);
@@ -393,9 +384,11 @@ export class WorkingCopyHistoryModel {
 		const allEntries = distinct([...this.entries, ...target.entries], entry => entry.id).sort((entryA, entryB) => entryA.timestamp - entryB.timestamp);
 
 		// Update our associated working copy
-		this.setWorkingCopy(assertIsDefined(target.workingCopyResource));
+		const targetWorkingCopyResource = assertIsDefined(target.workingCopyResource);
+		this.setWorkingCopy(targetWorkingCopyResource);
 
 		// Restore our entries and ensure correct metadata
+		const targetWorkingCopyName = assertIsDefined(target.workingCopyName);
 		for (const entry of allEntries) {
 			this.entries.push({
 				id: entry.id,
@@ -403,8 +396,8 @@ export class WorkingCopyHistoryModel {
 				source: entry.source,
 				timestamp: entry.timestamp,
 				workingCopy: {
-					resource: assertIsDefined(target.workingCopyResource),
-					name: assertIsDefined(target.workingCopyName)
+					resource: targetWorkingCopyResource,
+					name: targetWorkingCopyName
 				}
 			});
 		}
