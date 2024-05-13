@@ -246,12 +246,12 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The start and end index of the variable in the {@link ChatRequest.prompt prompt}.
+		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the
 		 *
 		 * *Note* that the indices take the leading `#`-character into account which means they can
 		 * used to modify the prompt as-is.
 		 */
-		readonly range: [start: number, end: number];
+		readonly range?: [start: number, end: number];
 
 		/**
 		 * A description of this value that could be used in an LLM prompt.
@@ -285,9 +285,9 @@ declare module 'vscode' {
 		 * The list of references and their values that are referenced in the prompt.
 		 *
 		 * *Note* that the prompt contains varibale references as authored and that it is up to the participant
-		 * to further modify the prompt, for instance by inlining variable values or creating links to
+		 * to further modify the prompt, for instance by inlining reference values or creating links to
 		 * headings which contain the resolved values. References are sorted in reverse by their range
-		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
+		 * in the prompt. That means the last reference in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
 		readonly references: readonly ChatValueReference[];

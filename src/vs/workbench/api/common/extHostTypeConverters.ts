@@ -2574,7 +2574,7 @@ export namespace ChatAgentValueReference {
 		return {
 			id: variable.id,
 			name: variable.name,
-			range: (variable.range && [variable.range.start, variable.range.endExclusive])!, // TODO
+			range: variable.range && [variable.range.start, variable.range.endExclusive],
 			value: isUriComponents(value) ? URI.revive(value) : value,
 			modelDescription: variable.modelDescription
 		};
