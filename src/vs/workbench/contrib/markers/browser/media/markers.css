@@ -26,6 +26,14 @@
 	display: none;
 }
 
+.markers-panel  .markers-panel-container .codicon.codicon-light-bulb {
+	color:  var(--vscode-editorLightBulb-foreground);
+}
+
+.markers-panel  .markers-panel-container .codicon.codicon-lightbulb-autofix {
+	color:  var(--vscode-editorLightBulbAutoFix-foreground);
+}
+
 .markers-panel .markers-panel-container .tree-container.hidden {
 	display: none;
 	visibility: hidden;

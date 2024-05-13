@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -57,6 +57,8 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 			}
 			this._checkForUnusualLineTerminators();
 		}));
+
+		this._checkForUnusualLineTerminators();
 	}
 
 	private async _checkForUnusualLineTerminators(): Promise<void> {
@@ -99,8 +101,8 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 				title: nls.localize('unusualLineTerminators.title', "Unusual Line Terminators"),
 				message: nls.localize('unusualLineTerminators.message', "Detected unusual line terminators"),
 				detail: nls.localize('unusualLineTerminators.detail', "The file '{0}' contains one or more unusual line terminator characters, like Line Separator (LS) or Paragraph Separator (PS).\n\nIt is recommended to remove them from the file. This can be configured via `editor.unusualLineTerminators`.", basename(model.uri)),
-				primaryButton: nls.localize('unusualLineTerminators.fix', "Remove Unusual Line Terminators"),
-				secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
+				primaryButton: nls.localize({ key: 'unusualLineTerminators.fix', comment: ['&& denotes a mnemonic'] }, "&&Remove Unusual Line Terminators"),
+				cancelButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
 			});
 		} finally {
 			this._isPresentingDialog = false;
@@ -116,4 +118,4 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 	}
 }
 
-registerEditorContribution(UnusualLineTerminatorsDetector.ID, UnusualLineTerminatorsDetector);
+registerEditorContribution(UnusualLineTerminatorsDetector.ID, UnusualLineTerminatorsDetector, EditorContributionInstantiation.AfterFirstRender);

@@ -7,7 +7,7 @@ import { app, BrowserWindow, Event as IpcEvent } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
-import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -15,6 +15,7 @@ import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/pla
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
+import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 
 export const ID = 'diagnosticsMainService';
 export const IDiagnosticsMainService = createDecorator<IDiagnosticsMainService>(ID);
@@ -88,10 +89,16 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 			}
 		}
 
+		const pidToNames: IProcessDiagnostics[] = [];
+		for (const { pid, name } of UtilityProcess.getAll()) {
+			pidToNames.push({ pid, name });
+		}
+
 		return {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
+			pidToNames,
 			screenReader: !!app.accessibilitySupportEnabled,
 			gpuFeatureStatus: app.getGPUFeatureStatus()
 		};
@@ -106,6 +113,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 
 	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowDiagnostics {
 		return {
+			id: window.id,
 			pid: window.webContents.getOSProcessId(),
 			title: window.getTitle(),
 			folderURIs,

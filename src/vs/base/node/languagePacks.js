@@ -108,15 +108,24 @@
 		 * @param {string | undefined} commit
 		 * @param {string} userDataPath
 		 * @param {string} metaDataFile
-		 * @param {string | undefined} locale
+		 * @param {string} locale
+		 * @param {string} osLocale
+		 * @returns {Promise<import('./languagePacks').NLSConfiguration>}
 		 */
-		function getNLSConfiguration(commit, userDataPath, metaDataFile, locale) {
+		function getNLSConfiguration(commit, userDataPath, metaDataFile, locale, osLocale) {
+			const defaultResult = function (locale) {
+				perf.mark('code/didGenerateNls');
+				return Promise.resolve({ locale, osLocale, availableLanguages: {} });
+			};
+
+			perf.mark('code/willGenerateNls');
+
 			if (locale === 'pseudo') {
-				return Promise.resolve({ locale: locale, availableLanguages: {}, pseudo: true });
+				return Promise.resolve({ locale, osLocale, availableLanguages: {}, pseudo: true });
 			}
 
 			if (process.env['VSCODE_DEV']) {
-				return Promise.resolve({ locale: locale, availableLanguages: {} });
+				return Promise.resolve({ locale, osLocale, availableLanguages: {} });
 			}
 
 			// We have a built version so we have extracted nls file. Try to find
@@ -125,17 +134,11 @@
 			// Check if we have an English or English US locale. If so fall to default since that is our
 			// English translation (we don't ship *.nls.en.json files)
 			if (locale && (locale === 'en' || locale === 'en-us')) {
-				return Promise.resolve({ locale: locale, availableLanguages: {} });
+				return Promise.resolve({ locale, osLocale, availableLanguages: {} });
 			}
 
 			const initialLocale = locale;
 
-			perf.mark('code/willGenerateNls');
-
-			const defaultResult = function (locale) {
-				perf.mark('code/didGenerateNls');
-				return Promise.resolve({ locale: locale, availableLanguages: {} });
-			};
 			try {
 				if (!commit) {
 					return defaultResult(initialLocale);
@@ -144,10 +147,11 @@
 					if (!configs) {
 						return defaultResult(initialLocale);
 					}
-					locale = resolveLanguagePackLocale(configs, locale);
-					if (!locale) {
+					const resolvedLocale = resolveLanguagePackLocale(configs, locale);
+					if (!resolvedLocale) {
 						return defaultResult(initialLocale);
 					}
+					locale = resolvedLocale;
 					const packConfig = configs[locale];
 					let mainPack;
 					if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
@@ -164,6 +168,7 @@
 						const corruptedFile = path.join(cacheRoot, 'corrupted.info');
 						const result = {
 							locale: initialLocale,
+							osLocale,
 							availableLanguages: { '*': locale },
 							_languagePackId: packId,
 							_translationsConfigFile: translationsConfigFile,

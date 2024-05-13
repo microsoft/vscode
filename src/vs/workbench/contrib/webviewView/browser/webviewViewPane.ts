@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, findParentWithClass } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, EventType, findParentWithClass, getWindow } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { generateUuid } from 'vs/base/common/uuid';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -21,15 +19,17 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { ViewPane, ViewPaneShowActions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewBadge, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewBadge, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 declare const ResizeObserver: any;
 
@@ -58,7 +58,7 @@ export class WebviewViewPane extends ViewPane {
 	private setTitle: string | undefined;
 
 	private badge: IViewBadge | undefined;
-	private activity: IDisposable | undefined;
+	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly memento: Memento;
 	private readonly viewState: MementoObject;
@@ -75,6 +75,7 @@ export class WebviewViewPane extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IActivityService private readonly activityService: IActivityService,
@@ -85,7 +86,7 @@ export class WebviewViewPane extends ViewPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
 	) {
-		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.ViewTitle, showActions: ViewPaneShowActions.WhenExpanded }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.extensionId = options.fromExtensionId;
 		this.defaultTitle = this.title;
 
@@ -123,7 +124,7 @@ export class WebviewViewPane extends ViewPane {
 		this._webview.value?.focus();
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._container = container;
@@ -161,7 +162,7 @@ export class WebviewViewPane extends ViewPane {
 	private updateTreeVisibility() {
 		if (this.isBodyVisible()) {
 			this.activate();
-			this._webview.value?.claim(this, undefined);
+			this._webview.value?.claim(this, getWindow(this.element), undefined);
 		} else {
 			this._webview.value?.release(this);
 		}
@@ -174,12 +175,11 @@ export class WebviewViewPane extends ViewPane {
 
 		this._activated = true;
 
-		const webviewId = generateUuid();
 		const origin = this.extensionId ? WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId) : undefined;
 		const webview = this.webviewService.createWebviewOverlay({
-			id: webviewId,
 			origin,
 			providedViewType: this.id,
+			title: this.title,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
 			extension: this.extensionId ? { id: this.extensionId } : undefined
@@ -188,7 +188,7 @@ export class WebviewViewPane extends ViewPane {
 		this._webview.value = webview;
 
 		if (this._container) {
-			this._webview.value?.layoutWebviewOverElement(this._container);
+			this.layoutWebview();
 		}
 
 		this._webviewDisposables.add(toDisposable(() => {
@@ -201,14 +201,14 @@ export class WebviewViewPane extends ViewPane {
 
 		// Re-dispatch all drag events back to the drop target to support view drag drop
 		for (const event of [EventType.DRAG, EventType.DRAG_END, EventType.DRAG_ENTER, EventType.DRAG_LEAVE, EventType.DRAG_START]) {
-			this._webviewDisposables.add(addDisposableListener(this._webview.value.container!, event, e => {
+			this._webviewDisposables.add(addDisposableListener(this._webview.value.container, event, e => {
 				e.preventDefault();
 				e.stopImmediatePropagation();
 				this.dropTargetElement.dispatchEvent(new DragEvent(e.type, e));
 			}));
 		}
 
-		this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
+		this._webviewDisposables.add(new WebviewWindowDragMonitor(getWindow(this.element), () => this._webview.value));
 
 		const source = this._webviewDisposables.add(new CancellationTokenSource());
 
@@ -258,18 +258,13 @@ export class WebviewViewPane extends ViewPane {
 			return;
 		}
 
-		if (this.activity) {
-			this.activity.dispose();
-			this.activity = undefined;
-		}
-
 		this.badge = badge;
 		if (badge) {
 			const activity = {
 				badge: new NumberBadge(badge.value, () => badge.tooltip),
 				priority: 150
 			};
-			this.activityService.showViewActivity(this.id, activity);
+			this.activity.value = this.activityService.showViewActivity(this.id, activity);
 		}
 	}
 
@@ -281,7 +276,7 @@ export class WebviewViewPane extends ViewPane {
 		this.layoutWebview();
 	}
 
-	private layoutWebview(dimension?: Dimension) {
+	private doLayoutWebview(dimension?: Dimension) {
 		const webviewEntry = this._webview.value;
 		if (!this._container || !webviewEntry) {
 			return;
@@ -292,14 +287,17 @@ export class WebviewViewPane extends ViewPane {
 		}
 
 		webviewEntry.layoutWebviewOverElement(this._container, dimension, this._rootContainer);
+	}
 
+	private layoutWebview(dimension?: Dimension) {
+		this.doLayoutWebview(dimension);
 		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
 		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
 		clearTimeout(this._repositionTimeout);
-		this._repositionTimeout = setTimeout(() => this.layoutWebview(), 200);
+		this._repositionTimeout = setTimeout(() => this.doLayoutWebview(dimension), 200);
 	}
 
 	private findRootContainer(container: HTMLElement): HTMLElement | undefined {
-		return withNullAsUndefined(findParentWithClass(container, 'monaco-scrollable-element'));
+		return findParentWithClass(container, 'monaco-scrollable-element') ?? undefined;
 	}
 }

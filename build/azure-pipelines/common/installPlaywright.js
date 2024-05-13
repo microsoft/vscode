@@ -9,3 +9,4 @@ async function install() {
     await installDefaultBrowsersForNpmInstall();
 }
 install();
+//# sourceMappingURL=installPlaywright.js.map

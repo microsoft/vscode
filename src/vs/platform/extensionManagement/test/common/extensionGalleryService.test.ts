@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { isUUID } from 'vs/base/common/uuid';
@@ -24,6 +23,7 @@ import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/com
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -35,7 +35,7 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 }
 
 suite('Extension Gallery Service', () => {
-	const disposables: DisposableStore = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService, productService: IProductService, configurationService: IConfigurationService;
 
 	setup(() => {
@@ -43,14 +43,12 @@ suite('Extension Gallery Service', () => {
 		environmentService = new EnvironmentServiceMock(serviceMachineIdResource);
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider);
-		storageService = new InMemoryStorageService();
+		disposables.add(fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider));
+		storageService = disposables.add(new InMemoryStorageService());
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
-
-	teardown(() => disposables.clear());
 
 	test('marketplace machine id', async () => {
 		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
@@ -73,51 +71,9 @@ suite('Extension Gallery Service', () => {
 		assert.deepStrictEqual(actual, expected);
 	});
 
-	test('sorting single extension version with fallback target platform', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
 	test('sorting single extension version with not compatible target platform', async () => {
 		const actual = [aExtensionVersion('1.1.2', TargetPlatform.DARWIN_ARM64)];
 		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2')];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first with no fallbacks', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.DARWIN_X64), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.DARWIN_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first and fallback at last', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [actual[0], actual[2], actual[1]];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred is not first', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2')];
-		const expected = [actual[1], actual[0], actual[2]];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred is at the end', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64)];
-		const expected = [actual[2], actual[0], actual[1]];
 		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
 		assert.deepStrictEqual(actual, expected);
 	});
@@ -144,8 +100,8 @@ suite('Extension Gallery Service', () => {
 	});
 
 	test('sorting multiple extension versions with target platforms - 3', async () => {
-		const actual = [aExtensionVersion('1.2.4'), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.1'), aExtensionVersion('1.0.0', TargetPlatform.DARWIN_ARM64), aExtensionVersion('1.0.0', TargetPlatform.WIN32_IA32), aExtensionVersion('1.0.0', TargetPlatform.WIN32_ARM64)];
-		const expected = [actual[0], actual[1], actual[2], actual[5], actual[4], actual[3]];
+		const actual = [aExtensionVersion('1.2.4'), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.1'), aExtensionVersion('1.0.0', TargetPlatform.DARWIN_ARM64), aExtensionVersion('1.0.0', TargetPlatform.WIN32_ARM64)];
+		const expected = [actual[0], actual[1], actual[2], actual[4], actual[3]];
 		sortExtensionVersions(actual, TargetPlatform.WIN32_ARM64);
 		assert.deepStrictEqual(actual, expected);
 	});

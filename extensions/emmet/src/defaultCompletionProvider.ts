@@ -43,7 +43,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
-		if (excludedLanguages.indexOf(document.languageId) > -1) {
+		if (excludedLanguages.includes(document.languageId)) {
 			return;
 		}
 
@@ -186,13 +186,6 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 			const config = getEmmetConfiguration(syntax!);
 			const result = helper.doComplete(toLSTextDocument(document), position, syntax, config);
-
-			// https://github.com/microsoft/vscode/issues/86941
-			if (result && result.items && result.items.length === 1) {
-				if (result.items[0].label === 'widows: ;') {
-					return undefined;
-				}
-			}
 
 			const newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {

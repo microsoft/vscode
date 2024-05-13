@@ -14,7 +14,7 @@ export class DebugTelemetry {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
 
-	logDebugSessionStart(dbgr: Debugger, launchJsonExists: boolean): Promise<void> {
+	logDebugSessionStart(dbgr: Debugger, launchJsonExists: boolean) {
 		const extension = dbgr.getMainExtensionDescriptor();
 		/* __GDPR__
 			"debugSessionStart" : {
@@ -28,7 +28,7 @@ export class DebugTelemetry {
 				"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		return this.telemetryService.publicLog('debugSessionStart', {
+		this.telemetryService.publicLog('debugSessionStart', {
 			type: dbgr.type,
 			breakpointCount: this.model.getBreakpoints().length,
 			exceptionBreakpoints: this.model.getExceptionBreakpoints(),
@@ -39,7 +39,7 @@ export class DebugTelemetry {
 		});
 	}
 
-	logDebugSessionStop(session: IDebugSession, adapterExitEvent: AdapterEndEvent): Promise<any> {
+	logDebugSessionStop(session: IDebugSession, adapterExitEvent: AdapterEndEvent) {
 
 		const breakpoints = this.model.getBreakpoints();
 
@@ -53,7 +53,7 @@ export class DebugTelemetry {
 				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		return this.telemetryService.publicLog('debugSessionStop', {
+		this.telemetryService.publicLog('debugSessionStop', {
 			type: session && session.configuration.type,
 			success: adapterExitEvent.emittedStopped || breakpoints.length === 0,
 			sessionLengthInSeconds: adapterExitEvent.sessionLengthInSeconds,

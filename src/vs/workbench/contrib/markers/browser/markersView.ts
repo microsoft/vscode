@@ -16,7 +16,7 @@ import { MarkersFilters, IMarkersFiltersChangeEvent } from 'vs/workbench/contrib
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
@@ -36,15 +36,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IViewPaneOptions, FilterViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService, withSelection } from 'vs/platform/opener/common/opener';
-import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -56,6 +53,9 @@ import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/table';
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
 import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -104,7 +104,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	private readonly onVisibleDisposables = this._register(new DisposableStore());
 
 	private widget!: IProblemsWidget;
-	private widgetDisposables = this._register(new DisposableStore());
+	private readonly widgetDisposables = this._register(new DisposableStore());
 	private widgetContainer!: HTMLElement;
 	private widgetIdentityProvider: IIdentityProvider<MarkerElement | MarkerTableItem>;
 	private widgetAccessibilityProvider: MarkersWidgetAccessibilityProvider;
@@ -114,6 +114,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private currentHeight = 0;
 	private currentWidth = 0;
+	private readonly memento: Memento;
 	private readonly panelState: MementoObject;
 
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
@@ -139,8 +140,10 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		const panelState = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		const memento = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
+		const panelState = memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {
@@ -150,7 +153,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				text: panelState['filter'] || '',
 				history: panelState['filterHistory'] || []
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		this.memento = memento;
 		this.panelState = panelState;
 
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
@@ -183,14 +187,38 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		}));
 	}
 
-	public override renderBody(parent: HTMLElement): void {
+	override render(): void {
+		super.render();
+		this._register(registerNavigableContainer({
+			name: 'markersView',
+			focusNotifiers: [this, this.filterWidget],
+			focusNextWidget: () => {
+				if (this.filterWidget.hasFocus()) {
+					this.focus();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!this.filterWidget.hasFocus()) {
+					this.focusFilter();
+				}
+			}
+		}));
+	}
+
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
 		parent.classList.add('markers-panel');
 		this._register(dom.addDisposableListener(parent, 'keydown', e => {
-			if (this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
-				this.focusFilter();
+			const event = new StandardKeyboardEvent(e);
+			if (!this.keybindingService.mightProducePrintableCharacter(event)) {
+				return;
 			}
+			const result = this.keybindingService.softDispatch(event, event.target);
+			if (result.kind === ResultKind.MoreChordsNeeded || result.kind === ResultKind.KbFound) {
+				return;
+			}
+			this.focusFilter();
 		}));
 
 		const panelContainer = dom.append(parent, dom.$('.markers-panel-container'));
@@ -207,10 +235,10 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	public getTitle(): string {
-		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
+		return Messages.MARKERS_PANEL_TITLE_PROBLEMS.value;
 	}
 
-	public override layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
+	protected layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
 		if (this.messageBoxContainer) {
 			this.messageBoxContainer.style.height = `${height}px`;
 		}
@@ -221,7 +249,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	public override focus(): void {
-		if (this.widget.getHTMLElement() === document.activeElement) {
+		super.focus();
+		if (dom.isActiveElement(this.widget.getHTMLElement())) {
 			return;
 		}
 
@@ -479,9 +508,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 					return null;
 				}),
 				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				},
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				selectionNavigation: true,
 				multipleSelectionSupport: true,
 			},
@@ -522,7 +549,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		this.markersModel.setResourceMarkers(groupBy(readMarkers(), compareMarkersByUri).map(group => [group[0].resource, group]));
 		disposables.push(Event.debounce<readonly URI[], ResourceMap<URI>>(this.markerService.onMarkerChanged, (resourcesMap, resources) => {
 			resourcesMap = resourcesMap || new ResourceMap<URI>();
-			resources.forEach(resource => resourcesMap!.set(resource, resource));
+			resources.forEach(resource => resourcesMap.set(resource, resource));
 			return resourcesMap;
 		}, 64)(resourcesMap => {
 			this.markersModel.setResourceMarkers([...resourcesMap.values()].map(resource => [resource, readMarkers(resource)]));
@@ -636,7 +663,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })) : null;
+		this.currentActiveResource = activeEditor ? EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }) ?? null : null;
 	}
 
 	private onSelected(): void {
@@ -757,7 +784,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private updateRangeHighlights() {
 		this.rangeHighlightDecorations.removeHighlightRange();
-		if (this.widget.getHTMLElement() === document.activeElement) {
+		if (dom.isActiveElement(this.widget.getHTMLElement())) {
 			this.highlightCurrentSelectedMarkerRange();
 		}
 	}
@@ -788,8 +815,9 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		e.browserEvent.stopPropagation();
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor!,
+			getAnchor: () => e.anchor,
 			menuId: MenuId.ProblemsPanelContext,
+			contextKeyService: this.widget.contextKeyService,
 			getActions: () => this.getMenuActions(element),
 			getActionViewItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
@@ -877,6 +905,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		this.panelState['multiline'] = this.markersViewModel.multiline;
 		this.panelState['viewMode'] = this.markersViewModel.viewMode;
 
+		this.memento.saveMemento();
 		super.saveState();
 	}
 
@@ -902,7 +931,7 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(user, container, delegate, renderers, options, instantiationService, contextKeyService, listService, themeService, configurationService);
+		super(user, container, delegate, renderers, options, instantiationService, contextKeyService, listService, configurationService);
 		this.visibilityContextKey = MarkersContextKeys.MarkersTreeVisibilityContextKey.bindTo(contextKeyService);
 	}
 
@@ -1004,8 +1033,10 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 
 	update(resourceMarkers: ResourceMarkers[]): void {
 		for (const resourceMarker of resourceMarkers) {
-			this.setChildren(resourceMarker, createResourceMarkersIterator(resourceMarker));
-			this.rerender(resourceMarker);
+			if (this.hasElement(resourceMarker)) {
+				this.setChildren(resourceMarker, createResourceMarkersIterator(resourceMarker));
+				this.rerender(resourceMarker);
+			}
 		}
 	}
 
@@ -1047,25 +1078,3 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 		super.layout(height, width);
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-
-	// Lightbulb Icon
-	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
-	if (editorLightBulbForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .markers-panel-container ${Codicon.lightBulb.cssSelector} {
-			color: ${editorLightBulbForegroundColor};
-		}`);
-	}
-
-	// Lightbulb Auto Fix Icon
-	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
-	if (editorLightBulbAutoFixForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .markers-panel-container ${Codicon.lightbulbAutofix.cssSelector} {
-			color: ${editorLightBulbAutoFixForegroundColor};
-		}`);
-	}
-
-});

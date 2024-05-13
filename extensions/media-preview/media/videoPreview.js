@@ -6,6 +6,7 @@
 "use strict";
 
 (function () {
+	// @ts-ignore
 	const vscode = acquireVsCodeApi();
 
 	function getSettings() {
@@ -32,6 +33,9 @@
 	}
 	video.playsInline = true;
 	video.controls = true;
+	video.autoplay = settings.autoplay;
+	video.muted = settings.autoplay;
+	video.loop = settings.loop;
 
 	function onLoaded() {
 		if (hasLoadedMedia) {
@@ -62,7 +66,8 @@
 		});
 	}
 
-	document.querySelector('.open-file-link').addEventListener('click', () => {
+	document.querySelector('.open-file-link')?.addEventListener('click', (e) => {
+		e.preventDefault();
 		vscode.postMessage({
 			type: 'reopen-as-text',
 		});

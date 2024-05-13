@@ -11,7 +11,6 @@ import { IV8Profile, Utils } from 'vs/platform/profiling/common/profiling';
 import { IProfileModel, BottomUpSample, buildModel, BottomUpNode, processNode, CdpCallFrame } from 'vs/platform/profiling/common/profilingModel';
 import { BottomUpAnalysis, IProfileAnalysisWorker, ProfilingOutput } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
 
-
 export function create(): IRequestHandler {
 	return new ProfileAnalysisWorker();
 }
@@ -26,10 +25,10 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 		}
 
 		const model = buildModel(profile);
-		const samples = bottomUp(model, 5, false)
+		const samples = bottomUp(model, 5)
 			.filter(s => !s.isSpecial);
 
-		if (samples.length === 0 || samples[1].percentage < 10) {
+		if (samples.length === 0 || samples[0].percentage < 10) {
 			// ignore this profile because 90% of the time is spent inside "special" frames
 			// like idle, GC, or program
 			return { kind: ProfilingOutput.Irrelevant, samples: [] };
@@ -57,7 +56,7 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 				// ignore
 			}
 			if (!category) {
-				category = printCallFrame(loc.callFrame, false);
+				category = printCallFrameShort(loc.callFrame);
 			}
 			const value = aggegrateByCategory.get(category) ?? 0;
 			const newValue = value + node.selfTime;
@@ -76,31 +75,69 @@ function isSpecial(call: CdpCallFrame): boolean {
 	return call.functionName.startsWith('(') && call.functionName.endsWith(')');
 }
 
-function printCallFrame(frame: CdpCallFrame, fullPaths: boolean): string {
+function printCallFrameShort(frame: CdpCallFrame): string {
 	let result = frame.functionName || '(anonymous)';
 	if (frame.url) {
 		result += '#';
-		result += fullPaths ? frame.url : basename(frame.url);
+		result += basename(frame.url);
 		if (frame.lineNumber >= 0) {
 			result += ':';
 			result += frame.lineNumber + 1;
+		}
+		if (frame.columnNumber >= 0) {
+			result += ':';
+			result += frame.columnNumber + 1;
 		}
 	}
 	return result;
 }
 
-function bottomUp(model: IProfileModel, topN: number, fullPaths: boolean = false) {
+function printCallFrameStackLike(frame: CdpCallFrame): string {
+	let result = frame.functionName || '(anonymous)';
+	if (frame.url) {
+		result += ' (';
+		result += frame.url;
+		if (frame.lineNumber >= 0) {
+			result += ':';
+			result += frame.lineNumber + 1;
+		}
+		if (frame.columnNumber >= 0) {
+			result += ':';
+			result += frame.columnNumber + 1;
+		}
+		result += ')';
+	}
+	return result;
+}
 
-	const root = BottomUpNode.root();
+function getHeaviestLocationIds(model: IProfileModel, topN: number) {
+	const stackSelfTime: { [locationId: number]: number } = {};
 	for (const node of model.nodes) {
-		processNode(root, node, model);
-		root.addNode(node);
+		stackSelfTime[node.locationId] = (stackSelfTime[node.locationId] || 0) + node.selfTime;
+	}
+
+	const locationIds = Object.entries(stackSelfTime)
+		.sort(([, a], [, b]) => b - a)
+		.slice(0, topN)
+		.map(([locationId]) => Number(locationId));
+
+	return new Set(locationIds);
+}
+
+function bottomUp(model: IProfileModel, topN: number) {
+	const root = BottomUpNode.root();
+	const locationIds = getHeaviestLocationIds(model, topN);
+
+	for (const node of model.nodes) {
+		if (locationIds.has(node.locationId)) {
+			processNode(root, node, model);
+			root.addNode(node);
+		}
 	}
 
 	const result = Object.values(root.children)
 		.sort((a, b) => b.selfTime - a.selfTime)
 		.slice(0, topN);
-
 
 	const samples: BottomUpSample[] = [];
 
@@ -109,7 +146,8 @@ function bottomUp(model: IProfileModel, topN: number, fullPaths: boolean = false
 		const sample: BottomUpSample = {
 			selfTime: Math.round(node.selfTime / 1000),
 			totalTime: Math.round(node.aggregateTime / 1000),
-			location: printCallFrame(node.callFrame, fullPaths),
+			location: printCallFrameShort(node.callFrame),
+			absLocation: printCallFrameStackLike(node.callFrame),
 			url: node.callFrame.url,
 			caller: [],
 			percentage: Math.round(node.selfTime / (model.duration / 100)),
@@ -128,7 +166,11 @@ function bottomUp(model: IProfileModel, topN: number, fullPaths: boolean = false
 			}
 			if (top) {
 				const percentage = Math.round(top.selfTime / (node.selfTime / 100));
-				sample.caller.push({ percentage, location: printCallFrame(top.callFrame, false) });
+				sample.caller.push({
+					percentage,
+					location: printCallFrameShort(top.callFrame),
+					absLocation: printCallFrameStackLike(top.callFrame),
+				});
 				stack.push(top);
 			}
 		}

@@ -63,19 +63,19 @@ export class ViewContentWidgets extends ViewPart {
 		return true;
 	}
 	public override onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		const keys = Object.keys(this._widgets);
-		for (const widgetId of keys) {
-			this._widgets[widgetId].onLineMappingChanged(e);
-		}
+		this._updateAnchorsViewPositions();
 		return true;
 	}
 	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		this._updateAnchorsViewPositions();
 		return true;
 	}
 	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		this._updateAnchorsViewPositions();
 		return true;
 	}
 	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		this._updateAnchorsViewPositions();
 		return true;
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
@@ -86,6 +86,13 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	// ---- end view event handlers
+
+	private _updateAnchorsViewPositions(): void {
+		const keys = Object.keys(this._widgets);
+		for (const widgetId of keys) {
+			this._widgets[widgetId].updateAnchorViewPosition();
+		}
+	}
 
 	public addWidget(_widget: IContentWidget): void {
 		const myWidget = new Widget(this._context, this._viewDomNode, _widget);
@@ -235,7 +242,7 @@ class Widget {
 		}
 	}
 
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): void {
+	public updateAnchorViewPosition(): void {
 		this._setPosition(this._affinity, this._primaryAnchor.modelPosition, this._secondaryAnchor.modelPosition);
 	}
 
@@ -259,9 +266,11 @@ class Widget {
 	}
 
 	private _getMaxWidth(): number {
+		const elDocument = this.domNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
 		return (
 			this.allowEditorOverflow
-				? window.innerWidth || document.documentElement!.offsetWidth || document.body.offsetWidth
+				? elWindow?.innerWidth || elDocument.documentElement.offsetWidth || elDocument.body.offsetWidth
 				: this._contentWidth
 		);
 	}
@@ -311,11 +320,17 @@ class Widget {
 	}
 
 	private _layoutHorizontalSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, left: number, width: number): [number, number] {
-		// Initially, the limits are defined as the dom node limits
-		const MIN_LIMIT = Math.max(0, domNodePosition.left - width);
-		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width);
+		// Leave some clearance to the left/right
+		const LEFT_PADDING = 15;
+		const RIGHT_PADDING = 15;
 
-		let absoluteLeft = domNodePosition.left + left - window.scrollX;
+		// Initially, the limits are defined as the dom node limits
+		const MIN_LIMIT = Math.max(LEFT_PADDING, domNodePosition.left - width);
+		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width - RIGHT_PADDING);
+
+		const elDocument = this._viewDomNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
+		let absoluteLeft = domNodePosition.left + left - (elWindow?.scrollX ?? 0);
 
 		if (absoluteLeft + width > MAX_LIMIT) {
 			const delta = absoluteLeft - (MAX_LIMIT - width);
@@ -337,10 +352,12 @@ class Widget {
 		const belowTop = anchor.top + anchor.height;
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
-		const absoluteAboveTop = domNodePosition.top + aboveTop - window.scrollY;
-		const absoluteBelowTop = domNodePosition.top + belowTop - window.scrollY;
+		const elDocument = this._viewDomNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
+		const absoluteAboveTop = domNodePosition.top + aboveTop - (elWindow?.scrollY ?? 0);
+		const absoluteBelowTop = domNodePosition.top + belowTop - (elWindow?.scrollY ?? 0);
 
-		const windowSize = dom.getClientArea(document.body);
+		const windowSize = dom.getClientArea(elDocument.body);
 		const [left, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, anchor.left - ctx.scrollLeft + this._contentLeft, width);
 
 		// Leave some clearance to the top/bottom

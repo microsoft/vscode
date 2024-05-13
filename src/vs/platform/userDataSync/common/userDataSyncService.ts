@@ -14,10 +14,9 @@ import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -32,18 +31,18 @@ import {
 	ALL_SYNC_RESOURCES, Change, createSyncHeaders, IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError,
 	IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, ISyncUserDataProfile, IUserDataManifest, IUserDataResourceManifest, IUserDataSyncConfiguration,
 	IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService,
-	MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE, IUserDataSyncResourceProviderService
+	MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE, IUserDataSyncResourceProviderService, IUserDataActivityData, IUserDataSyncLocalStoreService
 } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the error that occurred while syncing';
-	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service for which this error has occurred' };
-	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service error code' };
-	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource URL for which this error has occurred' };
-	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource for which this error has occurred' };
-	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync execution id for which this error has occurred' };
+	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync service for which this error has occurred' };
+	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync service error code' };
+	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync resource URL for which this error has occurred' };
+	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync resource for which this error has occurred' };
+	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync execution id for which this error has occurred' };
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
@@ -83,6 +82,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private activeProfileSynchronizers = new Map<string, [ProfileSynchronizer, IDisposable]>();
 
 	constructor(
+		@IFileService private readonly fileService: IFileService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -91,9 +91,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		@IProductService private readonly productService: IProductService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncResourceProviderService private readonly userDataSyncResourceProviderService: IUserDataSyncResourceProviderService,
+		@IUserDataSyncLocalStoreService private readonly userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 	) {
 		super();
 		this._status = userDataSyncStoreManagementService.userDataSyncStore ? SyncStatus.Idle : SyncStatus.Uninitialized;
@@ -171,17 +170,30 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return that.sync(manifest, true, executionId, cancellableToken.token);
 			},
 			async apply(): Promise<void> {
-				await that.applyManualSync(manifest, executionId, cancellableToken.token);
+				try {
+					try {
+						await that.applyManualSync(manifest, executionId, cancellableToken.token);
+					} catch (error) {
+						if (UserDataSyncError.toUserDataSyncError(error).code === UserDataSyncErrorCode.MethodNotFound) {
+							that.logService.info('Client is making invalid requests. Cleaning up data...');
+							await that.cleanUpRemoteData();
+							that.logService.info('Applying manual sync again...');
+							await that.applyManualSync(manifest, executionId, cancellableToken.token);
+						} else {
+							throw error;
+						}
+					}
+				} catch (error) {
+					that.logService.error(error);
+					throw error;
+				}
 				that.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
 				that.updateLastSyncTime();
 			},
-			stop(): Promise<void> {
+			async stop(): Promise<void> {
 				cancellableToken.cancel();
-				return that.stop();
-			},
-			dispose(): void {
-				cancellableToken.cancel();
-				that.stop();
+				await that.stop();
+				await that.resetLocal();
 			}
 		};
 	}
@@ -207,6 +219,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				await this.syncRemoteProfiles(syncProfiles, manifest, merge, executionId, token);
 			}
 		} finally {
+			if (this.status !== SyncStatus.HasConflicts) {
+				this.setStatus(SyncStatus.Idle);
+			}
 			this._onSyncErrors.fire(this._syncErrors);
 		}
 	}
@@ -218,7 +233,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === syncProfile.id);
 			if (!profile) {
-				this.logService.error(`Settings Profile with id:${syncProfile.id} and name: ${syncProfile.name} does not exist locally to sync.`);
+				this.logService.error(`Profile with id:${syncProfile.id} and name: ${syncProfile.name} does not exist locally to sync.`);
 				continue;
 			}
 			this.logService.info('Syncing profile.', syncProfile.name);
@@ -328,26 +343,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		});
 	}
 
-	getRemoteProfiles(): Promise<ISyncUserDataProfile[]> {
-		return this.userDataSyncResourceProviderService.getRemoteSyncedProfiles();
-	}
-
-	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]> {
-		return this.userDataSyncResourceProviderService.getRemoteSyncResourceHandles(syncResource, profile);
-	}
-
-	async getLocalSyncResourceHandles(syncResource: SyncResource, profile?: IUserDataProfile): Promise<ISyncResourceHandle[]> {
-		return this.userDataSyncResourceProviderService.getLocalSyncResourceHandles(syncResource, profile ?? this.userDataProfilesService.defaultProfile);
-	}
-
-	async getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		return this.userDataSyncResourceProviderService.getAssociatedResources(syncResourceHandle);
-	}
-
-	async getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
-		return this.userDataSyncResourceProviderService.getMachineId(syncResourceHandle);
-	}
-
 	async hasLocalData(): Promise<boolean> {
 		const result = await this.performAction(this.userDataProfilesService.defaultProfile, async synchronizer => {
 			// skip global state synchronizer
@@ -388,6 +383,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async resetLocal(): Promise<void> {
 		this.checkEnablement();
+		this._lastSyncTime = undefined;
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.APPLICATION);
 		for (const [synchronizer] of this.activeProfileSynchronizers.values()) {
 			try {
@@ -399,6 +395,61 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.clearActiveProfileSynchronizers();
 		this._onDidResetLocal.fire();
 		this.logService.info('Did reset the local sync state.');
+	}
+
+	async cleanUpRemoteData(): Promise<void> {
+		const remoteProfiles = await this.userDataSyncResourceProviderService.getRemoteSyncedProfiles();
+		const remoteProfileCollections = remoteProfiles.map(profile => profile.collection);
+		const allCollections = await this.userDataSyncStoreService.getAllCollections();
+		const redundantCollections = allCollections.filter(c => !remoteProfileCollections.includes(c));
+		if (redundantCollections.length) {
+			this.logService.info(`Deleting ${redundantCollections.length} redundant collections on server`);
+			await Promise.allSettled(redundantCollections.map(collectionId => this.userDataSyncStoreService.deleteCollection(collectionId)));
+			this.logService.info(`Deleted redundant collections on server`);
+		}
+		const updatedRemoteProfiles = remoteProfiles.filter(profile => allCollections.includes(profile.collection));
+		if (updatedRemoteProfiles.length !== remoteProfiles.length) {
+			const profileManifestSynchronizer = this.instantiationService.createInstance(UserDataProfilesManifestSynchroniser, this.userDataProfilesService.defaultProfile, undefined);
+			try {
+				this.logService.info('Resetting the last synced state of profiles');
+				await profileManifestSynchronizer.resetLocal();
+				this.logService.info('Did reset the last synced state of profiles');
+				this.logService.info(`Updating remote profiles with invalid collections on server`);
+				await profileManifestSynchronizer.updateRemoteProfiles(updatedRemoteProfiles, null);
+				this.logService.info(`Updated remote profiles on server`);
+			} finally {
+				profileManifestSynchronizer.dispose();
+			}
+		}
+	}
+
+	async saveRemoteActivityData(location: URI): Promise<void> {
+		this.checkEnablement();
+		const data = await this.userDataSyncStoreService.getActivityData();
+		await this.fileService.writeFile(location, data);
+	}
+
+	async extractActivityData(activityDataResource: URI, location: URI): Promise<void> {
+		const content = (await this.fileService.readFile(activityDataResource)).value.toString();
+		const activityData: IUserDataActivityData = JSON.parse(content);
+
+		if (activityData.resources) {
+			for (const resource in activityData.resources) {
+				for (const version of activityData.resources[resource]) {
+					await this.userDataSyncLocalStoreService.writeResource(resource as SyncResource, version.content, new Date(version.created * 1000), undefined, location);
+				}
+			}
+		}
+
+		if (activityData.collections) {
+			for (const collection in activityData.collections) {
+				for (const resource in activityData.collections[collection].resources) {
+					for (const version of activityData.collections[collection].resources?.[resource] ?? []) {
+						await this.userDataSyncLocalStoreService.writeResource(resource as SyncResource, version.content, new Date(version.created * 1000), collection, location);
+					}
+				}
+			}
+		}
 	}
 
 	private async performAction<T>(profile: IUserDataProfile, action: (synchroniser: IUserDataSynchroniser) => Promise<T | undefined>): Promise<T | null> {
@@ -420,10 +471,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return null;
 			}
 
-			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
-				return null;
-			}
-
 			const userDataProfileManifestSynchronizer = disposables.add(this.instantiationService.createInstance(UserDataProfilesManifestSynchroniser, profile, undefined));
 			const manifest = await this.userDataSyncStoreService.manifest(null);
 			const syncProfiles = (await userDataProfileManifestSynchronizer.getRemoteSyncedProfiles(manifest?.latest ?? null)) || [];
@@ -441,7 +488,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private async performActionWithProfileSynchronizer<T>(profileSynchronizer: ProfileSynchronizer, action: (synchroniser: IUserDataSynchroniser) => Promise<T | undefined>, disposables: DisposableStore): Promise<T | undefined> {
-		const allSynchronizers = [...profileSynchronizer.enabled, ...profileSynchronizer.disabled.map(syncResource => disposables.add(profileSynchronizer.createSynchronizer(syncResource)))];
+		const allSynchronizers = [...profileSynchronizer.enabled, ...profileSynchronizer.disabled.reduce<(IUserDataSynchroniser & IDisposable)[]>((synchronizers, syncResource) => {
+			if (syncResource !== SyncResource.WorkspaceState) {
+				synchronizers.push(disposables.add(profileSynchronizer.createSynchronizer(syncResource)));
+			}
+			return synchronizers;
+		}, [])];
 		for (const synchronizer of allSynchronizers) {
 			const result = await action(synchronizer);
 			if (!isUndefined(result)) {
@@ -548,10 +600,8 @@ class ProfileSynchronizer extends Disposable {
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IProductService private readonly productService: IProductService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
 		this._register(userDataSyncEnablementService.onDidChangeResourceEnablement(([syncResource, enablement]) => this.onDidChangeResourceEnablement(syncResource, enablement)));
@@ -586,10 +636,13 @@ class ProfileSynchronizer extends Disposable {
 			if (!this.userDataProfilesService.isEnabled()) {
 				return;
 			}
-			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
-				this.logService.debug('Skipping profiles sync');
-				return;
-			}
+		}
+		if (syncResource === SyncResource.WorkspaceState) {
+			return;
+		}
+		if (syncResource !== SyncResource.Profiles && this.profile.useDefaultFlags?.[syncResource]) {
+			this.logService.debug(`Skipping syncing ${syncResource} in ${this.profile.name} because it is already synced by default profile`);
+			return;
 		}
 		const disposables = new DisposableStore();
 		const synchronizer = disposables.add(this.createSynchronizer(syncResource));
@@ -600,25 +653,18 @@ class ProfileSynchronizer extends Disposable {
 		this._enabled.push([synchronizer, order, disposables]);
 	}
 
-	protected deRegisterSynchronizer(syncResource: SyncResource): void {
+	private deRegisterSynchronizer(syncResource: SyncResource): void {
 		const index = this._enabled.findIndex(([synchronizer]) => synchronizer.resource === syncResource);
 		if (index !== -1) {
-			const removed = this._enabled.splice(index, 1);
-			for (const [synchronizer, , disposable] of removed) {
-				if (synchronizer.status !== SyncStatus.Idle) {
-					const hasConflicts = synchronizer.conflicts.conflicts.length > 0;
-					synchronizer.stop();
-					if (hasConflicts) {
-						this.updateConflicts();
-					}
-					this.updateStatus();
-				}
-				disposable.dispose();
-			}
+			const [[synchronizer, , disposable]] = this._enabled.splice(index, 1);
+			disposable.dispose();
+			this.updateStatus();
+			Promise.allSettled([synchronizer.stop(), synchronizer.resetLocal()])
+				.then(null, error => this.logService.error(error));
 		}
 	}
 
-	createSynchronizer(syncResource: SyncResource): IUserDataSynchroniser & IDisposable {
+	createSynchronizer(syncResource: Exclude<SyncResource, SyncResource.WorkspaceState>): IUserDataSynchroniser & IDisposable {
 		switch (syncResource) {
 			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser, this.profile, this.collection);
 			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this.profile, this.collection);
@@ -779,13 +825,14 @@ class ProfileSynchronizer extends Disposable {
 
 	private getOrder(syncResource: SyncResource): number {
 		switch (syncResource) {
-			case SyncResource.Profiles: return 0;
-			case SyncResource.Settings: return 1;
-			case SyncResource.Keybindings: return 2;
-			case SyncResource.Snippets: return 3;
-			case SyncResource.Tasks: return 4;
-			case SyncResource.GlobalState: return 5;
-			case SyncResource.Extensions: return 6;
+			case SyncResource.Settings: return 0;
+			case SyncResource.Keybindings: return 1;
+			case SyncResource.Snippets: return 2;
+			case SyncResource.Tasks: return 3;
+			case SyncResource.GlobalState: return 4;
+			case SyncResource.Extensions: return 5;
+			case SyncResource.Profiles: return 6;
+			case SyncResource.WorkspaceState: return 7;
 		}
 	}
 
@@ -794,10 +841,12 @@ class ProfileSynchronizer extends Disposable {
 function canBailout(e: any): boolean {
 	if (e instanceof UserDataSyncError) {
 		switch (e.code) {
+			case UserDataSyncErrorCode.MethodNotFound:
 			case UserDataSyncErrorCode.TooLarge:
 			case UserDataSyncErrorCode.TooManyRequests:
 			case UserDataSyncErrorCode.TooManyRequestsAndRetryAfter:
 			case UserDataSyncErrorCode.LocalTooManyRequests:
+			case UserDataSyncErrorCode.LocalTooManyProfiles:
 			case UserDataSyncErrorCode.Gone:
 			case UserDataSyncErrorCode.UpgradeRequired:
 			case UserDataSyncErrorCode.IncompatibleRemoteContent:

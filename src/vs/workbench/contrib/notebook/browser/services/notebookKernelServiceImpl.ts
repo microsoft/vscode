@@ -5,17 +5,18 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction, INotebookSourceActionChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelSourceAction, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction, INotebookSourceActionChangeEvent, INotebookKernelDetectionTask, IKernelSourceActionProvider } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { runWhenIdle } from 'vs/base/common/async';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { Schemas } from 'vs/base/common/network';
+import { getActiveWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 
 class KernelInfo {
 
@@ -104,13 +105,20 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private readonly _onDidRemoveKernel = this._register(new Emitter<INotebookKernel>());
 	private readonly _onDidChangeNotebookAffinity = this._register(new Emitter<void>());
 	private readonly _onDidChangeSourceActions = this._register(new Emitter<INotebookSourceActionChangeEvent>());
+	private readonly _onDidNotebookVariablesChange = this._register(new Emitter<URI>());
 	private readonly _kernelSources = new Map<string, IKernelInfoCache>();
+	private readonly _kernelSourceActionsUpdates = new Map<string, IDisposable>();
+	private readonly _kernelDetectionTasks = new Map<string, INotebookKernelDetectionTask[]>();
+	private readonly _onDidChangeKernelDetectionTasks = this._register(new Emitter<string>());
+	private readonly _kernelSourceActionProviders = new Map<string, IKernelSourceActionProvider[]>();
 
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
 	readonly onDidRemoveKernel: Event<INotebookKernel> = this._onDidRemoveKernel.event;
 	readonly onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;
 	readonly onDidChangeSourceActions: Event<INotebookSourceActionChangeEvent> = this._onDidChangeSourceActions.event;
+	readonly onDidChangeKernelDetectionTasks: Event<string> = this._onDidChangeKernelDetectionTasks.event;
+	readonly onDidNotebookVariablesUpdate: Event<URI> = this._onDidNotebookVariablesChange.event;
 
 	private static _storageNotebookBinding = 'notebook.controller2NotebookBindings';
 
@@ -118,8 +126,8 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IMenuService readonly _menuService: IMenuService,
-		@IContextKeyService readonly _contextKeyService: IContextKeyService
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -127,10 +135,13 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		// a notebook has been closed (but don't update the memento)
 		this._register(_notebookService.onDidAddNotebookDocument(this._tryAutoBindNotebook, this));
 		this._register(_notebookService.onWillRemoveNotebookDocument(notebook => {
-			const kernelId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
-			if (kernelId) {
+			const id = NotebookTextModelLikeId.str(notebook);
+			const kernelId = this._notebookBindings.get(id);
+			if (kernelId && notebook.uri.scheme === Schemas.untitled) {
 				this.selectKernelForNotebook(undefined, notebook);
 			}
+			this._kernelSourceActionsUpdates.get(id)?.dispose();
+			this._kernelSourceActionsUpdates.delete(id);
 		}));
 
 		// restore from storage
@@ -148,6 +159,10 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			v.menu.dispose();
 			v.actions.forEach(a => a[1].dispose());
 		});
+		this._kernelSourceActionsUpdates.forEach(v => {
+			v.dispose();
+		});
+		this._kernelSourceActionsUpdates.clear();
 		super.dispose();
 	}
 
@@ -155,7 +170,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 
 	private _persistMementos(): void {
 		this._persistSoonHandle?.dispose();
-		this._persistSoonHandle = runWhenIdle(() => {
+		this._persistSoonHandle = runWhenWindowIdle(getActiveWindow(), () => {
 			this._storageService.store(NotebookKernelService._storageNotebookBinding, JSON.stringify(this._notebookBindings), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}, 100);
 	}
@@ -185,6 +200,10 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		if (!onlyThisKernel || existingKernel.kernel === onlyThisKernel) {
 			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: undefined, newKernel: existingKernel.kernel.id });
 		}
+	}
+
+	notifyVariablesChange(notebookUri: URI): void {
+		this._onDidNotebookVariablesChange.fire(notebookUri);
 	}
 
 	registerKernel(kernel: INotebookKernel): IDisposable {
@@ -314,16 +333,17 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		const sourceMenu = this._register(this._menuService.createMenu(MenuId.NotebookKernelSource, contextKeyService));
 		const info: IKernelInfoCache = { menu: sourceMenu, actions: [] };
 
-		const loadActionsFromMenu = (menu: IMenu) => {
+		const loadActionsFromMenu = (menu: IMenu, document: INotebookTextModelLike) => {
 			const groups = menu.getActions({ shouldForwardArgs: true });
 			const sourceActions: [ISourceAction, IDisposable][] = [];
 			groups.forEach(group => {
 				const isPrimary = /^primary/.test(group[0]);
 				group[1].forEach(action => {
-					const sourceAction = new SourceAction(action, notebook, isPrimary);
+					const sourceAction = new SourceAction(action, document, isPrimary);
 					const stateChangeListener = sourceAction.onDidChangeState(() => {
 						this._onDidChangeSourceActions.fire({
-							notebook: notebook.uri
+							notebook: document.uri,
+							viewType: document.viewType,
 						});
 					});
 					sourceActions.push([sourceAction, stateChangeListener]);
@@ -331,15 +351,71 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			});
 			info.actions = sourceActions;
 			this._kernelSources.set(id, info);
-			this._onDidChangeSourceActions.fire({ notebook: notebook.uri });
+			this._onDidChangeSourceActions.fire({ notebook: document.uri, viewType: document.viewType });
 		};
 
-		this._register(sourceMenu.onDidChange(() => {
-			loadActionsFromMenu(sourceMenu);
+		this._kernelSourceActionsUpdates.get(id)?.dispose();
+		this._kernelSourceActionsUpdates.set(id, sourceMenu.onDidChange(() => {
+			loadActionsFromMenu(sourceMenu, notebook);
 		}));
 
-		loadActionsFromMenu(sourceMenu);
+		loadActionsFromMenu(sourceMenu, notebook);
 
 		return info.actions.map(a => a[0]);
+	}
+
+	registerNotebookKernelDetectionTask(task: INotebookKernelDetectionTask): IDisposable {
+		const notebookType = task.notebookType;
+		const all = this._kernelDetectionTasks.get(notebookType) ?? [];
+		all.push(task);
+		this._kernelDetectionTasks.set(notebookType, all);
+		this._onDidChangeKernelDetectionTasks.fire(notebookType);
+		return toDisposable(() => {
+			const all = this._kernelDetectionTasks.get(notebookType) ?? [];
+			const idx = all.indexOf(task);
+			if (idx >= 0) {
+				all.splice(idx, 1);
+				this._kernelDetectionTasks.set(notebookType, all);
+				this._onDidChangeKernelDetectionTasks.fire(notebookType);
+			}
+		});
+	}
+
+	getKernelDetectionTasks(notebook: INotebookTextModelLike): INotebookKernelDetectionTask[] {
+		return this._kernelDetectionTasks.get(notebook.viewType) ?? [];
+	}
+
+	registerKernelSourceActionProvider(viewType: string, provider: IKernelSourceActionProvider): IDisposable {
+		const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
+		providers.push(provider);
+		this._kernelSourceActionProviders.set(viewType, providers);
+		this._onDidChangeSourceActions.fire({ viewType: viewType });
+
+		const eventEmitterDisposable = provider.onDidChangeSourceActions?.(() => {
+			this._onDidChangeSourceActions.fire({ viewType: viewType });
+		});
+
+		return toDisposable(() => {
+			const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
+			const idx = providers.indexOf(provider);
+			if (idx >= 0) {
+				providers.splice(idx, 1);
+				this._kernelSourceActionProviders.set(viewType, providers);
+			}
+
+			eventEmitterDisposable?.dispose();
+		});
+	}
+
+	/**
+	 * Get kernel source actions from providers
+	 */
+	getKernelSourceActions2(notebook: INotebookTextModelLike): Promise<INotebookKernelSourceAction[]> {
+		const viewType = notebook.viewType;
+		const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
+		const promises = providers.map(provider => provider.provideKernelSourceActions());
+		return Promise.all(promises).then(actions => {
+			return actions.reduce((a, b) => a.concat(b), []);
+		});
 	}
 }

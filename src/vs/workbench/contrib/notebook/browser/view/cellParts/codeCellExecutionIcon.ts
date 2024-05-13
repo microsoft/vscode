@@ -7,11 +7,11 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 interface IExecutionItem {
 	text: string;
@@ -30,8 +30,8 @@ export class CollapsedCodeCellExecutionIcon extends Disposable {
 		super();
 
 		this._update();
-		this._register(this._executionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this._cell.uri)) {
+		this._register(this._executionStateService.onDidChangeExecution(e => {
+			if (e.type === NotebookExecutionType.cell && e.affectsCell(this._cell.uri)) {
 				this._update();
 			}
 		}));
@@ -64,23 +64,23 @@ export class CollapsedCodeCellExecutionIcon extends Disposable {
 		const state = runState?.state;
 		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
-			return <IExecutionItem>{
+			return {
 				text: `$(${successStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.success', "Success"),
 			};
 		} else if (!state && lastRunSuccess === false) {
-			return <IExecutionItem>{
+			return {
 				text: `$(${errorStateIcon.id})`,
-				tooltip: localize('notebook.cell.status.failed', "Failed"),
+				tooltip: localize('notebook.cell.status.failure', "Failure"),
 			};
 		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
-			return <IExecutionItem>{
+			return {
 				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 			};
 		} else if (state === NotebookCellExecutionState.Executing) {
 			const icon = ThemeIcon.modify(executingStateIcon, 'spin');
-			return <IExecutionItem>{
+			return {
 				text: `$(${icon.id})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 			};

@@ -12,6 +12,8 @@ import { Schemas } from 'vs/base/common/network';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { escape } from 'vs/base/common/strings';
+import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
 
 export const DEFAULT_MARKDOWN_STYLES = `
 body {
@@ -67,15 +69,13 @@ table {
 	border-collapse: collapse;
 }
 
-table > thead > tr > th {
+th {
 	text-align: left;
 	border-bottom: 1px solid;
 }
 
-table > thead > tr > th,
-table > thead > tr > td,
-table > tbody > tr > th,
-table > tbody > tr > td {
+th,
+td {
 	padding: 5px 10px;
 }
 
@@ -95,17 +95,19 @@ code {
 	font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
 }
 
+pre {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
 pre code {
 	font-family: var(--vscode-editor-font-family);
 	font-weight: var(--vscode-editor-font-weight);
 	font-size: var(--vscode-editor-font-size);
 	line-height: 1.5;
-}
-
-code > div {
-	padding: 16px;
-	border-radius: 3px;
-	overflow: auto;
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
 }
 
 .monaco-tokenized-source {
@@ -114,15 +116,7 @@ code > div {
 
 /** Theming */
 
-.vscode-light code > div {
-	background-color: rgba(220, 220, 220, 0.4);
-}
-
-.vscode-dark code > div {
-	background-color: rgba(10, 10, 10, 0.4);
-}
-
-.vscode-high-contrast code > div {
+.pre {
 	background-color: var(--vscode-textCodeBlock-background);
 }
 
@@ -130,26 +124,37 @@ code > div {
 	border-color: rgb(0, 0, 0);
 }
 
-.vscode-light table > thead > tr > th {
+.vscode-light th {
 	border-color: rgba(0, 0, 0, 0.69);
 }
 
-.vscode-dark table > thead > tr > th {
+.vscode-dark th {
 	border-color: rgba(255, 255, 255, 0.69);
 }
 
 .vscode-light h1,
 .vscode-light hr,
-.vscode-light table > tbody > tr + tr > td {
+.vscode-light td {
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
 .vscode-dark h1,
 .vscode-dark hr,
-.vscode-dark table > tbody > tr + tr > td {
+.vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
 
+@media (forced-colors: active) and (prefers-color-scheme: light){
+	body {
+		forced-color-adjust: none;
+	}
+}
+
+@media (forced-colors: active) and (prefers-color-scheme: dark){
+	body {
+		forced-color-adjust: none;
+	}
+}
 `;
 
 const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
@@ -191,6 +196,7 @@ export async function renderMarkdownDocument(
 	shouldSanitize: boolean = true,
 	allowUnknownProtocols: boolean = false,
 	token?: CancellationToken,
+	settingRenderer?: SimpleSettingRenderer
 ): Promise<string> {
 
 	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
@@ -199,7 +205,7 @@ export async function renderMarkdownDocument(
 		}
 
 		if (typeof lang !== 'string') {
-			callback(null, `<code>${code}</code>`);
+			callback(null, escape(code));
 			return '';
 		}
 
@@ -209,15 +215,20 @@ export async function renderMarkdownDocument(
 				return;
 			}
 
-			const languageId = languageService.getLanguageIdByLanguageName(lang);
+			const languageId = languageService.getLanguageIdByLanguageName(lang) ?? languageService.getLanguageIdByLanguageName(lang.split(/\s+|:|,|(?!^)\{|\?]/, 1)[0]);
 			const html = await tokenizeToString(languageService, code, languageId);
-			callback(null, `<code>${html}</code>`);
+			callback(null, html);
 		});
 		return '';
 	};
 
+	const renderer = new marked.Renderer();
+	if (settingRenderer) {
+		renderer.html = settingRenderer.getHtmlRenderer();
+	}
+
 	return new Promise<string>((resolve, reject) => {
-		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
+		marked(text, { highlight, renderer }, (err, value) => err ? reject(err) : resolve(value));
 	}).then(raw => {
 		if (shouldSanitize) {
 			return sanitize(raw, allowUnknownProtocols);

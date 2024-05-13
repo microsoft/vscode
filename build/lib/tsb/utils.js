@@ -44,7 +44,7 @@ var collections;
         return hasOwnProperty.call(collection, key);
     }
     collections.contains = contains;
-})(collections = exports.collections || (exports.collections = {}));
+})(collections || (exports.collections = collections = {}));
 var strings;
 (function (strings) {
     /**
@@ -59,7 +59,7 @@ var strings;
         });
     }
     strings.format = format;
-})(strings = exports.strings || (exports.strings = {}));
+})(strings || (exports.strings = strings = {}));
 var graph;
 (function (graph) {
     function newNode(data) {
@@ -122,4 +122,5 @@ var graph;
         }
     }
     graph.Graph = Graph;
-})(graph = exports.graph || (exports.graph = {}));
+})(graph || (exports.graph = graph = {}));
+//# sourceMappingURL=utils.js.map

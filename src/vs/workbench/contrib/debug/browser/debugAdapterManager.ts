@@ -341,19 +341,22 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		// Or if a breakpoint can be set in the current file (good hint that an extension can handle it)
 		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
+
 			candidates = this.debuggers
 				.filter(a => a.enabled)
-				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
+				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasDynamicConfigurationProviders() || dbg.hasConfigurationProvider());
 		}
 
 		if (candidates.length === 0 && languageLabel) {
 			if (languageLabel.indexOf(' ') >= 0) {
 				languageLabel = `'${languageLabel}'`;
 			}
-			const message = nls.localize('CouldNotFindLanguage', "You don't have an extension for debugging {0}. Should we find a {0} extension in the Marketplace?", languageLabel);
-			const buttonLabel = nls.localize('findExtension', "Find {0} extension", languageLabel);
-			const showResult = await this.dialogService.show(Severity.Warning, message, [buttonLabel, nls.localize('cancel', "Cancel")], { cancelId: 1 });
-			if (showResult.choice === 0) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Warning,
+				message: nls.localize('CouldNotFindLanguage', "You don't have an extension for debugging {0}. Should we find a {0} extension in the Marketplace?", languageLabel),
+				primaryButton: nls.localize({ key: 'findExtension', comment: ['&& denotes a mnemonic'] }, "&&Find {0} extension", languageLabel)
+			});
+			if (confirmed) {
 				await this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
 			}
 			return undefined;
@@ -362,6 +365,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this.initExtensionActivationsIfNeeded();
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
+		candidates = candidates.filter(a => !a.isHiddenFromDropdown);
 
 		const suggestedCandidates: Debugger[] = [];
 		const otherCandidates: Debugger[] = [];

@@ -61,7 +61,11 @@ export class UnicodeTextModelHighlighter {
 						}
 					}
 					const str = lineContent.substring(startIndex, endIndex);
-					const word = getWordAtText(startIndex + 1, DEFAULT_WORD_REGEXP, lineContent, 0);
+					let word = getWordAtText(startIndex + 1, DEFAULT_WORD_REGEXP, lineContent, 0);
+					if (word && word.endColumn <= startIndex + 1) {
+						// The word does not include the problematic character, ignore the word
+						word = null;
+					}
 					const highlightReason = codePointHighlighter.shouldHighlightNonBasicASCII(str, word ? word.word : null);
 
 					if (highlightReason !== SimpleHighlightReason.None) {

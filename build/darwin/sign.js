@@ -4,21 +4,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-const codesign = require("electron-osx-sign");
+const fs = require("fs");
 const path = require("path");
-const util = require("../lib/util");
-const product = require("../../product.json");
+const codesign = require("electron-osx-sign");
 const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
-async function main() {
-    const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+const root = path.dirname(path.dirname(__dirname));
+function getElectronVersion() {
+    const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
+    const target = /^target "(.*)"$/m.exec(yarnrc)[1];
+    return target;
+}
+async function main(buildDir) {
     const tempDir = process.env['AGENT_TEMPDIRECTORY'];
     const arch = process.env['VSCODE_ARCH'];
+    const identity = process.env['CODESIGN_IDENTITY'];
     if (!buildDir) {
         throw new Error('$AGENT_BUILDDIRECTORY not set');
     }
     if (!tempDir) {
         throw new Error('$AGENT_TEMPDIRECTORY not set');
     }
+    const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
     const baseDir = path.dirname(__dirname);
     const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
     const appName = product.nameLong + '.app';
@@ -37,8 +43,8 @@ async function main() {
         'pre-auto-entitlements': false,
         'pre-embed-provisioning-profile': false,
         keychain: path.join(tempDir, 'buildagent.keychain'),
-        version: util.getElectronVersion(),
-        identity: '99FM488X57',
+        version: getElectronVersion(),
+        identity,
         'gatekeeper-assess': false
     };
     const appOpts = {
@@ -99,8 +105,9 @@ async function main() {
     await codesign.signAsync(appOpts);
 }
 if (require.main === module) {
-    main().catch(err => {
+    main(process.argv[2]).catch(err => {
         console.error(err);
         process.exit(1);
     });
 }
+//# sourceMappingURL=sign.js.map

@@ -4,9 +4,9 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "dotnet/razor-tooling",
-					"repositoryUrl": "https://github.com/dotnet/razor-tooling",
-					"commitHash": "4d5eeeaeeadf6371354e5fd8ad4c195185806f0c"
+					"name": "dotnet/razor",
+					"repositoryUrl": "https://github.com/dotnet/razor",
+					"commitHash": "39159764277f3c80a786d8872eba7730da3d7ef0"
 				}
 			},
 			"license": "MIT",

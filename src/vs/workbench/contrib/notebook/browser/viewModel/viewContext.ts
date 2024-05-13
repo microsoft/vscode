@@ -5,7 +5,7 @@
 
 import { IBaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export class ViewContext {
 	constructor(

@@ -12,8 +12,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorPlaceholder, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
@@ -34,13 +34,13 @@ export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		private readonly callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, storageService, instantiationService);
+		super(id, group, telemetryService, themeService, storageService);
 	}
 
 	override getTitle(): string {
@@ -61,7 +61,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
 		return {
 			icon: '$(warning)',
-			label: localize('binaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding."),
+			label: localize('binaryError', "The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding."),
 			actions: [
 				{
 					label: localize('openAnyway', "Open Anyway"),

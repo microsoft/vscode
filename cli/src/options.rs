@@ -7,7 +7,9 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(clap::ArgEnum, Copy, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+use crate::constants::SERVER_NAME_MAP;
+
+#[derive(clap::ValueEnum, Copy, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Quality {
 	#[serde(rename = "stable")]
 	Stable,
@@ -18,7 +20,7 @@ pub enum Quality {
 }
 
 impl Quality {
-	/// Lowercased name in paths and protocol
+	/// Lowercased quality name in paths and protocol
 	pub fn get_machine_name(&self) -> &'static str {
 		match self {
 			Quality::Insiders => "insiders",
@@ -27,7 +29,7 @@ impl Quality {
 		}
 	}
 
-	/// Uppercased display name for humans
+	/// Uppercased quality display name for humans
 	pub fn get_capitalized_name(&self) -> &'static str {
 		match self {
 			Quality::Insiders => "Insiders",
@@ -36,37 +38,20 @@ impl Quality {
 		}
 	}
 
-	pub fn get_macos_app_name(&self) -> &'static str {
-		match self {
-			Quality::Insiders => "Visual Studio Code - Insiders",
-			Quality::Exploration => "Visual Studio Code - Exploration",
-			Quality::Stable => "Visual Studio Code",
-		}
-	}
+	/// Server application name
+	pub fn server_entrypoint(&self) -> String {
+		let mut server_name = SERVER_NAME_MAP
+			.as_ref()
+			.and_then(|m| m.get(self))
+			.map(|s| s.server_application_name.as_str())
+			.unwrap_or("code-server-oss")
+			.to_string();
 
-	pub fn get_commandline_name(&self) -> &'static str {
-		match self {
-			Quality::Insiders => "code-insiders",
-			Quality::Exploration => "code-exploration",
-			Quality::Stable => "code",
+		if cfg!(windows) {
+			server_name.push_str(".cmd");
 		}
-	}
 
-	#[cfg(target_os = "windows")]
-	pub fn server_entrypoint(&self) -> &'static str {
-		match self {
-			Quality::Insiders => "code-server-insiders.cmd",
-			Quality::Exploration => "code-server-exploration.cmd",
-			Quality::Stable => "code-server.cmd",
-		}
-	}
-	#[cfg(not(target_os = "windows"))]
-	pub fn server_entrypoint(&self) -> &'static str {
-		match self {
-			Quality::Insiders => "code-server-insiders",
-			Quality::Exploration => "code-server-exploration",
-			Quality::Stable => "code-server",
-		}
+		server_name
 	}
 }
 
@@ -92,7 +77,7 @@ impl TryFrom<&str> for Quality {
 	}
 }
 
-#[derive(clap::ArgEnum, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(clap::ValueEnum, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TelemetryLevel {
 	Off,
 	Crash,

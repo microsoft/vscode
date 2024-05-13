@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { equals } from 'vs/base/common/objects';
+import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISyncUserDataProfile } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface IRelaxedMergeResult {
@@ -17,29 +18,25 @@ interface IUserDataProfileInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly shortName?: string;
+	readonly icon?: string;
+	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 
 export function merge(local: IUserDataProfile[], remote: ISyncUserDataProfile[] | null, lastSync: ISyncUserDataProfile[] | null, ignored: string[]): IMergeResult {
-	const result: IRelaxedMergeResult = {
-		local: {
-			added: [],
-			removed: [],
-			updated: [],
-		}, remote: {
-			added: [],
-			removed: [],
-			updated: [],
-		}
-	};
+	const localResult: { added: ISyncUserDataProfile[]; removed: IUserDataProfile[]; updated: ISyncUserDataProfile[] } = { added: [], removed: [], updated: [] };
+	let remoteResult: { added: IUserDataProfile[]; removed: ISyncUserDataProfile[]; updated: IUserDataProfile[] } | null = { added: [], removed: [], updated: [] };
 
 	if (!remote) {
 		const added = local.filter(({ id }) => !ignored.includes(id));
 		if (added.length) {
-			result.remote!.added = added;
+			remoteResult.added = added;
 		} else {
-			result.remote = null;
+			remoteResult = null;
 		}
-		return result;
+		return {
+			local: localResult,
+			remote: remoteResult
+		};
 	}
 
 	const localToRemote = compare(local, remote, ignored);
@@ -52,7 +49,7 @@ export function merge(local: IUserDataProfile[], remote: ISyncUserDataProfile[] 
 		for (const id of baseToRemote.removed) {
 			const e = local.find(profile => profile.id === id);
 			if (e) {
-				result.local.removed.push(e);
+				localResult.removed.push(e);
 			}
 		}
 
@@ -64,24 +61,24 @@ export function merge(local: IUserDataProfile[], remote: ISyncUserDataProfile[] 
 				// Is different from local to remote
 				if (localToRemote.updated.includes(id)) {
 					// Remote wins always
-					result.local.updated.push(remoteProfile);
+					localResult.updated.push(remoteProfile);
 				}
 			} else {
-				result.local.added.push(remoteProfile);
+				localResult.added.push(remoteProfile);
 			}
 		}
 
 		// Remotely updated profiles
 		for (const id of baseToRemote.updated) {
 			// Remote wins always
-			result.local.updated.push(remote.find(profile => profile.id === id)!);
+			localResult.updated.push(remote.find(profile => profile.id === id)!);
 		}
 
 		// Locally added profiles
 		for (const id of baseToLocal.added) {
 			// Not there in remote
 			if (!baseToRemote.added.includes(id)) {
-				result.remote!.added.push(local.find(profile => profile.id === id)!);
+				remoteResult.added.push(local.find(profile => profile.id === id)!);
 			}
 		}
 
@@ -94,21 +91,24 @@ export function merge(local: IUserDataProfile[], remote: ISyncUserDataProfile[] 
 
 			// If not updated in remote
 			if (!baseToRemote.updated.includes(id)) {
-				result.remote!.updated.push(local.find(profile => profile.id === id)!);
+				remoteResult.updated.push(local.find(profile => profile.id === id)!);
 			}
 		}
 
 		// Locally removed profiles
 		for (const id of baseToLocal.removed) {
-			result.remote!.removed.push(remote.find(profile => profile.id === id)!);
+			const removedProfile = remote.find(profile => profile.id === id);
+			if (removedProfile) {
+				remoteResult.removed.push(removedProfile);
+			}
 		}
 	}
 
-	if (result.remote!.added.length === 0 && result.remote!.removed.length === 0 && result.remote!.updated.length === 0) {
-		result.remote = null;
+	if (remoteResult.added.length === 0 && remoteResult.removed.length === 0 && remoteResult.updated.length === 0) {
+		remoteResult = null;
 	}
 
-	return result;
+	return { local: localResult, remote: remoteResult };
 }
 
 function compare(from: IUserDataProfileInfo[] | null, to: IUserDataProfileInfo[], ignoredProfiles: string[]): { added: string[]; removed: string[]; updated: string[] } {
@@ -116,11 +116,11 @@ function compare(from: IUserDataProfileInfo[] | null, to: IUserDataProfileInfo[]
 	to = to.filter(({ id }) => !ignoredProfiles.includes(id));
 	const fromKeys = from.map(({ id }) => id);
 	const toKeys = to.map(({ id }) => id);
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1);
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1);
+	const added = toKeys.filter(key => !fromKeys.includes(key));
+	const removed = fromKeys.filter(key => !toKeys.includes(key));
 	const updated: string[] = [];
 
-	for (const { id, name, shortName } of from) {
+	for (const { id, name, shortName, icon, useDefaultFlags } of from) {
 		if (removed.includes(id)) {
 			continue;
 		}
@@ -128,6 +128,8 @@ function compare(from: IUserDataProfileInfo[] | null, to: IUserDataProfileInfo[]
 		if (!toProfile
 			|| toProfile.name !== name
 			|| toProfile.shortName !== shortName
+			|| toProfile.icon !== icon
+			|| !equals(toProfile.useDefaultFlags, useDefaultFlags)
 		) {
 			updated.push(id);
 		}

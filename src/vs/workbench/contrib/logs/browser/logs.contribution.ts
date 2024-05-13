@@ -12,10 +12,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogLevelService, LogLevelService } from 'vs/workbench/contrib/logs/common/logLevelService';
-
-registerSingleton(ILogLevelService, LogLevelService, InstantiationType.Delayed);
 
 class WebLogOutputChannels extends Disposable implements IWorkbenchContribution {
 
@@ -29,7 +25,7 @@ class WebLogOutputChannels extends Disposable implements IWorkbenchContribution 
 	private registerWebContributions(): void {
 		this.instantiationService.createInstance(LogsDataCleaner);
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: OpenWindowSessionLogFileAction.ID,
@@ -41,7 +37,7 @@ class WebLogOutputChannels extends Disposable implements IWorkbenchContribution 
 			run(servicesAccessor: ServicesAccessor): Promise<void> {
 				return servicesAccessor.get(IInstantiationService).createInstance(OpenWindowSessionLogFileAction, OpenWindowSessionLogFileAction.ID, OpenWindowSessionLogFileAction.TITLE.value).run();
 			}
-		});
+		}));
 
 	}
 

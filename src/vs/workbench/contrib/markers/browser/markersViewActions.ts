@@ -7,15 +7,15 @@ import * as DOM from 'vs/base/browser/dom';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { registerThemingParticipant, ICssStyleCollector, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
+import 'vs/css!./markersViewActions';
 
 export interface IMarkersFiltersChangeEvent {
 	excludedFiles?: boolean;
@@ -59,7 +59,7 @@ export class MarkersFilters extends Disposable {
 	set excludedFiles(filesExclude: boolean) {
 		if (this._excludedFiles.get() !== filesExclude) {
 			this._excludedFiles.set(filesExclude);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ excludedFiles: true });
+			this._onDidChange.fire({ excludedFiles: true });
 		}
 	}
 
@@ -70,7 +70,7 @@ export class MarkersFilters extends Disposable {
 	set activeFile(activeFile: boolean) {
 		if (this._activeFile.get() !== activeFile) {
 			this._activeFile.set(activeFile);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ activeFile: true });
+			this._onDidChange.fire({ activeFile: true });
 		}
 	}
 
@@ -81,7 +81,7 @@ export class MarkersFilters extends Disposable {
 	set showWarnings(showWarnings: boolean) {
 		if (this._showWarnings.get() !== showWarnings) {
 			this._showWarnings.set(showWarnings);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showWarnings: true });
+			this._onDidChange.fire({ showWarnings: true });
 		}
 	}
 
@@ -112,7 +112,7 @@ export class MarkersFilters extends Disposable {
 export class QuickFixAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
-	private static readonly CLASS: string = 'markers-panel-action-quickfix ' + Codicon.lightBulb.classNames;
+	private static readonly CLASS: string = 'markers-panel-action-quickfix ' + ThemeIcon.asClassName(Codicon.lightBulb);
 	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
 	private readonly _onShowQuickFixes = this._register(new Emitter<void>());
@@ -145,10 +145,12 @@ export class QuickFixAction extends Action {
 
 export class QuickFixActionViewItem extends ActionViewItem {
 
-	constructor(action: QuickFixAction,
+	constructor(
+		action: QuickFixAction,
+		options: IActionViewItemOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
-		super(null, action, { icon: true, label: false });
+		super(null, action, { ...options, icon: true, label: false });
 	}
 
 	public override onClick(event: DOM.EventLike): void {
@@ -174,17 +176,3 @@ export class QuickFixActionViewItem extends ActionViewItem {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters.checked { border-color: ${inputActiveOptionBorderColor}; }`);
-	}
-	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
-	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters.checked { color: ${inputActiveOptionForegroundColor}; }`);
-	}
-	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
-	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
-	}
-});

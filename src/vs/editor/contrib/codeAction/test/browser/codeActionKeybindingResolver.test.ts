@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
+import { KeyCodeChord } from 'vs/base/common/keybindings';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
@@ -15,6 +16,9 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
 suite('CodeActionKeybindingResolver', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const refactorKeybinding = createCodeActionKeybinding(
 		KeyCode.KeyA,
 		refactorCommandId,
@@ -88,7 +92,7 @@ function createMockKeyBindingService(items: ResolvedKeybindingItem[]): IKeybindi
 function createCodeActionKeybinding(keycode: KeyCode, command: string, commandArgs: any) {
 	return new ResolvedKeybindingItem(
 		new USLayoutResolvedKeybinding(
-			new ChordKeybinding([new SimpleKeybinding(false, true, false, false, keycode)]),
+			[new KeyCodeChord(false, true, false, false, keycode)],
 			OperatingSystem.Linux),
 		command,
 		commandArgs,

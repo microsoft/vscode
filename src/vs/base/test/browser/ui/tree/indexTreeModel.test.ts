@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {
@@ -38,6 +39,8 @@ function withSmartSplice(fn: (options: IIndexTreeModelSpliceOptions<number, any>
 }
 
 suite('IndexTreeModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('ctor', () => {
 		const list: ITreeNode<number>[] = [];
@@ -308,36 +311,6 @@ suite('IndexTreeModel', () => {
 		assert.deepStrictEqual(list[2].element, 2);
 		assert.deepStrictEqual(list[2].collapsed, false);
 		assert.deepStrictEqual(list[2].depth, 1);
-	}));
-
-	test('updates collapsible', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
-
-		model.splice([0], 0, [
-			{
-				element: 0, children: [
-					{ element: 1 },
-				]
-			},
-		], options);
-
-		assert.strictEqual(list[0].collapsible, true);
-		assert.strictEqual(list[1].collapsible, false);
-
-		model.splice([0, 0], 1, [], options);
-		{
-			const [first, second] = list;
-			assert.strictEqual(first.collapsible, false);
-			assert.strictEqual(second, undefined);
-		}
-
-		model.splice([0, 0], 0, [{ element: 1 }], options);
-		{
-			const [first, second] = list;
-			assert.strictEqual(first.collapsible, true);
-			assert.strictEqual(second.collapsible, false);
-		}
 	}));
 
 	test('expand', () => withSmartSplice(options => {

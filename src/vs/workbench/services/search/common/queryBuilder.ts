@@ -26,7 +26,7 @@ import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo,
 /**
  * One folder to search and a glob expression that should be applied.
  */
-export interface IOneSearchPathPattern {
+interface IOneSearchPathPattern {
 	searchPath: uri;
 	pattern?: string;
 }
@@ -47,7 +47,7 @@ export interface ISearchPathsInfo {
 	pattern?: glob.IExpression;
 }
 
-export interface ICommonQueryBuilderOptions {
+interface ICommonQueryBuilderOptions {
 	_reason?: string;
 	excludePattern?: string | string[];
 	includePattern?: string | string[];
@@ -72,6 +72,7 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
+	shouldGlobSearch?: boolean;
 }
 
 export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
@@ -80,6 +81,12 @@ export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	beforeContext?: number;
 	afterContext?: number;
 	isSmartCase?: boolean;
+	notebookSearchConfig?: {
+		includeMarkupInput: boolean;
+		includeMarkupPreview: boolean;
+		includeCodeInput: boolean;
+		includeOutput: boolean;
+	};
 }
 
 export class QueryBuilder {
@@ -103,7 +110,7 @@ export class QueryBuilder {
 		});
 
 		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
-		return <ITextQuery>{
+		return {
 			...commonQuery,
 			type: QueryType.Text,
 			contentPattern,
@@ -112,7 +119,8 @@ export class QueryBuilder {
 			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
 			beforeContext: options.beforeContext,
 			afterContext: options.afterContext,
-			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
+			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
+
 		};
 	}
 
@@ -139,12 +147,40 @@ export class QueryBuilder {
 			newPattern.isMultiline = true;
 		}
 
+		if (options.notebookSearchConfig?.includeMarkupInput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookMarkdownInput = options.notebookSearchConfig.includeMarkupInput;
+		}
+
+		if (options.notebookSearchConfig?.includeMarkupPreview) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookMarkdownPreview = options.notebookSearchConfig.includeMarkupPreview;
+		}
+
+		if (options.notebookSearchConfig?.includeCodeInput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellInput = options.notebookSearchConfig.includeCodeInput;
+		}
+
+		if (options.notebookSearchConfig?.includeOutput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellOutput = options.notebookSearchConfig.includeOutput;
+		}
+
 		return newPattern;
 	}
 
 	file(folders: (IWorkspaceFolderData | URI)[], options: IFileQueryBuilderOptions = {}): IFileQuery {
 		const commonQuery = this.commonQuery(folders, options);
-		return <IFileQuery>{
+		return {
 			...commonQuery,
 			type: QueryType.File,
 			filePattern: options.filePattern
@@ -153,6 +189,7 @@ export class QueryBuilder {
 			exists: options.exists,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
+			shouldGlobMatchFilePattern: options.shouldGlobSearch
 		};
 	}
 
@@ -191,7 +228,7 @@ export class QueryBuilder {
 		};
 
 		if (options.onlyOpenEditors) {
-			const openEditors = arrays.coalesce(arrays.flatten(this.editorGroupsService.groups.map(group => group.editors.map(editor => editor.resource))));
+			const openEditors = arrays.coalesce(this.editorGroupsService.groups.flatMap(group => group.editors.map(editor => editor.resource)));
 			this.logService.trace('QueryBuilder#commonQuery - openEditor URIs', JSON.stringify(openEditors));
 			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery(queryProps, editor.fsPath));
 			const openEditorsQueryProps = this.commonQueryFromFileList(openEditorsInQuery);
@@ -321,7 +358,7 @@ export class QueryBuilder {
 			result.searchPaths = searchPaths;
 		}
 
-		const exprSegments = arrays.flatten(expandedExprSegments);
+		const exprSegments = expandedExprSegments.flat();
 		const includePattern = patternListToIExpression(...exprSegments);
 		if (includePattern) {
 			result.pattern = includePattern;
@@ -345,22 +382,20 @@ export class QueryBuilder {
 			return [];
 		}
 
-		const expandedSearchPaths = arrays.flatten(
-			searchPaths.map(searchPath => {
-				// 1 open folder => just resolve the search paths to absolute paths
-				let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+		const expandedSearchPaths = searchPaths.flatMap(searchPath => {
+			// 1 open folder => just resolve the search paths to absolute paths
+			let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
 
-				if (globPortion) {
-					globPortion = normalizeGlobPattern(globPortion);
-				}
+			if (globPortion) {
+				globPortion = normalizeGlobPattern(globPortion);
+			}
 
-				// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
-				const oneExpanded = this.expandOneSearchPath(pathPortion);
+			// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
+			const oneExpanded = this.expandOneSearchPath(pathPortion);
 
-				// Expanded search paths to multiple resolved patterns (with ** and without)
-				return arrays.flatten(
-					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion)));
-			}));
+			// Expanded search paths to multiple resolved patterns (with ** and without)
+			return oneExpanded.flatMap(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion));
+		});
 
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
 		expandedSearchPaths.forEach(oneSearchPathPattern => {
@@ -505,7 +540,7 @@ export class QueryBuilder {
 		};
 
 		const folderName = URI.isUri(folder) ? basename(folder) : folder.name;
-		return <IFolderQuery>{
+		return {
 			folder: folderUri,
 			folderName: includeFolderName ? folderName : undefined,
 			excludePattern: Object.keys(excludePattern).length > 0 ? excludePattern : undefined,
@@ -581,6 +616,18 @@ function normalizeGlobPattern(pattern: string): string {
 }
 
 /**
+ * Escapes a path for use as a glob pattern that would match the input precisely.
+ * Characters '?', '*', '[', and ']' are escaped into character range glob syntax
+ * (for example, '?' becomes '[?]').
+ * NOTE: This implementation makes no special cases for UNC paths. For example,
+ * given the input "//?/C:/A?.txt", this would produce output '//[?]/C:/A[?].txt',
+ * which may not be desirable in some cases. Use with caution if UNC paths could be expected.
+ */
+function escapeGlobPattern(path: string): string {
+	return path.replace(/([?*[\]])/g, '[$1]');
+}
+
+/**
  * Construct an include pattern from a list of folders uris to search in.
  */
 export function resolveResourcesForSearchIncludes(resources: URI[], contextService: IWorkspaceContextService): string[] {
@@ -618,7 +665,7 @@ export function resolveResourcesForSearchIncludes(resources: URI[], contextServi
 			}
 
 			if (folderPath) {
-				folderPaths.push(folderPath);
+				folderPaths.push(escapeGlobPattern(folderPath));
 			}
 		});
 	}

@@ -38,3 +38,4 @@ suite('XLF Parser Tests', () => {
         assert.deepStrictEqual(i18n.getResource('vs/workbench/browser/parts/panel/panelActions'), workbench);
     });
 });
+//# sourceMappingURL=i18n.test.js.map

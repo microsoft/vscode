@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nativeKeymap from 'native-keymap';
+import type * as nativeKeymap from 'native-keymap';
 import * as platform from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';

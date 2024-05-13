@@ -6,10 +6,12 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { generateUuid } from 'vs/base/common/uuid';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IViewBadge } from 'vs/workbench/common/views';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 
@@ -23,6 +25,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	constructor(
 		context: IExtHostContext,
 		private readonly mainThreadWebviews: MainThreadWebviews,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
 		super();
@@ -63,7 +66,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 
 		const registration = this._webviewViewService.register(viewType, {
 			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
-				const handle = webviewView.webview.id;
+				const handle = generateUuid();
 
 				this._webviewViews.set(handle, webviewView);
 				this.mainThreadWebviews.addWebview(handle, webviewView.webview, { serializeBuffersForPostMessage: options.serializeBuffersForPostMessage });
@@ -92,11 +95,26 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 					this._webviewViews.deleteAndDispose(handle);
 				});
 
+				type CreateWebviewViewTelemetry = {
+					extensionId: string;
+					id: string;
+				};
+				type Classification = {
+					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension' };
+					id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the view' };
+					owner: 'digitarald';
+					comment: 'Helps to gain insights on what extension contributed views are most popular';
+				};
+				this._telemetryService.publicLog2<CreateWebviewViewTelemetry, Classification>('webviews:createWebviewView', {
+					extensionId: extension.id.value,
+					id: viewType,
+				});
+
 				try {
 					await this._proxy.$resolveWebviewView(handle, viewType, webviewView.title, state, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewView.webview.html = this.mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+					webviewView.webview.setHtml(this.mainThreadWebviews.getWebviewResolvedFailedContent(viewType));
 				}
 			}
 		});

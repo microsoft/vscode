@@ -55,7 +55,7 @@ export function getLanguageParticipants(): LanguageParticipants {
 				}
 			}
 		}
-		return !isEqualSet(languages, oldLanguages) || !isEqualSet(oldLanguages, oldAutoInsert);
+		return !isEqualSet(languages, oldLanguages) || !isEqualSet(autoInsert, oldAutoInsert);
 	}
 	update();
 

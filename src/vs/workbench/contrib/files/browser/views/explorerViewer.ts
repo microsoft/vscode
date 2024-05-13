@@ -6,7 +6,7 @@
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
-import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from 'vs/platform/files/common/files';
@@ -16,15 +16,14 @@ import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
@@ -35,7 +34,7 @@ import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
-import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -49,7 +48,7 @@ import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree'
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { isNumber } from 'vs/base/common/types';
+import { isNumber, isStringArray } from 'vs/base/common/types';
 import { IEditableData } from 'vs/workbench/common/views';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -61,6 +60,15 @@ import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAcce
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 import { ResourceSet } from 'vs/base/common/map';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { timeout } from 'vs/base/common/async';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { mainWindow } from 'vs/base/browser/window';
+import { IExplorerFileContribution, explorerFileContribRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
+import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -86,7 +94,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IFileService private readonly fileService: IFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
@@ -99,7 +108,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return element;
 		}
 
-		const wasError = element.isError;
+		const hasError = element.error;
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
 		const children = element.fetchChildren(sortOrder);
 		if (Array.isArray(children)) {
@@ -109,7 +118,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		const promise = children.then(
 			children => {
 				// Clear previous error decoration on root folder
-				if (element instanceof ExplorerItem && element.isRoot && !element.isError && wasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+				if (element instanceof ExplorerItem && element.isRoot && !element.error && hasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 					explorerRootErrorEmitter.fire(element.resource);
 				}
 				return children;
@@ -119,8 +128,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 				if (element instanceof ExplorerItem && element.isRoot) {
 					if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						// Single folder create a dummy explorer item to show error
-						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, undefined, undefined, false);
-						placeholder.isError = true;
+						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, this.filesConfigService, undefined, undefined, false);
+						placeholder.error = e;
 						return [placeholder];
 					} else {
 						explorerRootErrorEmitter.fire(element.resource);
@@ -260,7 +269,7 @@ export interface IFileTemplateData {
 	readonly elementDisposables: DisposableStore;
 	readonly label: IResourceLabel;
 	readonly container: HTMLElement;
-
+	readonly contribs: IExplorerFileContribution[];
 	currentContext?: ExplorerItem;
 }
 
@@ -269,10 +278,85 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
-	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
+	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController[]>();
 
 	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
 	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
+
+	private readonly hoverDelegate = new class implements IHoverDelegate {
+
+		private lastHoverHideTime = 0;
+		private hiddenFromClick = false;
+		readonly placement = 'element';
+
+		get delay() {
+			// Delay implementation borrowed froms src/vs/workbench/browser/parts/statusbar/statusbarPart.ts
+			if (Date.now() - this.lastHoverHideTime < 500) {
+				return 0; // show instantly when a hover was recently shown
+			}
+
+			return this.configurationService.getValue<number>('workbench.hover.delay');
+		}
+
+		constructor(
+			private readonly configurationService: IConfigurationService,
+			private readonly hoverService: IHoverService
+		) { }
+
+		showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+			let element: HTMLElement;
+			if (options.target instanceof HTMLElement) {
+				element = options.target;
+			} else {
+				element = options.target.targetElements[0];
+			}
+
+			const tlRow = element.closest('.monaco-tl-row') as HTMLElement | undefined;
+			const listRow = tlRow?.closest('.monaco-list-row') as HTMLElement | undefined;
+
+			const child = element.querySelector('div.monaco-icon-label-container') as Element | undefined;
+			const childOfChild = child?.querySelector('span.monaco-icon-name-container') as HTMLElement | undefined;
+			let overflowed = false;
+			if (childOfChild && child) {
+				const width = child.clientWidth;
+				const childWidth = childOfChild.offsetWidth;
+				// Check if element is overflowing its parent container
+				overflowed = width <= childWidth;
+			}
+
+			// Only count decorations that provide additional info, as hover overing decorations such as git excluded isn't helpful
+			const hasDecoration = options.content.toString().includes('•');
+			// If it's overflowing or has a decoration show the tooltip
+			overflowed = overflowed || hasDecoration;
+
+			const indentGuideElement = tlRow?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
+			if (!indentGuideElement) {
+				return;
+			}
+
+			return overflowed ? this.hoverService.showHover({
+				...options,
+				target: indentGuideElement,
+				container: listRow,
+				additionalClasses: ['explorer-item-hover'],
+				position: {
+					hoverPosition: HoverPosition.RIGHT,
+				},
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true,
+					showPointer: false,
+				}
+			}, focus) : undefined;
+		}
+
+		onDidHideHover(): void {
+			if (!this.hiddenFromClick) {
+				this.lastHoverHideTime = Date.now();
+			}
+			this.hiddenFromClick = false;
+		}
+	}(this.configurationService, this.hoverService);
 
 	constructor(
 		container: HTMLElement,
@@ -283,7 +367,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -315,8 +402,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const templateDisposables = new DisposableStore();
-
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
+		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, hoverDelegate: experimentalHover ? this.hoverDelegate : undefined }));
 		templateDisposables.add(label.onDidRender(() => {
 			try {
 				if (templateData.currentContext) {
@@ -327,7 +414,14 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}
 		}));
 
-		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container };
+		const contribs = explorerFileContribRegistry.create(this.instantiationService, container, templateDisposables);
+		templateDisposables.add(explorerFileContribRegistry.onDidRegisterDescriptor(d => {
+			const contr = d.create(this.instantiationService, container);
+			contribs.push(templateDisposables.add(contr));
+			contr.setResource(templateData.currentContext?.resource);
+		}));
+
+		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs };
 		return templateData;
 	}
 
@@ -348,6 +442,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// Input Box
 		else {
 			templateData.label.element.style.display = 'none';
+			templateData.contribs.forEach(c => c.setResource(undefined));
 			templateData.elementDisposables.add(this.renderInputBox(templateData.container, stat, editableData));
 		}
 	}
@@ -371,7 +466,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
 			templateData.elementDisposables.add(compressedNavigationController);
-			this.compressedNavigationControllers.set(stat, compressedNavigationController);
+
+			const nodeControllers = this.compressedNavigationControllers.get(stat) ?? [];
+			this.compressedNavigationControllers.set(stat, [...nodeControllers, compressedNavigationController]);
 
 			// accessibility
 			templateData.elementDisposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
@@ -384,13 +481,27 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}));
 
-			templateData.elementDisposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
+			templateData.elementDisposables.add(toDisposable(() => {
+				const nodeControllers = this.compressedNavigationControllers.get(stat) ?? [];
+				const renderedIndex = nodeControllers.findIndex(controller => controller === compressedNavigationController);
+
+				if (renderedIndex < 0) {
+					throw new Error('Disposing unknown navigation controller');
+				}
+
+				if (nodeControllers.length === 1) {
+					this.compressedNavigationControllers.delete(stat);
+				} else {
+					nodeControllers.splice(renderedIndex, 1);
+				}
+			}));
 		}
 
 		// Input Box
 		else {
 			templateData.label.element.classList.remove('compressed');
 			templateData.label.element.style.display = 'none';
+			templateData.contribs.forEach(c => c.setResource(undefined));
 			templateData.elementDisposables.add(this.renderInputBox(templateData.container, editable[0], editableData));
 		}
 	}
@@ -414,7 +525,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
+		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
+		templateData.contribs.forEach(c => c.setResource(stat.resource));
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
+			title: experimentalHover ? isStringArray(label) ? label[0] : label : undefined,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,
@@ -467,9 +581,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					};
 				}
 			},
-			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
+			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel."),
+			inputBoxStyles: defaultInputBoxStyles
 		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 		const lastDot = value.lastIndexOf('.');
 		let currentSelectionState = 'prefix';
@@ -478,7 +592,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -536,11 +650,25 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
 				showInputBoxNotification();
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
+				while (true) {
+					await timeout(0);
+
+					const ownerDocument = inputBox.inputElement.ownerDocument;
+					if (!ownerDocument.hasFocus()) {
+						break;
+					} if (DOM.isActiveElement(inputBox.inputElement)) {
+						return;
+					} else if (ownerDocument.activeElement instanceof HTMLElement && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
+					} else {
+						break;
+					}
+				}
+
 				done(inputBox.isInputValid(), true);
 			}),
-			label,
-			styler
+			label
 		];
 
 		return toDisposable(() => {
@@ -562,7 +690,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.templateDisposables.dispose();
 	}
 
-	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined {
+	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController[] | undefined {
 		return this.compressedNavigationControllers.get(stat);
 	}
 
@@ -589,8 +717,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	getActiveDescendantId(stat: ExplorerItem): string | undefined {
-		const compressedNavigationController = this.compressedNavigationControllers.get(stat);
-		return compressedNavigationController?.currentId;
+		return this.compressedNavigationControllers.get(stat)?.[0]?.currentId ?? undefined;
 	}
 
 	dispose(): void {
@@ -604,7 +731,7 @@ interface CachedParsedExpression {
 }
 
 /**
- * Respectes files.exclude setting in filtering out content from the explorer.
+ * Respects files.exclude setting in filtering out content from the explorer.
  * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
@@ -945,7 +1072,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private compressedDragOverElement: HTMLElement | undefined;
 	private compressedDropTargetDisposable: IDisposable = Disposable.None;
 
-	private toDispose: IDisposable[];
+	private readonly disposables = new DisposableStore();
 	private dropEnabled = false;
 
 	constructor(
@@ -960,16 +1087,16 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.toDispose = [];
-
-		const updateDropEnablement = () => {
-			this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
+		const updateDropEnablement = (e: IConfigurationChangeEvent | undefined) => {
+			if (!e || e.affectsConfiguration('explorer.enableDragAndDrop')) {
+				this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
+			}
 		};
-		updateDropEnablement();
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => updateDropEnablement()));
+		updateDropEnablement(undefined);
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => updateDropEnablement(e)));
 	}
 
-	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		if (!this.dropEnabled) {
 			return false;
 		}
@@ -982,7 +1109,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const iconLabelName = getIconLabelNameFromHTMLElement(originalEvent.target);
 
 				if (iconLabelName && iconLabelName.index < iconLabelName.count - 1) {
-					const result = this.handleDragOver(data, compressedTarget, targetIndex, originalEvent);
+					const result = this.handleDragOver(data, compressedTarget, targetIndex, targetSector, originalEvent);
 
 					if (result) {
 						if (iconLabelName.element !== this.compressedDragOverElement) {
@@ -1006,13 +1133,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		this.compressedDropTargetDisposable.dispose();
-		return this.handleDragOver(data, target, targetIndex, originalEvent);
+		return this.handleDragOver(data, target, targetIndex, targetSector, originalEvent);
 	}
 
-	private handleDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	private handleDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const isNative = data instanceof NativeDragAndDropData;
-		const effect = (isNative || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
+		const effectType = (isNative || isCopy) ? ListDragOverEffectType.Copy : ListDragOverEffectType.Move;
+		const effect = { type: effectType, position: ListDragOverEffectPosition.Over };
 
 		// Native DND
 		if (isNative) {
@@ -1029,12 +1157,18 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// In-Explorer DND
 		else {
 			const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>);
+			const isRootsReorder = items.every(item => item.isRoot);
 
 			if (!target) {
 				// Dropping onto the empty area. Do not accept if items dragged are already
 				// children of the root unless we are copying the file
 				if (!isCopy && items.every(i => !!i.parent && i.parent.isRoot)) {
 					return false;
+				}
+
+				// root is added after last root folder when hovering on empty background
+				if (isRootsReorder) {
+					return { accept: true, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.After } };
 				}
 
 				return { accept: true, bubble: TreeDragOverBubble.Down, effect, autoExpand: false };
@@ -1044,18 +1178,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return false;
 			}
 
+			if (!isCopy && items.every((source) => source.isReadonly)) {
+				return false; // Cannot move readonly items unless we copy
+			}
+
 			if (items.some((source) => {
-				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
-					return true; // Root folder can not be moved to a non root file stat.
+				if (source.isRoot) {
+					return false; // Root folders are handled seperately
 				}
 
 				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
-					return true; // Can not move anything onto itself
-				}
-
-				if (source.isRoot && target instanceof ExplorerItem && target.isRoot) {
-					// Disable moving workspace roots in one another
-					return false;
+					return true; // Can not move anything onto itself excpet for root folders
 				}
 
 				if (!isCopy && this.uriIdentityService.extUri.isEqual(dirname(source.resource), target.resource)) {
@@ -1069,6 +1202,24 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return false;
 			})) {
 				return false;
+			}
+
+			// reordering roots
+			if (isRootsReorder) {
+				if (!target.isRoot) {
+					return false;
+				}
+
+				let dropEffectPosition: ListDragOverEffectPosition | undefined = undefined;
+				switch (targetSector) {
+					case ListViewTargetSector.TOP:
+					case ListViewTargetSector.CENTER_TOP:
+						dropEffectPosition = ListDragOverEffectPosition.Before; break;
+					case ListViewTargetSector.CENTER_BOTTOM:
+					case ListViewTargetSector.BOTTOM:
+						dropEffectPosition = ListDragOverEffectPosition.After; break;
+				}
+				return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition } };
 			}
 		}
 
@@ -1127,7 +1278,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	async drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
+	async drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
 		this.compressedDropTargetDisposable.dispose();
 
 		// Find compressed target
@@ -1142,6 +1293,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Find parent to add to
 		if (!target) {
 			target = this.explorerService.roots[this.explorerService.roots.length - 1];
+			targetSector = ListViewTargetSector.BOTTOM;
 		}
 		if (!target.isDirectory && target.parent) {
 			target = target.parent;
@@ -1159,9 +1311,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
 				// Use local file import when supported
-				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(window))) {
+				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(mainWindow))) {
 					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
-					await fileImport.import(resolvedTarget, originalEvent);
+					await fileImport.import(resolvedTarget, originalEvent, mainWindow);
 				}
 				// Otherwise fallback to browser based file upload
 				else {
@@ -1172,14 +1324,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// In-Explorer DND (Move/Copy file)
 			else {
-				await this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, resolvedTarget, originalEvent);
+				await this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, resolvedTarget, targetIndex, targetSector, originalEvent);
 			}
 		} catch (error) {
-			this.dialogService.show(Severity.Error, toErrorMessage(error));
+			this.dialogService.error(toErrorMessage(error));
 		}
 	}
 
-	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
 		const distinctItems = new Map(elementsData.map(element => [element, this.isCollapsed(element)]));
 
@@ -1214,7 +1366,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				},
-				type: 'question',
 				primaryButton: localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 
@@ -1228,7 +1379,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		}
 
-		await this.doHandleRootDrop(items.filter(s => s.isRoot), target);
+		await this.doHandleRootDrop(items.filter(s => s.isRoot), target, targetSector);
 
 		const sources = items.filter(s => !s.isRoot);
 		if (isCopy) {
@@ -1238,13 +1389,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return this.doHandleExplorerDropOnMove(sources, target);
 	}
 
-	private async doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem): Promise<void> {
+	private async doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem, targetSector: ListViewTargetSector | undefined): Promise<void> {
 		if (roots.length === 0) {
 			return;
 		}
 
 		const folders = this.contextService.getWorkspace().folders;
 		let targetIndex: number | undefined;
+		const sourceIndices: number[] = [];
 		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
 		const rootsToMove: IWorkspaceFolderCreationData[] = [];
 
@@ -1253,8 +1405,18 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				uri: folders[index].uri,
 				name: folders[index].name
 			};
+
+			// Is current target
 			if (target instanceof ExplorerItem && this.uriIdentityService.extUri.isEqual(folders[index].uri, target.resource)) {
 				targetIndex = index;
+			}
+
+			// Is current source
+			for (const root of roots) {
+				if (this.uriIdentityService.extUri.isEqual(folders[index].uri, root.resource)) {
+					sourceIndices.push(index);
+					break;
+				}
 			}
 
 			if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
@@ -1265,6 +1427,20 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 		if (targetIndex === undefined) {
 			targetIndex = workspaceCreationData.length;
+		} else {
+			switch (targetSector) {
+				case ListViewTargetSector.BOTTOM:
+				case ListViewTargetSector.CENTER_BOTTOM:
+					targetIndex++;
+					break;
+			}
+			// Adjust target index if source was located before target.
+			// The move will cause the index to change
+			for (const sourceIndex of sourceIndices) {
+				if (sourceIndex < targetIndex) {
+					targetIndex--;
+				}
+			}
 		}
 
 		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);
@@ -1292,11 +1468,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const resourceEdit = new ResourceFileEdit(resource, newResource, { copy: true, overwrite: allowOverwrite });
 			resourceFileEdits.push(resourceEdit);
 		}
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		await this.explorerService.applyBulkEdit(resourceFileEdits, {
 			confirmBeforeUndo: explorerConfig.confirmUndo === UndoConfirmLevel.Default || explorerConfig.confirmUndo === UndoConfirmLevel.Verbose,
-			undoLabel: localize('copy', "Copy {0}", labelSufix),
-			progressLabel: localize('copying', "Copying {0}", labelSufix),
+			undoLabel: localize('copy', "Copy {0}", labelSuffix),
+			progressLabel: localize('copying', "Copying {0}", labelSuffix),
 		});
 
 		const editors = resourceFileEdits.filter(edit => {
@@ -1311,11 +1487,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Do not allow moving readonly items
 		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		const options = {
 			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-			undoLabel: localize('move', "Move {0}", labelSufix),
-			progressLabel: localize('moving', "Moving {0}", labelSufix)
+			undoLabel: localize('move', "Move {0}", labelSuffix),
+			progressLabel: localize('moving', "Moving {0}", labelSuffix)
 		};
 
 		try {
@@ -1362,7 +1538,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private static getCompressedStatFromDragEvent(stat: ExplorerItem, dragEvent: DragEvent): ExplorerItem {
-		const target = document.elementFromPoint(dragEvent.clientX, dragEvent.clientY);
+		const target = DOM.getWindow(dragEvent).document.elementFromPoint(dragEvent.clientX, dragEvent.clientY);
 		const iconLabelName = getIconLabelNameFromHTMLElement(target);
 
 		if (iconLabelName) {
@@ -1381,6 +1557,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	onDragEnd(): void {
+		this.compressedDropTargetDisposable.dispose();
+	}
+
+	dispose(): void {
 		this.compressedDropTargetDisposable.dispose();
 	}
 }
@@ -1419,7 +1599,7 @@ export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<Exp
 	}
 }
 
-function getFileOrFolderLabelSufix(items: ExplorerItem[]): string {
+function getFileOrFolderLabelSuffix(items: ExplorerItem[]): string {
 	if (items.length === 1) {
 		return items[0].name;
 	}

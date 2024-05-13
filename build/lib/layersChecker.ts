@@ -59,6 +59,17 @@ const CORE_TYPES = [
 	'URL',
 	'URLSearchParams',
 	'ReadonlyArray',
+	'Event',
+	'EventTarget',
+	'BroadcastChannel',
+	'performance',
+	'Blob',
+	'crypto',
+	'File',
+	'fetch',
+	'RequestInit',
+	'Headers',
+	'Response'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -68,7 +79,9 @@ const NATIVE_TYPES = [
 	'INativeEnvironmentService',
 	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
-	'ICommonNativeHostService'
+	'ICommonNativeHostService',
+	'INativeHostService',
+	'IMainProcessService'
 ];
 
 const RULES: IRule[] = [
@@ -79,12 +92,6 @@ const RULES: IRule[] = [
 		skip: true // -> skip all test files
 	},
 
-	// TODO@bpasero remove me once electron utility process has landed
-	{
-		target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
-		skip: true
-	},
-
 	// Common: vs/base/common/platform.ts
 	{
 		target: '**/vs/base/common/platform.ts',
@@ -93,6 +100,23 @@ const RULES: IRule[] = [
 
 			// Safe access to postMessage() and friends
 			'MessageEvent',
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/base/common/async.ts
+	{
+		target: '**/vs/base/common/async.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to requestIdleCallback & cancelIdleCallback
+			'requestIdleCallback',
+			'cancelIdleCallback'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
@@ -134,6 +158,17 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/platform/native/common/nativeHostService.ts
+	{
+		target: '**/vs/platform/native/common/nativeHostService.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common: vs/workbench/api/common/extHostExtensionService.ts
 	{
 		target: '**/vs/workbench/api/common/extHostExtensionService.ts',
@@ -142,6 +177,70 @@ const RULES: IRule[] = [
 
 			// Safe access to global
 			'global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/workbench/api/common/extHostTypes.ts
+	{
+		target: '**/vs/workbench/api/common/extHostTypes.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to global
+			'__global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/workbench/api/common/extHostChatAgents2.ts
+	{
+		target: '**/vs/workbench/api/common/extHostChatAgents2.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to global
+			'__global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/workbench/api/common/extHostChatVariables.ts
+	{
+		target: '**/vs/workbench/api/common/extHostChatVariables.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to global
+			'__global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/workbench/api/common/extensionHostMain.ts
+	{
+		target: '**/vs/workbench/api/common/extensionHostMain.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to global
+			'__global'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
@@ -200,12 +299,6 @@ const RULES: IRule[] = [
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
-	},
-
-	// Electron (renderer): skip
-	{
-		target: '**/vs/**/electron-browser/**',
-		skip: true // -> supports all types
 	},
 
 	// Electron (main)

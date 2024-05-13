@@ -3,32 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, getWindowById } from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { Emitter, Event } from 'vs/base/common/event';
+import { CodeWindow } from 'vs/base/browser/window';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, IWebview, WebviewContentOptions, IWebviewElement, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions, IOverlayWebview, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 
 /**
  * Webview that is absolutely positioned over another element and that can creates and destroys an underlying webview as needed.
  */
 export class OverlayWebview extends Disposable implements IOverlayWebview {
 
-	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
-	public readonly onDidWheel = this._onDidWheel.event;
-
 	private _isFirstLoad = true;
 	private readonly _firstLoadPendingMessages = new Set<{ readonly message: any; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
-	private _html: string = '';
+	private _html = '';
+	private _title: string | undefined;
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
 
@@ -38,29 +37,32 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _owner: any = undefined;
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private _windowId: number | undefined = undefined;
+	private get window() { return getWindowById(this._windowId, true).window; }
+
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean> | undefined;
 	private _findWidgetEnabled: IContextKey<boolean> | undefined;
 	private _shouldShowFindWidgetOnRestore = false;
 
-	public readonly id: string;
 	public readonly providedViewType?: string;
-	public readonly origin: string;
+
+	public origin: string;
 
 	private _container: FastDomNode<HTMLDivElement> | undefined;
 
 	public constructor(
 		initInfo: WebviewInitInfo,
-		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService
 	) {
 		super();
 
-		this.id = initInfo.id;
 		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? generateUuid();
 
+		this._title = initInfo.title;
 		this._extension = initInfo.extension;
 		this._options = initInfo.options;
 		this._contentOptions = initInfo.contentOptions;
@@ -91,15 +93,13 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		super.dispose();
 	}
 
-
 	public get container(): HTMLElement {
 		if (this._isDisposed) {
-			throw new Error(`DynamicWebviewEditorOverlay has been disposed`);
+			throw new Error(`OverlayWebview has been disposed`);
 		}
 
 		if (!this._container) {
 			const node = document.createElement('div');
-			node.id = `webview-${this.id}`;
 			node.style.position = 'absolute';
 			node.style.overflow = 'hidden';
 			this._container = new FastDomNode(node);
@@ -107,17 +107,32 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this.
-			this._layoutService.container.appendChild(node);
+			this._layoutService.getContainer(this.window).appendChild(node);
 		}
 
 		return this._container.domNode;
 	}
 
-	public claim(owner: any, scopedContextKeyService: IContextKeyService | undefined) {
+	public claim(owner: any, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined) {
+		if (this._isDisposed) {
+			return;
+		}
+
 		const oldOwner = this._owner;
 
+		if (this._windowId !== targetWindow.vscodeWindowId) {
+			// moving to a new window
+			this.release(oldOwner);
+			// since we are moving to a new window, we need to dispose the webview and recreate
+			this._webview.clear();
+			this._webviewEvents.clear();
+			this._container?.domNode.remove();
+			this._container = undefined;
+		}
+
 		this._owner = owner;
-		this._show();
+		this._windowId = targetWindow.vscodeWindowId;
+		this._show(targetWindow);
 
 		if (oldOwner !== owner) {
 			const contextKeyService = (scopedContextKeyService || this._baseContextKeyService);
@@ -168,6 +183,22 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			return;
 		}
 
+		const whenContainerStylesLoaded = this._layoutService.whenContainerStylesLoaded(this.window);
+		if (whenContainerStylesLoaded) {
+			// In floating windows, we need to ensure that the
+			// container is ready for us to compute certain
+			// layout related properties.
+			whenContainerStylesLoaded.then(() => this.doLayoutWebviewOverElement(element, dimension, clippingContainer));
+		} else {
+			this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
+		}
+	}
+
+	private doLayoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
+		if (!this._container || !this._container.domNode.parentElement) {
+			return;
+		}
+
 		const frameRect = element.getBoundingClientRect();
 		const containerRect = this._container.domNode.parentElement.getBoundingClientRect();
 		const parentBorderTop = (containerRect.height - this._container.domNode.parentElement.clientHeight) / 2.0;
@@ -184,16 +215,16 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	private _show() {
+	private _show(targetWindow: CodeWindow) {
 		if (this._isDisposed) {
-			throw new Error('Webview overlay is disposed');
+			throw new Error('OverlayWebview is disposed');
 		}
 
 		if (!this._webview.value) {
 			const webview = this._webviewService.createWebviewElement({
-				id: this.id,
 				providedViewType: this.providedViewType,
 				origin: this.origin,
+				title: this._title,
 				options: this._options,
 				contentOptions: this._contentOptions,
 				extension: this.extension,
@@ -206,7 +237,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			}
 
 			if (this._html) {
-				webview.html = this._html;
+				webview.setHtml(this._html);
 			}
 
 			if (this._options.tryRestoreScrollPosition) {
@@ -215,7 +246,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			this._findWidgetEnabled?.set(!!this.options.enableFindWidget);
 
-			webview.mountTo(this.container);
+			webview.mountTo(this.container, targetWindow);
 
 			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
@@ -226,6 +257,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
 			this._webviewEvents.add(webview.onDidReload(() => { this._onDidReload.fire(); }));
+			this._webviewEvents.add(webview.onFatalError(x => { this._onFatalError.fire(x); }));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -256,10 +288,14 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._container?.setVisibility('visible');
 	}
 
-	public get html(): string { return this._html; }
-	public set html(value: string) {
-		this._html = value;
-		this._withWebview(webview => webview.html = value);
+	public setHtml(html: string) {
+		this._html = html;
+		this._withWebview(webview => webview.setHtml(html));
+	}
+
+	public setTitle(title: string) {
+		this._title = title;
+		this._withWebview(webview => webview.setTitle(title));
 	}
 
 	public get initialScrollProgress(): number { return this._initialScrollProgress; }
@@ -294,28 +330,34 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	public readonly onDidFocus = this._onDidFocus.event;
 
 	private readonly _onDidBlur = this._register(new Emitter<void>());
-	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	public readonly onDidBlur = this._onDidBlur.event;
 
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
-	public readonly onDidClickLink: Event<string> = this._onDidClickLink.event;
+	public readonly onDidClickLink = this._onDidClickLink.event;
 
 	private readonly _onDidReload = this._register(new Emitter<void>());
 	public readonly onDidReload = this._onDidReload.event;
 
-	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
-	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
+	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number }>());
+	public readonly onDidScroll = this._onDidScroll.event;
 
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
-	public readonly onDidUpdateState: Event<string | undefined> = this._onDidUpdateState.event;
+	public readonly onDidUpdateState = this._onDidUpdateState.event;
 
 	private readonly _onMessage = this._register(new Emitter<WebviewMessageReceivedEvent>());
 	public readonly onMessage = this._onMessage.event;
 
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
-	public readonly onMissingCsp: Event<any> = this._onMissingCsp.event;
+	public readonly onMissingCsp = this._onMissingCsp.event;
+
+	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
+	public readonly onDidWheel = this._onDidWheel.event;
+
+	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
+	public onFatalError = this._onFatalError.event;
 
 	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {

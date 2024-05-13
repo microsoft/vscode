@@ -16,6 +16,8 @@
 	background:rgba(0,0,0,0);
 
 	transition: opacity 100ms linear;
+	/* In front of peek view */
+	z-index: 11;
 }
 .monaco-scrollable-element > .invisible {
 	opacity: 0;
@@ -52,6 +54,8 @@
 	left: 0;
 	height: 3px;
 	width: 3px;
+}
+.monaco-scrollable-element > .shadow.top.left {
 	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
 }
 

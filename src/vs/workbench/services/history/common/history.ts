@@ -105,14 +105,14 @@ export interface IHistoryService {
 	 *
 	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI | undefined;
+	getLastActiveWorkspaceRoot(schemeFilter?: string, authorityFilter?: string): URI | undefined;
 
 	/**
 	 * Looking at the editor history, returns the resource of the last file that was opened.
 	 *
 	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
-	getLastActiveFile(schemeFilter: string): URI | undefined;
+	getLastActiveFile(schemeFilter: string, authorityFilter?: string): URI | undefined;
 
 	/**
 	 * Opens the next used editor if any.

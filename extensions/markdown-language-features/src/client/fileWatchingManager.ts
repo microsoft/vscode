@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { disposeAll } from 'vscode-markdown-languageservice/out/util/dispose';
-import { ResourceMap } from 'vscode-markdown-languageservice/out/util/resourceMap';
 import { Utils } from 'vscode-uri';
-import { IDisposable } from '../util/dispose';
+import { disposeAll, IDisposable } from '../util/dispose';
+import { ResourceMap } from '../util/resourceMap';
 import { Schemes } from '../util/schemes';
 
 type DirWatcherEntry = {

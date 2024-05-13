@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
 import 'vs/css!./keybindingLabel';
@@ -13,7 +17,7 @@ import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
-export interface PartMatches {
+export interface ChordMatches {
 	ctrlKey?: boolean;
 	shiftKey?: boolean;
 	altKey?: boolean;
@@ -22,47 +26,50 @@ export interface PartMatches {
 }
 
 export interface Matches {
-	firstPart: PartMatches;
-	chordPart: PartMatches;
+	firstPart: ChordMatches;
+	chordPart: ChordMatches;
 }
 
 export interface KeybindingLabelOptions extends IKeybindingLabelStyles {
 	renderUnboundKeybindings?: boolean;
+	/**
+	 * Default false.
+	 */
+	disableTitle?: boolean;
 }
-
-export type CSSValueString = string;
 
 export interface IKeybindingLabelStyles {
-	keybindingLabelBackground?: CSSValueString;
-	keybindingLabelForeground?: CSSValueString;
-	keybindingLabelBorder?: CSSValueString;
-	keybindingLabelBottomBorder?: CSSValueString;
-	keybindingLabelShadow?: CSSValueString;
+	keybindingLabelBackground: string | undefined;
+	keybindingLabelForeground: string | undefined;
+	keybindingLabelBorder: string | undefined;
+	keybindingLabelBottomBorder: string | undefined;
+	keybindingLabelShadow: string | undefined;
 }
 
-export class KeybindingLabel {
+export const unthemedKeybindingLabelOptions: KeybindingLabelOptions = {
+	keybindingLabelBackground: undefined,
+	keybindingLabelForeground: undefined,
+	keybindingLabelBorder: undefined,
+	keybindingLabelBottomBorder: undefined,
+	keybindingLabelShadow: undefined
+};
+
+export class KeybindingLabel extends Disposable {
 
 	private domNode: HTMLElement;
 	private options: KeybindingLabelOptions;
 
 	private readonly keyElements = new Set<HTMLSpanElement>();
 
+	private hover: IUpdatableHover;
 	private keybinding: ResolvedKeybinding | undefined;
 	private matches: Matches | undefined;
 	private didEverRender: boolean;
 
-	private labelBackground: CSSValueString | undefined;
-	private labelBorder: CSSValueString | undefined;
-	private labelBottomBorder: CSSValueString | undefined;
-	private labelShadow: CSSValueString | undefined;
-
 	constructor(container: HTMLElement, private os: OperatingSystem, options?: KeybindingLabelOptions) {
-		this.options = options || Object.create(null);
+		super();
 
-		this.labelBackground = this.options.keybindingLabelBackground;
-		this.labelBorder = this.options.keybindingLabelBorder;
-		this.labelBottomBorder = this.options.keybindingLabelBottomBorder;
-		this.labelShadow = this.options.keybindingLabelShadow;
+		this.options = options || Object.create(null);
 
 		const labelForeground = this.options.keybindingLabelForeground;
 
@@ -70,6 +77,8 @@ export class KeybindingLabel {
 		if (labelForeground) {
 			this.domNode.style.color = labelForeground;
 		}
+
+		this.hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.domNode, ''));
 
 		this.didEverRender = false;
 		container.appendChild(this.domNode);
@@ -93,15 +102,17 @@ export class KeybindingLabel {
 		this.clear();
 
 		if (this.keybinding) {
-			const [firstPart, chordPart] = this.keybinding.getParts();
-			if (firstPart) {
-				this.renderPart(this.domNode, firstPart, this.matches ? this.matches.firstPart : null);
+			const chords = this.keybinding.getChords();
+			if (chords[0]) {
+				this.renderChord(this.domNode, chords[0], this.matches ? this.matches.firstPart : null);
 			}
-			if (chordPart) {
+			for (let i = 1; i < chords.length; i++) {
 				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', undefined, ' '));
-				this.renderPart(this.domNode, chordPart, this.matches ? this.matches.chordPart : null);
+				this.renderChord(this.domNode, chords[i], this.matches ? this.matches.chordPart : null);
 			}
-			this.domNode.title = this.keybinding.getAriaLabel() || '';
+			const title = (this.options.disableTitle ?? false) ? undefined : this.keybinding.getAriaLabel() || undefined;
+			this.hover.update(title);
+			this.domNode.setAttribute('aria-label', title || '');
 		} else if (this.options && this.options.renderUnboundKeybindings) {
 			this.renderUnbound(this.domNode);
 		}
@@ -114,21 +125,21 @@ export class KeybindingLabel {
 		this.keyElements.clear();
 	}
 
-	private renderPart(parent: HTMLElement, part: ResolvedKeybindingPart, match: PartMatches | null) {
+	private renderChord(parent: HTMLElement, chord: ResolvedChord, match: ChordMatches | null) {
 		const modifierLabels = UILabelProvider.modifierLabels[this.os];
-		if (part.ctrlKey) {
+		if (chord.ctrlKey) {
 			this.renderKey(parent, modifierLabels.ctrlKey, Boolean(match?.ctrlKey), modifierLabels.separator);
 		}
-		if (part.shiftKey) {
+		if (chord.shiftKey) {
 			this.renderKey(parent, modifierLabels.shiftKey, Boolean(match?.shiftKey), modifierLabels.separator);
 		}
-		if (part.altKey) {
+		if (chord.altKey) {
 			this.renderKey(parent, modifierLabels.altKey, Boolean(match?.altKey), modifierLabels.separator);
 		}
-		if (part.metaKey) {
+		if (chord.metaKey) {
 			this.renderKey(parent, modifierLabels.metaKey, Boolean(match?.metaKey), modifierLabels.separator);
 		}
-		const keyLabel = part.keyLabel;
+		const keyLabel = chord.keyLabel;
 		if (keyLabel) {
 			this.renderKey(parent, keyLabel, Boolean(match?.keyCode), '');
 		}
@@ -149,17 +160,17 @@ export class KeybindingLabel {
 		const keyElement = $('span.monaco-keybinding-key' + extraClass, undefined, label);
 		this.keyElements.add(keyElement);
 
-		if (this.labelBackground) {
-			keyElement.style.backgroundColor = this.labelBackground;
+		if (this.options.keybindingLabelBackground) {
+			keyElement.style.backgroundColor = this.options.keybindingLabelBackground;
 		}
-		if (this.labelBorder) {
-			keyElement.style.borderColor = this.labelBorder;
+		if (this.options.keybindingLabelBorder) {
+			keyElement.style.borderColor = this.options.keybindingLabelBorder;
 		}
-		if (this.labelBottomBorder) {
-			keyElement.style.borderBottomColor = this.labelBottomBorder;
+		if (this.options.keybindingLabelBottomBorder) {
+			keyElement.style.borderBottomColor = this.options.keybindingLabelBottomBorder;
 		}
-		if (this.labelShadow) {
-			keyElement.style.boxShadow = `inset 0 -1px 0 ${this.labelShadow}`;
+		if (this.options.keybindingLabelShadow) {
+			keyElement.style.boxShadow = `inset 0 -1px 0 ${this.options.keybindingLabelShadow}`;
 		}
 
 		return keyElement;

@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
 import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('OutputLinkProvider', () => {
 
@@ -276,9 +277,9 @@ suite('OutputLinkProvider', () => {
 		line = toOSPath(' at \'C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts\' in');
 		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts\'').toString());
+		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString());
 		assert.strictEqual(result[0].range.startColumn, 6);
-		assert.strictEqual(result[0].range.endColumn, 86);
+		assert.strictEqual(result[0].range.endColumn, 85);
 	});
 
 	test('OutputLinkProvider - #106847', function () {
@@ -297,4 +298,6 @@ suite('OutputLinkProvider', () => {
 			assert.ok(res.range.startColumn > 0 && res.range.endColumn > 0);
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

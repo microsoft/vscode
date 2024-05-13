@@ -11,9 +11,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
 
 export class BrowserWorkingCopyBackupService extends WorkingCopyBackupService {
@@ -32,4 +30,4 @@ export class BrowserWorkingCopyBackupService extends WorkingCopyBackupService {
 registerSingleton(IWorkingCopyBackupService, BrowserWorkingCopyBackupService, InstantiationType.Eager);
 
 // Register Backup Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BrowserWorkingCopyBackupTracker, LifecyclePhase.Starting);
+registerWorkbenchContribution2(BrowserWorkingCopyBackupTracker.ID, BrowserWorkingCopyBackupTracker, WorkbenchPhase.BlockStartup);

@@ -18,9 +18,9 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
-	white-space: pre;
-	overflow: hidden;
+	white-space: nowrap;
 	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox {
@@ -74,9 +74,9 @@
 	min-height: 24px;
 }
 
-/* Use monospace to display glob patterns in exclude widget */
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-value,
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-sibling {
+/* Use monospace to display glob patterns in include/exclude widget */
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget .setting-list-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget .setting-list-sibling {
 	font-family: var(--monaco-monospace-font);
 }
 
@@ -142,10 +142,6 @@
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:focus {
-	outline: none;
-}
-
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover .monaco-action-bar,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected .monaco-action-bar {
 	display: block;
@@ -168,6 +164,7 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .monaco-text-button {
 	width: initial;
+	white-space: nowrap;
 	padding: 2px 14px;
 }
 
@@ -211,7 +208,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget {
 	margin-bottom: 1px;
 	padding: 1px;

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
@@ -14,7 +14,7 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -26,6 +26,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceContextService, isStandaloneEditorWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -47,6 +48,7 @@ export class ContextMenuController implements IEditorContribution {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		this._editor = editor;
 
@@ -101,7 +103,7 @@ export class ContextMenuController implements IEditorContribution {
 		e.event.stopPropagation();
 
 		if (e.target.type === MouseTargetType.SCROLLBAR) {
-			return this._showScrollbarContextMenu({ x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 });
+			return this._showScrollbarContextMenu(e.event);
 		}
 
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
@@ -127,16 +129,16 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-		let anchor: IAnchor | null = null;
+		let anchor: IMouseEvent | null = null;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
-			anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
+			anchor = e.event;
 		}
 
 		// Show the context menu
 		this.showContextMenu(anchor);
 	}
 
-	public showContextMenu(anchor?: IAnchor | null): void {
+	public showContextMenu(anchor?: IMouseEvent | null): void {
 		if (!this._editor.getOption(EditorOption.contextmenu)) {
 			return; // Context menu is turned off through configuration
 		}
@@ -146,7 +148,7 @@ export class ContextMenuController implements IEditorContribution {
 
 		// Find actions available for menu
 		const menuActions = this._getMenuActions(this._editor.getModel(),
-			this._editor.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext);
+			this._editor.contextMenuId);
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -191,7 +193,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
+	private _doShowContextMenu(actions: IAction[], event: IMouseEvent | null = null): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -204,6 +206,7 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		});
 
+		let anchor: IMouseEvent | IAnchor | null = event;
 		if (!anchor) {
 			// Ensure selection is visible
 			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
@@ -226,7 +229,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
 
-			getAnchor: () => anchor!,
+			getAnchor: () => anchor,
 
 			getActions: () => actions,
 
@@ -250,7 +253,6 @@ export class ContextMenuController implements IEditorContribution {
 
 			onHide: (wasCancelled: boolean) => {
 				this._contextMenuIsBeingShownCount--;
-				this._editor.focus();
 				this._editor.updateOptions({
 					hover: oldHoverSetting
 				});
@@ -258,8 +260,13 @@ export class ContextMenuController implements IEditorContribution {
 		});
 	}
 
-	private _showScrollbarContextMenu(anchor: IAnchor): void {
+	private _showScrollbarContextMenu(anchor: IMouseEvent): void {
 		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		if (isStandaloneEditorWorkspace(this._workspaceContextService.getWorkspace())) {
+			// can't update the configuration properly in the standalone editor
 			return;
 		}
 
@@ -402,5 +409,5 @@ class ShowContextMenu extends EditorAction {
 	}
 }
 
-registerEditorContribution(ContextMenuController.ID, ContextMenuController);
+registerEditorContribution(ContextMenuController.ID, ContextMenuController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowContextMenu);

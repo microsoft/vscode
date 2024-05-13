@@ -4,9 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createReporter = void 0;
+exports.createReporter = createReporter;
 const es = require("event-stream");
-const _ = require("underscore");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const fs = require("fs");
@@ -33,7 +32,7 @@ class ErrorLog {
         this.log();
     }
     log() {
-        const errors = _.flatten(this.allErrors);
+        const errors = this.allErrors.flat();
         const seen = new Set();
         errors.map(err => {
             if (!seen.has(err)) {
@@ -100,4 +99,4 @@ function createReporter(id) {
     };
     return result;
 }
-exports.createReporter = createReporter;
+//# sourceMappingURL=reporter.js.map

@@ -6,14 +6,15 @@
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { homedir, userInfo } from 'os';
 import { isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { getShellIntegrationInjection, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
+import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 
-const enabledProcessOptions: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'> = { shellIntegration: { enabled: true }, windowsEnableConpty: true };
-const disabledProcessOptions: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'> = { shellIntegration: { enabled: false }, windowsEnableConpty: true };
-const winptyProcessOptions: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'> = { shellIntegration: { enabled: true }, windowsEnableConpty: false };
+const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, environmentVariableCollections: undefined, workspaceFolder: undefined };
+const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, environmentVariableCollections: undefined, workspaceFolder: undefined };
+const winptyProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
 const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
 const logService = new NullLogService();
@@ -21,9 +22,11 @@ const productService = { applicationName: 'vscode' } as IProductService;
 const defaultEnvironment = {};
 
 suite('platform - terminalEnvironment', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	suite('getShellIntegrationInjection', () => {
 		suite('should not enable', () => {
-			test('when isFeatureTerminal or when no executable is provided', () => {
+			// This test is only expected to work on Windows 10 build 18309 and above
+			(getWindowsBuildNumber() < 18309 ? test.skip : test)('when isFeatureTerminal or when no executable is provided', () => {
 				ok(!getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: true }, enabledProcessOptions, defaultEnvironment, logService, productService));
 				ok(getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: false }, enabledProcessOptions, defaultEnvironment, logService, productService));
 			});
@@ -34,7 +37,8 @@ suite('platform - terminalEnvironment', () => {
 			}
 		});
 
-		suite('pwsh', () => {
+		// These tests are only expected to work on Windows 10 build 18309 and above
+		(getWindowsBuildNumber() < 18309 ? suite.skip : suite)('pwsh', () => {
 			const expectedPs1 = process.platform === 'win32'
 				? `try { . "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1" } catch {}`
 				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"`;
@@ -109,10 +113,10 @@ suite('platform - terminalEnvironment', () => {
 					const expectedDir = new RegExp(`.+\/${username}-vscode-zsh`);
 					const customZdotdir = '/custom/zsh/dotdir';
 					const expectedDests = [
-						new RegExp(`.+\/${username}-vscode-zsh\/\.zshrc`),
-						new RegExp(`.+\/${username}-vscode-zsh\/\.zprofile`),
-						new RegExp(`.+\/${username}-vscode-zsh\/\.zshenv`),
-						new RegExp(`.+\/${username}-vscode-zsh\/\.zlogin`)
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zshrc`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zprofile`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zshenv`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zlogin`)
 					];
 					const expectedSources = [
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,

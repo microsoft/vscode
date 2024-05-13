@@ -5,7 +5,7 @@
 
 import { decodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -13,25 +13,33 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
+import { StringSHA1 } from 'vs/base/common/hash';
+import { EditSessionsStoreClient } from 'vs/workbench/contrib/editSessions/common/editSessionsStorageClient';
 
-export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
-	original: 'Edit Sessions',
-	value: localize('session sync', 'Edit Sessions')
-};
+export const EDIT_SESSION_SYNC_CATEGORY = localize2('cloud changes', 'Cloud Changes');
+
+export type SyncResource = 'editSessions' | 'workspaceState';
 
 export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageService>('IEditSessionsStorageService');
 export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
 
+	readonly SIZE_LIMIT: number;
+
 	readonly isSignedIn: boolean;
 	readonly onDidSignIn: Event<void>;
 	readonly onDidSignOut: Event<void>;
 
-	initialize(fromContinueOn: boolean, silent?: boolean): Promise<boolean>;
-	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
-	write(editSession: EditSession): Promise<string>;
-	delete(ref: string | null): Promise<void>;
-	list(): Promise<IResourceRefHandle[]>;
+	storeClient: EditSessionsStoreClient | undefined;
+
+	lastReadResources: Map<SyncResource, { ref: string; content: string }>;
+	lastWrittenResources: Map<SyncResource, { ref: string; content: string }>;
+
+	initialize(reason: 'read' | 'write', silent?: boolean): Promise<boolean>;
+	read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined>;
+	write(resource: SyncResource, content: string | EditSession): Promise<string>;
+	delete(resource: SyncResource, ref: string | null): Promise<void>;
+	list(resource: SyncResource): Promise<IResourceRefHandle[]>;
 	getMachineById(machineId: string): Promise<string | undefined>;
 }
 
@@ -67,12 +75,14 @@ export interface Folder {
 	name: string;
 	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
+	absoluteUri: string | undefined;
 }
 
-export const EditSessionSchemaVersion = 2;
+export const EditSessionSchemaVersion = 3;
 
 export interface EditSession {
 	version: number;
+	workspaceStateId?: string;
 	machine?: string;
 	folders: Folder[];
 }
@@ -80,11 +90,14 @@ export interface EditSession {
 export const EDIT_SESSIONS_SIGNED_IN_KEY = 'editSessionsSignedIn';
 export const EDIT_SESSIONS_SIGNED_IN = new RawContextKey<boolean>(EDIT_SESSIONS_SIGNED_IN_KEY, false);
 
+export const EDIT_SESSIONS_PENDING_KEY = 'editSessionsPending';
+export const EDIT_SESSIONS_PENDING = new RawContextKey<boolean>(EDIT_SESSIONS_PENDING_KEY, false);
+
 export const EDIT_SESSIONS_CONTAINER_ID = 'workbench.view.editSessions';
 export const EDIT_SESSIONS_DATA_VIEW_ID = 'workbench.views.editSessions.data';
-export const EDIT_SESSIONS_TITLE = localize('edit sessions', 'Edit Sessions');
+export const EDIT_SESSIONS_TITLE: ILocalizedString = localize2('cloud changes', 'Cloud Changes');
 
-export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the edit sessions view.'));
+export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the cloud changes view.'));
 
 export const EDIT_SESSIONS_SHOW_VIEW = new RawContextKey<boolean>('editSessionsShowView', false);
 
@@ -100,3 +113,11 @@ export function decodeEditSessionFileContent(version: number, content: string): 
 			throw new Error('Upgrade to a newer version to decode this content.');
 	}
 }
+
+export function hashedEditSessionId(editSessionId: string) {
+	const sha1 = new StringSHA1();
+	sha1.update(editSessionId);
+	return sha1.digest();
+}
+
+export const editSessionsLogId = 'editSessions';

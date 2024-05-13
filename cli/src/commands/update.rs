@@ -3,25 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use std::sync::Arc;
+
 use indicatif::ProgressBar;
 
 use crate::{
+	constants::PRODUCT_NAME_LONG,
 	self_update::SelfUpdate,
 	update_service::UpdateService,
-	util::{errors::AnyError, input::ProgressBarReporter},
+	util::{errors::AnyError, http::ReqwestSimpleHttp, input::ProgressBarReporter},
 };
 
 use super::{args::StandaloneUpdateArgs, CommandContext};
 
 pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i32, AnyError> {
-	let update_service = UpdateService::new(ctx.log.clone(), ctx.http.clone());
+	let update_service = UpdateService::new(
+		ctx.log.clone(),
+		Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
+	);
 	let update_service = SelfUpdate::new(&update_service)?;
+
+	let _ = update_service.cleanup_old_update();
 
 	let current_version = update_service.get_current_release().await?;
 	if update_service.is_up_to_date_with(&current_version) {
 		ctx.log.result(format!(
-			"VS Code is already to to date ({})",
-			current_version.commit
+			"{} is already to to date ({})",
+			PRODUCT_NAME_LONG, current_version.commit
 		));
 		return Ok(1);
 	}

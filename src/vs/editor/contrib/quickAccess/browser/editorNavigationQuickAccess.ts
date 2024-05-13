@@ -5,9 +5,8 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange } from 'vs/editor/common/core/range';
 import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
@@ -16,10 +15,12 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRe
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { status } from 'vs/base/browser/ui/aria/aria';
+import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 
 interface IEditorLineDecoration {
-	rangeHighlightId: string;
-	overviewRulerDecorationId: string;
+	readonly rangeHighlightId: string;
+	readonly overviewRulerDecorationId: string;
 }
 
 export interface IEditorNavigationQuickAccessOptions {
@@ -94,9 +95,9 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 				// changes even later because it could be that the user has
 				// configured quick access to remain open when focus is lost and
 				// we always want to restore the current location.
-				let lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+				let lastKnownEditorViewState = editor.saveViewState() ?? undefined;
 				disposables.add(codeEditor.onDidChangeCursorPosition(() => {
-					lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+					lastKnownEditorViewState = editor.saveViewState() ?? undefined;
 				}));
 
 				context.restoreViewState = () => {
@@ -105,7 +106,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 					}
 				};
 
-				disposables.add(once(token.onCancellationRequested)(() => context.restoreViewState?.()));
+				disposables.add(createSingleCallFunction(token.onCancellationRequested)(() => context.restoreViewState?.()));
 			}
 
 			// Clean up decorations on dispose
@@ -141,10 +142,14 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
 	protected gotoLocation({ editor }: IQuickAccessTextEditorContext, options: { range: IRange; keyMods: IKeyMods; forceSideBySide?: boolean; preserveFocus?: boolean }): void {
-		editor.setSelection(options.range);
+		editor.setSelection(options.range, TextEditorSelectionSource.JUMP);
 		editor.revealRangeInCenter(options.range, ScrollType.Smooth);
 		if (!options.preserveFocus) {
 			editor.focus();
+		}
+		const model = editor.getModel();
+		if (model && 'getLineContent' in model) {
+			status(`${model.getLineContent(options.range.startLineNumber)}`);
 		}
 	}
 
@@ -176,7 +181,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 	private rangeHighlightDecorationId: IEditorLineDecoration | undefined = undefined;
 
-	protected addDecorations(editor: IEditor, range: IRange): void {
+	addDecorations(editor: IEditor, range: IRange): void {
 		editor.changeDecorations(changeAccessor => {
 
 			// Reset old decorations if any
@@ -220,7 +225,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		});
 	}
 
-	protected clearDecorations(editor: IEditor): void {
+	clearDecorations(editor: IEditor): void {
 		const rangeHighlightDecorationId = this.rangeHighlightDecorationId;
 		if (rangeHighlightDecorationId) {
 			editor.changeDecorations(changeAccessor => {

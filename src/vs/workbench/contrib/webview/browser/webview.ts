@@ -5,6 +5,7 @@
 
 import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { CodeWindow } from 'vs/base/browser/window';
 import { equals } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -68,9 +69,10 @@ export interface IWebviewService {
 }
 
 export interface WebviewInitInfo {
-	readonly id: string;
 	readonly providedViewType?: string;
 	readonly origin?: string;
+
+	readonly title: string | undefined;
 
 	readonly options: WebviewOptions;
 	readonly contentOptions: WebviewContentOptions;
@@ -93,6 +95,12 @@ export interface WebviewOptions {
 	readonly purpose?: WebviewContentPurpose;
 	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
+
+	/**
+	 * Disable the service worker used for loading local resources in the webview.
+	 */
+	readonly disableServiceWorker?: boolean;
+
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
@@ -171,24 +179,42 @@ export interface WebviewMessageReceivedEvent {
 export interface IWebview extends IDisposable {
 
 	/**
-	 * External identifier of this webview.
-	 */
-	readonly id: string;
-
-	/**
-	 * The origin this webview itself is loaded from. May not be unique
-	 */
-	readonly origin: string;
-
-	/**
 	 * The original view type of the webview.
 	 */
 	readonly providedViewType?: string;
 
-	html: string;
+	/**
+	 * The origin this webview itself is loaded from. May not be unique.
+	 */
+	readonly origin: string;
+
+	/**
+	 * Set html content of the webview.
+	 */
+	setHtml(html: string): void;
+
+	/**
+	 * Set the title of the webview. This is set on the webview's iframe element.
+	 */
+	setTitle(title: string): void;
+
+	/**
+	 * Control what content is allowed/blocked inside the webview.
+	 */
 	contentOptions: WebviewContentOptions;
+
+	/**
+	 * List of roots from which local resources can be loaded.
+	 *
+	 * Requests for local resources not in this list are blocked.
+	 */
 	localResourcesRoot: readonly URI[];
+
+	/**
+	 * The extension that created/owns this webview.
+	 */
 	extension: WebviewExtensionDescription | undefined;
+
 	initialScrollProgress: number;
 	state: string | undefined;
 
@@ -196,15 +222,26 @@ export interface IWebview extends IDisposable {
 
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
+
+	/**
+	 * Fired when the webview is disposed of.
+	 */
 	readonly onDidDispose: Event<void>;
 
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ readonly scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
+
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onDidReload: Event<void>;
-	readonly onMessage: Event<WebviewMessageReceivedEvent>;
+
+	/**
+	 * Fired when the webview cannot be loaded or is now in a non-functional state.
+	 */
+	readonly onFatalError: Event<{ readonly message: string }>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
+
+	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 
 	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 
@@ -240,7 +277,7 @@ export interface IWebviewElement extends IWebview {
 	 *
 	 * @param parent Element to append the webview to.
 	 */
-	mountTo(parent: HTMLElement): void;
+	mountTo(parent: HTMLElement, targetWindow: CodeWindow): void;
 }
 
 /**
@@ -258,6 +295,8 @@ export interface IOverlayWebview extends IWebview {
 	 */
 	readonly container: HTMLElement;
 
+	origin: string;
+
 	options: WebviewOptions;
 
 	/**
@@ -268,7 +307,7 @@ export interface IOverlayWebview extends IWebview {
 	 * @param claimant Identifier for the object claiming the webview.
 	 *   This must match the `claimant` passed to {@link IOverlayWebview.release}.
 	 */
-	claim(claimant: any, scopedContextKeyService: IContextKeyService | undefined): void;
+	claim(claimant: any, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void;
 
 	/**
 	 * Release ownership of the webview.

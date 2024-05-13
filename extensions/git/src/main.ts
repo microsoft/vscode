@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -25,6 +25,7 @@ import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
+import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -58,7 +59,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 			logger.info(l10n.t('Skipped found git in: "{0}"', gitPath));
 		}
 		return !skip;
-	});
+	}, logger);
 
 	let ipcServer: IPCServer | undefined = undefined;
 
@@ -86,7 +87,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		version: info.version,
 		env: environment,
 	});
-	const model = new Model(git, askpass, context.globalState, logger, telemetryReporter);
+	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -118,7 +119,14 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
+	const diagnosticsManager = new GitCommitInputBoxDiagnosticsManager(model);
+	disposables.push(diagnosticsManager);
+
+	const codeActionsProvider = new GitCommitInputBoxCodeActionsProvider(diagnosticsManager);
+	disposables.push(codeActionsProvider);
+
 	checkGitVersion(info);
+	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);
 
 	return model;
 }
@@ -177,6 +185,12 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 
 	const logger = window.createOutputChannel('Git', { log: true });
 	disposables.push(logger);
+
+	const onDidChangeLogLevel = (logLevel: LogLevel) => {
+		logger.appendLine(l10n.t('Log level: {0}', LogLevel[logLevel]));
+	};
+	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
+	onDidChangeLogLevel(logger.logLevel);
 
 	const { aiKey } = require('../package.json') as { aiKey: string };
 	const telemetryReporter = new TelemetryReporter(aiKey);

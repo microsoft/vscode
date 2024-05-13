@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { TestUserDataSyncUtilService } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 suite('KeybindingsMerge - No Conflicts', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge when local and remote are same with one entry', async () => {
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
@@ -542,7 +545,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 ]`);
 	});
 
-	test('merge when local and remote has moved forwareded with conflicts', async () => {
+	test('merge when local and remote has moved forwareded with conflicts (2)', async () => {
 		const baseContent = stringify([
 			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+c', command: '-a' },

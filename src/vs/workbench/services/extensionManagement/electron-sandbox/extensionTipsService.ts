@@ -6,13 +6,11 @@
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionTipsService, IExecutableBasedExtensionTip, IWorkspaceTips, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, IExecutableBasedExtensionTip, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 
 class NativeExtensionTipsService extends ExtensionTipsService implements IExtensionTipsService {
@@ -22,11 +20,9 @@ class NativeExtensionTipsService extends ExtensionTipsService implements IExtens
 	constructor(
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
-		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService
 	) {
-		super(fileService, productService, requestService, logService);
+		super(fileService, productService);
 		this.channel = sharedProcessService.getChannel('extensionTipsService');
 	}
 
@@ -43,10 +39,6 @@ class NativeExtensionTipsService extends ExtensionTipsService implements IExtens
 
 	override getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		return this.channel.call<IExecutableBasedExtensionTip[]>('getOtherExecutableBasedTips');
-	}
-
-	override getAllWorkspacesTips(): Promise<IWorkspaceTips[]> {
-		return this.channel.call<IWorkspaceTips[]>('getAllWorkspacesTips');
 	}
 
 }

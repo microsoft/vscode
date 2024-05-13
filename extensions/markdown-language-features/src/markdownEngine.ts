@@ -8,12 +8,11 @@ import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
+import { MarkdownPreviewConfiguration } from './preview/previewConfig';
 import { Slugifier } from './slugify';
 import { ITextDocument } from './types/textDocument';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
-
-const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
 /**
  * Adds begin line index to the output via the 'data-line' data attribute.
@@ -56,7 +55,7 @@ class TokenCache {
 	public tryGetCached(document: ITextDocument, config: MarkdownItConfig): Token[] | undefined {
 		if (this._cachedDocument
 			&& this._cachedDocument.uri.toString() === document.uri.toString()
-			&& this._cachedDocument.version === document.version
+			&& document.version >= 0 && this._cachedDocument.version === document.version
 			&& this._cachedDocument.config.breaks === config.breaks
 			&& this._cachedDocument.config.linkify === config.linkify
 		) {
@@ -116,7 +115,14 @@ export class MarkdownItEngine implements IMdParser {
 		_contributionProvider.onContributionsChanged(() => {
 			// Markdown plugin contributions may have changed
 			this._md = undefined;
+			this._tokenCache.clean();
 		});
+	}
+
+
+	public async getEngine(resource: vscode.Uri | undefined): Promise<MarkdownIt> {
+		const config = this._getConfig(resource);
+		return this._getEngine(config);
 	}
 
 	private async _getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
@@ -189,7 +195,7 @@ export class MarkdownItEngine implements IMdParser {
 	private _tokenizeString(text: string, engine: MarkdownIt) {
 		this._resetSlugCount();
 
-		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+		return engine.parse(text, {});
 	}
 
 	private _resetSlugCount(): void {
@@ -232,11 +238,11 @@ export class MarkdownItEngine implements IMdParser {
 	}
 
 	private _getConfig(resource?: vscode.Uri): MarkdownItConfig {
-		const config = vscode.workspace.getConfiguration('markdown', resource ?? null);
+		const config = MarkdownPreviewConfiguration.getForResource(resource ?? null);
 		return {
-			breaks: config.get<boolean>('preview.breaks', false),
-			linkify: config.get<boolean>('preview.linkify', true),
-			typographer: config.get<boolean>('preview.typographer', false)
+			breaks: config.previewLineBreaks,
+			linkify: config.previewLinkify,
+			typographer: config.previewTypographer,
 		};
 	}
 
@@ -399,21 +405,26 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 			lang = normalizeHighlightLang(lang);
 			if (lang && hljs.getLanguage(lang)) {
 				try {
-					const highlighted = hljs.highlight(str, {
+					return hljs.highlight(str, {
 						language: lang,
 						ignoreIllegals: true,
 					}).value;
-					return `<div>${highlighted}</div>`;
 				}
 				catch (error) { }
 			}
-			return `<code><div>${md().utils.escapeHtml(str)}</div></code>`;
+			return md().utils.escapeHtml(str);
 		}
 	};
 }
 
 function normalizeHighlightLang(lang: string | undefined) {
 	switch (lang && lang.toLowerCase()) {
+		case 'shell':
+			return 'sh';
+
+		case 'py3':
+			return 'python';
+
 		case 'tsx':
 		case 'typescriptreact':
 			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155

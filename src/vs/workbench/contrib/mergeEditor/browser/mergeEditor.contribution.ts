@@ -9,13 +9,13 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import {
 	AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand,
 	CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor,
 	OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideTopBase, ShowHideCenterBase, ShowHideBase,
-	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2
+	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice
 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
 import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
@@ -43,11 +43,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		'mergeEditor.diffAlgorithm': {
 			type: 'string',
-			enum: ['smart', 'experimental'],
-			default: 'experimental',
+			enum: ['legacy', 'advanced'],
+			default: 'advanced',
 			markdownEnumDescriptions: [
-				localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
-				localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
+				localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
+				localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
 			]
 		},
 		'mergeEditor.showDeletionMarkers': {
@@ -83,6 +83,7 @@ registerAction2(AcceptAllInput2);
 registerAction2(ResetToBaseAndAutoMergeCommand);
 
 registerAction2(AcceptMerge);
+registerAction2(ResetCloseWithConflictsChoice);
 
 // Dev Commands
 registerAction2(MergeEditorCopyContentsToJSON);
@@ -93,6 +94,4 @@ Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
 
-Registry
-	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorResolverContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(MergeEditorResolverContribution.ID, MergeEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registers an editor resolver */);

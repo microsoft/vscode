@@ -29,6 +29,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isWeb } from 'vs/base/common/platform';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -208,9 +209,9 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 		// Lifecycle
 		if (isWeb) {
-			this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdownWeb(), 'veto.fileWorkingCopyManager'));
+			this._register(this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdownWeb(), 'veto.fileWorkingCopyManager')));
 		} else {
-			this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdownDesktop(), { id: 'join.fileWorkingCopyManager', label: localize('join.fileWorkingCopyManager', "Saving working copies") }));
+			this._register(this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdownDesktop(), { id: 'join.fileWorkingCopyManager', label: localize('join.fileWorkingCopyManager', "Saving working copies") })));
 		}
 	}
 
@@ -293,9 +294,9 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		// Resolves a working copy to update (use a queue to prevent accumulation of
 		// resolve when the resolving actually takes long. At most we only want the
 		// queue to have a size of 2 (1 running resolve and 1 queued resolve).
-		const queue = this.workingCopyResolveQueue.queueFor(workingCopy.resource);
-		if (queue.size <= 1) {
-			queue.queue(async () => {
+		const queueSize = this.workingCopyResolveQueue.queueSize(workingCopy.resource);
+		if (queueSize <= 1) {
+			this.workingCopyResolveQueue.queueFor(workingCopy.resource, async () => {
 				try {
 					await this.reload(workingCopy);
 				} catch (error) {
@@ -352,7 +353,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 							workingCopiesToRestore.push({
 								source: sourceResource,
 								target: targetResource,
-								snapshot: sourceWorkingCopy.isDirty() ? await sourceWorkingCopy.model?.snapshot(CancellationToken.None) : undefined
+								snapshot: sourceWorkingCopy.isDirty() ? await sourceWorkingCopy.model?.snapshot(SnapshotContext.Save, CancellationToken.None) : undefined
 							});
 						}
 					}
@@ -371,15 +372,16 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 			if (workingCopiesToRestore) {
 				this.mapCorrelationIdToWorkingCopiesToRestore.delete(e.correlationId);
 
-				workingCopiesToRestore.forEach(workingCopy => {
+				for (const workingCopy of workingCopiesToRestore) {
 
-					// Snapshot presence means this working copy used to be dirty and so we restore that
+					// Snapshot presence means this working copy used to be modified and so we restore that
 					// flag. we do NOT have to restore the content because the working copy was only soft
-					// reverted and did not loose its original dirty contents.
+					// reverted and did not loose its original modified contents.
+
 					if (workingCopy.snapshot) {
-						this.get(workingCopy.source)?.markDirty();
+						this.get(workingCopy.source)?.markModified();
 					}
-				});
+				}
 			}
 		}
 	}
@@ -409,12 +411,17 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 						await Promises.settled(workingCopiesToRestore.map(async workingCopyToRestore => {
 
+							// From this moment on, only operate on the canonical resource
+							// to fix a potential data loss issue:
+							// https://github.com/microsoft/vscode/issues/211374
+							const target = this.uriIdentityService.asCanonicalUri(workingCopyToRestore.target);
+
 							// Restore the working copy at the target. if we have previous dirty content, we pass it
 							// over to be used, otherwise we force a reload from disk. this is important
 							// because we know the file has changed on disk after the move and the working copy might
 							// have still existed with the previous state. this ensures that the working copy is not
 							// tracking a stale state.
-							await this.resolve(workingCopyToRestore.target, {
+							await this.resolve(target, {
 								reload: { async: false }, // enforce a reload
 								contents: workingCopyToRestore.snapshot
 							});
@@ -474,7 +481,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 		const resolveOptions: IStoredFileWorkingCopyResolveOptions = {
 			contents: options?.contents,
-			forceReadFromFile: options?.reload?.force
+			forceReadFromFile: options?.reload?.force,
+			limits: options?.limits
 		};
 
 		// Working copy exists

@@ -465,8 +465,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.renderWhitespace === RenderWhitespace.All ||
 		input.renderWhitespace === RenderWhitespace.Boundary ||
 		(input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine) ||
-		input.renderWhitespace === RenderWhitespace.Trailing) {
-
+		(input.renderWhitespace === RenderWhitespace.Trailing && !input.continuesWithWrappedLine)
+	) {
 		tokens = _applyRenderWhitespace(input, lineContent, len, tokens);
 	}
 	let containsForeignElements = ForeignElementType.None;

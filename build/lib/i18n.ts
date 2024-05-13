@@ -6,9 +6,9 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { merge, through, ThroughStream, writeArray } from 'event-stream';
+import { map, merge, through, ThroughStream } from 'event-stream';
+import * as jsonMerge from 'gulp-merge-json';
 import * as File from 'vinyl';
-import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as gulp from 'gulp';
 import * as fancyLog from 'fancy-log';
@@ -68,7 +68,7 @@ interface LocalizeInfo {
 module LocalizeInfo {
 	export function is(value: any): value is LocalizeInfo {
 		const candidate = value as LocalizeInfo;
-		return Is.defined(candidate) && Is.string(candidate.key) && (Is.undef(candidate.comment) || (Is.array(candidate.comment) && candidate.comment.every(element => Is.string(element))));
+		return candidate && typeof candidate.key === 'string' && (candidate.comment === undefined || (Array.isArray(candidate.comment) && candidate.comment.every(element => typeof element === 'string')));
 	}
 }
 
@@ -80,14 +80,14 @@ interface BundledFormat {
 
 module BundledFormat {
 	export function is(value: any): value is BundledFormat {
-		if (Is.undef(value)) {
+		if (value === undefined) {
 			return false;
 		}
 
 		const candidate = value as BundledFormat;
 		const length = Object.keys(value).length;
 
-		return length === 3 && Is.defined(candidate.keys) && Is.defined(candidate.messages) && Is.defined(candidate.bundles);
+		return length === 3 && !!candidate.keys && !!candidate.messages && !!candidate.bundles;
 	}
 }
 
@@ -182,7 +182,7 @@ export class XLF {
 			const key = keys[i];
 			let realKey: string | undefined;
 			let comment: string | undefined;
-			if (Is.string(key)) {
+			if (typeof key === 'string') {
 				realKey = key;
 				comment = undefined;
 			} else if (LocalizeInfo.is(key)) {
@@ -473,7 +473,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 	});
 	sortedLanguages.forEach(language => {
 		const stats = statistics[language.id];
-		if (Is.undef(stats)) {
+		if (!stats) {
 			log(`\tNo translations found for language ${language.id}. Using default language instead.`);
 		}
 	});
@@ -579,37 +579,75 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 	});
 }
 
-function createL10nBundleForExtension(extensionFolderName: string): ThroughStream {
-	const result = through();
-	gulp.src([
-		// For source code of extensions
-		`extensions/${extensionFolderName}/src/**/*.{ts,tsx}`,
-		// For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
-		`extensions/${extensionFolderName}/node_modules/**/*.{js,jsx}`
-	]).pipe(writeArray((err, files: File[]) => {
-		if (err) {
-			result.emit('error', err);
-			return;
-		}
+function createL10nBundleForExtension(extensionFolderName: string, prefixWithBuildFolder: boolean): NodeJS.ReadWriteStream {
+	const prefix = prefixWithBuildFolder ? '.build/' : '';
+	return gulp
+		.src([
+			// For source code of extensions
+			`${prefix}extensions/${extensionFolderName}/{src,client,server}/**/*.{ts,tsx}`,
+			// // For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
+			`${prefix}extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/*.{js,jsx}`,
+			// // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
+			`${prefix}extensions/${extensionFolderName}/**/bundle.l10n.json`,
+		])
+		.pipe(map(function (data, callback) {
+			const file = data as File;
+			if (!file.isBuffer()) {
+				// Not a buffer so we drop it
+				callback();
+				return;
+			}
+			const extension = path.extname(file.relative);
+			if (extension !== '.json') {
+				const contents = file.contents.toString('utf8');
+				getL10nJson([{ contents, extension }])
+					.then((json) => {
+						callback(undefined, new File({
+							path: `extensions/${extensionFolderName}/bundle.l10n.json`,
+							contents: Buffer.from(JSON.stringify(json), 'utf8')
+						}));
+					})
+					.catch((err) => {
+						callback(new Error(`File ${file.relative} threw an error when parsing: ${err}`));
+					});
+				// signal pause?
+				return false;
+			}
 
-		const json = getL10nJson(files
-			.filter(file => file.isBuffer())
-			.map(file => ({
-				contents: file.contents.toString('utf8'),
-				extension: path.extname(file.path)
-			})));
+			// for bundle.l10n.jsons
+			let bundleJson;
+			try {
+				bundleJson = JSON.parse(file.contents.toString('utf8'));
+			} catch (err) {
+				callback(new Error(`File ${file.relative} threw an error when parsing: ${err}`));
+				return;
+			}
 
-		if (Object.keys(json).length > 0) {
-			result.emit('data', new File({
-				path: `extensions/${extensionFolderName}/bundle.l10n.json`,
-				contents: Buffer.from(JSON.stringify(json), 'utf8')
-			}));
-		}
-		result.emit('end');
-	}));
+			// some validation of the bundle.l10n.json format
+			for (const key in bundleJson) {
+				if (
+					typeof bundleJson[key] !== 'string' &&
+					(typeof bundleJson[key].message !== 'string' || !Array.isArray(bundleJson[key].comment))
+				) {
+					callback(new Error(`Invalid bundle.l10n.json file. The value for key ${key} is not in the expected format.`));
+					return;
+				}
+			}
 
-	return result;
+			callback(undefined, file);
+		}))
+		.pipe(jsonMerge({
+			fileName: `extensions/${extensionFolderName}/bundle.l10n.json`,
+			jsonSpace: '',
+			concatArrays: true
+		}));
 }
+
+export const EXTERNAL_EXTENSIONS = [
+	'ms-vscode.js-debug',
+	'ms-vscode.js-debug-companion',
+	'ms-vscode.vscode-js-profile-table',
+];
 
 export function createXlfFilesForExtensions(): ThroughStream {
 	let counter: number = 0;
@@ -640,7 +678,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 		}
 		merge(
 			gulp.src([`.build/extensions/${extensionFolderName}/package.nls.json`, `.build/extensions/${extensionFolderName}/**/nls.metadata.json`], { allowEmpty: true }),
-			createL10nBundleForExtension(extensionFolderName)
+			createL10nBundleForExtension(extensionFolderName, EXTERNAL_EXTENSIONS.includes(extensionId))
 		).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
@@ -804,8 +842,12 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	const extensionsPacks: Record<string, I18nPack> = {};
 	const errors: any[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
-		const project = path.basename(path.dirname(path.dirname(xlf.relative)));
-		const resource = path.basename(xlf.relative, '.xlf');
+		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
+		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
+		const resource = path.basename(path.basename(xlf.relative, '.xlf'), '-new');
+		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
+			project = extensionsProject;
+		}
 		const contents = xlf.contents.toString();
 		log(`Found ${project}: ${resource}`);
 		const parsePromise = getL10nFilesFromXlf(contents);

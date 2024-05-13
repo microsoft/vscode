@@ -19,8 +19,8 @@
 // ESM-uncomment-end
 
  (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   typeof define === 'function' && define.amd ? define(['exports'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.marked = {}));
 })(this, (function (exports) { 'use strict';
 

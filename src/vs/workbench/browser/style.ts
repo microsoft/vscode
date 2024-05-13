@@ -5,120 +5,23 @@
 
 import 'vs/css!./media/style';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { iconForeground, foreground, selectionBackground, focusBorder, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground, toolbarHoverOutline, listFocusHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isWeb, isIOS } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
 import { isSafari, isStandalone } from 'vs/base/browser/browser';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { mainWindow } from 'vs/base/browser/window';
 
 registerThemingParticipant((theme, collector) => {
 
-	// Foreground
-	const windowForeground = theme.getColor(foreground);
-	if (windowForeground) {
-		collector.addRule(`.monaco-workbench { color: ${windowForeground}; }`);
-	}
-
-	// Background (We need to set the workbench background color so that on Windows we get subpixel-antialiasing)
+	// Background (helps for subpixel-antialiasing on Windows)
 	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
-	// Icon defaults
-	const iconForegroundColor = theme.getColor(iconForeground);
-	if (iconForegroundColor) {
-		collector.addRule(`.codicon { color: ${iconForegroundColor}; }`);
-	}
-
-	// Selection
+	// Selection (do NOT remove - https://github.com/microsoft/vscode/issues/169662)
 	const windowSelectionBackground = theme.getColor(selectionBackground);
 	if (windowSelectionBackground) {
 		collector.addRule(`.monaco-workbench ::selection { background-color: ${windowSelectionBackground}; }`);
-	}
-
-	// Input placeholder
-	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
-	if (placeholderForeground) {
-		collector.addRule(`
-			.monaco-workbench input::placeholder { color: ${placeholderForeground}; }
-			.monaco-workbench input::-webkit-input-placeholder  { color: ${placeholderForeground}; }
-			.monaco-workbench input::-moz-placeholder { color: ${placeholderForeground}; }
-		`);
-		collector.addRule(`
-			.monaco-workbench textarea::placeholder { color: ${placeholderForeground}; }
-			.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }
-			.monaco-workbench textarea::-moz-placeholder { color: ${placeholderForeground}; }
-		`);
-	}
-
-	// List highlight
-	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
-	if (listHighlightForegroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
-				color: ${listHighlightForegroundColor};
-			}
-		`);
-	}
-
-	// List highlight w/ focus
-	const listHighlightFocusForegroundColor = theme.getColor(listFocusHighlightForeground);
-	if (listHighlightFocusForegroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
-				color: ${listHighlightFocusForegroundColor};
-			}
-		`);
-	}
-
-	// Focus outline
-	const focusOutline = theme.getColor(focusBorder);
-	if (focusOutline) {
-		collector.addRule(`
-		.monaco-workbench [tabindex="0"]:focus,
-		.monaco-workbench [tabindex="-1"]:focus,
-		.monaco-workbench .synthetic-focus,
-		.monaco-workbench select:focus,
-		.monaco-workbench .monaco-list:not(.element-focused):focus:before,
-		.monaco-workbench input[type="button"]:focus,
-		.monaco-workbench input[type="text"]:focus,
-		.monaco-workbench button:focus,
-		.monaco-workbench textarea:focus,
-		.monaco-workbench input[type="search"]:focus,
-		.monaco-workbench input[type="checkbox"]:focus {
-			outline-color: ${focusOutline};
-		}
-		`);
-	}
-
-	// High Contrast theme overwrites for outline
-	if (isHighContrast(theme.type)) {
-		collector.addRule(`
-		.hc-black [tabindex="0"]:focus,
-		.hc-black [tabindex="-1"]:focus,
-		.hc-black .synthetic-focus,
-		.hc-black select:focus,
-		.hc-black input[type="button"]:focus,
-		.hc-black input[type="text"]:focus,
-		.hc-black textarea:focus,
-		.hc-black input[type="checkbox"]:focus,
-		.hc-light [tabindex="0"]:focus,
-		.hc-light [tabindex="-1"]:focus,
-		.hc-light .synthetic-focus,
-		.hc-light select:focus,
-		.hc-light input[type="button"]:focus,
-		.hc-light input[type="text"]:focus,
-		.hc-light textarea:focus,
-		.hc-light input[type="checkbox"]:focus {
-			outline-style: solid;
-			outline-width: 1px;
-		}
-
-		.hc-black .synthetic-focus input {,
-		.hc-light .synthetic-focus input
-			background: transparent; /* Search input focus fix when in high contrast */
-		}
-		`);
 	}
 
 	// Update <meta name="theme-color" content=""> based on selected theme
@@ -126,7 +29,7 @@ registerThemingParticipant((theme, collector) => {
 		const titleBackground = theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
 		if (titleBackground) {
 			const metaElementId = 'monaco-workbench-meta-theme-color';
-			let metaElement = document.getElementById(metaElementId) as HTMLMetaElement | null;
+			let metaElement = mainWindow.document.getElementById(metaElementId) as HTMLMetaElement | null;
 			if (!metaElement) {
 				metaElement = createMetaElement();
 				metaElement.name = 'theme-color';
@@ -156,47 +59,4 @@ registerThemingParticipant((theme, collector) => {
 	if (isIOS && isStandalone()) {
 		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
 	}
-
-	// Action bars
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-		.monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
-			background-color: ${toolbarHoverBackgroundColor};
-		}
-		.monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
-			background-color: ${toolbarHoverBackgroundColor};
-		}
-	`);
-	}
-
-	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
-	if (toolbarActiveBackgroundColor) {
-		collector.addRule(`
-		.monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
-		.monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
-			background-color: ${toolbarActiveBackgroundColor};
-		}
-	`);
-	}
-
-	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
-	if (toolbarHoverOutlineColor) {
-		collector.addRule(`
-			.monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
-				outline: 1px dashed ${toolbarHoverOutlineColor};
-				outline-offset: -1px;
-			}
-		`);
-	}
 });
-
-/**
- * The best font-family to be used in CSS based on the platform:
- * - Windows: Segoe preferred, fallback to sans-serif
- * - macOS: standard system font, fallback to sans-serif
- * - Linux: standard system font preferred, fallback to Ubuntu fonts
- *
- * Note: this currently does not adjust for different locales.
- */
-export const DEFAULT_FONT_FAMILY = isWindows ? '"Segoe WPC", "Segoe UI", sans-serif' : isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';

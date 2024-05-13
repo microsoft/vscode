@@ -8,16 +8,23 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions, IQuickAccessProvider, QuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickPick, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestServiceAccessor, workbenchInstantiationService, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { DisposableStore, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { PickerQuickAccessProvider, FastAndSlowPicks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { URI } from 'vs/base/common/uri';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
+import { EditorsOrder } from 'vs/workbench/common/editor';
+import { Range } from 'vs/editor/common/core/range';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('QuickAccess', () => {
 
 	let disposables: DisposableStore;
-	let instantiationService: IInstantiationService;
+	let instantiationService: TestInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let providerDefaultCalled = false;
@@ -333,5 +340,52 @@ suite('QuickAccess', () => {
 		disposables.dispose();
 
 		restore();
+	});
+
+	test('PickerEditorState can properly restore editors', async () => {
+
+		const part = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, part);
+
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+		instantiationService.stub(IEditorService, editorService);
+
+		const editorViewState = disposables.add(instantiationService.createInstance(PickerEditorState));
+		disposables.add(part);
+		disposables.add(editorService);
+
+		const input1 = {
+			resource: URI.parse('foo://bar1'),
+			options: {
+				pinned: true, preserveFocus: true, selection: new Range(1, 0, 1, 3)
+			}
+		};
+		const input2 = {
+			resource: URI.parse('foo://bar2'),
+			options: {
+				pinned: true, selection: new Range(1, 0, 1, 3)
+			}
+		};
+		const input3 = {
+			resource: URI.parse('foo://bar3')
+		};
+		const input4 = {
+			resource: URI.parse('foo://bar4')
+		};
+
+		const editor = await editorService.openEditor(input1);
+		assert.strictEqual(editor, editorService.activeEditorPane);
+		editorViewState.set();
+		await editorService.openEditor(input2);
+		await editorViewState.openTransientEditor(input3);
+		await editorViewState.openTransientEditor(input4);
+		await editorViewState.restore();
+
+		assert.strictEqual(part.activeGroup.activeEditor?.resource, input1.resource);
+		assert.deepStrictEqual(part.activeGroup.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(e => e.resource), [input1.resource, input2.resource]);
+		if (part.activeGroup.activeEditorPane?.getSelection) {
+			assert.deepStrictEqual(part.activeGroup.activeEditorPane?.getSelection(), input1.options.selection);
+		}
+		await part.activeGroup.closeAllEditors();
 	});
 });

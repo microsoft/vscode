@@ -8,8 +8,11 @@ import * as errors from 'vs/base/common/errors';
 import { QueryType, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
 import { DeferredPromise } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('FileQueryCacheState', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reuse old cacheKey until new cache is loaded', async function () {
 
@@ -166,7 +169,7 @@ suite('FileQueryCacheState', () => {
 			cacheKey => cache.query(cacheKey),
 			query => cache.load(query),
 			cacheKey => cache.dispose(cacheKey),
-			previous!
+			previous
 		);
 	}
 

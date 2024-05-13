@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -13,30 +12,33 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { IGlobalState, ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 suite('GlobalStateSync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let testClient: UserDataSyncClient;
 	let client2: UserDataSyncClient;
 
 	let testObject: GlobalStateSynchroniser;
 
+	teardown(async () => {
+		await testClient.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
 		await testClient.setUp(true);
 		testObject = testClient.getSynchronizer(SyncResource.GlobalState) as GlobalStateSynchroniser;
-		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('when global state does not exist', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
@@ -96,7 +98,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'globalState.argv.locale': { version: 1, value: 'en' }, 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -127,7 +129,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
 	}));
 
@@ -145,7 +147,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -163,7 +165,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
 	}));
 
@@ -180,7 +182,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value2' } });
 	}));
 
@@ -199,7 +201,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -214,13 +216,13 @@ suite('GlobalStateSync', () => {
 		await testClient.sync();
 
 		const syncedProfile = testClient.instantiationService.get(IUserDataProfilesService).profiles.find(p => p.id === profile.id)!;
-		const profileStorage = await testClient.instantiationService.get(IUserDataSyncProfilesStorageService).readStorageData(syncedProfile);
+		const profileStorage = await testClient.instantiationService.get(IUserDataProfileStorageService).readStorageData(syncedProfile);
 		assert.strictEqual(profileStorage.get('a')?.value, 'value1');
 		assert.strictEqual(await readLocale(testClient), 'en');
 
 		const { content } = await testClient.read(testObject.resource, '1');
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -241,7 +243,7 @@ suite('GlobalStateSync', () => {
 	}
 
 	async function updateUserStorageForProfile(key: string, value: string, profile: IUserDataProfile, client: UserDataSyncClient): Promise<void> {
-		const storageService = client.instantiationService.get(IUserDataSyncProfilesStorageService);
+		const storageService = client.instantiationService.get(IUserDataProfileStorageService);
 		const data = new Map<string, string>();
 		data.set(key, value);
 		await storageService.updateStorageData(profile, data, StorageTarget.USER);

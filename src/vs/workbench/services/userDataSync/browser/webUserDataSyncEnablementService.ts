@@ -35,9 +35,6 @@ export class WebUserDataSyncEnablementService extends UserDataSyncEnablementServ
 		if (this.enabled !== enabled) {
 			this.enabled = enabled;
 			super.setEnablement(enabled);
-			if (this.workbenchEnvironmentService.options?.settingsSyncOptions?.enablementHandler) {
-				this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
-			}
 		}
 	}
 

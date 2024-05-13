@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 
@@ -32,4 +32,4 @@ class LongLinesHelper extends Disposable implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(LongLinesHelper.ID, LongLinesHelper);
+registerEditorContribution(LongLinesHelper.ID, LongLinesHelper, EditorContributionInstantiation.BeforeFirstInteraction);

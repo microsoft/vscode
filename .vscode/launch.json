@@ -24,15 +24,15 @@
 			]
 		},
 		{
-			"type": "chrome",
+			"type": "node",
 			"request": "attach",
+			"restart": true,
 			"name": "Attach to Shared Process",
-			"timeout": 30000,
-			"port": 9222,
-			"urlFilter": "*sharedProcess*.html*",
-			"presentation": {
-				"hidden": true
-			}
+			"timeout": 0,
+			"port": 5879,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
 		},
 		{
 			"type": "node",
@@ -159,7 +159,7 @@
 				"--disable-extensions"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -177,7 +177,7 @@
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/workspace-tests"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -236,19 +236,19 @@
 				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
 			"cleanUp": "wholeBrowser",
-			"urlFilter": "*workbench*.html*",
 			"runtimeArgs": [
 				"--inspect-brk=5875",
 				"--no-cached-data",
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
+				"--disable-extension=vscode.vscode-api-tests"
 			],
+			"userDataDir": "${userHome}/.vscode-oss-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
 			],
-			"userDataDir": "${workspaceFolder}/.profile-oss",
 			"pauseForSourceMap": false,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -256,7 +256,11 @@
 			"browserLaunchLocation": "workspace",
 			"presentation": {
 				"hidden": true,
-			}
+			},
+			// This is read by the vscode-diagnostic-tools extension
+			"vscode-diagnostic-tools.debuggerScripts": [
+				"${workspaceFolder}/scripts/hot-reload-injected-script.js"
+			]
 		},
 		{
 			"type": "node",
@@ -279,6 +283,7 @@
 			"request": "launch",
 			"name": "Main Process",
 			"attachSimplePort": 5875,
+			"enableContentValidation": false,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
@@ -520,6 +525,17 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceRoot}/extensions/debug-auto-launch"
 			]
+		},
+		{
+			"name": "Monaco Editor Playground",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5001",
+			"preLaunchTask": "Launch Http Server",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
 		}
 	],
 	"compounds": [

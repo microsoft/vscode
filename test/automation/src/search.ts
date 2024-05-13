@@ -35,7 +35,7 @@ export class Search extends Viewlet {
 
 	async clearSearchResults(): Promise<void> {
 		await retry(
-			() => this.code.waitAndClick(`.sidebar .codicon-search-clear-results`),
+			() => this.code.waitAndClick(`.sidebar .title-actions .codicon-search-clear-results`),
 			() => this.waitForNoResultText(10));
 	}
 
@@ -102,7 +102,7 @@ export class Search extends Viewlet {
 	}
 
 	async setReplaceText(text: string): Promise<void> {
-		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[title="Replace"]`, text);
+		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[aria-label="Replace"]`, text);
 	}
 
 	async replaceFileMatch(filename: string, expectedText: string): Promise<void> {

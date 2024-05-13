@@ -9,31 +9,33 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWebSocketFactory, BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
 	constructor(
-		webSocketFactory: IWebSocketFactory | null | undefined,
+		@IRemoteSocketFactoryService remoteSocketFactoryService: IRemoteSocketFactoryService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService signService: ISignService,
 		@ILogService logService: ILogService
 	) {
-		super(new BrowserSocketFactory(webSocketFactory), environmentService, productService, remoteAuthorityResolverService, signService, logService);
+		super(remoteSocketFactoryService, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}
 }
 
 class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.browserRemoteConnectionFailureNotification';
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -50,23 +52,19 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 	}
 
 	private async _presentConnectionError(err: any): Promise<void> {
-		const res = await this._dialogService.show(
-			Severity.Error,
-			nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),
-			[
-				nls.localize('reload', "Reload")
-			],
-			{
-				detail: nls.localize('connectionErrorDetail', "The workbench failed to connect to the server (Error: {0})", err ? err.message : '')
-			}
-		);
-
-		if (res.choice === 0) {
-			this._hostService.reload();
-		}
+		await this._dialogService.prompt({
+			type: Severity.Error,
+			message: nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),
+			detail: nls.localize('connectionErrorDetail', "The workbench failed to connect to the server (Error: {0})", err ? err.message : ''),
+			buttons: [
+				{
+					label: nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
+					run: () => this._hostService.reload()
+				}
+			]
+		});
 	}
 
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);
+registerWorkbenchContribution2(RemoteConnectionFailureNotificationContribution.ID, RemoteConnectionFailureNotificationContribution, WorkbenchPhase.BlockRestore);

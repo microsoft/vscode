@@ -52,7 +52,6 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 				uri: uri,
 				isDirty: false,
 				versionId: 1,
-				notebook: this._extHostNotebooks.getNotebookDocument(URI.revive(notebookUri))?.apiNotebook
 			}]
 		});
 	}

@@ -10,7 +10,8 @@
 			"scope": [
 				"meta.embedded",
 				"source.groovy.embedded",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#657B83"
@@ -327,7 +328,7 @@
 	"colors": {
 		// Base
 		// "foreground": "",
-		"focusBorder": "#D3AF86",
+		"focusBorder": "#b49471",
 		// "contrastActiveBorder": "",
 		// "contrastBorder": "",
 		// "widget.shadow": "",

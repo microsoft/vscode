@@ -54,14 +54,13 @@ where
 	let mut archive = zip::ZipArchive::new(file)
 		.map_err(|e| wrap(e, format!("failed to open zip archive {}", path.display())))?;
 
-	let skip_segments_no = if should_skip_first_segment(&mut archive) {
-		1
-	} else {
-		0
-	};
+	let skip_segments_no = usize::from(should_skip_first_segment(&mut archive));
+	let report_progress_every = archive.len() / 20;
 
 	for i in 0..archive.len() {
-		reporter.report_progress(i as u64, archive.len() as u64);
+		if i % report_progress_every == 0 {
+			reporter.report_progress(i as u64, archive.len() as u64);
+		}
 		let mut file = archive
 			.by_index(i)
 			.map_err(|e| wrap(e, format!("could not open zip entry {}", i)))?;
@@ -83,7 +82,7 @@ where
 		}
 
 		if let Some(p) = outpath.parent() {
-			fs::create_dir_all(&p)
+			fs::create_dir_all(p)
 				.map_err(|e| wrap(e, format!("could not create dir for {}", outpath.display())))?;
 		}
 
@@ -93,8 +92,13 @@ where
 			use std::io::Read;
 			use std::os::unix::ffi::OsStringExt;
 
-			if matches!(file.unix_mode(), Some(mode) if mode & (S_IFLNK as u32) == (S_IFLNK as u32))
-			{
+			#[cfg(target_os = "macos")]
+			const S_IFLINK_32: u32 = S_IFLNK as u32;
+
+			#[cfg(target_os = "linux")]
+			const S_IFLINK_32: u32 = S_IFLNK;
+
+			if matches!(file.unix_mode(), Some(mode) if mode & S_IFLINK_32 == S_IFLINK_32) {
 				let mut link_to = Vec::new();
 				file.read_to_end(&mut link_to).map_err(|e| {
 					wrap(
@@ -138,7 +142,7 @@ fn apply_permissions(file: &ZipFile, outpath: &Path) -> Result<(), WrappedError>
 	use std::os::unix::fs::PermissionsExt;
 
 	if let Some(mode) = file.unix_mode() {
-		fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)).map_err(|e| {
+		fs::set_permissions(outpath, fs::Permissions::from_mode(mode)).map_err(|e| {
 			wrap(
 				e,
 				format!("error setting permissions on {}", outpath.display()),

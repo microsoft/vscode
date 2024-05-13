@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposed } from 'vs/base/common/errors';
+import { illegalArgument } from 'vs/base/common/errors';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -23,11 +23,12 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DirtyDiffContribution } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -173,7 +174,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.setSelections(selections);
 		return Promise.resolve(undefined);
@@ -183,7 +184,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		key = `${this._instanceId}-${key}`;
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.setDecorations(key, ranges);
 		return Promise.resolve(undefined);
@@ -193,7 +194,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		key = `${this._instanceId}-${key}`;
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.setDecorationsFast(key, ranges);
 		return Promise.resolve(undefined);
@@ -202,7 +203,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.revealRange(range, revealType);
 		return Promise.resolve();
@@ -211,7 +212,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.setConfiguration(options);
 		return Promise.resolve(undefined);
@@ -220,7 +221,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		return Promise.resolve(editor.applyEdits(modelVersionId, edits, opts));
 	}
@@ -228,7 +229,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$tryInsertSnippet(id: string, modelVersionId: number, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		return Promise.resolve(editor.insertSnippet(modelVersionId, template, ranges, opts));
 	}
@@ -245,7 +246,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	$getDiffInformation(id: string): Promise<ILineChange[]> {
+	$getDiffInformation(id: string): Promise<IChange[]> {
 		const editor = this._editorLocator.getEditor(id);
 
 		if (!editor) {
@@ -268,7 +269,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
 
 		if (dirtyDiffContribution) {
-			return Promise.resolve((dirtyDiffContribution as any).getChanges());
+			return Promise.resolve((dirtyDiffContribution as DirtyDiffContribution).getChanges());
 		}
 
 		return Promise.resolve([]);

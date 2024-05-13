@@ -18,9 +18,10 @@ import { Emitter } from 'vs/base/common/event';
 import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { ITerminalAddon, Terminal } from 'xterm-headless';
+import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from 'vs/base/common/uri';
 import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
+import { removeAnsiEscapeCodesFromPrompt } from 'vs/base/common/strings';
 
 
 /**
@@ -40,7 +41,7 @@ import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 /**
  * The identifier for the first numeric parameter (`Ps`) for OSC commands used by shell integration.
  */
-const enum ShellIntegrationOscPs {
+export const enum ShellIntegrationOscPs {
 	/**
 	 * Sequences pioneered by FinalTerm.
 	 */
@@ -59,45 +60,96 @@ const enum ShellIntegrationOscPs {
 }
 
 /**
- * VS Code-specific shell integration sequences. Some of these are based on more common alternatives
- * like those pioneered in FinalTerm. The decision to move to entirely custom sequences was to try
- * to improve reliability and prevent the possibility of applications confusing the terminal. If
- * multiple shell integration scripts run, VS Code will prioritize the VS Code-specific ones.
- *
- * It's recommended that authors of shell integration scripts use the common sequences (eg. 133)
- * when building general purpose scripts and the VS Code-specific (633) when targeting only VS Code
- * or when there are no other alternatives.
+ * Sequences pioneered by FinalTerm.
  */
-const enum VSCodeOscPt {
+const enum FinalTermOscPt {
 	/**
 	 * The start of the prompt, this is expected to always appear at the start of a line.
-	 * Based on FinalTerm's `OSC 133 ; A ST`.
+	 *
+	 * Format: `OSC 133 ; A ST`
 	 */
 	PromptStart = 'A',
 
 	/**
 	 * The start of a command, ie. where the user inputs their command.
-	 * Based on FinalTerm's `OSC 133 ; B ST`.
+	 *
+	 * Format: `OSC 133 ; B ST`
 	 */
 	CommandStart = 'B',
 
 	/**
 	 * Sent just before the command output begins.
-	 * Based on FinalTerm's `OSC 133 ; C ST`.
+	 *
+	 * Format: `OSC 133 ; C ST`
 	 */
 	CommandExecuted = 'C',
 
 	/**
 	 * Sent just after a command has finished. The exit code is optional, when not specified it
 	 * means no command was run (ie. enter on empty prompt or ctrl+c).
-	 * Based on FinalTerm's `OSC 133 ; D [; <ExitCode>] ST`.
+	 *
+	 * Format: `OSC 133 ; D [; <ExitCode>] ST`
+	 */
+	CommandFinished = 'D',
+}
+
+/**
+ * VS Code-specific shell integration sequences. Some of these are based on more common alternatives
+ * like those pioneered in {@link FinalTermOscPt FinalTerm}. The decision to move to entirely custom
+ * sequences was to try to improve reliability and prevent the possibility of applications confusing
+ * the terminal. If multiple shell integration scripts run, VS Code will prioritize the VS
+ * Code-specific ones.
+ *
+ * It's recommended that authors of shell integration scripts use the common sequences (`133`)
+ * when building general purpose scripts and the VS Code-specific (`633`) when targeting only VS
+ * Code or when there are no other alternatives (eg. {@link CommandLine `633 ; E`}). These sequences
+ * support mix-and-matching.
+ */
+const enum VSCodeOscPt {
+	/**
+	 * The start of the prompt, this is expected to always appear at the start of a line.
+	 *
+	 * Format: `OSC 633 ; A ST`
+	 *
+	 * Based on {@link FinalTermOscPt.PromptStart}.
+	 */
+	PromptStart = 'A',
+
+	/**
+	 * The start of a command, ie. where the user inputs their command.
+	 *
+	 * Format: `OSC 633 ; B ST`
+	 *
+	 * Based on  {@link FinalTermOscPt.CommandStart}.
+	 */
+	CommandStart = 'B',
+
+	/**
+	 * Sent just before the command output begins.
+	 *
+	 * Format: `OSC 633 ; C ST`
+	 *
+	 * Based on {@link FinalTermOscPt.CommandExecuted}.
+	 */
+	CommandExecuted = 'C',
+
+	/**
+	 * Sent just after a command has finished. The exit code is optional, when not specified it
+	 * means no command was run (ie. enter on empty prompt or ctrl+c).
+	 *
+	 * Format: `OSC 633 ; D [; <ExitCode>] ST`
+	 *
+	 * Based on {@link FinalTermOscPt.CommandFinished}.
 	 */
 	CommandFinished = 'D',
 
 	/**
 	 * Explicitly set the command line. This helps workaround performance and reliability problems
 	 * with parsing out the command, such as conpty not guaranteeing the position of the sequence or
-	 * the shell not guaranteeing that the entire command is even visible.
+	 * the shell not guaranteeing that the entire command is even visible. Ideally this is called
+	 * immediately before {@link CommandExecuted}, immediately before {@link CommandFinished} will
+	 * also work but that means terminal will only know the accurate command line when the command is
+	 * finished.
 	 *
 	 * The command line can escape ascii characters using the `\xAB` format, where AB are the
 	 * hexadecimal representation of the character code (case insensitive), and escape the `\`
@@ -111,6 +163,11 @@ const enum VSCodeOscPt {
 	 * "\n" -> "\x0a"
 	 * ";"  -> "\x3b"
 	 * ```
+	 *
+	 * An optional nonce can be provided which is may be required by the terminal in order enable
+	 * some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * Format: `OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST`
 	 */
 	CommandLine = 'E',
 
@@ -143,8 +200,9 @@ const enum VSCodeOscPt {
 	RightPromptEnd = 'I',
 
 	/**
-	 * Set an arbitrary property: `OSC 633 ; P ; <Property>=<Value> ST`, only known properties will
-	 * be handled.
+	 * Set the value of an arbitrary property, only known properties will be handled by VS Code.
+	 *
+	 * Format: `OSC 633 ; P ; <Property>=<Value> ST`
 	 *
 	 * Known properties:
 	 *
@@ -152,13 +210,18 @@ const enum VSCodeOscPt {
 	 * - `IsWindows` - Indicates whether the terminal is using a Windows backend like winpty or
 	 *   conpty. This may be used to enable additional heuristics as the positioning of the shell
 	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
+	 * - `ContinuationPrompt` - Reports the continuation prompt that is printed at the start of
+	 *   multi-line inputs.
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
 	Property = 'P',
 
 	/**
-	 * Sets a mark/point-of-interest in the buffer. `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 * Sets a mark/point-of-interest in the buffer.
+	 *
+	 * Format: `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 *
 	 * `Id` - The identifier of the mark that can be used to reference it
 	 * `Hidden` - When set, the mark will be available to reference internally but will not visible
 	 *
@@ -172,12 +235,16 @@ const enum VSCodeOscPt {
  */
 const enum ITermOscPt {
 	/**
-	 * Sets a mark/point-of-interest in the buffer. `OSC 1337 ; SetMark`
+	 * Sets a mark/point-of-interest in the buffer.
+	 *
+	 * Format: `OSC 1337 ; SetMark`
 	 */
 	SetMark = 'SetMark',
 
 	/**
-	 * Reports current working directory (CWD). `OSC 1337 ; CurrentDir=<Cwd> ST`
+	 * Reports current working directory (CWD).
+	 *
+	 * Format: `OSC 1337 ; CurrentDir=<Cwd> ST`
 	 */
 	CurrentDir = 'CurrentDir'
 }
@@ -189,7 +256,7 @@ const enum ITermOscPt {
  */
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
-	readonly capabilities = new TerminalCapabilityStore();
+	readonly capabilities = this._register(new TerminalCapabilityStore());
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
 	private _commonProtocolDisposables: IDisposable[] = [];
@@ -201,9 +268,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
 	constructor(
+		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
-		@ILogService private readonly _logService: ILogService
+		private readonly _logService: ILogService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -219,7 +287,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
-		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
+		this.capabilities.add(TerminalCapability.PartialCommandDetection, this._register(new PartialCommandDetectionCapability(this._terminal)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
 		this._commonProtocolDisposables.push(
@@ -228,6 +296,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetCwd, data => this._doHandleSetCwd(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetWindowsFriendlyCwd, data => this._doHandleSetWindowsFriendlyCwd(data)));
 		this._ensureCapabilitiesOrAddFailureTelemetry();
+	}
+
+	getMarkerId(terminal: Terminal, vscodeMarkerId: string) {
+		this._createOrGetBufferMarkDetection(terminal).getMark(vscodeMarkerId);
 	}
 
 	private _handleFinalTermSequence(data: string): boolean {
@@ -251,17 +323,17 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// a type flag through the capability calls
 		const [command, ...args] = data.split(';');
 		switch (command) {
-			case 'A':
+			case FinalTermOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
-			case 'B':
+			case FinalTermOscPt.CommandStart:
 				// Ignore the command line for these sequences as it's unreliable for example in powerlevel10k
 				this._createOrGetCommandDetection(this._terminal).handleCommandStart({ ignoreCommandLine: true });
 				return true;
-			case 'C':
+			case FinalTermOscPt.CommandExecuted:
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
-			case 'D': {
+			case FinalTermOscPt.CommandFinished: {
 				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
@@ -310,8 +382,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		// Pass the sequence along to the capability
-		const [command, ...args] = data.split(';');
-		switch (command) {
+		const argsIndex = data.indexOf(';');
+		const sequenceCommand = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		// Cast to strict checked index access
+		const args: (string | undefined)[] = argsIndex === -1 ? [] : data.substring(argsIndex + 1).split(';');
+		switch (sequenceCommand) {
 			case VSCodeOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
@@ -322,18 +397,21 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
 			case VSCodeOscPt.CommandFinished: {
-				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				const arg0 = args[0];
+				const exitCode = arg0 !== undefined ? parseInt(arg0) : undefined;
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
 			}
 			case VSCodeOscPt.CommandLine: {
+				const arg0 = args[0];
+				const arg1 = args[1];
 				let commandLine: string;
-				if (args.length === 1) {
-					commandLine = deserializeMessage(args[0]);
+				if (arg0 !== undefined) {
+					commandLine = deserializeMessage(arg0);
 				} else {
 					commandLine = '';
 				}
-				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
+				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, arg1 === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.ContinuationStart: {
@@ -353,17 +431,29 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const { key, value } = parseKeyValueAssignment(args[0]);
+				const arg0 = args[0];
+				const deserialized = arg0 !== undefined ? deserializeMessage(arg0) : '';
+				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
 				}
 				switch (key) {
+					case 'ContinuationPrompt': {
+						this._updateContinuationPrompt(removeAnsiEscapeCodesFromPrompt(value));
+						return true;
+					}
 					case 'Cwd': {
 						this._updateCwd(value);
 						return true;
 					}
 					case 'IsWindows': {
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
+						return true;
+					}
+					case 'Prompt': {
+						// Remove escape sequences from the user's prompt
+						const sanitizedValue = value.replace(/\x1b\[[0-9;]*m/g, '');
+						this._updatePromptTerminator(sanitizedValue);
 						return true;
 					}
 					case 'Task': {
@@ -381,6 +471,24 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Unrecognized sequence
 		return false;
+	}
+
+	private _updateContinuationPrompt(value: string) {
+		if (!this._terminal) {
+			return;
+		}
+		this._createOrGetCommandDetection(this._terminal).setContinuationPrompt(value);
+	}
+
+	private _updatePromptTerminator(prompt: string) {
+		if (!this._terminal) {
+			return;
+		}
+		const lastPromptLine = prompt.substring(prompt.lastIndexOf('\n') + 1);
+		const promptTerminator = lastPromptLine.substring(lastPromptLine.lastIndexOf(' '));
+		if (promptTerminator) {
+			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator, lastPromptLine);
+		}
 	}
 
 	private _updateCwd(value: string) {
@@ -402,6 +510,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			default: {
 				// Checking for known `<key>=<value>` pairs.
+				// Note that unlike `VSCodeOscPt.Property`, iTerm2 does not interpret backslash or hex-escape sequences.
+				// See: https://github.com/gnachman/iTerm2/blob/bb0882332cec5196e4de4a4225978d746e935279/sources/VT100Terminal.m#L2089-L2105
 				const { key, value } = parseKeyValueAssignment(command);
 
 				if (value === undefined) {
@@ -484,7 +594,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {
 		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
 		if (!cwdDetection) {
-			cwdDetection = new CwdDetectionCapability();
+			cwdDetection = this._register(new CwdDetectionCapability());
 			this.capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
 		}
 		return cwdDetection;
@@ -493,7 +603,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
-			commandDetection = new CommandDetectionCapability(terminal, this._logService);
+			commandDetection = this._register(new CommandDetectionCapability(terminal, this._logService));
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;
@@ -502,7 +612,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkCapability {
 		let bufferMarkDetection = this.capabilities.get(TerminalCapability.BufferMarkDetection);
 		if (!bufferMarkDetection) {
-			bufferMarkDetection = new BufferMarkCapability(terminal);
+			bufferMarkDetection = this._register(new BufferMarkCapability(terminal));
 			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
 		}
 		return bufferMarkDetection;
@@ -510,35 +620,34 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 }
 
 export function deserializeMessage(message: string): string {
-	let result = message.replace(/\\\\/g, '\\');
-	const deserializeRegex = /\\x([0-9a-f]{2})/i;
-	while (true) {
-		const match = result.match(deserializeRegex);
-		if (!match?.index || match.length < 2) {
-			break;
-		}
-		result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
-	}
-	return result;
+	return message.replaceAll(
+		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
+		/\\(\\|x([0-9a-f]{2}))/gi,
+		// If it's a hex value, parse it to a character.
+		// Otherwise the operator is '\', which we return literally, now unescaped.
+		(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
-	const deserialized = deserializeMessage(message);
-	const separatorIndex = deserialized.indexOf('=');
+	const separatorIndex = message.indexOf('=');
 	if (separatorIndex === -1) {
-		return { key: deserialized, value: undefined }; // No '=' was found.
+		return { key: message, value: undefined }; // No '=' was found.
 	}
 	return {
-		key: deserialized.substring(0, separatorIndex),
-		value: deserialized.substring(1 + separatorIndex)
+		key: message.substring(0, separatorIndex),
+		value: message.substring(1 + separatorIndex)
 	};
 }
 
 
-export function parseMarkSequence(sequence: string[]): { id?: string; hidden?: boolean } {
+export function parseMarkSequence(sequence: (string | undefined)[]): { id?: string; hidden?: boolean } {
 	let id = undefined;
 	let hidden = false;
 	for (const property of sequence) {
+		// Sanity check, this shouldn't happen in practice
+		if (property === undefined) {
+			continue;
+		}
 		if (property === 'Hidden') {
 			hidden = true;
 		}

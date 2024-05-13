@@ -20,8 +20,10 @@ import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browse
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellOverlayPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
+import { registerCellToolbarStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbarStickyScroll';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export class BetweenCellToolbar extends CellOverlayPart {
 	private _betweenCellToolbar: ToolBar | undefined;
@@ -44,12 +46,12 @@ export class BetweenCellToolbar extends CellOverlayPart {
 		}
 
 		const betweenCellToolbar = this._register(new ToolBar(this._bottomCellToolbarContainer, this.contextMenuService, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
-					if (this._notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
-						return this.instantiationService.createInstance(CodiconActionViewItem, action, undefined);
+					if (this._notebookEditor.notebookOptions.getDisplayOptions().insertToolbarAlignment === 'center') {
+						return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 					} else {
-						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 					}
 				}
 
@@ -82,6 +84,7 @@ export class BetweenCellToolbar extends CellOverlayPart {
 			ui: true,
 			cell: element,
 			notebookEditor: this._notebookEditor,
+			source: 'insertToolbar',
 			$mid: MarshalledId.NotebookCellActionContext
 		};
 		this.updateInternalLayoutNow(element);
@@ -149,10 +152,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		const titleMenu = this._register(this.menuService.createMenu(this.toolbarId, this.contextKeyService));
 		const deleteMenu = this._register(this.menuService.createMenu(this.deleteToolbarId, this.contextKeyService));
 		const actions = getCellToolbarActions(titleMenu);
-		const deleteActions = !this._notebookEditor.creationOptions.isReadOnly ? getCellToolbarActions(deleteMenu) : {
-			primary: [],
-			secondary: []
-		};
+		const deleteActions = getCellToolbarActions(deleteMenu);
 
 		this._model = {
 			titleMenu,
@@ -168,15 +168,16 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		if (this._view) {
 			return this._view;
 		}
-
-		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
-			actionViewItemProvider: action => {
-				return createActionViewItem(this.instantiationService, action);
+		const hoverDelegate = this._register(createInstantHoverDelegate());
+		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this.instantiationService, action, options);
 			},
-			renderDropdownAsChildElement: true
-		});
+			renderDropdownAsChildElement: true,
+			hoverDelegate
+		}));
 
-		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, 'cell-delete-toolbar')));
+		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, hoverDelegate, 'cell-delete-toolbar')));
 		if (model.deleteActions.primary.length !== 0 || model.deleteActions.secondary.length !== 0) {
 			deleteToolbar.setActions(model.deleteActions.primary, model.deleteActions.secondary);
 		}
@@ -199,12 +200,13 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 	override didRenderCell(element: ICellViewModel): void {
 		const model = this._initializeModel();
 		const view = this._initialize(model, element);
-		this.cellDisposables.add(registerStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
+		this.cellDisposables.add(registerCellToolbarStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
 
 		this.updateContext(view, <INotebookCellActionContext>{
 			ui: true,
 			cell: element,
 			notebookEditor: this._notebookEditor,
+			source: 'cellToolbar',
 			$mid: MarshalledId.NotebookCellActionContext
 		});
 	}
@@ -236,9 +238,9 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', visible);
 
 			if (deferredUpdate && !visible) {
-				this._register(disposableTimeout(() => {
+				disposableTimeout(() => {
 					deferredUpdate?.();
-				}));
+				}, 0, this._store);
 
 				deferredUpdate = undefined;
 			}
@@ -246,7 +248,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 	}
 
 	private updateActions(toolbar: ToolBar, actions: { primary: IAction[]; secondary: IAction[] }) {
-		const hadFocus = DOM.isAncestor(document.activeElement, toolbar.getElement());
+		const hadFocus = DOM.isAncestorOfActiveElement(toolbar.getElement());
 		toolbar.setActions(actions.primary, actions.secondary);
 		if (hadFocus) {
 			this._notebookEditor.focus();
@@ -272,16 +274,17 @@ function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IA
 	return result;
 }
 
-function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string): ToolBar {
+function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement, hoverDelegate: IHoverDelegate, elementClass?: string): ToolBar {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const toolbar = new ToolBar(container, contextMenuService, {
 		getKeyBinding: action => keybindingService.lookupKeybinding(action.id),
-		actionViewItemProvider: action => {
-			return createActionViewItem(instantiationService, action);
+		actionViewItemProvider: (action, options) => {
+			return createActionViewItem(instantiationService, action, options);
 		},
-		renderDropdownAsChildElement: true
+		renderDropdownAsChildElement: true,
+		hoverDelegate
 	});
 
 	if (elementClass) {

@@ -4,19 +4,19 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' https:;
+			script-src 'self' 'unsafe-eval' 'sha256-75NYUUvf+5++1WbfCZOV3PSWxBhONpaxwx+mkOFRv/Y=' https:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
 	<script>
-(function() {
+(function () {
 	const searchParams = new URL(document.location.href).searchParams;
 	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
 	const name = searchParams.get('debugged') ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
 	const parentOrigin = searchParams.get('parentOrigin') || window.origin;
 	const salt = searchParams.get('salt');
 
-	(async function() {
+	(async function () {
 		const hostnameValidationMarker = 'v--';
 		const hostname = location.hostname;
 		if (!hostname.startsWith(hostnameValidationMarker)) {
@@ -28,8 +28,9 @@
 			return sendError(new Error(`Cannot validate in current context!`));
 		}
 
-		// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined
+		// Here the `parentOriginHash()` function from `src/vs/base/browser/iframe.ts` is inlined
 		// compute a sha-256 composed of `parentOrigin` and `salt` converted to base 32
+		/** @type {string} */
 		let parentOriginHash;
 		try {
 			const strData = JSON.stringify({ parentOrigin, salt });
@@ -40,7 +41,7 @@
 			const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 			// sha256 has 256 bits, so we need at most ceil(lg(2^256-1)/lg(32)) = 52 chars to represent it in base 32
 			parentOriginHash = BigInt(`0x${hashHex}`).toString(32).padStart(52, '0');
-		} catch(err) {
+		} catch (err) {
 			return sendError(err instanceof Error ? err : new Error(String(err)));
 		}
 
@@ -67,7 +68,7 @@
 	function start() {
 		try {
 			let workerUrl = '../../../../base/worker/workerMain.js';
-			if(globalThis.crossOriginIsolated) {
+			if (globalThis.crossOriginIsolated) {
 				workerUrl += '?vscode-coi=2'; // COEP
 			}
 
@@ -82,12 +83,12 @@
 					const { id, port, url, options } = data;
 					const newWorker = new Worker(url, options);
 					newWorker.postMessage(port, [port]);
-					worker.onerror = console.error.bind(console);
+					newWorker.onerror = console.error.bind(console);
 					nestedWorkers.set(id, newWorker);
 
 				} else if (data?.type === '_terminateWorker') {
 					const { id } = data;
-					if(nestedWorkers.has(id)) {
+					if (nestedWorkers.has(id)) {
 						nestedWorkers.get(id).terminate();
 						nestedWorkers.delete(id);
 					}
@@ -110,8 +111,8 @@
 					return;
 				}
 				worker.postMessage(event.data, event.ports);
-			}
-		} catch(err) {
+			};
+		} catch (err) {
 			console.error(err);
 			sendError(err);
 		}

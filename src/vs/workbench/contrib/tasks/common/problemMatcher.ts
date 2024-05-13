@@ -1284,7 +1284,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private fillDefaults(): void {
 		this.add('msCompile', {
-			regexp: /^(?:\s+\d+>)?(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
+			regexp: /^(?:\s*\d+>)?(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+((?:fatal +)?error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
@@ -1695,9 +1695,25 @@ export namespace Schemas {
 					},
 					{
 						type: 'array',
-						items: {
-							type: 'string'
-						},
+						prefixItems: [
+							{
+								type: 'string',
+								enum: ['absolute', 'relative', 'autoDetect', 'search']
+							},
+						],
+						minItems: 1,
+						maxItems: 1,
+						additionalItems: false
+					},
+					{
+						type: 'array',
+						prefixItems: [
+							{ type: 'string', enum: ['relative', 'autoDetect'] },
+							{ type: 'string' },
+						],
+						minItems: 2,
+						maxItems: 2,
+						additionalItems: false,
 						examples: [
 							['relative', '${workspaceFolder}'],
 							['autoDetect', '${workspaceFolder}'],
@@ -1705,7 +1721,7 @@ export namespace Schemas {
 					},
 					{
 						type: 'array',
-						items: [
+						prefixItems: [
 							{ type: 'string', enum: ['search'] },
 							{
 								type: 'object',
@@ -1726,6 +1742,8 @@ export namespace Schemas {
 								required: ['include']
 							}
 						],
+						minItems: 2,
+						maxItems: 2,
 						additionalItems: false,
 						examples: [
 							['search', { 'include': ['${workspaceFolder}'] }],
@@ -1907,6 +1925,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			name: 'msCompile',
 			label: localize('msCompile', 'Microsoft compiler problems'),
 			owner: 'msCompile',
+			source: 'cpp',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('msCompile')

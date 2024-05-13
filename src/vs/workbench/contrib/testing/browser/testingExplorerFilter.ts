@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -16,8 +16,8 @@ import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
@@ -36,22 +36,22 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	private wrapper!: HTMLDivElement;
 	private readonly focusEmitter = this._register(new Emitter<void>());
 	public readonly onDidFocus = this.focusEmitter.event;
-	private readonly history: StoredValue<{ values: string[]; lastValue: string } | string[]> = this.instantiationService.createInstance(StoredValue, {
+	private readonly history: StoredValue<{ values: string[]; lastValue: string } | string[]> = this._register(this.instantiationService.createInstance(StoredValue, {
 		key: 'testing.filterHistory2',
 		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.USER
-	});
+		target: StorageTarget.MACHINE
+	}));
 
 	private readonly filtersAction = new Action('markersFiltersAction', localize('testing.filters.menu', "More Filters..."), 'testing-filter-button ' + ThemeIcon.asClassName(testingFilterIcon));
 
 	constructor(
 		action: IAction,
+		options: IBaseActionViewItemOptions,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
-		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestService private readonly testService: ITestService,
 	) {
-		super(null, action);
+		super(null, action, options);
 		this.updateFilterActiveState();
 		this._register(testService.excluded.onTestExclusionsChanged(this.updateFilterActiveState, this));
 	}
@@ -92,7 +92,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 						});
 					}),
 				].filter(r => !this.state.text.value.includes(r.label)),
-			} as SuggestResultsProvider,
+			} satisfies SuggestResultsProvider,
 			resourceHandle: 'testing:filter',
 			suggestOptions: {
 				value: this.state.text.value,
@@ -100,7 +100,6 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 			},
 			history: history.values
 		}));
-		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 
 		this._register(this.state.text.onDidChange(newValue => {
 			if (input.getValue() !== newValue) {
@@ -122,9 +121,9 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		})));
 
 		const actionbar = this._register(new ActionBar(container, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === this.filtersAction.id) {
-					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.state, this.actionRunner);
+					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, options, this.state, this.actionRunner);
 				}
 				return undefined;
 			},
@@ -137,7 +136,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	public layout(width: number) {
 		this.input.layout(new dom.Dimension(
 			width - /* horizontal padding */ 24 - /* editor padding */ 8 - /* filter button padding */ 22,
-			/* line height */ 27 - /* editor padding */ 4,
+			20, // line height from suggestEnabledInput.ts
 		));
 	}
 
@@ -177,6 +176,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
 		action: IAction,
+		options: IActionViewItemOptions,
 		private readonly filters: ITestExplorerFilterState,
 		actionRunner: IActionRunner,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -232,7 +232,6 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				tooltip: ''
 			},
 			{
-				checked: false,
 				class: undefined,
 				enabled: this.testService.excluded.hasAny,
 				id: 'removeExcluded',
@@ -243,7 +242,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		];
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }

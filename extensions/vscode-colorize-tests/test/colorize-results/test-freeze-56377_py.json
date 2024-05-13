@@ -1,0 +1,828 @@
+[
+	{
+		"c": "record ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.python keyword.operator.assignment.python",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.python punctuation.definition.dict.begin.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.python string.quoted.single.python punctuation.definition.string.begin.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "headers",
+		"t": "source.python string.quoted.single.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.python string.quoted.single.python punctuation.definition.string.end.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.python punctuation.separator.dict.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.python punctuation.definition.dict.begin.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "k",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.python punctuation.separator.dict.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "str",
+		"t": "source.python meta.function-call.python support.type.python",
+		"r": {
+			"dark_plus": "support.type: #4EC9B0",
+			"light_plus": "support.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.type: #4EC9B0",
+			"dark_modern": "support.type: #4EC9B0",
+			"hc_light": "support.type: #185E73",
+			"light_modern": "support.type: #267F99"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.python meta.function-call.python punctuation.definition.arguments.begin.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "v",
+		"t": "source.python meta.function-call.python meta.function-call.arguments.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.python meta.function-call.python punctuation.definition.arguments.end.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "for",
+		"t": "source.python keyword.control.flow.python",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": " k",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.python punctuation.separator.element.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " v ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "in",
+		"t": "source.python keyword.control.flow.python",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "self",
+		"t": "source.python variable.language.special.self.python",
+		"r": {
+			"dark_plus": "variable.language: #569CD6",
+			"light_plus": "variable.language: #0000FF",
+			"dark_vs": "variable.language: #569CD6",
+			"light_vs": "variable.language: #0000FF",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable.language: #569CD6",
+			"hc_light": "variable.language: #0F4A85",
+			"light_modern": "variable.language: #0000FF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "request",
+		"t": "source.python meta.member.access.python meta.attribute.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "META",
+		"t": "source.python meta.member.access.python constant.other.caps.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "items",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.generic.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.begin.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.end.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "if",
+		"t": "source.python keyword.control.flow.python",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": " k",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "startswith",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.generic.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.begin.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "'",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python punctuation.definition.string.begin.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "HTTP_",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "'",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python punctuation.definition.string.end.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.end.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.python punctuation.definition.dict.end.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.python punctuation.definition.dict.end.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "cmd ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.python keyword.operator.assignment.python",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.python string.quoted.single.python punctuation.definition.string.begin.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "git-clang-format --style=",
+		"t": "source.python string.quoted.single.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\\\"",
+		"t": "source.python string.quoted.single.python constant.character.escape.python",
+		"r": {
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
+		}
+	},
+	{
+		"c": "{{",
+		"t": "source.python string.quoted.single.python meta.format.brace.python constant.character.format.placeholder.other.python",
+		"r": {
+			"dark_plus": "constant.character: #569CD6",
+			"light_plus": "constant.character: #0000FF",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character: #569CD6",
+			"hc_light": "constant.character: #0F4A85",
+			"light_modern": "constant.character: #0000FF"
+		}
+	},
+	{
+		"c": "BasedOnStyle: Google, ColumnLimit: 100, IndentWidth: 2, ",
+		"t": "source.python string.quoted.single.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.python string.quoted.single.python punctuation.definition.string.end.python",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\\",
+		"t": "source.python punctuation.separator.continuation.line.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"AlignConsecutiveAssignments: true}}\\\" {COMMIT_SHA} -- ./**/*.proto > {OUTPUT}\".format(",
+		"t": "source.python invalid.illegal.line.continuation.python",
+		"r": {
+			"dark_plus": "invalid: #F44747",
+			"light_plus": "invalid: #CD3131",
+			"dark_vs": "invalid: #F44747",
+			"light_vs": "invalid: #CD3131",
+			"hc_black": "invalid: #F44747",
+			"dark_modern": "invalid: #F44747",
+			"hc_light": "invalid: #B5200D",
+			"light_modern": "invalid: #CD3131"
+		}
+	}
+]

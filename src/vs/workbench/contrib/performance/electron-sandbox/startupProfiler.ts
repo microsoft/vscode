@@ -10,12 +10,12 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
+import { PerfviewContrib } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -82,8 +82,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 				type: 'info',
 				message: localize('prof.message', "Successfully created profiles."),
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
-				primaryButton: localize('prof.restartAndFileIssue', "&&Create Issue and Restart"),
-				secondaryButton: localize('prof.restart', "&&Restart")
+				primaryButton: localize({ key: 'prof.restartAndFileIssue', comment: ['&& denotes a mnemonic'] }, "&&Create Issue and Restart"),
+				cancelButton: localize('prof.restart', "Restart")
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
@@ -95,11 +95,12 @@ export class StartupProfiler implements IWorkbenchContribution {
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._productService.nameLong),
-							primaryButton: localize('prof.restart.button', "&&Restart"),
-							secondaryButton: undefined
-						}).then(() => {
+							primaryButton: localize({ key: 'prof.restart.button', comment: ['&& denotes a mnemonic'] }, "&&Restart")
+						}).then(res => {
 							// now we are ready to restart
-							this._nativeHostService.relaunch({ removeArgs });
+							if (res.confirmed) {
+								this._nativeHostService.relaunch({ removeArgs });
+							}
 						});
 					});
 
@@ -117,7 +118,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 			return;
 		}
 
-		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
+		const contrib = PerfviewContrib.get();
+		const ref = await this._textModelResolverService.createModelReference(contrib.getInputUri());
 		try {
 			await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
 		} finally {

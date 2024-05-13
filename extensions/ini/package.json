@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
+  "private": true,
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -11,6 +12,7 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/ini.tmbundle Syntaxes/Ini.plist ./syntaxes/ini.tmLanguage.json"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -34,7 +36,8 @@
           ".gitattributes",
           ".gitconfig",
           ".gitmodules",
-          ".editorconfig"
+          ".editorconfig",
+          ".repo"
         ],
         "filenames": [
           "gitconfig",

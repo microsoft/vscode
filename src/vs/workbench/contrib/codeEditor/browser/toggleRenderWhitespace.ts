@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -18,9 +18,8 @@ class ToggleRenderWhitespaceAction extends Action2 {
 		super({
 			id: ToggleRenderWhitespaceAction.ID,
 			title: {
-				value: localize('toggleRenderWhitespace', "Toggle Render Whitespace"),
+				...localize2('toggleRenderWhitespace', "Toggle Render Whitespace"),
 				mnemonicTitle: localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "&&Render Whitespace"),
-				original: 'Toggle Render Whitespace'
 			},
 			category: Categories.View,
 			f1: true,
@@ -28,7 +27,7 @@ class ToggleRenderWhitespaceAction extends Action2 {
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '4_editor',
-				order: 3
+				order: 4
 			}
 		});
 	}

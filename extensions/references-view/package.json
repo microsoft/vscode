@@ -22,17 +22,9 @@
   "bugs": {
     "url": "https://github.com/Microsoft/vscode-references-view/issues"
   },
-  "categories": [
-    "Programming Languages"
-  ],
   "activationEvents": [
     "onCommand:references-view.find",
-    "onCommand:references-view.findReferences",
-    "onCommand:references-view.findImplementations",
-    "onCommand:references-view.showCallHierarchy",
-    "onCommand:references-view.showTypeHierarchy",
-    "onCommand:editor.action.showReferences",
-    "onView:references-view.tree"
+    "onCommand:editor.action.showReferences"
   ],
   "main": "./out/extension",
   "browser": "./dist/extension.js",
@@ -407,6 +399,6 @@
     "watch": "npx gulp watch-extension:references-view"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "20.x"
   }
 }

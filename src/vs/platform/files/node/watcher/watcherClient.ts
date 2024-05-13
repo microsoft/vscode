@@ -7,12 +7,13 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, IUniversalWatcher } from 'vs/platform/files/common/watcher';
+import { IFileChange } from 'vs/platform/files/common/files';
+import { AbstractUniversalWatcherClient, ILogMessage, IUniversalWatcher } from 'vs/platform/files/common/watcher';
 
 export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 
 	constructor(
-		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onFileChanges: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
@@ -26,7 +27,7 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 		// Fork the universal file watcher and build a client around
 		// its server for passing over requests and receiving events.
 		const client = disposables.add(new Client(
-			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			FileAccess.asFileUri('bootstrap-fork').fsPath,
 			{
 				serverName: 'File Watcher',
 				args: ['--type=fileWatcher'],
@@ -39,7 +40,7 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 		));
 
 		// React on unexpected termination of the watcher process
-		disposables.add(client.onDidProcessExit(({ code, signal }) => this.onError(`terminated by itself with code ${code}, signal: ${signal}`)));
+		disposables.add(client.onDidProcessExit(({ code, signal }) => this.onError(`terminated by itself with code ${code}, signal: ${signal} (ETERM)`)));
 
 		return ProxyChannel.toService<IUniversalWatcher>(getNextTickChannel(client.getChannel('watcher')));
 	}

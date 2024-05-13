@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILink } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 
@@ -61,6 +62,8 @@ function assertLink(text: string, extractedLink: string): void {
 }
 
 suite('Editor Modes - Link Computer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Null model', () => {
 		const r = computeLinks(null);

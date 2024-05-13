@@ -5,10 +5,13 @@
 import * as assert from 'assert';
 
 import { stripComments } from 'vs/base/common/stripComments';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 // We use this regular expression quite often to strip comments in JSON files.
 
 suite('Strip Comments', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Line comment', () => {
 		const content: string = [
 			"{",

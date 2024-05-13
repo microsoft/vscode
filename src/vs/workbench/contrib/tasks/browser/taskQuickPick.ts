@@ -9,17 +9,17 @@ import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTa
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
 import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Codicon } from 'vs/base/common/codicons';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { getColorClass, createColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -90,13 +90,14 @@ export class TaskQuickPick extends Disposable {
 		return icon.id ? `$(${icon.id}) ${label}` : `$(${Codicon.tools.id}) ${label}`;
 	}
 
-	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): void {
+	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): IDisposable | undefined {
 		if (task.configurationProperties.icon?.color) {
 			const colorTheme = themeService.getColorTheme();
-			const styleElement = getColorStyleElement(colorTheme);
+			const disposable = createColorStyleElement(colorTheme);
 			entry.iconClasses = [getColorClass(task.configurationProperties.icon.color)];
-			document.body.appendChild(styleElement);
+			return disposable;
 		}
+		return;
 	}
 
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
@@ -105,7 +106,10 @@ export class TaskQuickPick extends Disposable {
 			...extraButtons
 		];
 		const entry: ITaskTwoLevelQuickPickEntry = { label: TaskQuickPick.getTaskLabelWithIcon(task, this._guessTaskLabel(task)), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined, buttons };
-		TaskQuickPick.applyColorStyles(task, entry, this._themeService);
+		const disposable = TaskQuickPick.applyColorStyles(task, entry, this._themeService);
+		if (disposable) {
+			this._register(disposable);
+		}
 		return entry;
 	}
 
@@ -150,11 +154,11 @@ export class TaskQuickPick extends Disposable {
 			const definition = configuredTasks[j].getDefinition()?._key;
 			const type = configuredTasks[j].type;
 			const label = configuredTasks[j]._label;
-			const recentKey = configuredTasks[j].getRecentlyUsedKey();
+			const recentKey = configuredTasks[j].getKey();
 			const findIndex = recentTasks.findIndex((value) => {
 				return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder
 					&& ((value.getDefinition()?._key === definition) || (value.type === type && value._label === label)))
-					|| (recentKey && value.getRecentlyUsedKey() === recentKey);
+					|| (recentKey && value.getKey() === recentKey);
 			});
 			if (findIndex === -1) {
 				dedupedConfiguredTasks.push(configuredTasks[j]);
@@ -210,15 +214,13 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	public async handleSettingOption(selectedType: string) {
-		const noButton = nls.localize('TaskQuickPick.changeSettingNo', "No");
-		const yesButton = nls.localize('TaskQuickPick.changeSettingYes', "Yes");
-		const changeSettingResult = await this._dialogService.show(Severity.Warning,
-			nls.localize('TaskQuickPick.changeSettingDetails',
+		const { confirmed } = await this._dialogService.confirm({
+			type: Severity.Warning,
+			message: nls.localize('TaskQuickPick.changeSettingDetails',
 				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. \n\n Do you want to enable {0} task detection for all workspaces?", selectedType),
-			[noButton, yesButton],
-			{ cancelId: 1 }
-		);
-		if (changeSettingResult.choice === 1) {
+			cancelButton: nls.localize('TaskQuickPick.changeSettingNo', "No")
+		});
+		if (confirmed) {
 			await this._configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
 			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
 			return this.show(nls.localize('TaskService.pickRunTask', 'Select the task to run'), undefined, selectedType);
@@ -234,7 +236,7 @@ export class TaskQuickPick extends Disposable {
 		picker.onDidTriggerItemButton(async (context) => {
 			const task = context.item.task;
 			if (context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
-				const key = (task && !Types.isString(task)) ? task.getRecentlyUsedKey() : undefined;
+				const key = (task && !Types.isString(task)) ? task.getKey() : undefined;
 				if (key) {
 					this._taskService.removeRecentlyUsedTask(key);
 				}

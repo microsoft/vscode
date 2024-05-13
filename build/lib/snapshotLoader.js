@@ -53,3 +53,4 @@ var snaps;
         cp.execFileSync(mksnapshot, [wrappedInputFilepath, `--startup_blob`, startupBlobFilepath]);
     }
 })(snaps || (snaps = {}));
+//# sourceMappingURL=snapshotLoader.js.map

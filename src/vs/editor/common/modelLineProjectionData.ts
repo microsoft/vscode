@@ -329,7 +329,7 @@ export class OutputPosition {
 }
 
 export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
+	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer;
 }
 
 export interface ILineBreaksComputer {

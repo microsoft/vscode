@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, reviveIdentifier, hasWorkspaceFileExtension, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IEmptyWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, reviveIdentifier, hasWorkspaceFileExtension, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IEmptyWorkspaceIdentifier, toWorkspaceIdentifier, isEmptyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 suite('Workspaces', () => {
 
@@ -31,8 +32,9 @@ suite('Workspaces', () => {
 
 	test('toWorkspaceIdentifier', () => {
 		let identifier = toWorkspaceIdentifier({ id: 'id', folders: [] });
-		assert.ok(!identifier);
-		assert.ok(!isSingleFolderWorkspaceIdentifier(identifier));
+		assert.ok(identifier);
+		assert.ok(isEmptyWorkspaceIdentifier(identifier));
+		assert.ok(!isWorkspaceIdentifier(identifier));
 		assert.ok(!isWorkspaceIdentifier(identifier));
 
 		identifier = toWorkspaceIdentifier({ id: 'id', folders: [{ index: 0, name: 'test', toResource: () => URI.file('test'), uri: URI.file('test') }] });
@@ -45,4 +47,6 @@ suite('Workspaces', () => {
 		assert.ok(!isSingleFolderWorkspaceIdentifier(identifier));
 		assert.ok(isWorkspaceIdentifier(identifier));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

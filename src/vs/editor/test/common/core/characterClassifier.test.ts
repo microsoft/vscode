@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 
 suite('CharacterClassifier', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('works', () => {
 		const classifier = new CharacterClassifier<number>(0);

@@ -23,7 +23,7 @@ export interface ILabelService {
 	 */
 	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' }): string;
 	getUriBasenameLabel(resource: URI): string;
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: Verbosity }): string;
 	getHostLabel(scheme: string, authority?: string): string;
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
@@ -37,6 +37,12 @@ export interface ILabelService {
 	 * the cache.
 	 */
 	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable;
+}
+
+export const enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
 }
 
 export interface IFormatterChangeEvent {

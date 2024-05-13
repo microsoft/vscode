@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { API } from '../tsServer/api';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { DocumentSelector } from '../utils/documentSelector';
 
 
 interface Directive {
@@ -46,7 +46,7 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 		position: vscode.Position,
 		_token: vscode.CancellationToken
 	): vscode.CompletionItem[] {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return [];
 		}

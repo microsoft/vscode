@@ -44,6 +44,7 @@ export class SkipList<K, V> implements Map<K, V> {
 
 	clear(): void {
 		this._header = <any>new Node(this._maxLevel, NIL, NIL);
+		this._size = 0;
 	}
 
 	has(key: K): boolean {

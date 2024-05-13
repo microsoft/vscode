@@ -4,7 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.execute = exports.run3 = exports.DeclarationResolver = exports.FSProvider = exports.RECIPE_PATH = void 0;
+exports.DeclarationResolver = exports.FSProvider = exports.RECIPE_PATH = void 0;
+exports.run3 = run3;
+exports.execute = execute;
 const fs = require("fs");
 const path = require("path");
 const fancyLog = require("fancy-log");
@@ -104,7 +106,10 @@ function hasModifier(modifiers, kind) {
     return false;
 }
 function isStatic(ts, member) {
-    return hasModifier(member.modifiers, ts.SyntaxKind.StaticKeyword);
+    if (ts.canHaveModifiers(member)) {
+        return hasModifier(ts.getModifiers(member), ts.SyntaxKind.StaticKeyword);
+    }
+    return false;
 }
 function isDefaultExport(ts, declaration) {
     return (hasModifier(declaration.modifiers, ts.SyntaxKind.DefaultKeyword)
@@ -556,7 +561,6 @@ function run3(resolver) {
     const sourceFileGetter = (moduleId) => resolver.getDeclarationSourceFile(moduleId);
     return _run(resolver.ts, sourceFileGetter);
 }
-exports.run3 = run3;
 class TypeScriptLanguageServiceHost {
     _ts;
     _libs;
@@ -620,4 +624,4 @@ function execute() {
     }
     return r;
 }
-exports.execute = execute;
+//# sourceMappingURL=monaco-api.js.map

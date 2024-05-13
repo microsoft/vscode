@@ -100,7 +100,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 	const mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	let mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.onDidChangeContent((e: IModelContentChangedEvent) => {
+	const disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
 		const versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');
@@ -117,6 +117,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 
 	callback(model, assertMirrorModels);
 
+	disposable.dispose();
 	model.dispose();
 	mirrorModel2.dispose();
 }

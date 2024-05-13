@@ -16,7 +16,7 @@ import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import 'vs/css!./referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -305,7 +305,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				useShadows: true,
 				verticalHasArrows: false,
 				horizontalHasArrows: false,
-				alwaysConsumeMouseWheel: false
+				alwaysConsumeMouseWheel: true
 			},
 			overviewRulerLanes: 2,
 			fixedOverflowWidgets: true,
@@ -313,7 +313,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				enabled: false
 			}
 		};
-		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, this.editor);
+		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, {}, this.editor);
 		dom.hide(this._previewContainer);
 		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService);
 

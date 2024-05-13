@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
@@ -20,7 +19,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 		super(extensionGalleryService);
 	}
 
-	async getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined> {
+	async getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined> {
 
 		const queryTimeout = new CancellationTokenSource();
 		setTimeout(() => queryTimeout.cancel(), 1000);
@@ -29,7 +28,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 		let result;
 		try {
 			result = await this.extensionGalleryService.query({
-				text: `tag:"lp-${Language.value()}"`,
+				text: `tag:"lp-${language}"`,
 				pageSize: 5
 			}, queryTimeout.token);
 		} catch (err) {
@@ -39,7 +38,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 
 		const languagePackExtensions = result.firstPage.find(e => e.properties.localizedLanguages?.length);
 		if (!languagePackExtensions) {
-			this.logService.trace(`No language pack found for language ${Language.value()}`);
+			this.logService.trace(`No language pack found for language ${language}`);
 			return undefined;
 		}
 
@@ -49,7 +48,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 		const manifest = await this.extensionGalleryService.getManifest(languagePackExtensions, manifestTimeout.token);
 
 		// Find the translation from the language pack
-		const localization = manifest?.contributes?.localizations?.find(l => l.languageId === Language.value());
+		const localization = manifest?.contributes?.localizations?.find(l => l.languageId === language);
 		const translation = localization?.translations.find(t => t.id === id);
 		if (!translation) {
 			this.logService.trace(`No translation found for id '${id}, in ${manifest?.name}`);

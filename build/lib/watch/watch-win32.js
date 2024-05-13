@@ -70,8 +70,8 @@ module.exports = function (pattern, options) {
         return f;
     });
     return watcher
-        .pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
-        .pipe(filter(pattern))
+        .pipe(filter(['**', '!.git{,/**}'], { dot: options.dot })) // ignore all things git
+        .pipe(filter(pattern, { dot: options.dot }))
         .pipe(es.map(function (file, cb) {
         fs.stat(file.path, function (err, stat) {
             if (err && err.code === 'ENOENT') {
@@ -98,3 +98,4 @@ module.exports = function (pattern, options) {
     }))
         .pipe(rebase);
 };
+//# sourceMappingURL=watch-win32.js.map

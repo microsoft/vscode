@@ -8,7 +8,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
@@ -197,6 +197,8 @@ export class BulkEditService implements IBulkEditService {
 			const candidate = this._editorService.activeTextEditorControl;
 			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
+			} else if (isDiffEditor(candidate)) {
+				codeEditor = candidate.getModifiedEditor();
 			}
 		}
 
@@ -277,12 +279,31 @@ export class BulkEditService implements IBulkEditService {
 	}
 
 	private async _shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
-		label = label || localize('fileOperation', "File operation");
-		const reasonLabel = reason === ShutdownReason.CLOSE ? localize('closeTheWindow', "Close Window") : reason === ShutdownReason.LOAD ? localize('changeWorkspace', "Change Workspace") :
-			reason === ShutdownReason.RELOAD ? localize('reloadTheWindow', "Reload Window") : localize('quit', "Quit");
+		let message: string;
+		let primaryButton: string;
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				message = localize('closeTheWindow.message', "Are you sure you want to close the window?");
+				primaryButton = localize({ key: 'closeTheWindow', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
+				break;
+			case ShutdownReason.LOAD:
+				message = localize('changeWorkspace.message', "Are you sure you want to change the workspace?");
+				primaryButton = localize({ key: 'changeWorkspace', comment: ['&& denotes a mnemonic'] }, "Change &&Workspace");
+				break;
+			case ShutdownReason.RELOAD:
+				message = localize('reloadTheWindow.message', "Are you sure you want to reload the window?");
+				primaryButton = localize({ key: 'reloadTheWindow', comment: ['&& denotes a mnemonic'] }, "&&Reload Window");
+				break;
+			default:
+				message = localize('quit.message', "Are you sure you want to quit?");
+				primaryButton = localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit");
+				break;
+		}
+
 		const result = await this._dialogService.confirm({
-			message: localize('areYouSureQuiteBulkEdit', "Are you sure you want to {0}? '{1}' is in progress.", reasonLabel.toLowerCase(), label),
-			primaryButton: reasonLabel
+			message,
+			detail: localize('areYouSureQuiteBulkEdit.detail', "'{0}' is in progress.", label || localize('fileOperation', "File operation")),
+			primaryButton
 		});
 
 		return !result.confirmed;

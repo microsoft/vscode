@@ -7,17 +7,20 @@ import { Promises } from 'vs/base/common/async';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
+import { isBoolean } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
+import { CorruptZipMessage } from 'vs/base/node/zip';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionVerificationStatus, toExtensionManagementError } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { ExtensionSignatureVerificationError, ExtensionSignatureVerificationCode, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -43,37 +46,78 @@ export class ExtensionsDownloader extends Disposable {
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<{ readonly location: URI; verified: boolean }> {
+	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
 		await this.cleanUpPromise;
 
 		const location = joinPath(this.extensionsDownloadDir, this.getName(extension));
 		try {
 			await this.downloadFile(extension, location, location => this.extensionGalleryService.download(extension, location, operation));
 		} catch (error) {
-			throw new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Download);
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.Download);
 		}
 
-		let verified: boolean = false;
-		if (extension.isSigned && this.configurationService.getValue('extensions.verifySignature') === true) {
-			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
+		let verificationStatus: ExtensionVerificationStatus = false;
+
+		if (verifySignature && this.shouldVerifySignature(extension)) {
+
+			let signatureArchiveLocation;
 			try {
-				verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath);
-				this.logService.info(`Verified extension: ${extension.identifier.id}`, verified);
+				signatureArchiveLocation = await this.downloadSignatureArchive(extension);
 			} catch (error) {
-				await this.delete(signatureArchiveLocation);
-				await this.delete(location);
-				throw new ExtensionManagementError((error as ExtensionSignatureVerificationError).code, ExtensionManagementErrorCode.Signature);
+				try {
+					// Delete the downloaded VSIX if signature archive download fails
+					await this.delete(location);
+				} catch (error) {
+					this.logService.error(error);
+				}
+				throw error;
+			}
+
+			try {
+				verificationStatus = await this.extensionSignatureVerificationService.verify(extension.identifier.id, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform);
+			} catch (error) {
+				verificationStatus = (error as ExtensionSignatureVerificationError).code;
+				if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
+					try {
+						// Delete the downloaded vsix if VSIX or signature archive is invalid
+						await this.delete(location);
+					} catch (error) {
+						this.logService.error(error);
+					}
+					throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
+				}
+			} finally {
+				try {
+					// Delete signature archive always
+					await this.delete(signatureArchiveLocation);
+				} catch (error) {
+					this.logService.error(error);
+				}
 			}
 		}
 
-		return { location, verified };
+		return { location, verificationStatus };
+	}
+
+	private shouldVerifySignature(extension: IGalleryExtension): boolean {
+		if (!extension.isSigned) {
+			this.logService.info(`Extension is not signed: ${extension.identifier.id}`);
+			return false;
+		}
+
+		const value = this.configurationService.getValue('extensions.verifySignature');
+		return isBoolean(value) ? value : true;
 	}
 
 	private async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {
 		await this.cleanUpPromise;
 
-		const location = joinPath(this.extensionsDownloadDir, `${this.getName(extension)}${ExtensionsDownloader.SignatureArchiveExtension}`);
-		await this.downloadFile(extension, location, location => this.extensionGalleryService.downloadSignatureArchive(extension, location));
+		const location = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
+		try {
+			await this.extensionGalleryService.downloadSignatureArchive(extension, location);
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.DownloadSignature);
+		}
 		return location;
 	}
 
@@ -91,13 +135,18 @@ export class ExtensionsDownloader extends Disposable {
 
 		// Download to temporary location first only if file does not exist
 		const tempLocation = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
-		if (!await this.fileService.exists(tempLocation)) {
+		try {
 			await downloadFn(tempLocation);
+		} catch (error) {
+			try {
+				await this.fileService.del(tempLocation);
+			} catch (e) { /* ignore */ }
+			throw error;
 		}
 
 		try {
 			// Rename temp location to original
-			await this.rename(tempLocation, location, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			await FSPromises.rename(tempLocation.fsPath, location.fsPath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
 			try {
 				await this.fileService.del(tempLocation);
@@ -114,18 +163,6 @@ export class ExtensionsDownloader extends Disposable {
 	async delete(location: URI): Promise<void> {
 		await this.cleanUpPromise;
 		await this.fileService.del(location);
-	}
-
-	private async rename(from: URI, to: URI, retryUntil: number): Promise<void> {
-		try {
-			await FSPromises.rename(from.fsPath, to.fsPath);
-		} catch (error) {
-			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
-				this.logService.info(`Failed renaming ${from} to ${to} with 'EPERM' error. Trying again...`);
-				return this.rename(from, to, retryUntil);
-			}
-			throw error;
-		}
 	}
 
 	private async cleanUp(): Promise<void> {
