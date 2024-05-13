@@ -8,7 +8,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { marked } from 'vs/base/common/marked/marked';
 import { localize } from 'vs/nls';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { isRequestVM, isResponseVM, isWelcomeVM, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 

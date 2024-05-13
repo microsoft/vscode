@@ -195,7 +195,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				}
 				return !(await this.extensionsWorkbenchService.canInstall(extension));
 			} else if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
-				const runningExtension = this.extensionService.extensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
+				const runningExtension = this.extensionService.extensions.filter(e => areSameExtensions({ id: e.identifier.value }, extension.identifier))[0];
 				return !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
 			}
 			return false;

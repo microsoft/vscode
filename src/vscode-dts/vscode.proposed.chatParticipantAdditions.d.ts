@@ -102,11 +102,81 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
 
+	export class ChatResponseConfirmationPart {
+		title: string;
+		message: string;
+		data: any;
+		constructor(title: string, message: string, data: any);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart;
+
+	export class ChatResponseWarningPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
+	export class ChatResponseProgressPart2 extends ChatResponseProgressPart {
+		value: string;
+		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
+		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
+	}
+
 	export interface ChatResponseStream {
+
+		/**
+		 * Push a progress part to this stream. Short-hand for
+		 * `push(new ChatResponseProgressPart(value))`.
+		*
+		* @param value A progress message
+		* @param task If provided, a task to run while the progress is displayed. When the Thenable resolves, the progress will be marked complete in the UI, and the progress message will be updated to the resolved string if one is specified.
+		* @returns This stream.
+		*/
+		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): ChatResponseStream;
+
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
 		detectedParticipant(participant: string, command?: ChatCommand): ChatResponseStream;
-		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart): ChatResponseStream;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): ChatResponseStream;
+
+		/**
+		 * Show an inline message in the chat view asking the user to confirm an action.
+		 * Multiple confirmations may be shown per response. The UI might show "Accept All" / "Reject All" actions.
+		 * @param title The title of the confirmation entry
+		 * @param message An extra message to display to the user
+		 * @param data An arbitrary JSON-stringifiable object that will be included in the ChatRequest when
+		 * the confirmation is accepted or rejected
+		 * TODO@API should this be MarkdownString?
+		 * TODO@API should actually be a more generic function that takes an array of buttons
+		 */
+		confirmation(title: string, message: string, data: any): ChatResponseStream;
+
+		/**
+		 * Push a warning to this stream. Short-hand for
+		 * `push(new ChatResponseWarningPart(message))`.
+		 *
+		 * @param message A warning message
+		 * @returns This stream.
+		 */
+		warning(message: string | MarkdownString): ChatResponseStream;
+
+		push(part: ExtendedChatResponsePart): ChatResponseStream;
+	}
+
+	/**
+	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
+	 * Does it show up in history?
+	 */
+	export interface ChatRequest {
+		/**
+		 * The `data` for any confirmations that were accepted
+		 */
+		acceptedConfirmationData?: any[];
+
+		/**
+		 * The `data` for any confirmations that were rejected
+		 */
+		rejectedConfirmationData?: any[];
 	}
 
 	// TODO@API fit this into the stream
@@ -144,7 +214,25 @@ declare module 'vscode' {
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 
-		export function createDynamicChatParticipant(id: string, name: string, description: string, handler: ChatExtendedRequestHandler): ChatParticipant;
+		export function createDynamicChatParticipant(id: string, dynamicProps: DynamicChatParticipantProps, handler: ChatExtendedRequestHandler): ChatParticipant;
+
+		/**
+		 * Current version of the proposal. Changes whenever backwards-incompatible changes are made.
+		 * If a new feature is added that doesn't break existing code, the version is not incremented. When the extension uses this new feature, it should set its engines.vscode version appropriately.
+		 * But if a change is made to an existing feature that would break existing code, the version should be incremented.
+		 * The chat extension should not activate if it doesn't support the current version.
+		 */
+		export const _version: 1 | number;
+	}
+
+	/**
+	 * These don't get set on the ChatParticipant after creation, like other props, because they are typically defined in package.json and we want them at the time of creation.
+	 */
+	export interface DynamicChatParticipantProps {
+		name: string;
+		publisherName: string;
+		description?: string;
+		fullName?: string;
 	}
 
 	/*
@@ -209,11 +297,30 @@ declare module 'vscode' {
 		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
 	}
 
+	/**
+	 * The detail level of this chat variable value.
+	 */
+	export enum ChatVariableLevel {
+		Short = 1,
+		Medium = 2,
+		Full = 3
+	}
+
 	export interface ChatVariableValue {
 		/**
-		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
+		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
 		 */
-		kind?: string;
+		level: ChatVariableLevel;
+
+		/**
+		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
+		 */
+		value: string | Uri;
+
+		/**
+		 * A description of this value, which could be provided to the LLM as a hint.
+		 */
+		description?: string;
 	}
 
 	export interface ChatVariableResolverResponseStream {

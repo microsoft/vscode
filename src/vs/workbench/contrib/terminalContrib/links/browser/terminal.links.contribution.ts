@@ -11,12 +11,12 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager, TerminalCommandId, isTerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessInfo, ITerminalProcessManager, isTerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
@@ -25,8 +25,16 @@ import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContri
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { TerminalLinksCommandId } from 'vs/workbench/contrib/terminalContrib/links/common/terminal.links';
+import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+
+// #region Services
 
 registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, InstantiationType.Delayed);
+
+// #endregion
+
+// #region Terminal Contributions
 
 class TerminalLinkContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.link';
@@ -103,10 +111,14 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 
 registerTerminalContribution(TerminalLinkContribution.ID, TerminalLinkContribution, true);
 
+// #endregion
+
+// #region Actions
+
 const category = terminalStrings.actionCategory;
 
 registerActiveInstanceAction({
-	id: TerminalCommandId.OpenDetectedLink,
+	id: TerminalLinksCommandId.OpenDetectedLink,
 	title: localize2('workbench.action.terminal.openDetectedLink', 'Open Detected Link...'),
 	f1: true,
 	category,
@@ -124,7 +136,7 @@ registerActiveInstanceAction({
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.showLinkQuickpick()
 });
 registerActiveInstanceAction({
-	id: TerminalCommandId.OpenWebLink,
+	id: TerminalLinksCommandId.OpenWebLink,
 	title: localize2('workbench.action.terminal.openLastUrlLink', 'Open Last URL Link'),
 	metadata: {
 		description: localize2('workbench.action.terminal.openLastUrlLink.description', 'Opens the last detected URL/URI link in the terminal')
@@ -135,10 +147,12 @@ registerActiveInstanceAction({
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.openRecentLink('url')
 });
 registerActiveInstanceAction({
-	id: TerminalCommandId.OpenFileLink,
+	id: TerminalLinksCommandId.OpenFileLink,
 	title: localize2('workbench.action.terminal.openLastLocalFileLink', 'Open Last Local File Link'),
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.openRecentLink('localFile')
 });
+
+// #endregion

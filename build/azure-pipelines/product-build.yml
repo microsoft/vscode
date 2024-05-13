@@ -181,8 +181,16 @@ extends:
           notificationAliases: ['monacotools@microsoft.com']
           validateToolOutput: None
           allTools: true
+      codeql:
+        compiled:
+          enabled: true
+        runSourceLanguagesInSourceAnalysis: true
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslintignore
       sourceAnalysisPool: 1es-windows-2022-x64
     containers:
       snapcraft:

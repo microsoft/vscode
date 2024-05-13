@@ -28,7 +28,7 @@ import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatService, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { EditMode, IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, IInlineChatService, IInlineChatSession, IInlineChatSessionProvider, IInlineChatSlashCommand, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -80,8 +80,8 @@ class BridgeAgent implements IChatAgentImplementation {
 			throw new Error('FAILED to find last input');
 		}
 
-		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.values[0];
-		const inlineChatContext = typeof inlineChatContextValue?.value === 'string' && JSON.parse(inlineChatContextValue.value);
+		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.value;
+		const inlineChatContext = typeof inlineChatContextValue === 'string' && JSON.parse(inlineChatContextValue);
 
 		const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
@@ -229,6 +229,7 @@ export class InlineChatError extends Error {
 
 const _bridgeAgentId = 'brigde.editor';
 const _inlineChatContext = '_inlineChatContext';
+const _inlineChatDocument = '_inlineChatDocument';
 
 class InlineChatContext {
 
@@ -317,7 +318,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				id: _bridgeAgentId,
 				name: 'editor',
 				extensionId: nullExtensionDescription.identifier,
-				extensionPublisher: '',
+				publisherDisplayName: '',
+				extensionDisplayName: '',
+				extensionPublisherId: '',
 				isDefault: true,
 				locations: [ChatAgentLocation.Editor],
 				get slashCommands(): IChatAgentCommand[] {
@@ -382,10 +385,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			async (_message, _arg, model) => {
 				for (const [, data] of this._sessions) {
 					if (data.session.chatModel === model) {
-						return [{
-							level: 'full',
-							value: JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange))
-						}];
+						return JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange));
+					}
+				}
+				return undefined;
+			}
+		));
+		this._store.add(chatVariableService.registerVariable(
+			{ name: _inlineChatDocument, description: '', hidden: true },
+			async (_message, _arg, model) => {
+				for (const [, data] of this._sessions) {
+					if (data.session.chatModel === model) {
+						return data.session.textModelN.uri;
 					}
 				}
 				return undefined;
@@ -503,13 +514,15 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 						for (const item of response.response.value) {
 							if (item.kind === 'markdownContent') {
 								markdownContent.value += item.content.value;
-							} else if (item.kind === 'textEdit') {
-								for (const edit of item.edits) {
-									raw.edits.edits.push({
-										resource: item.uri,
-										textEdit: edit,
-										versionId: undefined
-									});
+							} else if (item.kind === 'textEditGroup') {
+								for (const group of item.edits) {
+									for (const edit of group) {
+										raw.edits.edits.push({
+											resource: item.uri,
+											textEdit: edit,
+											versionId: undefined
+										});
+									}
 								}
 							}
 						}
@@ -524,10 +537,17 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 							e.request.id,
 							e.request.response
 						);
+
 					}
 				}
 
 				session.addExchange(new SessionExchange(session.lastInput!, inlineResponse));
+
+				if (inlineResponse instanceof ReplyResponse && inlineResponse.untitledTextModel) {
+					this._textModelService.createModelReference(inlineResponse.untitledTextModel.resource).then(ref => {
+						store.add(ref);
+					});
+				}
 			});
 		}));
 
@@ -546,7 +566,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 			let kind: InlineChatResponseFeedbackKind | undefined;
 			if (e.action.kind === 'vote') {
-				kind = e.action.direction === InteractiveSessionVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful;
+				kind = e.action.direction === ChatAgentVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful;
 			} else if (e.action.kind === 'bug') {
 				kind = InlineChatResponseFeedbackKind.Bug;
 			} else if (e.action.kind === 'inlineChat') {
@@ -779,10 +799,7 @@ export class AgentInlineChatProvider implements IInlineChatSessionProvider {
 			variables: {
 				variables: [{
 					name: InlineChatContext.variableName,
-					values: [{
-						level: 'full',
-						value: JSON.stringify(new InlineChatContext(request.previewDocument, request.selection, request.wholeRange))
-					}]
+					value: JSON.stringify(new InlineChatContext(request.previewDocument, request.selection, request.wholeRange))
 				}]
 			}
 		}, part => {

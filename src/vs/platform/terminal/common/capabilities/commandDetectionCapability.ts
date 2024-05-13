@@ -30,6 +30,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
+	private _promptTerminator: string | undefined;
 	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
@@ -54,6 +55,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		return this._currentCommand;
 	}
 	get cwd(): string | undefined { return this._cwd; }
+	get promptTerminator(): string | undefined { return this._promptTerminator; }
 	private get _isInputting(): boolean {
 		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
 	}
@@ -91,7 +93,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	) {
 		super();
 
-		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandFinished, this._logService));
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandExecuted, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {
@@ -201,6 +203,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	setContinuationPrompt(value: string): void {
 		this._promptInputModel.setContinuationPrompt(value);
+	}
+
+	// TODO: Simplify this, can everything work off the last line?
+	setPromptTerminator(promptTerminator: string, lastPromptLine: string) {
+		this._logService.debug('CommandDetectionCapability#setPromptTerminator', promptTerminator);
+		this._promptTerminator = promptTerminator;
+		this._promptInputModel.setLastPromptLine(lastPromptLine);
 	}
 
 	setCwd(value: string) {
@@ -402,6 +411,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.command = commandLine;
 		this._currentCommand.commandLineConfidence = 'high';
 		this._currentCommand.isTrusted = isTrusted;
+
+		if (isTrusted) {
+			this._promptInputModel.setConfidentCommandLine(commandLine);
+		}
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
@@ -551,7 +564,7 @@ class UnixPtyHeuristics extends Disposable {
 const enum AdjustCommandStartMarkerConstants {
 	MaxCheckLineCount = 10,
 	Interval = 20,
-	MaximumPollCount = 50,
+	MaximumPollCount = 10,
 }
 
 /**
@@ -732,7 +745,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 		if (scannedLineCount < AdjustCommandStartMarkerConstants.MaxCheckLineCount) {
 			this._tryAdjustCommandStartMarkerScannedLineCount = scannedLineCount;
-			if (this._tryAdjustCommandStartMarkerPollCount < AdjustCommandStartMarkerConstants.MaximumPollCount) {
+			if (++this._tryAdjustCommandStartMarkerPollCount < AdjustCommandStartMarkerConstants.MaximumPollCount) {
 				this._tryAdjustCommandStartMarkerScheduler?.schedule();
 			} else {
 				this._flushPendingHandleCommandStartTask();
@@ -918,7 +931,6 @@ class WindowsPtyHeuristics extends Disposable {
 		if (!line) {
 			return;
 		}
-		// TODO: fine tune prompt regex to accomodate for unique configurations.
 		const lineText = line.translateToString(true);
 		if (!lineText) {
 			return;
@@ -946,7 +958,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 
 		// Bash Prompt
-		const bashPrompt = lineText.match(/^(?<prompt>.*\$)/)?.groups?.prompt;
+		const bashPrompt = lineText.match(/^(?<prompt>\$)/)?.groups?.prompt;
 		if (bashPrompt) {
 			const adjustedPrompt = this._adjustPrompt(bashPrompt, lineText, '$');
 			if (adjustedPrompt) {
@@ -961,6 +973,14 @@ class WindowsPtyHeuristics extends Disposable {
 				prompt: pythonPrompt,
 				likelySingleLine: true
 			};
+		}
+
+		// Dynamic prompt detection
+		if (this._capability.promptTerminator && lineText.trim().endsWith(this._capability.promptTerminator)) {
+			const adjustedPrompt = this._adjustPrompt(lineText, lineText, this._capability.promptTerminator);
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
 		}
 
 		// Command Prompt

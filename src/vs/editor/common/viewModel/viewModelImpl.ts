@@ -1110,6 +1110,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 	}
 
+	public batchEvents(callback: () => void): void {
+		this._withViewEventsCollector(() => { callback(); });
+	}
+
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {
 		return this._lines.normalizePosition(position, affinity);
 	}

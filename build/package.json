@@ -14,7 +14,7 @@
     "@types/fancy-log": "^1.3.0",
     "@types/fs-extra": "^9.0.12",
     "@types/glob": "^7.1.1",
-    "@types/gulp": "^4.0.5",
+    "@types/gulp": "^4.0.17",
     "@types/gulp-concat": "^0.0.32",
     "@types/gulp-filter": "^3.0.32",
     "@types/gulp-gzip": "^0.0.31",
@@ -26,7 +26,7 @@
     "@types/minimist": "^1.2.1",
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
     "@types/through": "^0.0.29",
@@ -43,7 +43,6 @@
     "electron-osx-sign": "^0.4.16",
     "esbuild": "0.20.0",
     "extract-zip": "^2.0.1",
-    "graceful-fs": "^4.2.11",
     "gulp-merge-json": "^2.1.1",
     "gulp-shell": "^0.8.0",
     "jsonc-parser": "^2.3.0",
@@ -64,7 +63,7 @@
   },
   "optionalDependencies": {
     "tree-sitter": "^0.20.5",
-    "tree-sitter-typescript": "^0.20.3",
+    "tree-sitter-typescript": "^0.20.5",
     "vscode-gulp-watch": "^5.0.3"
   }
 }
