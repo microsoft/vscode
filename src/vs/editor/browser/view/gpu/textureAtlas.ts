@@ -7,7 +7,6 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/glyphRasterizer';
-import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/textureAtlasPage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -82,7 +81,6 @@ export class TextureAtlas extends Disposable {
 		const activeWindow = getActiveWindow();
 		const style = activeWindow.getComputedStyle(parentDomNode);
 		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
-		// this._ctx.font = `${fontSize}px ${style.fontFamily}`;
 
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
 			// TODO: Clear entire atlas on theme change
@@ -102,33 +100,7 @@ export class TextureAtlas extends Disposable {
 	}
 
 	public getUsagePreview(): Promise<Blob> {
-		const w = this._page.source.width;
-		const h = this._page.source.height;
-		const canvas = new OffscreenCanvas(w, h);
-		const ctx = ensureNonNullable(canvas.getContext('2d'));
-		ctx.fillStyle = '#808080';
-		ctx.fillRect(0, 0, w, h);
-		const rowHeight: Map<number, number> = new Map(); // y -> h
-		const rowWidth: Map<number, number> = new Map(); // y -> w
-		let lastY: number = 0;
-		for (const g of this.glyphs) {
-			rowHeight.set(g.y, Math.max(rowHeight.get(g.y) ?? 0, g.h));
-			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
-			lastY = Math.max(lastY, g.y);
-		}
-		for (const g of this.glyphs) {
-			ctx.fillStyle = '#4040FF';
-			ctx.fillRect(g.x, g.y, g.w, g.h);
-			ctx.fillStyle = '#FF0000';
-			ctx.fillRect(g.x, g.y + g.h, g.w, rowHeight.get(g.y)! - g.h);
-		}
-		for (const [rowY, rowW] of rowWidth.entries()) {
-			if (rowY !== lastY) {
-				ctx.fillStyle = '#FF0000';
-				ctx.fillRect(rowW, rowY, w - rowW, rowHeight.get(rowY)!);
-			}
-		}
-		return canvas.convertToBlob();
+		return this._page.getUsagePreview();
 	}
 
 	/**

@@ -78,7 +78,7 @@ export class TextureAtlasPage extends Disposable {
 
 	private _createGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
 		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars, this._colorMap[tokenFg]);
-		const glyph = this._allocator.allocate(rasterizedGlyph);
+		const glyph = this._allocator.allocate(chars, tokenFg, rasterizedGlyph);
 		this._glyphMap.set(chars, tokenFg, glyph);
 		this._glyphInOrderSet.add(glyph);
 		this.hasChanges = true;
@@ -93,6 +93,10 @@ export class TextureAtlasPage extends Disposable {
 		}
 
 		return glyph;
+	}
+
+	getUsagePreview(): Promise<Blob> {
+		return this._allocator.getUsagePreview();
 	}
 }
 

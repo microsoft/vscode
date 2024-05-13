@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/glyphRasterizer';
+import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { TwoKeyMap } from 'vs/editor/browser/view/gpu/multiKeyMap';
 import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
 
 export interface ITextureAtlasAllocator {
-	allocate(rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph;
+	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph>;
+	allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph;
+	getUsagePreview(): Promise<Blob>;
 }
 
 export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
@@ -16,8 +20,11 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		y: 0,
 		h: 0
 	};
+
 	// TODO: Allow for multiple active rows
 	// public readonly fixedRows: ICharAtlasActiveRow[] = [];
+
+	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
 
 	private _nextIndex = 0;
 
@@ -27,7 +34,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 	) {
 	}
 
-	public allocate(rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph {
+	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph {
 		// Finalize row if it doesn't fix
 		if (rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left > this._canvas.width - this._currentRow.x) {
 			this._currentRow.x = 0;
@@ -70,7 +77,39 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		this._currentRow.x += glyphWidth;
 		this._currentRow.h = Math.max(this._currentRow.h, glyphHeight);
 
+		// Set the glyph
+		this.glyphMap.set(chars, tokenFg, glyph);
+
 		return glyph;
+	}
+
+	public getUsagePreview(): Promise<Blob> {
+		// TODO: This is specific to the simple shelf allocator
+		const w = this._canvas.width;
+		const h = this._canvas.height;
+		const canvas = new OffscreenCanvas(w, h);
+		const ctx = ensureNonNullable(canvas.getContext('2d'));
+		ctx.fillStyle = '#808080';
+		ctx.fillRect(0, 0, w, h);
+		const rowHeight: Map<number, number> = new Map(); // y -> h
+		const rowWidth: Map<number, number> = new Map(); // y -> w
+		for (const g of this.glyphMap.values()) {
+			rowHeight.set(g.y, Math.max(rowHeight.get(g.y) ?? 0, g.h));
+			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
+		}
+		for (const g of this.glyphMap.values()) {
+			ctx.fillStyle = '#4040FF';
+			ctx.fillRect(g.x, g.y, g.w, g.h);
+			ctx.fillStyle = '#FF0000';
+			ctx.fillRect(g.x, g.y + g.h, g.w, rowHeight.get(g.y)! - g.h);
+		}
+		for (const [rowY, rowW] of rowWidth.entries()) {
+			if (rowY !== this._currentRow.y) {
+				ctx.fillStyle = '#FF0000';
+				ctx.fillRect(rowW, rowY, w - rowW, rowHeight.get(rowY)!);
+			}
+		}
+		return canvas.convertToBlob();
 	}
 }
 
