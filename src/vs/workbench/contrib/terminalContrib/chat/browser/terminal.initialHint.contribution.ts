@@ -147,6 +147,11 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 					}
 					e.appendChild(this._hintWidget);
 					e.classList.add('terminal-initial-hint');
+					const font = this._xterm.getFont();
+					if (font) {
+						e.style.fontFamily = font.fontFamily;
+						e.style.fontSize = font.fontSize + 'px';
+					}
 				}
 			}
 			if (this._hintWidget && this._xterm) {
