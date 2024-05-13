@@ -6,7 +6,7 @@
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable, IReference, DisposableMap } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -43,7 +43,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { ITextModel } from 'vs/editor/common/model';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -62,7 +61,6 @@ import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
@@ -86,7 +84,6 @@ import { MessageController } from 'vs/editor/contrib/message/browser/messageCont
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
-import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
@@ -111,6 +108,7 @@ import type { IUpdatableHover, IUpdatableHoverTooltipMarkdownString } from 'vs/b
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ITextModel } from 'vs/editor/common/model';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -390,7 +388,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
 		const input = node.element;
-		templateData.inputWidget.setInput(input);
+		templateData.inputWidget.input = input;
 
 		// Remember widget
 		const renderedWidgets = this.inputWidgets.get(input) ?? [];
@@ -2280,7 +2278,7 @@ class SCMInputWidget {
 	private toolbar: SCMInputWidgetToolbar;
 	private readonly disposables = new DisposableStore();
 
-	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
+	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
 	private repositoryIdContextKey: IContextKey<string | undefined>;
 	private readonly repositoryDisposables = new DisposableStore();
 
@@ -2296,11 +2294,11 @@ class SCMInputWidget {
 
 	readonly onDidChangeContentHeight: Event<void>;
 
-	private get input(): ISCMInput | undefined {
+	get input(): ISCMInput | undefined {
 		return this.model?.input;
 	}
 
-	public async setInput(input: ISCMInput | undefined) {
+	set input(input: ISCMInput | undefined) {
 		if (input === this.input) {
 			return;
 		}
@@ -2312,33 +2310,17 @@ class SCMInputWidget {
 		this.repositoryIdContextKey.set(input?.repository.id);
 
 		if (!input) {
-			this.model?.textModelRef?.dispose();
 			this.inputEditor.setModel(undefined);
 			this.model = undefined;
 			return;
 		}
 
-		const uri = input.repository.provider.inputBoxDocumentUri;
-		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== 'off') {
-			this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: uri }, ConfigurationTarget.MEMORY);
-		}
-
-		const modelValue: typeof this.model = { input, textModelRef: undefined };
-
-		// Save model
-		this.model = modelValue;
-
-		const modelRef = await this.textModelService.createModelReference(uri);
-		// Model has been changed in the meantime
-		if (this.model !== modelValue) {
-			modelRef.dispose();
-			return;
-		}
-
-		modelValue.textModelRef = modelRef;
-
-		const textModel = modelRef.object.textEditorModel;
+		const textModel = input.repository.provider.inputBoxTextModel;
 		this.inputEditor.setModel(textModel);
+
+		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: textModel.uri }) !== 'off') {
+			this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: textModel.uri }, ConfigurationTarget.MEMORY);
+		}
 
 		// Validation
 		const validationDelayer = new ThrottledDelayer<any>(200);
@@ -2432,6 +2414,9 @@ class SCMInputWidget {
 
 		// Toolbar
 		this.toolbar.setInput(input);
+
+		// Save model
+		this.model = { input, textModel };
 	}
 
 	get selections(): Selection[] | null {
@@ -2467,7 +2452,6 @@ class SCMInputWidget {
 		overflowWidgetsDomNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
-		@ITextModelService private textModelService: ITextModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -2738,7 +2722,7 @@ class SCMInputWidget {
 	}
 
 	dispose(): void {
-		this.setInput(undefined);
+		this.input = undefined;
 		this.repositoryDisposables.dispose();
 		this.clearValidation();
 		this.disposables.dispose();
@@ -2880,7 +2864,6 @@ export class SCMViewPane extends ViewPane {
 			this.storeTreeViewState();
 		}, this, this.disposables);
 
-		this.disposables.add(this.instantiationService.createInstance(ScmInputContentProvider));
 		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
 
 		this.disposables.add(this.revealResourceThrottler);
@@ -2929,45 +2912,49 @@ export class SCMViewPane extends ViewPane {
 
 		this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
-				await this.tree.setInput(this.scmViewService, viewState);
+				this.treeOperationSequencer.queue(async () => {
+					await this.tree.setInput(this.scmViewService, viewState);
 
-				Event.filter(this.configurationService.onDidChangeConfiguration,
-					e =>
-						e.affectsConfiguration('scm.alwaysShowRepositories'),
-					this.visibilityDisposables)
-					(() => {
-						this.updateActions();
-						this.updateChildren();
-					}, this, this.visibilityDisposables);
+					Event.filter(this.configurationService.onDidChangeConfiguration,
+						e =>
+							e.affectsConfiguration('scm.alwaysShowRepositories'),
+						this.visibilityDisposables)
+						(() => {
+							this.updateActions();
+							this.updateChildren();
+						}, this, this.visibilityDisposables);
 
-				Event.filter(this.configurationService.onDidChangeConfiguration,
-					e =>
-						e.affectsConfiguration('scm.inputMinLineCount') ||
-						e.affectsConfiguration('scm.inputMaxLineCount') ||
-						e.affectsConfiguration('scm.showActionButton') ||
-						e.affectsConfiguration('scm.showChangesSummary') ||
-						e.affectsConfiguration('scm.showIncomingChanges') ||
-						e.affectsConfiguration('scm.showOutgoingChanges'),
-					this.visibilityDisposables)
-					(() => this.updateChildren(), this, this.visibilityDisposables);
+					Event.filter(this.configurationService.onDidChangeConfiguration,
+						e =>
+							e.affectsConfiguration('scm.inputMinLineCount') ||
+							e.affectsConfiguration('scm.inputMaxLineCount') ||
+							e.affectsConfiguration('scm.showActionButton') ||
+							e.affectsConfiguration('scm.showChangesSummary') ||
+							e.affectsConfiguration('scm.showIncomingChanges') ||
+							e.affectsConfiguration('scm.showOutgoingChanges'),
+						this.visibilityDisposables)
+						(() => this.updateChildren(), this, this.visibilityDisposables);
 
-				// Add visible repositories
-				this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
-				this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.visibilityDisposables);
-				this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
+					// Add visible repositories
+					this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
+					this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.visibilityDisposables);
+					this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
 
-				// Restore scroll position
-				if (typeof this.treeScrollTop === 'number') {
-					this.tree.scrollTop = this.treeScrollTop;
-					this.treeScrollTop = undefined;
-				}
+					// Restore scroll position
+					if (typeof this.treeScrollTop === 'number') {
+						this.tree.scrollTop = this.treeScrollTop;
+						this.treeScrollTop = undefined;
+					}
+
+					this.updateRepositoryCollapseAllContextKeys();
+				});
 			} else {
 				this.visibilityDisposables.clear();
 				this.onDidChangeVisibleRepositories({ added: Iterable.empty(), removed: [...this.items.keys()] });
 				this.treeScrollTop = this.tree.scrollTop;
-			}
 
-			this.updateRepositoryCollapseAllContextKeys();
+				this.updateRepositoryCollapseAllContextKeys();
+			}
 		}, this, this.disposables);
 
 		this.disposables.add(this.instantiationService.createInstance(RepositoryVisibilityActionController));
@@ -3492,22 +3479,28 @@ export class SCMViewPane extends ViewPane {
 	override focus(): void {
 		super.focus();
 
-		if (this.isExpanded()) {
-			if (this.tree.getFocus().length === 0) {
-				for (const repository of this.scmViewService.visibleRepositories) {
-					const widgets = this.inputRenderer.getRenderedInputWidget(repository.input);
+		this.treeOperationSequencer.queue(() => {
+			return new Promise<void>(resolve => {
+				if (this.isExpanded()) {
+					if (this.tree.getFocus().length === 0) {
+						for (const repository of this.scmViewService.visibleRepositories) {
+							const widgets = this.inputRenderer.getRenderedInputWidget(repository.input);
 
-					if (widgets) {
-						for (const widget of widgets) {
-							widget.focus();
+							if (widgets) {
+								for (const widget of widgets) {
+									widget.focus();
+								}
+								resolve();
+								return;
+							}
 						}
-						return;
 					}
-				}
-			}
 
-			this.tree.domFocus();
-		}
+					this.tree.domFocus();
+					resolve();
+				}
+			});
+		});
 	}
 
 	override dispose(): void {
@@ -4000,25 +3993,5 @@ export class SCMActionButton implements IDisposable {
 		} catch (ex) {
 			this.notificationService.error(ex);
 		}
-	}
-}
-
-class ScmInputContentProvider extends Disposable implements ITextModelContentProvider {
-
-	constructor(
-		@ITextModelService textModelService: ITextModelService,
-		@IModelService private readonly _modelService: IModelService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-	) {
-		super();
-		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeSourceControl, this));
-	}
-
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
-		if (existing) {
-			return existing;
-		}
-		return this._modelService.createModel('', this._languageService.createById('scminput'), resource);
 	}
 }
