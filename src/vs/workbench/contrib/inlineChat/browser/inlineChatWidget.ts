@@ -131,6 +131,8 @@ export class InlineChatWidget {
 
 	private _isLayouting: boolean = false;
 
+	readonly scopedContextKeyService: IContextKeyService;
+
 	private readonly _followUpDisposables = this._store.add(new DisposableStore());
 	constructor(
 		location: ChatAgentLocation,
@@ -151,11 +153,11 @@ export class InlineChatWidget {
 
 		let allowRequests = false;
 
-
+		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
 		const scopedInstaService = _instantiationService.createChild(
 			new ServiceCollection([
 				IContextKeyService,
-				this._store.add(_contextKeyService.createScoped(this._elements.chatWidget))
+				this.scopedContextKeyService
 			])
 		);
 

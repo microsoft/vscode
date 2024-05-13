@@ -85,6 +85,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
 
+	get scopedContextKeyService(): IContextKeyService {
+		return this._chatWidget?.value.inlineChatWidget.scopedContextKeyService ?? this._contextKeyService;
+	}
+
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,

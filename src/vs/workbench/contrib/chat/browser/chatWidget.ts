@@ -161,6 +161,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.parsedChatRequest;
 	}
 
+	get scopedContextKeyService(): IContextKeyService {
+		return this.contextKeyService;
+	}
+
 	constructor(
 		readonly location: ChatAgentLocation,
 		readonly viewContext: IChatWidgetViewContext,

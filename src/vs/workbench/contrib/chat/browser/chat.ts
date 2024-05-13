@@ -10,6 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
@@ -136,6 +137,7 @@ export interface IChatWidget {
 	readonly supportsFileReferences: boolean;
 	readonly parsedInput: IParsedChatRequest;
 	lastSelectedAgent: IChatAgentData | undefined;
+	readonly scopedContextKeyService: IContextKeyService;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
