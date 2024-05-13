@@ -274,22 +274,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		const renderer = new marked.Renderer();
 		renderer.code = (value, languageId) => {
 			languageId ??= '';
-			const newText = this.fixCodeText(value, languageId);
-			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text: newText, languageId });
+			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text: value, languageId });
 			return '';
 		};
 
 		marked.parse(this.ensureFencedCodeBlocksTerminated(content), { renderer });
-	}
-
-	private fixCodeText(text: string, languageId: string): string {
-		if (languageId === 'php') {
-			if (!text.trim().startsWith('<')) {
-				return `<?php\n${text}\n?>`;
-			}
-		}
-
-		return text;
 	}
 
 	/**
