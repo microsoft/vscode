@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation, EXTENSION_INSTALL_SOURCE_CONTEXT } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, extensionsConfigurationNodeBase } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -365,13 +365,13 @@ CommandsRegistry.registerCommand({
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						installGivenVersion: !!version,
-						context: options?.context
+						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: 'command' },
 					});
 				} else {
 					await extensionsWorkbenchService.install(arg, {
 						version,
 						installPreReleaseVersion: options?.installPreReleaseVersion,
-						context: options?.context,
+						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: 'command' },
 						justification: options?.justification,
 						enable: options?.enable,
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
