@@ -338,6 +338,6 @@ app.on('ready', () => {
 	}
 
 	if (!args.dev) {
-		ipcMain.on('all done', () => app.exit(runner.didFail ? 1 : 0));
+		ipcMain.on('all done', () => process.stdout.end(() => app.exit(runner.didFail ? 1 : 0)));
 	}
 });
