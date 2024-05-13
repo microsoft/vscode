@@ -160,11 +160,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph {
 		// Find ideal slab, creating it if there is none suitable
-
-		// Slabs are sized: 1x1, 1x2, 1x4, 1x8, ...
-		//                  2x1, 2x2, 2x4, 2x8, ...
-		//                  4x1, 4x2, 4x4, 4x8, ...
-		//                  ...
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
 		const dpr = getActiveWindow().devicePixelRatio;
@@ -185,7 +180,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			// w: glyphWidth % 0 === 1 ? glyphWidth + 1 : glyphWidth,
 			// h: glyphHeight % 0 === 1 ? glyphHeight + 1 : glyphHeight,
 
-			// Exact number only (100% efficiency)
+			// Exact number only
 			// w: glyphWidth,
 			// h: glyphHeight,
 		};
@@ -208,52 +203,107 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			}
 		}
 
-		// Create a new slab
+		let dx: number | undefined;
+		let dy: number | undefined;
+
+		// Search for suitable space in unused rectangles
 		if (!slab) {
-			slab = {
-				x: Math.floor(this._slabs.length % slabsPerRow) * slabW,
-				y: Math.floor(this._slabs.length / slabsPerRow) * slabH,
-				entryW: desiredSlabSize.w,
-				entryH: desiredSlabSize.h,
-				count: 0
-			};
-			// Track unused regions to use for small glyphs
-			// +-------------+----+
-			// |             |    |
-			// |             |    | <- Unused W region
-			// |             |    |
-			// |-------------+----+
-			// |                  | <- Unused H region
-			// +------------------+
-			const unusedW = slabW % slab.entryW;
-			const unusedH = slabH % slab.entryH;
-			if (unusedW) {
-				this._unusedRects.push({
-					x: slab.x + slabW - unusedW,
-					w: unusedW,
-					y: slab.y,
-					h: slabH - (unusedH ?? 0)
-				});
-				console.log('new unused (W)', this._unusedRects.at(-1));
+			for (const [i, r] of this._unusedRects.entries()) {
+				if (r.w < r.h) {
+					if (r.w >= glyphWidth && r.h >= glyphHeight) {
+						dx = r.x;
+						dy = r.y;
+						if (glyphWidth < r.w) {
+							this._unusedRects.push({
+								x: r.x + glyphWidth,
+								y: r.y,
+								w: r.w - glyphWidth,
+								h: glyphHeight
+							});
+						}
+						r.y += glyphHeight;
+						r.h -= glyphHeight;
+						if (r.h === 0) {
+							// TODO: This is slow
+							this._unusedRects.splice(i, 1);
+						}
+						break;
+					}
+				} else {
+					if (r.w >= glyphWidth && r.h >= glyphHeight) {
+						dx = r.x;
+						dy = r.y;
+						if (glyphHeight < r.h) {
+							this._unusedRects.push({
+								x: r.x,
+								y: r.y + glyphHeight,
+								w: glyphWidth,
+								h: r.h - glyphHeight
+							});
+						}
+						r.x += glyphWidth;
+						r.w -= glyphWidth;
+						if (r.w === 0) {
+							// TODO: This is slow
+							this._unusedRects.splice(i, 1);
+						}
+					}
+				}
 			}
-			if (unusedH) {
-				this._unusedRects.push({
-					x: slab.x,
-					w: slabW,
-					y: slab.y + slabH - unusedH,
-					h: unusedH
-				});
-				console.log('new unused (H)', this._unusedRects.at(-1));
+		}
+
+		// Create a new slab
+		if (dx === undefined || dy === undefined) {
+			if (!slab) {
+				slab = {
+					x: Math.floor(this._slabs.length % slabsPerRow) * slabW,
+					y: Math.floor(this._slabs.length / slabsPerRow) * slabH,
+					entryW: desiredSlabSize.w,
+					entryH: desiredSlabSize.h,
+					count: 0
+				};
+				// Track unused regions to use for small glyphs
+				// +-------------+----+
+				// |             |    |
+				// |             |    | <- Unused W region
+				// |             |    |
+				// |-------------+----+
+				// |                  | <- Unused H region
+				// +------------------+
+				const unusedW = slabW % slab.entryW;
+				const unusedH = slabH % slab.entryH;
+				if (unusedW) {
+					this._unusedRects.push({
+						x: slab.x + slabW - unusedW,
+						w: unusedW,
+						y: slab.y,
+						h: slabH - (unusedH ?? 0)
+					});
+					console.log('new unused (W)', this._unusedRects.at(-1));
+				}
+				if (unusedH) {
+					this._unusedRects.push({
+						x: slab.x,
+						w: slabW,
+						y: slab.y + slabH - unusedH,
+						h: unusedH
+					});
+					console.log('new unused (H)', this._unusedRects.at(-1));
+				}
+				this._slabs.push(slab);
+				this._activeSlabsByDims.set(desiredSlabSize.w, desiredSlabSize.h, slab);
 			}
-			this._slabs.push(slab);
-			this._activeSlabsByDims.set(desiredSlabSize.w, desiredSlabSize.h, slab);
+
+			const glyphsPerRow = Math.floor(slabW / slab.entryW);
+			dx = slab.x + Math.floor(slab.count % glyphsPerRow) * slab.entryW;
+			dy = slab.y + Math.floor(slab.count / glyphsPerRow) * slab.entryH;
+
+			// Shift current row
+			slab.count++;
 		}
 
 		// Draw glyph
 		// TODO: Prefer putImageData as it doesn't do blending or scaling
-		const glyphsPerRow = Math.floor(slabW / slab.entryW);
-		const dx = slab.x + Math.floor(slab.count % glyphsPerRow) * slab.entryW;
-		const dy = slab.y + Math.floor(slab.count / glyphsPerRow) * slab.entryH;
 		console.log('dx dy', dx, dy);
 		this._ctx.drawImage(
 			rasterizedGlyph.source,
@@ -279,9 +329,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			originOffsetX: rasterizedGlyph.originOffset.x,
 			originOffsetY: rasterizedGlyph.originOffset.y
 		};
-
-		// Shift current row
-		slab.count++;
 
 		// Set the glyph
 		this.glyphMap.set(chars, tokenFg, glyph);
@@ -331,6 +378,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 		// Draw unused space on side (currently wasted)
 		for (const r of this._unusedRects) {
+			// TODO: Unused space claimed by unused rects isn't handled
 			ctx.fillStyle = '#FF0000';
 			ctx.fillRect(r.x, r.y, r.w, r.h);
 		}
