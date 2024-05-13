@@ -570,7 +570,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 	}
 }
 
-export function isOneRangeExtremityInString(model: ITextModel, range: Range): boolean {
+function isOneRangeExtremityInString(model: ITextModel, range: Range): boolean {
 
 	// Utility function
 	const getStandardTokenTypeAtPosition = (position: Position): StandardTokenType => {
