@@ -108,9 +108,25 @@ export class TextureAtlas extends Disposable {
 		const ctx = ensureNonNullable(canvas.getContext('2d'));
 		ctx.fillStyle = '#808080';
 		ctx.fillRect(0, 0, w, h);
-		ctx.fillStyle = '#4040FF';
+		const rowHeight: Map<number, number> = new Map(); // y -> h
+		const rowWidth: Map<number, number> = new Map(); // y -> w
+		let lastY: number = 0;
 		for (const g of this.glyphs) {
+			rowHeight.set(g.y, Math.max(rowHeight.get(g.y) ?? 0, g.h));
+			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
+			lastY = Math.max(lastY, g.y);
+		}
+		for (const g of this.glyphs) {
+			ctx.fillStyle = '#4040FF';
 			ctx.fillRect(g.x, g.y, g.w, g.h);
+			ctx.fillStyle = '#FF0000';
+			ctx.fillRect(g.x, g.y + g.h, g.w, rowHeight.get(g.y)! - g.h);
+		}
+		for (const [rowY, rowW] of rowWidth.entries()) {
+			if (rowY !== lastY) {
+				ctx.fillStyle = '#FF0000';
+				ctx.fillRect(rowW, rowY, w - rowW, rowHeight.get(rowY)!);
+			}
 		}
 		return canvas.convertToBlob();
 	}
