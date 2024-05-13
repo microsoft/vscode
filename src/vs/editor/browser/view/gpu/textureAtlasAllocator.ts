@@ -185,7 +185,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			// w: glyphWidth % 0 === 1 ? glyphWidth + 1 : glyphWidth,
 			// h: glyphHeight % 0 === 1 ? glyphHeight + 1 : glyphHeight,
 
-			// Exact number only
+			// Exact number only (100% efficiency)
 			// w: glyphWidth,
 			// h: glyphHeight,
 		};
@@ -341,6 +341,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		ctx.globalAlpha = 1;
 
 		wastedPixels = slabEntryPixels - usedPixels;
+		const efficiency = usedPixels / (usedPixels + wastedPixels);
 
 		// Report stats
 		console.log([
@@ -348,7 +349,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			`     Total: ${totalPixels}`,
 			`      Used: ${usedPixels} (${((usedPixels / totalPixels) * 100).toPrecision(2)}%)`,
 			`    Wasted: ${wastedPixels} (${((wastedPixels / totalPixels) * 100).toPrecision(2)}%)`,
-			`Efficiency: ${((usedPixels / (usedPixels + wastedPixels)) * 100).toPrecision(2)}%`,
+			`Efficiency: ${efficiency === 1 ? '100' : (efficiency * 100).toPrecision(2)}%`,
 		].join('\n'));
 
 		return canvas.convertToBlob();
