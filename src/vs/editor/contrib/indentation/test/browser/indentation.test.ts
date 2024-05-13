@@ -115,11 +115,6 @@ interface StandardTokenTypeData {
 	standardTokenType: StandardTokenType;
 }
 
-interface StandardTokenTypeData {
-	startIndex: number;
-	standardTokenType: StandardTokenType;
-}
-
 function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: string): IDisposable {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
@@ -1026,6 +1021,12 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 
 			disposables.add(registerLanguage(instantiationService, languageId));
+			const tokens: StandardTokenTypeData[][] = [
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }],
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }],
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }]
+			];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			editor.setSelection(new Selection(2, 23, 2, 23));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1417,6 +1418,14 @@ suite('Auto Indent On Type - PHP', () => {
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 
 			disposables.add(registerLanguage(instantiationService, languageId));
+			const tokens: StandardTokenTypeData[][] = [
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 13, standardTokenType: StandardTokenType.String },
+					{ startIndex: 16, standardTokenType: StandardTokenType.Other },
+				]
+			];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			editor.setSelection(new Selection(1, 54, 1, 54));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
