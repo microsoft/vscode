@@ -216,10 +216,10 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private locked = false;
 
-	private preview: EditorInput | null = null; // editor in preview state
-	private active: EditorInput | null = null;  // editor in active state
-	private sticky = -1; 						// index of first editor in sticky state
-	private transient = new Set<EditorInput>(); // editors in transient state
+	private preview: EditorInput | null = null; 			// editor in preview state
+	private active: EditorInput | null = null;  			// editor in active state
+	private sticky = -1; 									// index of first editor in sticky state
+	private readonly transient = new Set<EditorInput>(); 	// editors in transient state
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;

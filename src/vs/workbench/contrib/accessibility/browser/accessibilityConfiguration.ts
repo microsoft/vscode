@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
 import { isDefined } from 'vs/base/common/types';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -631,6 +632,7 @@ export function registerAccessibilityConfiguration() {
 
 export const enum AccessibilityVoiceSettingId {
 	SpeechTimeout = 'accessibility.voice.speechTimeout',
+	AutoSynthesize = 'accessibility.voice.autoSynthesize',
 	SpeechLanguage = SPEECH_LANGUAGE_CONFIG
 }
 export const SpeechTimeoutDefault = 1200;
@@ -640,7 +642,8 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	static readonly ID = 'workbench.contrib.dynamicSpeechAccessibilityConfiguration';
 
 	constructor(
-		@ISpeechService private readonly speechService: ISpeechService
+		@ISpeechService private readonly speechService: ISpeechService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -676,6 +679,12 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'tags': ['accessibility'],
 					'enumDescriptions': languagesSorted.map(key => languages[key].name),
 					'enumItemLabels': languagesSorted.map(key => languages[key].name)
+				},
+				[AccessibilityVoiceSettingId.AutoSynthesize]: {
+					'type': 'boolean',
+					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
+					'default': this.productService.quality !== 'stable', // TODO@bpasero decide on a default
+					'tags': ['accessibility']
 				}
 			}
 		});

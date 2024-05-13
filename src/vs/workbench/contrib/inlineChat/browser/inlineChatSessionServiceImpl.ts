@@ -28,7 +28,7 @@ import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatService, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { EditMode, IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, IInlineChatService, IInlineChatSession, IInlineChatSessionProvider, IInlineChatSlashCommand, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -566,7 +566,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 			let kind: InlineChatResponseFeedbackKind | undefined;
 			if (e.action.kind === 'vote') {
-				kind = e.action.direction === InteractiveSessionVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful;
+				kind = e.action.direction === ChatAgentVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful;
 			} else if (e.action.kind === 'bug') {
 				kind = InlineChatResponseFeedbackKind.Bug;
 			} else if (e.action.kind === 'inlineChat') {

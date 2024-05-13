@@ -54,7 +54,7 @@ export interface ITextToSpeechEvent {
 export interface ITextToSpeechSession {
 	readonly onDidChange: Event<ITextToSpeechEvent>;
 
-	synthesize(text: string): void;
+	synthesize(text: string): Promise<void>;
 }
 
 export enum KeywordRecognitionStatus {

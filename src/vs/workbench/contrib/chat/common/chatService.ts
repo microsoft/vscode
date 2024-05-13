@@ -14,7 +14,7 @@ import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -188,15 +188,14 @@ export interface IChatFollowup {
 	tooltip?: string;
 }
 
-// Name has to match the one in vscode.d.ts for some reason
-export enum InteractiveSessionVoteDirection {
+export enum ChatAgentVoteDirection {
 	Down = 0,
 	Up = 1
 }
 
 export interface IChatVoteAction {
 	kind: 'vote';
-	direction: InteractiveSessionVoteDirection;
+	direction: ChatAgentVoteDirection;
 	reportIssue?: boolean;
 }
 
@@ -289,8 +288,12 @@ export interface IChatTransferredSessionData {
 	inputValue: string;
 }
 
-export interface IChatSendRequestData {
+export interface IChatSendRequestResponseState {
+	responseCreatedPromise: Promise<IChatResponseModel>;
 	responseCompletePromise: Promise<void>;
+}
+
+export interface IChatSendRequestData extends IChatSendRequestResponseState {
 	agent: IChatAgentData;
 	slashCommand?: IChatAgentCommand;
 }
