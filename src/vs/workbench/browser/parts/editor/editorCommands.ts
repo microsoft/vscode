@@ -111,9 +111,9 @@ export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 ];
 
 export interface ActiveEditorMoveCopyArguments {
-	to: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
-	by: 'tab' | 'group';
-	value: number;
+	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
+	by?: 'tab' | 'group';
+	value?: number;
 }
 
 const isActiveEditorMoveCopyArg = function (arg: ActiveEditorMoveCopyArguments): boolean {
@@ -224,16 +224,16 @@ function registerActiveEditorMoveCopyCommand(): void {
 				index = group.count - 1;
 				break;
 			case 'left':
-				index = index - args.value;
+				index = index - (args.value ?? 1);
 				break;
 			case 'right':
-				index = index + args.value;
+				index = index + (args.value ?? 1);
 				break;
 			case 'center':
 				index = Math.round(group.count / 2) - 1;
 				break;
 			case 'position':
-				index = args.value - 1;
+				index = (args.value ?? 1) - 1;
 				break;
 		}
 
@@ -292,7 +292,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 				targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[(editorGroupService.count / 2) - 1];
 				break;
 			case 'position':
-				targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[args.value - 1];
+				targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[(args.value ?? 1) - 1];
 				break;
 		}
 

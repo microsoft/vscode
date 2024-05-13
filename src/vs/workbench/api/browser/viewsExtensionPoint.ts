@@ -292,6 +292,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		this.handleAndRegisterCustomViewContainers();
 		this.handleAndRegisterCustomViews();
 
+		// Abstract tree has it's own implementation of triggering custom hover
+		// TreeView uses it's own implementation due to setting focus inside the (markdown)
 		let showTreeHoverCancellation = new CancellationTokenSource();
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: 'workbench.action.showTreeHover',
@@ -332,7 +334,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					}
 				}, true);
 			},
-			weight: KeybindingWeight.WorkbenchContrib,
+			weight: KeybindingWeight.WorkbenchContrib + 1,
 			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 			when: ContextKeyExpr.and(RawCustomTreeViewContextKey, WorkbenchListFocusContextKey)
 		});

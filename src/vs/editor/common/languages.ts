@@ -1782,9 +1782,9 @@ export interface CommentThreadTemplate {
 /**
  * @internal
  */
-export interface CommentInfo {
+export interface CommentInfo<T = IRange> {
 	extensionId?: string;
-	threads: CommentThread[];
+	threads: CommentThread<T>[];
 	pendingCommentThreads?: PendingCommentThread[];
 	commentingRanges: CommentingRanges;
 }
@@ -1875,6 +1875,13 @@ export interface CommentThread<T = IRange> {
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 	isTemplate: boolean;
+}
+
+/**
+ * @internal
+ */
+export interface AddedCommentThread<T = IRange> extends CommentThread<T> {
+	editorId?: string;
 }
 
 /**
@@ -1971,7 +1978,7 @@ export interface CommentThreadChangedEvent<T> {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread<T>[];
+	readonly added: AddedCommentThread<T>[];
 
 	/**
 	 * Removed comment threads.

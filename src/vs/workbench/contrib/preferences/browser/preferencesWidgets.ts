@@ -185,11 +185,13 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
 			actions.push(...workspaceFolders.map((folder, index) => {
 				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
-				return <IAction>{
+				return {
 					id: 'folderSettingsTarget' + index,
 					label: this.labelWithCount(folder.name, folderCount),
-					checked: this.folder && isEqual(this.folder.uri, folder.uri),
+					tooltip: this.labelWithCount(folder.name, folderCount),
+					checked: !!this.folder && isEqual(this.folder.uri, folder.uri),
 					enabled: true,
+					class: undefined,
 					run: () => this._action.run(folder)
 				};
 			}));

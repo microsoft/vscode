@@ -70,13 +70,7 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 			button.element.classList.add('interactive-followup-command');
 		}
 		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", followup.title);
-		let label = '';
-		if (followup.kind === 'reply') {
-			label = '$(sparkle) ' + baseTitle;
-		} else {
-			label = baseTitle;
-		}
-		button.label = new MarkdownString(label, { supportThemeIcons: true });
+		button.label = new MarkdownString(baseTitle);
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));
 	}

@@ -14,7 +14,7 @@ import { annotateVulnerabilitiesInText } from 'vs/workbench/contrib/chat/common/
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTask, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -95,7 +95,13 @@ export interface IChatProgressMessageRenderData {
 	isLast: boolean;
 }
 
-export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEditGroup;
+export interface IChatTaskRenderData {
+	task: IChatTask;
+	isSettled: boolean;
+	progressLength: number;
+}
+
+export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEditGroup | IChatConfirmation | IChatTaskRenderData | IChatWarningMessage;
 export interface IChatResponseRenderData {
 	renderedParts: IChatRenderData[];
 }
@@ -108,6 +114,7 @@ export interface IChatLiveUpdateData {
 }
 
 export interface IChatResponseViewModel {
+	readonly model: IChatResponseModel;
 	readonly id: string;
 	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
@@ -126,15 +133,14 @@ export interface IChatResponseViewModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
-	readonly vote: InteractiveSessionVoteDirection | undefined;
+	readonly vote: ChatAgentVoteDirection | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IChatResponseRenderData;
-	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
-	setVote(vote: InteractiveSessionVoteDirection): void;
+	setVote(vote: ChatAgentVoteDirection): void;
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
@@ -357,6 +363,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	get model() {
+		return this._model;
+	}
+
 	get id() {
 		return this._model.id;
 	}
@@ -370,7 +380,9 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get username() {
-		return this._model.username;
+		return this.agent ?
+			(this.agent.fullName || this.agent.name) :
+			this._model.username;
 	}
 
 	get avatarIcon() {
@@ -438,7 +450,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;
-	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 
 	private _usedReferencesExpanded: boolean | undefined;
@@ -512,7 +523,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		this.logService.trace(`ChatResponseViewModel#${tag}: ${message}`);
 	}
 
-	setVote(vote: InteractiveSessionVoteDirection): void {
+	setVote(vote: ChatAgentVoteDirection): void {
 		this._modelChangeCount++;
 		this._model.setVote(vote);
 	}

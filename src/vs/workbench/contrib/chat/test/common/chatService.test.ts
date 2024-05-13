@@ -35,7 +35,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	name: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
-	extensionPublisherDisplayName: '',
+	publisherDisplayName: '',
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
@@ -92,10 +92,10 @@ suite('ChatService', () => {
 				return {};
 			},
 		} satisfies IChatAgentImplementation;
-		testDisposables.add(chatAgentService.registerAgent('testAgent', { name: 'testAgent', id: 'testAgent', isDefault: true, extensionId: nullExtensionDescription.identifier, extensionPublisherId: '', extensionPublisherDisplayName: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
-		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, { name: chatAgentWithUsedContextId, id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier, extensionPublisherId: '', extensionPublisherDisplayName: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
+		testDisposables.add(chatAgentService.registerAgent('testAgent', { name: 'testAgent', id: 'testAgent', isDefault: true, extensionId: nullExtensionDescription.identifier, extensionPublisherId: '', publisherDisplayName: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
+		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, { name: chatAgentWithUsedContextId, id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier, extensionPublisherId: '', publisherDisplayName: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
-		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' }, fullName: 'test' });
+		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' } });
 	});
 
 	test('retrieveSession', async () => {
@@ -132,7 +132,7 @@ suite('ChatService', () => {
 
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
-		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' }, fullName: 'test' });
+		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' } });
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 
 		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));

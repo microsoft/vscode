@@ -483,6 +483,7 @@ export class LocalExtensionsProvider {
 											isMachineScoped: false /* set isMachineScoped value to prevent install and sync dialog in web */,
 											donotIncludePackAndDependencies: true,
 											installGivenVersion: e.pinned && !!e.version,
+											pinned: e.pinned,
 											installPreReleaseVersion: e.preRelease,
 											profileLocation: profile.extensionsResource,
 											isApplicationScoped: e.isApplicationScoped,

@@ -200,7 +200,7 @@ export class TextSearchManager {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
-		const options = <TextSearchOptions>{
+		const options = {
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
@@ -210,7 +210,7 @@ export class TextSearchManager {
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults,
+			maxResults: this.query.maxResults ?? Number.MAX_SAFE_INTEGER,
 			previewOptions: this.query.previewOptions,
 			afterContext: this.query.afterContext,
 			beforeContext: this.query.beforeContext
@@ -223,7 +223,7 @@ export class TextSearchManager {
 }
 
 function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
-	return <TextSearchQuery>{
+	return {
 		isCaseSensitive: patternInfo.isCaseSensitive || false,
 		isRegExp: patternInfo.isRegExp || false,
 		isWordMatch: patternInfo.isWordMatch || false,
@@ -283,7 +283,7 @@ export class TextSearchResultsCollector {
 function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
 	if (extensionResultIsMatch(data)) {
-		return <ITextSearchMatch>{
+		return {
 			preview: {
 				matches: mapArrayOrNot(data.preview.matches, m => ({
 					startLineNumber: m.start.line,
@@ -299,12 +299,12 @@ function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchRes
 				endLineNumber: r.end.line,
 				endColumn: r.end.character
 			}))
-		};
+		} satisfies ITextSearchMatch;
 	} else {
-		return <ITextSearchContext>{
+		return {
 			text: data.text,
 			lineNumber: data.lineNumber
-		};
+		} satisfies ITextSearchContext;
 	}
 }
 
