@@ -56,7 +56,7 @@ declare module 'vscode' {
 
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
-		extensions: string[];
+		extensions?: string[];
 	}
 
 	export namespace chat {
