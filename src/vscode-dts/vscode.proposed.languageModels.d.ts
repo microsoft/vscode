@@ -303,9 +303,8 @@ declare module 'vscode' {
 		 * model does not exist or consent hasn't been asked for.
 		 */
 		// TODO@API applies to chat and embeddings models
-		// TODO@API use LanguageModelChat
 		// TODO@API name: canUse, hasAccess?
-		canSendRequest(languageModelId: string): boolean | undefined;
+		canSendRequest(chat: LanguageModelChat): boolean | undefined;
 	}
 
 	export interface ExtensionContext {

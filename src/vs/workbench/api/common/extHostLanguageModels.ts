@@ -465,13 +465,22 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			get onDidChange() {
 				return Event.any(_onDidChangeAccess, _onDidAddRemove);
 			},
-			canSendRequest(languageModelId: string): boolean | undefined {
+			canSendRequest(chat: vscode.LanguageModelChat): boolean | undefined {
 
-				const data = that._allLanguageModelData.get(languageModelId);
-				if (!data) {
+				let metadata: ILanguageModelChatMetadata | undefined;
+
+				out: for (const [_, value] of that._allLanguageModelData) {
+					for (const candidate of value.apiObjects.values()) {
+						if (candidate === chat) {
+							metadata = value.metadata;
+							break out;
+						}
+					}
+				}
+				if (!metadata) {
 					return undefined;
 				}
-				if (!that._isUsingAuth(from.identifier, data.metadata)) {
+				if (!that._isUsingAuth(from.identifier, metadata)) {
 					return true;
 				}
 
@@ -479,7 +488,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				if (!list) {
 					return undefined;
 				}
-				return list.has(data.metadata.extension);
+				return list.has(metadata.extension);
 			}
 		};
 	}
