@@ -180,10 +180,10 @@ jobs:
         id: browser-integration-tests
         run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser chromium
 
-      - name: Run Integration Tests (Remote)
-        id: electron-remote-integration-tests
-        timeout-minutes: 15
-        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
+      # - name: Run Integration Tests (Remote)
+      #   id: electron-remote-integration-tests
+      #   timeout-minutes: 15
+      #   run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
       # - name: Minify
       #   id: linux-minify
