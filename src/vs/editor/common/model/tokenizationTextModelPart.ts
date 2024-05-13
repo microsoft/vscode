@@ -89,7 +89,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 	private createPreferredTokenProvider() {
 		const preferTreeSitter: string[] = this._configurationService.getValue<string[] | undefined>(TOKENIZATION_PROVIDER_SETTING) ?? [];
-		if (preferTreeSitter.includes(this._languageId) && TreeSitterTokenizationRegistry.get(this._languageId)) {
+		if ((preferTreeSitter.includes(this._languageId) && TreeSitterTokenizationRegistry.get(this._languageId))) {
 			if (this.treeSitterTokens) {
 				this.treeSitterTokens.resetTokenization(true);
 			} else {

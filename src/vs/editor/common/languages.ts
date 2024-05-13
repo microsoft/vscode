@@ -86,7 +86,7 @@ export class EncodedTokenizationResult {
  * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
  * @internal
  */
-export interface IMockTreeSitterTokenizationSupport {
+export interface IPlaceholderTreeSitterTokenizationSupport {
 
 }
 
@@ -2190,7 +2190,7 @@ export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> =
 /**
  * @internal
  */
-export const TreeSitterTokenizationRegistry: ITokenizationRegistry<IMockTreeSitterTokenizationSupport> = new TokenizationRegistryImpl();
+export const TreeSitterTokenizationRegistry: ITokenizationRegistry<IPlaceholderTreeSitterTokenizationSupport> = new TokenizationRegistryImpl();
 
 /**
  * @internal
