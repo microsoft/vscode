@@ -1585,7 +1585,7 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(isSelection([input1, input2, input3]), true);
 
-		group.unSelectEditor(input2);
+		await group.unSelectEditor(input2);
 
 		// Selected: input3
 		assert.strictEqual(group.isActive(input1), true);
@@ -1595,7 +1595,7 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(isSelection([input1, input3]), true);
 
-		group.unSelectEditors([input1]);
+		await group.unSelectEditors([input1]);
 
 		// Selected: NONE
 		assert.strictEqual(group.isSelected(input1), false);

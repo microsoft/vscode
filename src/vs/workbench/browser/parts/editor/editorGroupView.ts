@@ -991,11 +991,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		editors.forEach(editor => this.selectEditor(editor, editor === activeEditor));
 	}
 
-	unSelectEditor(editor: EditorInput): void {
-		this.unSelectEditors([editor]);
+	async unSelectEditor(editor: EditorInput): Promise<void> {
+		await this.unSelectEditors([editor]);
 	}
 
-	unSelectEditors(editors: EditorInput[]): void {
+	async unSelectEditors(editors: EditorInput[]): Promise<void> {
 		// Check if the active editor is unselected
 		const unselectingActiveEditor = !!editors.find(editor => this.model.isActive(editor));
 		if (unselectingActiveEditor) {
@@ -1021,9 +1021,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			for (let i = 1; i < recentEditors.length; i++) { // First one is the active editor
 				const recentEditor = recentEditors[i];
 				if (this.isSelected(recentEditor)) {
-					this.doOpenEditor(recentEditor, { activation: EditorActivation.ACTIVATE }, { selected: true }).then(() => {
-						this.model.unselectEditor(activeEditor!);
-					});
+					await this.doOpenEditor(recentEditor, { activation: EditorActivation.ACTIVATE }, { selected: true });
+					this.model.unselectEditor(activeEditor!);
 					break;
 				}
 			}
