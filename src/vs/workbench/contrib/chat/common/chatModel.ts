@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
@@ -92,10 +92,10 @@ export interface IChatResponseModel {
 	readonly isCanceled: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
-	readonly vote: InteractiveSessionVoteDirection | undefined;
+	readonly vote: ChatAgentVoteDirection | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
-	setVote(vote: InteractiveSessionVoteDirection): void;
+	setVote(vote: ChatAgentVoteDirection): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 }
 
@@ -281,7 +281,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isCanceled;
 	}
 
-	public get vote(): InteractiveSessionVoteDirection | undefined {
+	public get vote(): ChatAgentVoteDirection | undefined {
 		return this._vote;
 	}
 
@@ -349,7 +349,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		public readonly requestId: string,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
-		private _vote?: InteractiveSessionVoteDirection,
+		private _vote?: ChatAgentVoteDirection,
 		private _result?: IChatAgentResult,
 		followups?: ReadonlyArray<IChatFollowup>
 	) {
@@ -415,7 +415,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire(); // Fire so that command followups get rendered on the row
 	}
 
-	setVote(vote: InteractiveSessionVoteDirection): void {
+	setVote(vote: ChatAgentVoteDirection): void {
 		this._vote = vote;
 		this._onDidChange.fire();
 	}
@@ -465,7 +465,7 @@ export interface ISerializableChatRequestData {
 	result?: IChatAgentResult; // Optional for backcompat
 	followups: ReadonlyArray<IChatFollowup> | undefined;
 	isCanceled: boolean | undefined;
-	vote: InteractiveSessionVoteDirection | undefined;
+	vote: ChatAgentVoteDirection | undefined;
 	/** For backward compat: should be optional */
 	usedContext?: IChatUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
