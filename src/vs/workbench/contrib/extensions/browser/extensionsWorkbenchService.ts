@@ -57,6 +57,7 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -441,7 +442,7 @@ ${this.description}
 		}
 
 		if (this.type === ExtensionType.System) {
-			return Promise.resolve('Please check the [VS Code Release Notes](command:update.showCurrentReleaseNotes) for changes to the built-in extensions.');
+			return Promise.resolve(`Please check the [VS Code Release Notes](command:${ShowCurrentReleaseNotesActionId}) for changes to the built-in extensions.`);
 		}
 
 		return Promise.reject(new Error('not available'));
@@ -1028,7 +1029,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			changedExtensions.push(...extensions);
 		}
 		if (workspaceExtensions.length) {
-			const extensions = await this.getResourceExtensions(workspaceExtensions.map(e => e.extensionLocation), true)
+			const extensions = await this.getResourceExtensions(workspaceExtensions.map(e => e.extensionLocation), true);
 			changedExtensions.push(...extensions);
 		}
 		for (const changedExtension of changedExtensions) {
@@ -1293,7 +1294,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private getRuntimeState(extension: IExtension): ExtensionRuntimeState | undefined {
 		const isUninstalled = extension.state === ExtensionState.Uninstalled;
-		const runningExtension = this.extensionService.extensions.find(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier));
+		const runningExtension = this.extensionService.extensions.find(e => areSameExtensions({ id: e.identifier.value }, extension.identifier));
 		const reloadAction = this.extensionManagementServerService.remoteExtensionManagementServer ? ExtensionRuntimeActionType.ReloadWindow : ExtensionRuntimeActionType.RestartExtensions;
 		const reloadActionLabel = reloadAction === ExtensionRuntimeActionType.ReloadWindow ? nls.localize('reload', "reload window") : nls.localize('restart extensions', "restart extensions");
 
@@ -1891,7 +1892,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (extension.resourceExtension) {
+		if (extension.resourceExtension && await this.extensionManagementService.canInstall(extension.resourceExtension)) {
 			return true;
 		}
 

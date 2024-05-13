@@ -9,10 +9,25 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor/commands';
 import { INLINE_CHAT_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE, CONTEXT_REQUEST } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+
+export class ChatAccessibilityHelp implements IAccessibleViewImplentation {
+	readonly priority = 105;
+	readonly name = 'panelChat';
+	readonly type = AccessibleViewType.Help;
+	readonly when = ContextKeyExpr.or(CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE, CONTEXT_REQUEST);
+	getProvider(accessor: ServicesAccessor) {
+		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
+	}
+}
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -57,9 +72,8 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 	return format(noKbMsg, commandId);
 }
 
-export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat'): Promise<void> {
+export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat') {
 	const widgetService = accessor.get(IChatWidgetService);
-	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const inputEditor: ICodeEditor | undefined = type === 'panelChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
 
 	if (!inputEditor) {
@@ -73,7 +87,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type);
-	accessibleViewService.show({
+	return {
 		id: type === 'panelChat' ? AccessibleViewProviderId.Chat : AccessibleViewProviderId.InlineChat,
 		verbositySettingKey: type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,
 		provideContent: () => helpText,
@@ -90,5 +104,5 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			}
 		},
 		options: { type: AccessibleViewType.Help }
-	});
+	};
 }

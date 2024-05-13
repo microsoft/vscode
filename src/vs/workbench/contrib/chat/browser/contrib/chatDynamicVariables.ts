@@ -106,11 +106,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): string | IMarkdownString {
-		const value = ref.data[0];
-		if (URI.isUri(value.value)) {
-			return new MarkdownString(this.labelService.getUriLabel(value.value, { relative: true }));
+		const value = ref.data;
+		if (URI.isUri(value)) {
+			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
 		} else {
-			return value.value.toString();
+			return (value as any).toString();
 		}
 	}
 }
@@ -208,17 +208,19 @@ export class SelectAndInsertFileAction extends Action2 {
 		}
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: 'vscode.file',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: [{ level: 'full', value: resource }]
+			data: resource
 		});
 	}
 }
 registerAction2(SelectAndInsertFileAction);
 
 export interface IAddDynamicVariableContext {
+	id: string;
 	widget: IChatWidget;
 	range: IRange;
-	variableData: IChatRequestVariableValue[];
+	variableData: IChatRequestVariableValue;
 	command?: Command;
 }
 
@@ -275,6 +277,7 @@ export class AddDynamicVariableAction extends Action2 {
 		}
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: context.id,
 			range: range,
 			data: variableData
 		});
