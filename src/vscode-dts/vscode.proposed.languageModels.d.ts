@@ -243,7 +243,7 @@ declare module 'vscode' {
 	/**
 	 * Options for making a chat request using a language model.
 	 *
-	 * @see {@link lm.chatRequest}
+	 * @see {@link LanguageModelChat.sendRequest}
 	 */
 	export interface LanguageModelChatRequestOptions {
 
@@ -279,6 +279,7 @@ declare module 'vscode' {
 		 * @param selector A chat model selector. When omitted all chat models are returned.
 		 * @returns An array of chat models or `undefined` when no chat model was selected.
 		 */
+		// TODO@API no undefined but empty array
 		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[] | undefined>;
 	}
 
@@ -302,6 +303,8 @@ declare module 'vscode' {
 		 * model does not exist or consent hasn't been asked for.
 		 */
 		// TODO@API applies to chat and embeddings models
+		// TODO@API use LanguageModelChat
+		// TODO@API name: canUse, hasAccess?
 		canSendRequest(languageModelId: string): boolean | undefined;
 	}
 

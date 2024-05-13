@@ -51,6 +51,7 @@ type ChatProviderInvokedEvent = {
 	chatSessionId: string;
 	agent: string;
 	slashCommand: string | undefined;
+	location: ChatAgentLocation;
 };
 
 type ChatProviderInvokedClassification = {
@@ -61,6 +62,7 @@ type ChatProviderInvokedClassification = {
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of agent used.' };
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
+	location?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -548,7 +550,8 @@ export class ChatService extends Disposable implements IChatService {
 					requestType,
 					agent: agentPart?.agent.id ?? '',
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
-					chatSessionId: model.sessionId
+					chatSessionId: model.sessionId,
+					location,
 				});
 
 				model.cancelRequest(request);
@@ -642,7 +645,8 @@ export class ChatService extends Disposable implements IChatService {
 						requestType,
 						agent: agentPart?.agent.id ?? '',
 						slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
-						chatSessionId: model.sessionId
+						chatSessionId: model.sessionId,
+						location
 					});
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
