@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from 'vs/base/browser/dom';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/glyphRasterizer';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { TwoKeyMap } from 'vs/editor/browser/view/gpu/multiKeyMap';
@@ -164,20 +165,34 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		//                  ...
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
-		const desiredSlabSize = {
-			// TODO: This can probably be optimized
-			w: 1 << Math.ceil(Math.sqrt(glyphWidth)),
-			h: 1 << Math.ceil(Math.sqrt(glyphHeight)),
+		const dpr = getActiveWindow().devicePixelRatio;
 
+		// Round slab glyph dimensions to the nearest x pixels, where x scaled with device pixel ratio
+		const nearestXPixels = Math.max(1, Math.floor(dpr / 0.5));
+		const desiredSlabSize = {
+			// Nearest square number
+			// TODO: This can probably be optimized
+			// w: 1 << Math.ceil(Math.sqrt(glyphWidth)),
+			// h: 1 << Math.ceil(Math.sqrt(glyphHeight)),
+
+			// Nearest x px
+			w: Math.ceil(glyphWidth / nearestXPixels) * nearestXPixels,
+			h: Math.ceil(glyphHeight / nearestXPixels) * nearestXPixels,
+
+			// Round odd numbers up
 			// w: glyphWidth % 0 === 1 ? glyphWidth + 1 : glyphWidth,
 			// h: glyphHeight % 0 === 1 ? glyphHeight + 1 : glyphHeight,
 
+			// Exact number only
 			// w: glyphWidth,
 			// h: glyphHeight,
 		};
 
-		const slabW = 256; // this._canvas.width / 8;
-		const slabH = 256; // this._canvas.height / 8;
+		// TODO: Keeping track of the slab's x and y could allow variable sized slabs and less waste
+		// TODO: The unused rectangle at the bottom and side of a slab could house micro glyphs like `.`
+
+		const slabW = 64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1); // this._canvas.width / 8;
+		const slabH = slabW; // this._canvas.height / 8;
 		const slabsPerRow = Math.floor(this._canvas.width / slabW);
 
 		let slab = this._activeSlabsByDims.get(desiredSlabSize.w, desiredSlabSize.h);
