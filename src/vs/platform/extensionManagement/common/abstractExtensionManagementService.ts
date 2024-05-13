@@ -17,7 +17,8 @@ import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
 	InstallOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT, ExtensionGalleryError,
-	IProductVersion, ExtensionGalleryErrorCode
+	IProductVersion, ExtensionGalleryErrorCode,
+	EXTENSION_INSTALL_SOURCE_CONTEXT
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -297,7 +298,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				} catch (e) {
 					const error = toExtensionManagementError(e);
 					if (!URI.isUri(task.source)) {
-						reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', { extensionData: getGalleryExtensionTelemetryData(task.source), error });
+						reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', {
+							extensionData: getGalleryExtensionTelemetryData(task.source),
+							error,
+							source: task.options.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT]
+						});
 					}
 					installExtensionResultsMap.set(key, { error, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.profileLocation, applicationScoped: task.options.isApplicationScoped });
 					this.logService.error('Error while installing the extension', task.identifier.id, getErrorMessage(error));
@@ -310,7 +315,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						extensionData: getGalleryExtensionTelemetryData(task.source),
 						verificationStatus: task.verificationStatus,
 						duration: new Date().getTime() - startTime,
-						durationSinceUpdate
+						durationSinceUpdate,
+						source: task.options.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT]
 					});
 					// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
 					if (isWeb && task.operation !== InstallOperation.Update) {
@@ -801,7 +807,23 @@ export function toExtensionManagementError(error: Error, code?: ExtensionManagem
 	return extensionManagementError;
 }
 
-function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: ExtensionManagementError | ExtensionGalleryError }): void {
+function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
+	{
+		extensionData,
+		verificationStatus,
+		duration,
+		error,
+		source,
+		durationSinceUpdate
+	}: {
+		extensionData: any;
+		verificationStatus?:
+		ExtensionVerificationStatus;
+		duration?: number;
+		durationSinceUpdate?: number;
+		source?: string;
+		error?: ExtensionManagementError | ExtensionGalleryError;
+	}): void {
 	let errorcode: string | undefined;
 	let errorcodeDetail: string | undefined;
 
@@ -834,6 +856,7 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"recommendationReason": { "retiredFromVersion": "1.23.0", "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
@@ -858,12 +881,13 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
 		}
 	*/
-	telemetryService.publicLog(eventName, { ...extensionData, verificationStatus, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate });
+	telemetryService.publicLog(eventName, { ...extensionData, verificationStatus, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate, source });
 }
 
 export abstract class AbstractExtensionTask<T> {
