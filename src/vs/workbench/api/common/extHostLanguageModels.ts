@@ -262,7 +262,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					version: data.metadata.version,
 					name: data.metadata.name,
 					contextSize: data.metadata.tokens,
-					computeTokenLength(text, token) {
+					countTokens(text, token) {
 						if (!that._allLanguageModelData.has(identifier)) {
 							throw extHostTypes.LanguageModelError.NotFound(identifier);
 						}

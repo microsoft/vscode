@@ -4453,6 +4453,14 @@ export enum LanguageModelChatMessageRole {
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
+	static User(content: string, name?: string): LanguageModelChatMessage {
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
+	}
+
+	static Assistant(content: string, name?: string): LanguageModelChatMessage {
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
+	}
+
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
 	name: string | undefined;
