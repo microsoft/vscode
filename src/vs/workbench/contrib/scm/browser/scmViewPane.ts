@@ -344,7 +344,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	static readonly TEMPLATE_ID = 'input';
 	get templateId(): string { return InputRenderer.TEMPLATE_ID; }
 
-	private inputWidgets = new Map<ISCMInput, SCMInputWidget[]>();
+	private inputWidgets = new Map<ISCMInput, SCMInputWidget>();
 	private contentHeights = new WeakMap<ISCMInput, number>();
 	private editorSelections = new WeakMap<ISCMInput, Selection[]>();
 
@@ -375,23 +375,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		templateData.inputWidget.input = input;
 
 		// Remember widget
-		const renderedWidgets = this.inputWidgets.get(input) ?? [];
-		this.inputWidgets.set(input, [...renderedWidgets, templateData.inputWidget]);
+		this.inputWidgets.set(input, templateData.inputWidget);
 		templateData.elementDisposables.add({
-			dispose: () => {
-				const renderedWidgets = this.inputWidgets.get(input) ?? [];
-				const renderedWidgetIndex = renderedWidgets.findIndex(renderedWidget => renderedWidget === templateData.inputWidget);
-
-				if (renderedWidgetIndex < 0) {
-					throw new Error('Disposing unknown input widget');
-				}
-
-				if (renderedWidgets.length === 1) {
-					this.inputWidgets.delete(input);
-				} else {
-					renderedWidgets.splice(renderedWidgetIndex, 1);
-				}
-			}
+			dispose: () => this.inputWidgets.delete(input)
 		});
 
 		// Widget cursor selections
@@ -454,16 +440,14 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		return (this.contentHeights.get(input) ?? InputRenderer.DEFAULT_HEIGHT) + 10;
 	}
 
-	getRenderedInputWidget(input: ISCMInput): SCMInputWidget[] | undefined {
+	getRenderedInputWidget(input: ISCMInput): SCMInputWidget | undefined {
 		return this.inputWidgets.get(input);
 	}
 
 	getFocusedInput(): ISCMInput | undefined {
-		for (const [input, inputWidgets] of this.inputWidgets) {
-			for (const inputWidget of inputWidgets) {
-				if (inputWidget.hasFocus()) {
-					return input;
-				}
+		for (const [input, inputWidget] of this.inputWidgets) {
+			if (inputWidget.hasFocus()) {
+				return input;
 			}
 		}
 
@@ -471,10 +455,8 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	}
 
 	clearValidation(): void {
-		for (const [, inputWidgets] of this.inputWidgets) {
-			for (const inputWidget of inputWidgets) {
-				inputWidget.clearValidation();
-			}
+		for (const [, inputWidget] of this.inputWidgets) {
+			inputWidget.clearValidation();
 		}
 	}
 }
@@ -3040,12 +3022,10 @@ export class SCMViewPane extends ViewPane {
 		} else if (isSCMInput(e.element)) {
 			this.scmViewService.focus(e.element.repository);
 
-			const widgets = this.inputRenderer.getRenderedInputWidget(e.element);
+			const widget = this.inputRenderer.getRenderedInputWidget(e.element);
 
-			if (widgets) {
-				for (const widget of widgets) {
-					widget.focus();
-				}
+			if (widget) {
+				widget.focus();
 				this.tree.setFocus([], e.browserEvent);
 
 				const selection = this.tree.getSelection();
@@ -3395,7 +3375,7 @@ export class SCMViewPane extends ViewPane {
 					}
 
 					if (focusedInput) {
-						this.inputRenderer.getRenderedInputWidget(focusedInput)?.forEach(widget => widget.focus());
+						this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
 					}
 
 					this.updateScmProviderContextKeys();
@@ -3468,13 +3448,10 @@ export class SCMViewPane extends ViewPane {
 				if (this.isExpanded()) {
 					if (this.tree.getFocus().length === 0) {
 						for (const repository of this.scmViewService.visibleRepositories) {
-							const widgets = this.inputRenderer.getRenderedInputWidget(repository.input);
+							const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
 
-							if (widgets) {
-								for (const widget of widgets) {
-									widget.focus();
-								}
-								resolve();
+							if (widget) {
+								widget.focus();
 								return;
 							}
 						}
