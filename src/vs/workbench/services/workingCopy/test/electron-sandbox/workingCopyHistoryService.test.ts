@@ -354,7 +354,7 @@ suite('WorkingCopyHistoryService', () => {
 		assertEntryEqual(entries[0], entry3);
 	});
 
-	test('getEntries - sourceDescription preserved when stored', async () => {
+	test('getEntries - metadata preserved when stored', async () => {
 		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
@@ -674,16 +674,16 @@ suite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries[0].id, entry1.id);
 		assert.strictEqual(entries[0].timestamp, entry1.timestamp);
 		assert.strictEqual(entries[0].source, entry1.source);
+		assert.ok(!entries[0].sourceDescription);
 		assert.notStrictEqual(entries[0].location, entry1.location);
 		assert.strictEqual(entries[0].workingCopy.resource.toString(), renamedWorkingCopyResource.toString());
-		assert.ok(!entries[0].sourceDescription);
 
 		assert.strictEqual(entries[1].id, entry2.id);
 		assert.strictEqual(entries[1].timestamp, entry2.timestamp);
 		assert.strictEqual(entries[1].source, entry2.source);
+		assert.ok(!entries[1].sourceDescription);
 		assert.notStrictEqual(entries[1].location, entry2.location);
 		assert.strictEqual(entries[1].workingCopy.resource.toString(), renamedWorkingCopyResource.toString());
-		assert.ok(!entries[1].sourceDescription);
 
 		assert.strictEqual(entries[2].id, entry3.id);
 		assert.strictEqual(entries[2].timestamp, entry3.timestamp);
