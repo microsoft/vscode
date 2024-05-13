@@ -527,8 +527,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 				// Broadcast changes
 				this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
-				this._pauseableEmitter.resume();
 			}
+			this._pauseableEmitter.resume();
 		}
 	}
 
