@@ -581,11 +581,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.active = null;
 			}
 		}
-		// Remove from selected
+		// Remove from selection
 		else {
-			const selectionIndex = this.selected.findIndex(selected => this.matches(selected, editor));
-			if (selectionIndex !== -1) {
-				this.selected.splice(selectionIndex, 1);
+			const wasSelected = !!this.selected.find(selected => this.matches(selected, editor));
+			if (wasSelected) {
+				this.doSetSelected(editor, index, false);
 			}
 		}
 
