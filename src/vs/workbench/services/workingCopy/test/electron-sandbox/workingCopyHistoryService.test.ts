@@ -354,7 +354,7 @@ suite('WorkingCopyHistoryService', () => {
 		assertEntryEqual(entries[0], entry3);
 	});
 
-	test('getEntries - metadata preserved when stored', async () => {
+	test('getEntries - sourceDescription preserved when stored', async () => {
 		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
@@ -676,20 +676,24 @@ suite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries[0].source, entry1.source);
 		assert.notStrictEqual(entries[0].location, entry1.location);
 		assert.strictEqual(entries[0].workingCopy.resource.toString(), renamedWorkingCopyResource.toString());
+		assert.ok(!entries[0].sourceDescription);
 
 		assert.strictEqual(entries[1].id, entry2.id);
 		assert.strictEqual(entries[1].timestamp, entry2.timestamp);
 		assert.strictEqual(entries[1].source, entry2.source);
 		assert.notStrictEqual(entries[1].location, entry2.location);
 		assert.strictEqual(entries[1].workingCopy.resource.toString(), renamedWorkingCopyResource.toString());
+		assert.ok(!entries[1].sourceDescription);
 
 		assert.strictEqual(entries[2].id, entry3.id);
 		assert.strictEqual(entries[2].timestamp, entry3.timestamp);
 		assert.strictEqual(entries[2].source, entry3.source);
 		assert.notStrictEqual(entries[2].location, entry3.location);
 		assert.strictEqual(entries[2].workingCopy.resource.toString(), renamedWorkingCopyResource.toString());
+		assert.ok(!entries[2].sourceDescription);
 
 		assert.strictEqual(entries[3].source, 'renamed.source' /* for the move */);
+		assert.ok(entries[3].sourceDescription); // contains the source working copy path
 
 		const all = await service.getAll(CancellationToken.None);
 		assert.strictEqual(all.length, 1);
@@ -777,6 +781,7 @@ suite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries[2].workingCopy.resource.toString(), renamedWorkingCopy2Resource.toString());
 
 		assert.strictEqual(entries[3].source, 'moved.source' /* for the move */);
+		assert.ok(entries[3].sourceDescription); // contains the source working copy path
 
 		const all = await service.getAll(CancellationToken.None);
 		assert.strictEqual(all.length, 2);
@@ -833,6 +838,7 @@ suite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries[2].workingCopy.resource.toString(), workingCopyTarget.resource.toString());
 
 		assert.strictEqual(entries[3].source, 'renamed.source' /* for the move */);
+		assert.ok(entries[3].sourceDescription); // contains the source working copy path
 
 		const all = await service.getAll(CancellationToken.None);
 		assert.strictEqual(all.length, 1);
@@ -907,6 +913,7 @@ suite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries[5].workingCopy.resource.toString(), workingCopyTarget.resource.toString());
 
 		assert.strictEqual(entries[6].source, 'renamed.source' /* for the move */);
+		assert.ok(entries[6].sourceDescription); // contains the source working copy path
 
 		const all = await service.getAll(CancellationToken.None);
 		assert.strictEqual(all.length, 1);

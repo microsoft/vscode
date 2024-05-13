@@ -41,6 +41,7 @@ interface ISerializedWorkingCopyHistoryModelEntry {
 	readonly id: string;
 	readonly timestamp: number;
 	readonly source?: SaveSource;
+	readonly sourceDescription?: string;
 }
 
 export interface IWorkingCopyHistoryModelOptions {
@@ -118,7 +119,7 @@ export class WorkingCopyHistoryModel {
 		return joinPath(historyHome, hash(workingCopyResource.toString()).toString(16));
 	}
 
-	async addEntry(source = WorkingCopyHistoryModel.FILE_SAVED_SOURCE, timestamp = Date.now(), token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+	async addEntry(source = WorkingCopyHistoryModel.FILE_SAVED_SOURCE, sourceDescription: string | undefined = undefined, timestamp = Date.now(), token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
 		let entryToReplace: IWorkingCopyHistoryEntry | undefined = undefined;
 
 		// Figure out if the last entry should be replaced based
@@ -137,12 +138,12 @@ export class WorkingCopyHistoryModel {
 
 		// Replace lastest entry in history
 		if (entryToReplace) {
-			entry = await this.doReplaceEntry(entryToReplace, timestamp, token);
+			entry = await this.doReplaceEntry(entryToReplace, source, sourceDescription, timestamp, token);
 		}
 
 		// Add entry to history
 		else {
-			entry = await this.doAddEntry(source, timestamp, token);
+			entry = await this.doAddEntry(source, sourceDescription, timestamp, token);
 		}
 
 		// Flush now if configured
@@ -153,7 +154,7 @@ export class WorkingCopyHistoryModel {
 		return entry;
 	}
 
-	private async doAddEntry(source: SaveSource, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+	private async doAddEntry(source: SaveSource, sourceDescription: string | undefined = undefined, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
 		const workingCopyResource = assertIsDefined(this.workingCopyResource);
 		const workingCopyName = assertIsDefined(this.workingCopyName);
 		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
@@ -169,7 +170,8 @@ export class WorkingCopyHistoryModel {
 			workingCopy: { resource: workingCopyResource, name: workingCopyName },
 			location,
 			timestamp,
-			source
+			source,
+			sourceDescription
 		};
 		this.entries.push(entry);
 
@@ -182,13 +184,15 @@ export class WorkingCopyHistoryModel {
 		return entry;
 	}
 
-	private async doReplaceEntry(entry: IWorkingCopyHistoryEntry, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+	private async doReplaceEntry(entry: IWorkingCopyHistoryEntry, source: SaveSource, sourceDescription: string | undefined = undefined, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
 		const workingCopyResource = assertIsDefined(this.workingCopyResource);
 
 		// Perform a fast clone operation with minimal overhead to the existing location
 		await this.fileService.cloneFile(workingCopyResource, entry.location);
 
 		// Update entry
+		entry.source = source;
+		entry.sourceDescription = sourceDescription;
 		entry.timestamp = timestamp;
 
 		// Update version ID of model to use for storing later
@@ -334,7 +338,8 @@ export class WorkingCopyHistoryModel {
 					workingCopy: { resource: workingCopyResource, name: workingCopyName },
 					location: entryStat.resource,
 					timestamp: entryStat.mtime,
-					source: WorkingCopyHistoryModel.FILE_SAVED_SOURCE
+					source: WorkingCopyHistoryModel.FILE_SAVED_SOURCE,
+					sourceDescription: undefined
 				});
 			}
 		}
@@ -347,7 +352,8 @@ export class WorkingCopyHistoryModel {
 					entries.set(entry.id, {
 						...existingEntry,
 						timestamp: entry.timestamp,
-						source: entry.source ?? existingEntry.source
+						source: entry.source ?? existingEntry.source,
+						sourceDescription: entry.sourceDescription ?? existingEntry.sourceDescription
 					});
 				}
 			}
@@ -357,6 +363,8 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async moveEntries(target: WorkingCopyHistoryModel, source: SaveSource, token: CancellationToken): Promise<void> {
+		const timestamp = Date.now();
+		const sourceDescription = this.labelService.getUriLabel(assertIsDefined(this.workingCopyResource));
 
 		// Move all entries into the target folder so that we preserve
 		// any existing history entries that might already be present
@@ -395,6 +403,7 @@ export class WorkingCopyHistoryModel {
 				id: entry.id,
 				location: joinPath(targetHistoryEntriesFolder, entry.id),
 				source: entry.source,
+				sourceDescription: entry.sourceDescription,
 				timestamp: entry.timestamp,
 				workingCopy: {
 					resource: targetWorkingCopyResource,
@@ -404,7 +413,7 @@ export class WorkingCopyHistoryModel {
 		}
 
 		// Add entry for the move
-		await this.addEntry(source, undefined, token);
+		await this.addEntry(source, sourceDescription, timestamp, token);
 
 		// Store model again to updated location
 		await this.store(token);
@@ -506,6 +515,7 @@ export class WorkingCopyHistoryModel {
 				return {
 					id: entry.id,
 					source: entry.source !== WorkingCopyHistoryModel.FILE_SAVED_SOURCE ? entry.source : undefined,
+					sourceDescription: entry.sourceDescription,
 					timestamp: entry.timestamp
 				};
 			})
@@ -696,7 +706,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		}
 
 		// Add to model
-		return model.addEntry(source, timestamp, token);
+		return model.addEntry(source, undefined, timestamp, token);
 	}
 
 	async updateEntry(entry: IWorkingCopyHistoryEntry, properties: { source: SaveSource }, token: CancellationToken): Promise<void> {
