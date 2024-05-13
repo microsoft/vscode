@@ -90,10 +90,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: OPEN_TO_SIDE_COMMAND_ID, handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
 		const listService = accessor.get(IListService);
 		const fileService = accessor.get(IFileService);
 		const explorerService = accessor.get(IExplorerService);
-		const resources = getMultiSelectedResources(resource, listService, editorService, explorerService);
+		const resources = getMultiSelectedResources(resource, listService, editorService, editorGroupService, explorerService);
 
 		// Set side input
 		if (resources.length) {
@@ -203,8 +204,9 @@ CommandsRegistry.registerCommand({
 	id: COMPARE_SELECTED_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
 		const explorerService = accessor.get(IExplorerService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, explorerService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, editorGroupService, explorerService);
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
@@ -253,7 +255,7 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 }
 
 const copyPathCommandHandler: ICommandHandler = async (accessor, resource: URI | object) => {
-	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 };
 
@@ -280,7 +282,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 const copyRelativePathCommandHandler: ICommandHandler = async (accessor, resource: URI | object) => {
-	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 };
 
@@ -571,7 +573,7 @@ CommandsRegistry.registerCommand({
 		const contextService = accessor.get(IWorkspaceContextService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
 		const workspace = contextService.getWorkspace();
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService)).filter(resource =>
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService)).filter(resource =>
 			workspace.folders.some(folder => uriIdentityService.extUri.isEqual(folder.uri, resource)) // Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
 		);
 

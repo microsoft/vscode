@@ -24,7 +24,6 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
@@ -57,6 +56,7 @@ import { IChatAgentService, ChatAgentService, ChatAgentLocation } from 'vs/workb
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
+import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 
 suite('InlineChatSession', function () {
 

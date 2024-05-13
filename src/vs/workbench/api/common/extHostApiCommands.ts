@@ -9,6 +9,7 @@ import { Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 import * as languages from 'vs/editor/common/languages';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
@@ -512,7 +513,42 @@ const newCommands: ApiCommand[] = [
 				return value ? typeConverters.WorkspaceEdit.to(value) : null;
 			})
 	),
+	// --- inline chat
+	new ApiCommand(
+		'vscode.editorChat.start', 'inlineChat.start', 'Invoke a new editor chat session',
+		[new ApiCommandArgument<InlineChatEditorApiArg | undefined, InlineChatRunOptions | undefined>('Run arguments', '', _v => true, v => {
+
+			if (!v) {
+				return undefined;
+			}
+
+			return {
+				initialRange: v.initialRange ? typeConverters.Range.from(v.initialRange) : undefined,
+				initialSelection: types.Selection.isSelection(v.initialSelection) ? typeConverters.Selection.from(v.initialSelection) : undefined,
+				message: v.message,
+				autoSend: v.autoSend,
+				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+			};
+		})],
+		ApiCommandResult.Void
+	)
 ];
+
+type InlineChatEditorApiArg = {
+	initialRange?: vscode.Range;
+	initialSelection?: vscode.Selection;
+	message?: string;
+	autoSend?: boolean;
+	position?: vscode.Position;
+};
+
+type InlineChatRunOptions = {
+	initialRange?: IRange;
+	initialSelection?: ISelection;
+	message?: string;
+	autoSend?: boolean;
+	position?: IPosition;
+};
 
 //#endregion
 

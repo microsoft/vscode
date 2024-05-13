@@ -1019,6 +1019,14 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- controller API
 
+	get scopedContextKeyService(): IContextKeyService {
+		if (this._input.value.isVisible) {
+			return this._input.value.chatWidget.scopedContextKeyService;
+		} else {
+			return this._zone.value.widget.chatWidget.scopedContextKeyService;
+		}
+	}
+
 	showSaveHint(): void {
 		const status = localize('savehint', "Accept or discard changes to continue saving");
 		this._zone.value.widget.updateStatus(status, { classes: ['warn'] });
@@ -1034,11 +1042,11 @@ export class InlineChatController implements IEditorContribution {
 		this._updatePlaceholder();
 	}
 
-	acceptInput(): void {
+	acceptInput() {
 		if (this._input.value.isVisible) {
-			this._input.value.chatWidget.acceptInput();
+			return this._input.value.chatWidget.acceptInput();
 		} else {
-			this._zone.value.widget.chatWidget.acceptInput();
+			return this._zone.value.widget.chatWidget.acceptInput();
 		}
 	}
 
