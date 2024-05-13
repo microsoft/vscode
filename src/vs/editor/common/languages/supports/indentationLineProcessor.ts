@@ -133,7 +133,7 @@ export class IndentationContextProcessor {
 
 	private _getProcessedPreviousLine(range: Range, scopedLineTokens: ScopedLineTokens): string {
 
-		// Utility function
+		// Utility functions
 		const getScopedLineTokensAtEndColumnOfLine = (lineNumber: number): ScopedLineTokens => {
 			this.model.tokenization.forceTokenization(lineNumber);
 			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);

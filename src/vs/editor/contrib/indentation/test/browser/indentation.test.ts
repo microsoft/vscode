@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
