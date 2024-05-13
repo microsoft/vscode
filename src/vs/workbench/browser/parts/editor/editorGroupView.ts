@@ -979,16 +979,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isActive(editor);
 	}
 
-	selectEditor(editor: EditorInput, active?: boolean): void {
+	async selectEditor(editor: EditorInput, active?: boolean): Promise<void> {
 		if (active) {
-			this.doOpenEditor(editor, { activation: EditorActivation.ACTIVATE }, { selected: true });
+			await this.doOpenEditor(editor, { activation: EditorActivation.ACTIVATE }, { selected: true });
 		} else {
 			this.model.selectEditor(editor, active);
 		}
 	}
 
-	selectEditors(editors: EditorInput[], activeEditor?: EditorInput): void {
-		editors.forEach(editor => this.selectEditor(editor, editor === activeEditor));
+	async selectEditors(editors: EditorInput[], activeEditor?: EditorInput): Promise<void> {
+		for (const editor of editors) {
+			await this.selectEditor(editor, editor === activeEditor);
+		}
 	}
 
 	async unSelectEditor(editor: EditorInput): Promise<void> {

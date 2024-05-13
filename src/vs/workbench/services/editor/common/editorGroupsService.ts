@@ -777,14 +777,14 @@ export interface IEditorGroup {
 	 * Selects the editor in the group. If active is set to true,
 	 * it will be the active editor in the group.
 	 */
-	selectEditor(editor: EditorInput, active?: boolean): void;
+	selectEditor(editor: EditorInput, active?: boolean): Promise<void>;
 
 
 	/**
 	 * Selects the editors in the group. If activeEditor is provided,
 	 * it will be the active editor in the group.
 	 */
-	selectEditors(editors: EditorInput[], activeEditor?: EditorInput): void;
+	selectEditors(editors: EditorInput[], activeEditor?: EditorInput): Promise<void>;
 
 	/**
 	 * Unselects the editor in the group. If the editor is not specified, unselects the active editor.
