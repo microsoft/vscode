@@ -24,7 +24,9 @@ import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatCo
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
+	id: string;
 	name: string;
+	modelDescription?: string;
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
@@ -692,12 +694,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			? raw :
 			{ variables: [] };
 
-		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>(v => {
+		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>((v): IChatRequestVariableEntry => {
 			if ('values' in v && Array.isArray(v.values)) {
 				return {
+					id: v.id ?? '',
 					name: v.name,
 					value: v.values[0]?.value,
 					range: v.range,
+					modelDescription: v.modelDescription,
 					references: v.references
 				};
 			} else {

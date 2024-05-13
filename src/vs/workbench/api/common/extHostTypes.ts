@@ -4270,6 +4270,7 @@ export enum ChatVariableLevel {
 }
 
 export class ChatCompletionItem implements vscode.ChatCompletionItem {
+	id: string;
 	label: string | CompletionItemLabel;
 	insertText?: string;
 	values: vscode.ChatVariableValue[];
@@ -4277,7 +4278,8 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	documentation?: string | MarkdownString;
 	command?: vscode.Command;
 
-	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+	constructor(id: string, label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+		this.id = id;
 		this.label = label;
 		this.values = values;
 	}
@@ -4423,7 +4425,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly variables: vscode.ChatValueReference[],
+		readonly references: vscode.ChatValueReference[],
 		readonly participant: string,
 	) { }
 }

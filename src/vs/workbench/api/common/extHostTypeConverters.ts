@@ -2545,7 +2545,7 @@ export namespace ChatAgentRequest {
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
-			variables: request.variables.variables.map(ChatAgentValueReference.to),
+			references: request.variables.variables.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData
@@ -2565,16 +2565,18 @@ export namespace ChatLocation {
 }
 
 export namespace ChatAgentValueReference {
-	export function to(request: IChatRequestVariableEntry): vscode.ChatValueReference {
-		const value = request.value;
+	export function to(variable: IChatRequestVariableEntry): vscode.ChatValueReference {
+		const value = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
 		}
 
 		return {
-			name: request.name,
-			range: (request.range && [request.range.start, request.range.endExclusive])!, // TODO
+			id: variable.id,
+			name: variable.name,
+			range: (variable.range && [variable.range.start, variable.range.endExclusive])!, // TODO
 			value: isUriComponents(value) ? URI.revive(value) : value,
+			modelDescription: variable.modelDescription
 		};
 	}
 }
@@ -2582,6 +2584,7 @@ export namespace ChatAgentValueReference {
 export namespace ChatAgentCompletionItem {
 	export function from(item: vscode.ChatCompletionItem, commandsConverter: CommandsConverter, disposables: DisposableStore): extHostProtocol.IChatAgentCompletionItem {
 		return {
+			id: item.id,
 			label: item.label,
 			value: item.values[0].value,
 			insertText: item.insertText,

@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequestTurn.variables}.
+		 * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -30,12 +30,11 @@ declare module 'vscode' {
 		readonly command?: string;
 
 		/**
-		 * The variables that were used in this message.
-		 * TODO@API rename to `references`?
+		 * The references that were used in this message.
 		 */
-		readonly variables: ChatValueReference[];
+		readonly references: ChatValueReference[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatValueReference[], participant: string);
+		private constructor(prompt: string, command: string | undefined, references: ChatValueReference[], participant: string);
 	}
 
 	/**
@@ -236,8 +235,13 @@ declare module 'vscode' {
 
 	export interface ChatValueReference {
 		/**
+		 * A unique identifier for this reference.
+		 */
+		readonly id: string;
+
+		/**
 		 * The name of the reference.
-		 * TODO@API How to handle name conflicts? Need id vs name?
+		 * TODO@API should name be provided at all, or only ID?
 		 */
 		readonly name: string;
 
@@ -250,6 +254,11 @@ declare module 'vscode' {
 		readonly range: [start: number, end: number];
 
 		/**
+		 * A description of this value that could be used in an LLM prompt.
+		 */
+		readonly modelDescription?: string;
+
+		/**
 		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
 		 */
 		readonly value: string | Uri | Location | unknown;
@@ -259,7 +268,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequest.variables}.
+		 * Information about references used in this request is stored in {@link ChatRequest.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -273,15 +282,15 @@ declare module 'vscode' {
 
 
 		/**
-		 * The list of variables and their values that are referenced in the prompt.
+		 * The list of references and their values that are referenced in the prompt.
 		 *
 		 * *Note* that the prompt contains varibale references as authored and that it is up to the participant
 		 * to further modify the prompt, for instance by inlining variable values or creating links to
-		 * headings which contain the resolved values. Variables are sorted in reverse by their range
+		 * headings which contain the resolved values. References are sorted in reverse by their range
 		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		readonly variables: readonly ChatValueReference[];
+		readonly references: readonly ChatValueReference[];
 	}
 
 	/**

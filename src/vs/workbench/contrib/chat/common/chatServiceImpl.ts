@@ -578,8 +578,9 @@ export class ChatService extends Disposable implements IChatService {
 						const implicitVariables = agent.defaultImplicitVariables;
 						if (implicitVariables) {
 							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => {
+								const id = this.chatVariablesService.getVariable(v)?.id ?? '';
 								const value = await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token);
-								return value ? { name: v, value } satisfies IChatRequestVariableEntry :
+								return value ? { id, name: v, value } satisfies IChatRequestVariableEntry :
 									undefined;
 							}));
 							updatedVariableData.variables.push(...coalesce(resolvedImplicitVariables));
