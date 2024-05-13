@@ -324,7 +324,6 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	}
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		const nbDisposable = new DisposableStore();
 		const isTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		if (!isTrusted) {
 			return;
@@ -350,15 +349,9 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		const notebookModel = workingCopy.model.notebookModel;
 
 		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean }>(NotebookSetting.codeActionsOnSave);
-		if (!setting) {
-			return undefined;
-		}
 		const settingItems: string[] = Array.isArray(setting)
 			? setting
 			: Object.keys(setting).filter(x => setting[x]);
-		if (!settingItems.length) {
-			return undefined;
-		}
 
 		const allCodeActions = this.createCodeActionsOnSave(settingItems);
 		const excludedActions = allCodeActions
@@ -368,60 +361,83 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 		const editorCodeActionsOnSave = includedActions.filter(x => !CodeActionKind.Notebook.contains(x));
 		const notebookCodeActionsOnSave = includedActions.filter(x => CodeActionKind.Notebook.contains(x));
-		if (!editorCodeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
-			return undefined;
-		}
-
-		// prioritize `source.fixAll` code actions
-		if (!Array.isArray(setting)) {
-			editorCodeActionsOnSave.sort((a, b) => {
-				if (CodeActionKind.SourceFixAll.contains(a)) {
-					if (CodeActionKind.SourceFixAll.contains(b)) {
-						return 0;
-					}
-					return -1;
-				}
-				if (CodeActionKind.SourceFixAll.contains(b)) {
-					return 1;
-				}
-				return 0;
-			});
-		}
 
 		// run notebook code actions
-		progress.report({ message: localize('notebookSaveParticipants.notebookCodeActions', "Running 'Notebook' code actions") });
-		try {
-			const cell = notebookModel.cells[0];
-			const ref = await this.textModelService.createModelReference(cell.uri);
-			nbDisposable.add(ref);
-
-			const textEditorModel = ref.object.textEditorModel;
-
-			await this.applyOnSaveActions(textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
-		} catch {
-			this.logService.error('Failed to apply notebook code action on save');
-		} finally {
-			progress.report({ increment: 100 });
-			nbDisposable.dispose();
-		}
-
-		// run cell level code actions
-		const disposable = new DisposableStore();
-		progress.report({ message: localize('notebookSaveParticipants.cellCodeActions', "Running 'Cell' code actions") });
-		try {
-			await Promise.all(notebookModel.cells.map(async cell => {
+		if (notebookCodeActionsOnSave.length) {
+			const nbDisposable = new DisposableStore();
+			progress.report({ message: localize('notebookSaveParticipants.notebookCodeActions', "Running 'Notebook' code actions") });
+			try {
+				const cell = notebookModel.cells[0];
 				const ref = await this.textModelService.createModelReference(cell.uri);
-				disposable.add(ref);
+				nbDisposable.add(ref);
 
 				const textEditorModel = ref.object.textEditorModel;
 
-				await this.applyOnSaveActions(textEditorModel, editorCodeActionsOnSave, excludedActions, progress, token);
-			}));
+				await this.applyOnSaveActions(textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
+			} catch {
+				this.logService.error('Failed to apply notebook code action on save');
+			} finally {
+				progress.report({ increment: 100 });
+				nbDisposable.dispose();
+			}
+		}
+
+		// run cell level code actions
+		if (editorCodeActionsOnSave.length) {
+			// prioritize `source.fixAll` code actions
+			if (!Array.isArray(setting)) {
+				editorCodeActionsOnSave.sort((a, b) => {
+					if (CodeActionKind.SourceFixAll.contains(a)) {
+						if (CodeActionKind.SourceFixAll.contains(b)) {
+							return 0;
+						}
+						return -1;
+					}
+					if (CodeActionKind.SourceFixAll.contains(b)) {
+						return 1;
+					}
+					return 0;
+				});
+			}
+
+			const cellDisposable = new DisposableStore();
+			progress.report({ message: localize('notebookSaveParticipants.cellCodeActions', "Running 'Cell' code actions") });
+			try {
+				await Promise.all(notebookModel.cells.map(async cell => {
+					const ref = await this.textModelService.createModelReference(cell.uri);
+					cellDisposable.add(ref);
+
+					const textEditorModel = ref.object.textEditorModel;
+
+					await this.applyOnSaveActions(textEditorModel, editorCodeActionsOnSave, excludedActions, progress, token);
+				}));
+			} catch {
+				this.logService.error('Failed to apply code action on save');
+			} finally {
+				progress.report({ increment: 100 });
+				cellDisposable.dispose();
+			}
+		}
+
+		// run notebook format code action (singular)
+		const formatDisposable = new DisposableStore();
+		progress.report({ message: localize('notebookSaveParticipants.formatCodeActions', "Running 'Format' code actions") });
+		try {
+			const cell = notebookModel.cells[0];
+			const ref = await this.textModelService.createModelReference(cell.uri);
+			formatDisposable.add(ref);
+
+			const textEditorModel = ref.object.textEditorModel;
+
+			// TODO@Yoyokrazy, need new helper to only apply a single formatter.
+			// TODO@Yoyokrazy, need to handle multiple formatters and choosing the default.
+			// TODO@Yoyokrazy, need to add setting for default notebook formatter
+			await this.applyOnSaveActions(textEditorModel, [new HierarchicalKind('notebook.format')], [], progress, token);
 		} catch {
-			this.logService.error('Failed to apply code action on save');
+			this.logService.error('Failed to apply notebook format action on save');
 		} finally {
 			progress.report({ increment: 100 });
-			disposable.dispose();
+			formatDisposable.dispose();
 		}
 	}
 
