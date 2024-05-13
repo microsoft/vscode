@@ -634,7 +634,8 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {
-		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, widgetData.position);
+		const newPreference = widgetData.position ? widgetData.position.preference : null;
+		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
 		if (shouldRender) {
 			this._scheduleRender();
 		}
