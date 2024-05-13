@@ -3452,6 +3452,7 @@ export class SCMViewPane extends ViewPane {
 
 							if (widget) {
 								widget.focus();
+								resolve();
 								return;
 							}
 						}
