@@ -264,7 +264,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!this._lastInput) {
 			return;
 		}
+
 		const responseCreated = new DeferredPromise<IChatResponseModel>();
+		let responseCreatedComplete = false;
+		const completeResponseCreated = () => {
+			if (!responseCreatedComplete && this._currentRequest?.response) {
+				responseCreated.complete(this._currentRequest.response);
+				responseCreatedComplete = true;
+			}
+		};
+
 		const accessibilityRequestId = this._chatAccessibilityService.acceptRequest();
 		this._requestActiveContextKey.set(true);
 		const cancellationToken = new CancellationTokenSource().token;
@@ -279,9 +288,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			}
 			if (this._currentRequest) {
 				model.acceptResponseProgress(this._currentRequest, progress);
-				if (this._currentRequest.response) {
-					responseCreated.complete(this._currentRequest.response);
-				}
+				completeResponseCreated();
 			}
 		};
 
@@ -295,6 +302,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			variables: []
 		};
 		this._currentRequest = model.addRequest(request, requestVarData, 0);
+		completeResponseCreated();
 		const requestProps: IChatAgentRequest = {
 			sessionId: model.sessionId,
 			requestId: this._currentRequest!.id,
@@ -319,9 +327,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 			if (this._currentRequest) {
 				model.completeResponse(this._currentRequest);
-				if (this._currentRequest.response) {
-					responseCreated.complete(this._currentRequest.response);
-				}
+				completeResponseCreated();
 			}
 			this._lastResponseContent = responseContent;
 			if (this._currentRequest) {
