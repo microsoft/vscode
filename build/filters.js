@@ -75,6 +75,7 @@ module.exports.indentationFilter = [
 	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/semver/semver.js',
+	'!src/vs/base/common/web-tree-sitter/tree-sitter.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/unit/assert.js',
@@ -172,6 +173,7 @@ module.exports.copyrightFilter = [
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
+	'!src/vs/base/common/web-tree-sitter/tree-sitter.js',
 	'!src/vs/editor/test/node/classification/typescript-test.ts',
 ];
 
