@@ -558,7 +558,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		const sticky = this.isSticky(index);
 
 		// Active Editor closed
-		if (openNext && this.matches(this.active, editor)) {
+		const isActiveEditor = this.matches(this.active, editor);
+		if (openNext && isActiveEditor) {
 
 			// More than one editor
 			if (this.mru.length > 1) {
@@ -582,7 +583,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			}
 		}
 		// Remove from selection
-		else {
+		else if (!isActiveEditor) {
 			const wasSelected = !!this.selected.find(selected => this.matches(selected, editor));
 			if (wasSelected) {
 				this.doSetSelected(editor, index, false);
@@ -733,7 +734,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			editor = this.editors[editor];
 		}
 
-		return this.selected.includes(editor);
+		return !!this.selected.find(selectedEditor => this.matches(selectedEditor, editor));
 	}
 
 	selectEditor(candidate: EditorInput, active: boolean = false): EditorInput | undefined {
@@ -764,7 +765,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private doSetSelected(editor: EditorInput, editorIndex: number, select: boolean, active: boolean = false): void {
 		if (select) {
-			if (this.selected.includes(editor)) {
+			if (this.isSelected(editor)) {
 				return;
 			}
 
@@ -774,7 +775,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.selected.push(editor);
 			}
 		} else {
-			if (!this.selected.includes(editor)) {
+			if (!this.isSelected(editor)) {
 				return;
 			}
 
