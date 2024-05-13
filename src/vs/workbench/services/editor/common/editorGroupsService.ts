@@ -789,12 +789,12 @@ export interface IEditorGroup {
 	/**
 	 * Unselects the editor in the group. If the editor is not specified, unselects the active editor.
 	 */
-	unSelectEditor(editor: EditorInput): void;
+	unSelectEditor(editor: EditorInput): Promise<void>;
 
 	/**
 	 * Unselects the editors in the group. If the editor is not specified, unselects the active editor.
 	 */
-	unSelectEditors(editors: EditorInput[]): void;
+	unSelectEditors(editors: EditorInput[]): Promise<void>;
 
 	/**
 	 * Whether the editor is selected in the group.
