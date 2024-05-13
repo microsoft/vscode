@@ -69,7 +69,7 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 		} else if (followup.kind === 'command') {
 			button.element.classList.add('interactive-followup-command');
 		}
-		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", followup.title);
+		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", baseTitle);
 		button.label = new MarkdownString(baseTitle);
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));

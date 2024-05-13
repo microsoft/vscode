@@ -99,7 +99,8 @@ function installHeaders() {
 	const yarnResult = cp.spawnSync(yarn, ['install'], {
 		env: process.env,
 		cwd: path.join(__dirname, 'gyp'),
-		stdio: 'inherit'
+		stdio: 'inherit',
+		shell: true
 	});
 	if (yarnResult.error || yarnResult.status !== 0) {
 		console.error(`Installing node-gyp failed`);
@@ -111,7 +112,7 @@ function installHeaders() {
 	// file checked into our repository. So from that point it is save to construct the path
 	// to that executable
 	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
-	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8' });
+	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
 	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.yarnrc'));
@@ -119,7 +120,7 @@ function installHeaders() {
 
 	if (local !== undefined && !versions.has(local.target)) {
 		// Both disturl and target come from a file checked into our repository
-		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target]);
+		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
 	}
 
 	// Avoid downloading headers for Windows arm64 till we move to Nodejs v19 in remote
@@ -136,7 +137,7 @@ function installHeaders() {
 		process.env['npm_config_arch'] !== "arm64" &&
 		process.arch !== "arm64") {
 		// Both disturl and target come from a file checked into our repository
-		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target]);
+		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
 	}
 }
 
