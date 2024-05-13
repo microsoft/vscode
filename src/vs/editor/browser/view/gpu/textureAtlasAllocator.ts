@@ -91,6 +91,11 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		const ctx = ensureNonNullable(canvas.getContext('2d'));
 		ctx.fillStyle = '#808080';
 		ctx.fillRect(0, 0, w, h);
+
+		let usedPixels = 0;
+		let wastedPixels = 0;
+		const totalPixels = w * h;
+
 		const rowHeight: Map<number, number> = new Map(); // y -> h
 		const rowWidth: Map<number, number> = new Map(); // y -> w
 		for (const g of this.glyphMap.values()) {
@@ -98,6 +103,8 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
 		}
 		for (const g of this.glyphMap.values()) {
+			usedPixels += g.w * g.h;
+			wastedPixels += g.w * (rowHeight.get(g.y)! - g.h);
 			ctx.fillStyle = '#4040FF';
 			ctx.fillRect(g.x, g.y, g.w, g.h);
 			ctx.fillStyle = '#FF0000';
@@ -107,8 +114,16 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 			if (rowY !== this._currentRow.y) {
 				ctx.fillStyle = '#FF0000';
 				ctx.fillRect(rowW, rowY, w - rowW, rowHeight.get(rowY)!);
+				wastedPixels += (w - rowW) * rowHeight.get(rowY)!;
 			}
 		}
+		console.log([
+			`Texture atlas stats:`,
+			`     Total: ${totalPixels}`,
+			`      Used: ${usedPixels} (${((usedPixels / totalPixels) * 100).toPrecision(2)}%)`,
+			`    Wasted: ${wastedPixels} (${((wastedPixels / totalPixels) * 100).toPrecision(2)}%)`,
+			`Efficiency: ${((usedPixels / (usedPixels + wastedPixels)) * 100).toPrecision(2)}%`,
+		].join('\n'));
 		return canvas.convertToBlob();
 	}
 }
