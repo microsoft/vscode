@@ -11,7 +11,10 @@ export class GlyphRasterizer extends Disposable {
 	// A temporary context that glyphs are drawn to before being transfered to the atlas.
 	private _ctx: OffscreenCanvasRenderingContext2D;
 
-	constructor(private readonly _fontSize: number, fontFamily: string) {
+	constructor(
+		private readonly _fontSize: number,
+		fontFamily: string,
+	) {
 		super();
 
 		this._canvas = new OffscreenCanvas(this._fontSize * 3, this._fontSize * 3);
@@ -94,7 +97,7 @@ export class GlyphRasterizer extends Disposable {
 			debugger;
 		}
 
-		return result2;
+		return result;
 	}
 
 	// TODO: Does this even need to happen when measure text is used?

@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveDocument, getActiveWindow } from 'vs/base/browser/dom';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { debounce } from 'vs/base/common/decorators';
-import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { URI } from 'vs/base/common/uri';
 import { TextureAtlas, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import type { ViewLineRenderingData } from 'vs/editor/common/viewModel';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const disableNonGpuRendering = true;
 
@@ -69,19 +72,15 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 	private _initialized = false;
 
-
-
-	private static _testCanvas: HTMLCanvasElement;
-	private static _testCtx: CanvasRenderingContext2D;
-
 	private _renderStrategy!: IRenderStrategy<T>;
-
 
 	constructor(
 		domNode: HTMLCanvasElement,
 		host: IVisibleLinesHost<T>,
 		viewportData: ViewportData,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		this.domNode = domNode;
 		this.host = host;
@@ -114,19 +113,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		if (!GpuViewLayerRenderer._textureAtlas) {
 			const pageSize = 1024; // this._device.limits.maxTextureDimension2D;
 			GpuViewLayerRenderer._textureAtlas = this._instantiationService.createInstance(TextureAtlas, this.domNode, pageSize, this._device.limits.maxTextureDimension2D);
-
-			GpuViewLayerRenderer._testCanvas = document.createElement('canvas');
-			GpuViewLayerRenderer._testCanvas.width = pageSize;
-			GpuViewLayerRenderer._testCanvas.height = pageSize;
-			GpuViewLayerRenderer._testCanvas.style.width = `${GpuViewLayerRenderer._testCanvas.width / getActiveWindow().devicePixelRatio}px`;
-			GpuViewLayerRenderer._testCanvas.style.height = `${GpuViewLayerRenderer._testCanvas.height / getActiveWindow().devicePixelRatio}px`;
-			GpuViewLayerRenderer._testCanvas.style.position = 'absolute';
-			GpuViewLayerRenderer._testCanvas.style.top = '2px';
-			GpuViewLayerRenderer._testCanvas.style.left = '2px';
-			GpuViewLayerRenderer._testCanvas.style.zIndex = '10000';
-			GpuViewLayerRenderer._testCanvas.style.pointerEvents = 'none';
-			GpuViewLayerRenderer._testCtx = ensureNonNullable(GpuViewLayerRenderer._testCanvas.getContext('2d'));
-			getActiveDocument().body.appendChild(GpuViewLayerRenderer._testCanvas);
 		}
 		const textureAtlas = GpuViewLayerRenderer._textureAtlas;
 
@@ -333,14 +319,25 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			{ width: GpuViewLayerRenderer._textureAtlas.source.width, height: GpuViewLayerRenderer._textureAtlas.source.height },
 		);
 
-
-		GpuViewLayerRenderer._drawToTextureAtlas();
+		GpuViewLayerRenderer._drawToTextureAtlas(this._fileService, this._workspaceContextService);
 	}
 
 	@debounce(500)
-	private static _drawToTextureAtlas() {
-		GpuViewLayerRenderer._testCtx.clearRect(0, 0, GpuViewLayerRenderer._textureAtlas.source.width, GpuViewLayerRenderer._textureAtlas.source.height);
-		GpuViewLayerRenderer._testCtx.drawImage(GpuViewLayerRenderer._textureAtlas.source, 0, 0);
+	private static async _drawToTextureAtlas(fileService: IFileService, workspaceContextService: IWorkspaceContextService) {
+		const blob = await GpuViewLayerRenderer._textureAtlas.source.convertToBlob();
+		const folders = workspaceContextService.getWorkspace().folders;
+		if (folders.length > 0) {
+			await Promise.all([
+				fileService.writeFile(
+					URI.joinPath(folders[0].uri, 'atlas_scratch_actual.png'),
+					VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer()))
+				),
+				fileService.writeFile(
+					URI.joinPath(folders[0].uri, 'atlas_scratch_usage.png'),
+					VSBuffer.wrap(new Uint8Array(await ((await GpuViewLayerRenderer._textureAtlas.getUsagePreview()).arrayBuffer())))
+				)
+			]);
+		}
 	}
 
 	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {

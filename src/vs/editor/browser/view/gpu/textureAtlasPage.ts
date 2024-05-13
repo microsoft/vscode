@@ -9,8 +9,8 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/glyphRasterizer';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { TwoKeyMap } from 'vs/editor/browser/view/gpu/multiKeyMap';
-import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { ITextureAtlasAllocator, TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/textureAtlasAllocator';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TextureAtlasPage extends Disposable {
@@ -29,7 +29,6 @@ export class TextureAtlasPage extends Disposable {
 	private readonly _allocator: ITextureAtlasAllocator;
 
 	private _colorMap!: string[];
-	private _warmUpTask?: IdleTaskQueue;
 
 	public get source(): OffscreenCanvas {
 		return this._canvas;
@@ -37,14 +36,14 @@ export class TextureAtlasPage extends Disposable {
 
 	public hasChanges = false;
 
-
 	// TODO: Should pull in the font size from config instead of random dom node
 	constructor(
 		parentDomNode: HTMLElement,
 		pageSize: number,
 		maxTextureSize: number,
 		private readonly _glyphRasterizer: GlyphRasterizer,
-		@IThemeService private readonly _themeService: IThemeService
+		@ILogService private readonly _logService: ILogService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -84,8 +83,8 @@ export class TextureAtlasPage extends Disposable {
 		this._glyphInOrderSet.add(glyph);
 		this.hasChanges = true;
 
-		if (!this._warmUpTask) {
-			console.debug('New glyph', {
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace('New glyph', {
 				chars,
 				fg: this._colorMap[tokenFg],
 				rasterizedGlyph,

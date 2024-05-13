@@ -7,6 +7,7 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/glyphRasterizer';
+import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/textureAtlasPage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -98,6 +99,20 @@ export class TextureAtlas extends Disposable {
 	// TODO: Color, style etc.
 	public getGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
 		return this._page.getGlyph(chars, tokenFg);
+	}
+
+	public getUsagePreview(): Promise<Blob> {
+		const w = this._page.source.width;
+		const h = this._page.source.height;
+		const canvas = new OffscreenCanvas(w, h);
+		const ctx = ensureNonNullable(canvas.getContext('2d'));
+		ctx.fillStyle = '#808080';
+		ctx.fillRect(0, 0, w, h);
+		ctx.fillStyle = '#4040FF';
+		for (const g of this.glyphs) {
+			ctx.fillRect(g.x, g.y, g.w, g.h);
+		}
+		return canvas.convertToBlob();
 	}
 
 	/**
