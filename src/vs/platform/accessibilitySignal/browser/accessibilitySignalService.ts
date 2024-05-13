@@ -8,12 +8,13 @@ import { getStructuralKey } from 'vs/base/common/equals';
 import { Event, IValueWithChangeEvent } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
-import { derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
+import { derived, observableFromEvent } from 'vs/base/common/observable';
 import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalService>('accessibilitySignalService');
@@ -201,7 +202,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	private readonly _signalConfigValue = new CachedFunction((signal: AccessibilitySignal) => observableConfigValue<{
 		sound: EnabledState;
 		announcement: EnabledState;
-	}>(signal.settingsKey, this.configurationService));
+	}>(signal.settingsKey, { sound: 'off', announcement: 'off' }, this.configurationService));
 
 	private readonly _signalEnabledState = new CachedFunction(
 		{ getCacheKey: getStructuralKey },
@@ -589,13 +590,3 @@ export class AccessibilitySignal {
 	});
 }
 
-export function observableConfigValue<T>(key: string, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key),
-	);
-}
