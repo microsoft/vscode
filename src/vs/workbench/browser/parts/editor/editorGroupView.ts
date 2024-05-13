@@ -980,8 +980,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	selectEditor(editor: EditorInput, active?: boolean): void {
-		if (!this.model.selectEditor(editor)) {
-			return;
+		this.model.selectEditor(editor);
+		if (active) {
+			this.model.setActive(editor);
 		}
 
 		this.titleControl.setEditorSelections([editor], true);
