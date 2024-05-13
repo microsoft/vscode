@@ -76,7 +76,7 @@ export interface IChatContentVariableReference {
 
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference;
-	iconPath?: ThemeIcon | { light: URI; dark: URI };
+	iconPath?: ThemeIcon | { light: URI; dark?: URI };
 	kind: 'reference';
 }
 
