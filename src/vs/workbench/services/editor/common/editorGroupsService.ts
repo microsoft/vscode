@@ -650,8 +650,8 @@ export interface IEditorGroup {
 	readonly activeEditor: EditorInput | null;
 
 	/**
-	 * All editors that are currently selected in this group.
-	 * The active editor is always selected.
+	 * All selected editor in this group in sequential order.
+	 * The active editor is always part of the selection.
 	 */
 	readonly selectedEditors: EditorInput[];
 

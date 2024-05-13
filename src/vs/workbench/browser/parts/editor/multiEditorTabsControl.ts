@@ -902,7 +902,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					}
 				} else {
 					// Even if focus is preserved make sure to activate the group.
-					this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE });
+					this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { selected: this.groupView.isSelected(editor) /* Ensures drag and drop does not remove selection */ });
 				}
 			}
 
@@ -948,7 +948,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (!e.ctrlKey && !e.shiftKey && this.groupView.selectedEditors.length > 1) {
 				this.unselectAllEditors();
 			}
-
 		}));
 
 		// Close on mouse middle click
@@ -1075,9 +1074,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				isNewWindowOperation = this.isNewWindowOperation(e);
 
-				const selectedEditors = this.groupView.selectedEditors;
-
 				const draggedEditors = [];
+				const selectedEditors = this.groupView.selectedEditors;
 				const isMultiSelected = this.groupView.isSelected(editor) && selectedEditors.length > 1;
 				if (isMultiSelected) {
 					draggedEditors.push(...selectedEditors);
@@ -1090,7 +1088,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				if (e.dataTransfer) {
 					e.dataTransfer.effectAllowed = 'copyMove';
 					if (isMultiSelected) {
-						const label = `${editor.getName()} + ${selectedEditors.length - 1}`;
+						const label = `${editor.getName()} + ${draggedEditors.length - 1}`;
 						setupMultiselectDragLabel(label, e.dataTransfer, tab);
 					} else {
 						e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
