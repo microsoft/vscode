@@ -223,7 +223,7 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 	static readonly TEMPLATE_ID = 'actionButton';
 	get templateId(): string { return ActionButtonRenderer.TEMPLATE_ID; }
 
-	private actionButtons = new Map<ISCMActionButton, SCMActionButton[]>();
+	private actionButtons = new Map<ISCMActionButton, SCMActionButton>();
 
 	constructor(
 		@ICommandService private commandService: ICommandService,
@@ -252,24 +252,8 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 		templateData.actionButton.setButton(node.element.button);
 
 		// Remember action button
-		const renderedActionButtons = this.actionButtons.get(actionButton) ?? [];
-		this.actionButtons.set(actionButton, [...renderedActionButtons, templateData.actionButton]);
-		disposables.add({
-			dispose: () => {
-				const renderedActionButtons = this.actionButtons.get(actionButton) ?? [];
-				const renderedWidgetIndex = renderedActionButtons.findIndex(renderedActionButton => renderedActionButton === templateData.actionButton);
-
-				if (renderedWidgetIndex < 0) {
-					throw new Error('Disposing unknown action button');
-				}
-
-				if (renderedActionButtons.length === 1) {
-					this.actionButtons.delete(actionButton);
-				} else {
-					renderedActionButtons.splice(renderedWidgetIndex, 1);
-				}
-			}
-		});
+		this.actionButtons.set(actionButton, templateData.actionButton);
+		disposables.add({ dispose: () => this.actionButtons.delete(actionButton) });
 
 		templateData.disposable = disposables;
 	}
@@ -279,7 +263,7 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 	}
 
 	focusActionButton(actionButton: ISCMActionButton): void {
-		this.actionButtons.get(actionButton)?.forEach(renderedActionButton => renderedActionButton.focus());
+		this.actionButtons.get(actionButton)?.focus();
 	}
 
 	disposeElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, template: ActionButtonTemplate): void {
