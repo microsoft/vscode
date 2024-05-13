@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
@@ -22,7 +22,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { basename } from 'vs/base/common/resources';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel } from 'vs/editor/common/model';
 
@@ -36,6 +36,25 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 	} else {
 		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
+	}
+}
+
+class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
+	constructor(
+		textModelService: ITextModelService,
+		private readonly modelService: IModelService,
+		private readonly languageService: ILanguageService,
+	) {
+		super();
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeSourceControl, this));
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this.modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		return this.modelService.createModel('', this.languageService.createById('scminput'), resource);
 	}
 }
 
@@ -439,7 +458,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 
-		this._disposables.add(this.textModelService.registerTextModelContentProvider(Schemas.vscodeSourceControl, this));
+		this._disposables.add(new SCMInputBoxContentProvider(this.textModelService, this.modelService, this.languageService));
 	}
 
 	dispose(): void {
@@ -633,14 +652,5 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$onDidChangeHistoryProviderCurrentHistoryItemGroup(historyItemGroup);
-	}
-
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		const model = this.modelService.getModel(resource);
-		if (model) {
-			return model;
-		}
-
-		return this.modelService.createModel('', this.languageService.createById('scminput'), resource);
 	}
 }
