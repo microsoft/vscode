@@ -68,7 +68,6 @@ export const enum TestCommandId {
 	CoverageFilterToTest = 'testing.coverageFilterToTest',
 	CoverageLastRun = 'testing.coverageLastRun',
 	CoverageSelectedAction = 'testing.coverageSelected',
-	CoverageToggleToolbar = 'testing.coverageToggleToolbar',
 	CoverageViewChangeSorting = 'testing.coverageViewChangeSorting',
 	DebugAction = 'testing.debug',
 	DebugAllAction = 'testing.debugAll',
