@@ -93,6 +93,11 @@ declare module 'vscode' {
 		constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
 	}
 
+	/**
+	 * Represents a language model for making chat requests.
+	 *
+	 * @see {@link lm.selectChatModels}
+	 */
 	// TODO@API name LanguageModelChatEndpoint
 	export interface LanguageModelChat {
 		/**
@@ -102,18 +107,21 @@ declare module 'vscode' {
 
 		/**
 		 * A well-know identifier of the vendor of the language model, a sample is `copilot`, but
-		 * values are defined by extensions contributing chat model and need to be looked up with them.
+		 * values are defined by extensions contributing chat models and need to be looked up with them.
 		 */
 		readonly vendor: string;
+
 		/**
 		 * Human-readable name of the language model.
 		 */
 		readonly name: string;
+
 		/**
 		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
 		 * but they are defined by extensions contributing languages and subject to change.
 		 */
 		readonly family: string;
+
 		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
 		 * and subject to change while the identifier is stable.
@@ -129,14 +137,10 @@ declare module 'vscode' {
 		/**
 		 * Make a chat request using a language model.
 		 *
-		 * - *Note 1:* language model use may be subject to access restrictions and user consent. Calling this function
+		 * *Note* that language model use may be subject to access restrictions and user consent. Calling this function
 		 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
 		 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
 		 * to check if they have the necessary permissions to make a request.
-		 *
-		 * - *Note 2:* language models are contributed by other extensions and as they evolve and change,
-		 * the set of available language models may change over time. Therefore it is strongly recommend to check
-		 * {@link languageModels} for available values and handle missing language models gracefully.
 		 *
 		 * This function will return a rejected promise if making a request to the language model is not
 		 * possible. Reasons for this can be:
@@ -196,8 +200,6 @@ declare module 'vscode' {
 		 * @see {@link LanguageModelChat.id}
 		 */
 		id?: string;
-
-		// TODO@API tokens? min/max etc
 	}
 
 	/**
@@ -211,11 +213,6 @@ declare module 'vscode' {
 	export class LanguageModelError extends Error {
 
 		/**
-		 * The language model does not exist.
-		 */
-		static NotFound(message?: string): LanguageModelError;
-
-		/**
 		 * The requestor does not have permissions to use this
 		 * language model
 		 */
@@ -225,6 +222,11 @@ declare module 'vscode' {
 		 * The requestor is blocked from using this language model.
 		 */
 		static Blocked(message?: string): LanguageModelError;
+
+		/**
+		 * The language model does not exist.
+		 */
+		static NotFound(message?: string): LanguageModelError;
 
 		/**
 		 * A code that identifies this error.
@@ -266,8 +268,11 @@ declare module 'vscode' {
 		export const onDidChangeChatModels: Event<void>;
 
 		/**
-		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models
-		 * and extension must handle these cases, esp when no chat model exists.
+		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models and
+		 * extensions must handle these cases, esp. when no chat model exists, gracefully.
+		 *
+		 * *Note* that extensions can hold-on to the results returned by this function and use them later. However, whenever the
+		 * {@link onDidChangeChatModels}-event is fired the list of chat models might have changed and extensions should re-query.
 		 *
 		 * @param selector A chat model selector. When omitted all chat models are returned.
 		 * @returns An array of chat models or `undefined` when no chat model was selected.
