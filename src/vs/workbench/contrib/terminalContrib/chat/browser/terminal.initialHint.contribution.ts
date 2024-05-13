@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import type { Terminal as RawXtermTerminal, IDecoration, ITerminalAddon } from '@xterm/xterm';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -83,13 +83,14 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 	) {
 		super();
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		if (this._terminalService.instances.length !== 1) {
+		if (this._terminalGroupService.instances.length + this._terminalEditorService.instances.length !== 1) {
 			// only show for the first terminal
 			return;
 		}
@@ -135,7 +136,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		}
 		this._register(this._decoration);
 		this._register(this._decoration.onRender((e) => {
-			if (!this._hintWidget && this._xterm?.isFocused && this._terminalService.instances.length === 1) {
+			if (!this._hintWidget && this._xterm?.isFocused && this._terminalGroupService.instances.length + this._terminalEditorService.instances.length === 1) {
 				const chatProviders = [...this._inlineChatService.getAllProvider()];
 				if (chatProviders?.length) {
 					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
@@ -146,6 +147,11 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 					}
 					e.appendChild(this._hintWidget);
 					e.classList.add('terminal-initial-hint');
+					const font = this._xterm.getFont();
+					if (font) {
+						e.style.fontFamily = font.fontFamily;
+						e.style.fontSize = font.fontSize + 'px';
+					}
 				}
 			}
 			if (this._hintWidget && this._xterm) {
