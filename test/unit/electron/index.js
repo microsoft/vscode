@@ -41,12 +41,13 @@ const minimist = require('minimist');
  * coverage: boolean;
  * coveragePath: string;
  * coverageFormats: string | string[];
+ * 'per-test-coverage': boolean;
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
 	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
-	boolean: ['build', 'coverage', 'help', 'dev'],
+	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
 		'runGlob': ['glob', 'runGrep'],
@@ -68,10 +69,11 @@ Options:
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
+--per-test-coverage           generate a per-test V8 coverage report, only valid with the full-json-stream reporter
 --dev, --dev-tools, --devTools <window> open dev tools, keep window open, reuse app data
 --reporter <reporter>         the mocha reporter (default: "spec")
---reporter-options <options> the mocha reporter options (default: "")
---waitServer <port>          port to connect to and wait before running tests
+--reporter-options <options>  the mocha reporter options (default: "")
+--waitServer <port>           port to connect to and wait before running tests
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --tfs <url>                   TFS server URL
@@ -160,7 +162,7 @@ function deserializeError(err) {
 
 class IPCRunner extends events.EventEmitter {
 
-	constructor() {
+	constructor(win) {
 		super();
 
 		this.didFail = false;
@@ -183,6 +185,34 @@ class IPCRunner extends events.EventEmitter {
 			this.emit('fail', deserializeRunnable(test), deserializeError(err));
 		});
 		ipcMain.on('pending', (e, test) => this.emit('pending', deserializeRunnable(test)));
+
+		ipcMain.handle('startCoverage', async () => {
+			win.webContents.debugger.attach();
+			await win.webContents.debugger.sendCommand('Debugger.enable');
+			await win.webContents.debugger.sendCommand('Profiler.enable');
+			await win.webContents.debugger.sendCommand('Profiler.startPreciseCoverage', {
+				detailed: true,
+				allowTriggeredUpdates: false,
+			});
+		});
+
+		const coverageScriptsReported = new Set();
+		ipcMain.handle('snapshotCoverage', async (_, test) => {
+			const coverage = await win.webContents.debugger.sendCommand('Profiler.takePreciseCoverage');
+			await Promise.all(coverage.result.map(async (r) => {
+				if (!coverageScriptsReported.has(r.scriptId)) {
+					coverageScriptsReported.add(r.scriptId);
+					const src = await win.webContents.debugger.sendCommand('Debugger.getScriptSource', { scriptId: r.scriptId });
+					r.source = src.scriptSource;
+				}
+			}));
+
+			if (!test) {
+				this.emit('coverage init', coverage);
+			} else {
+				this.emit('coverage increment', test, coverage);
+			}
+		});
 	}
 }
 
@@ -274,7 +304,7 @@ app.on('ready', () => {
 
 	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
 
-	const runner = new IPCRunner();
+	const runner = new IPCRunner(win);
 	createStatsCollector(runner);
 
 	// Handle renderer crashes, #117068

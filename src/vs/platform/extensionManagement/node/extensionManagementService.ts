@@ -29,7 +29,8 @@ import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVer
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
 	Metadata, InstallOptions,
-	IProductVersion
+	IProductVersion,
+	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
@@ -967,7 +968,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 
 	private async download(metadata: Metadata, token: CancellationToken): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
 		try {
-			return await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature);
+			return await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature, this.options.context?.[EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT]);
 		} catch (error) {
 			this.logService.info(`Failed downloading. Retry again...`, this.gallery.identifier.id);
 			type RetryDownloadingVSIXClassification = {

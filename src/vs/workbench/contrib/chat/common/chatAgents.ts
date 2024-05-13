@@ -57,6 +57,7 @@ export namespace ChatAgentLocation {
 export interface IChatAgentData {
 	id: string;
 	name: string;
+	fullName?: string;
 	description?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
@@ -100,7 +101,6 @@ export interface IChatAgentMetadata {
 	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
 	isSecondary?: boolean; // Invoked by ctrl/cmd+enter
-	fullName?: string;
 	icon?: URI;
 	iconDark?: URI;
 	themeIcon?: ThemeIcon;
@@ -335,6 +335,7 @@ export class MergedChatAgent implements IChatAgent {
 
 	get id(): string { return this.data.id; }
 	get name(): string { return this.data.name ?? ''; }
+	get fullName(): string { return this.data.fullName ?? ''; }
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }

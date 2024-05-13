@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import 'vs/css!./media/chatConfirmationWidget';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -25,6 +26,10 @@ export class ChatConfirmationWidget extends Disposable {
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
 		return this._domNode;
+	}
+
+	setShowButtons(showButton: boolean): void {
+		this.domNode.classList.toggle('hideButtons', !showButton);
 	}
 
 	constructor(
