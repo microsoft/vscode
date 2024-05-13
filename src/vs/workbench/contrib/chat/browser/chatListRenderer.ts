@@ -456,7 +456,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				: data.kind === 'markdownContent'
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
-						: data.kind === 'progressTask' ? this.renderProgressTask(data, !data.deferred.isSettled, element, templateData)
+						: data.kind === 'progressTask' ? this.renderProgressTask(data, false, element, templateData)
 							: data.kind === 'command' ? this.renderCommandButton(element, data)
 								: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
 									: data.kind === 'warning' ? this.renderNotification('warning', data.content)
