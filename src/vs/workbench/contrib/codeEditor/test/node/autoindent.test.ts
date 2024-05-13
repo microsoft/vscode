@@ -18,10 +18,6 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { execSync } from 'child_process';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -36,12 +32,7 @@ const enum LanguageId {
 	TypeScript = 'ts-test'
 }
 
-function registerLanguage(instantiationService: TestInstantiationService, languageId: LanguageId): IDisposable {
-	const languageService = instantiationService.get(ILanguageService)
-	return languageService.registerLanguage({ id: languageId });
-}
-
-function registerLanguageConfiguration(languageConfigurationService: ILanguageConfigurationService, languageId: LanguageId): IDisposable {
+function registerLanguage(languageConfigurationService: ILanguageConfigurationService, languageId: LanguageId): IDisposable {
 	let configPath: string;
 	switch (languageId) {
 		case LanguageId.TypeScript:
@@ -56,33 +47,6 @@ function registerLanguageConfiguration(languageConfigurationService: ILanguageCo
 	return languageConfigurationService.register(languageId, languageConfig);
 }
 
-interface TokenData {
-	startIndex: number;
-	value: number
-}
-
-function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: TokenData[][], languageId: string): IDisposable {
-	let lineIndex = 0;
-	const languageService = instantiationService.get(ILanguageService);
-	const tokenizationSupport: ITokenizationSupport = {
-		getInitialState: () => NullState,
-		tokenize: undefined!,
-		tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-			const tokensOnLine = tokens[lineIndex++];
-			const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
-			const result = new Uint32Array(2 * tokensOnLine.length);
-			for (let i = 0; i < tokensOnLine.length; i++) {
-				result[2 * i] = tokensOnLine[i].startIndex;
-				result[2 * i + 1] =
-					((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
-						| (tokensOnLine[i].value << MetadataConsts.TOKEN_TYPE_OFFSET));
-			}
-			return new EncodedTokenizationResult(result, state);
-		}
-	};
-	return TokenizationRegistry.register(languageId, tokenizationSupport);
-}
-
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	const languageId = LanguageId.TypeScript;
@@ -94,10 +58,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
-		disposables.add(instantiationService);
-		disposables.add(registerLanguage(instantiationService, languageId));
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		disposables.add(registerLanguage(languageConfigurationService, languageId));
 	});
 
 	teardown(() => {
@@ -198,19 +160,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'const foo = `{`;',
 			'    ',
 		].join('\n');
-		const tokens: TokenData[][] = [
-			[
-				{ startIndex: 0, value: 0 }, { startIndex: 5, value: 0 }, { startIndex: 6, value: 0 },
-				{ startIndex: 9, value: 0 }, { startIndex: 10, value: 0 }, { startIndex: 11, value: 0 },
-				{ startIndex: 12, value: 2 }, { startIndex: 13, value: 2 }, { startIndex: 14, value: 2 },
-				{ startIndex: 15, value: 0 }, { startIndex: 16, value: 0 }
-			],
-			[{ startIndex: 0, value: 0 }, { startIndex: 4, value: 0 }]
-		];
-		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		model.tokenization.forceTokenization(1);
-		model.tokenization.forceTokenization(2);
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
@@ -308,19 +258,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'const r = /{/;',
 			'   ',
 		].join('\n');
-		const tokens: TokenData[][] = [
-			[
-				{ startIndex: 0, value: 0 }, { startIndex: 5, value: 0 }, { startIndex: 6, value: 0 },
-				{ startIndex: 7, value: 0 }, { startIndex: 8, value: 0 }, { startIndex: 9, value: 3 },
-				{ startIndex: 10, value: 3 }, { startIndex: 11, value: 3 }, { startIndex: 12, value: 3 },
-				{ startIndex: 13, value: 0 }, { startIndex: 14, value: 0 }
-			],
-			[{ startIndex: 0, value: 0 }, { startIndex: 4, value: 0 }]
-		];
-		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		model.tokenization.forceTokenization(1);
-		model.tokenization.forceTokenization(2);
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
