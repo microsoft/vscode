@@ -76,7 +76,7 @@ const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGR
 type VoiceChatSessionContext = 'inline' | 'terminal' | 'quick' | 'view' | 'editor';
 
 enum VoiceChatSessionState {
-	Stopped,
+	Stopped = 1,
 	GettingReady,
 	Started
 }
