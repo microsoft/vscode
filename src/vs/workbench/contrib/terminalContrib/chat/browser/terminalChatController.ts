@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { GeneratingPhrase, IChatAccessibilityService, IChatCodeBlockContextProviderService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatUserAction, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatUserAction, IChatProgress, IChatService, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -136,7 +136,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				if (e.action.kind === 'bug') {
 					this.acceptFeedback(undefined);
 				} else if (e.action.kind === 'vote') {
-					this.acceptFeedback(e.action.direction === InteractiveSessionVoteDirection.Up);
+					this.acceptFeedback(e.action.direction === ChatAgentVoteDirection.Up);
 				}
 			}
 		}));
@@ -183,7 +183,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			action = { kind: 'bug' };
 		} else {
 			this._sessionResponseVoteContextKey.set(helpful ? 'up' : 'down');
-			action = { kind: 'vote', direction: helpful ? InteractiveSessionVoteDirection.Up : InteractiveSessionVoteDirection.Down };
+			action = { kind: 'vote', direction: helpful ? ChatAgentVoteDirection.Up : ChatAgentVoteDirection.Down };
 		}
 		// TODO:extract into helper method
 		for (const request of model.getRequests()) {
