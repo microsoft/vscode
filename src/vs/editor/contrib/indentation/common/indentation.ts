@@ -8,6 +8,7 @@ import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
 import { Selection } from 'vs/editor/common/core/selection';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 
@@ -60,7 +61,8 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 	// If there is no passed-in indentation, we use the indentation of the first line as base.
 	const currentLineText = model.getLineContent(startLineNumber);
 	let adjustedLineContent = currentLineText;
-	if (inheritedIndent !== undefined && inheritedIndent !== null) {
+	const lineStartsWithString = doesLineStartWithString(model, startLineNumber);
+	if (!lineStartsWithString && inheritedIndent !== undefined) {
 		globalIndent = inheritedIndent;
 		const oldIndentation = strings.getLeadingWhitespace(currentLineText);
 
@@ -92,6 +94,9 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 
 	// Calculate indentation adjustment for all following lines
 	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+		if (doesLineStartWithString(model, lineNumber)) {
+			continue;
+		}
 		const text = model.getLineContent(lineNumber);
 		const oldIndentation = strings.getLeadingWhitespace(text);
 		const adjustedLineContent = idealIndentForNextLine + text.substring(oldIndentation.length);
@@ -121,4 +126,12 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 	}
 
 	return indentEdits;
+}
+
+function doesLineStartWithString(model: ITextModel, lineNumber: number): boolean {
+	const lineTokens = model.tokenization.getLineTokens(lineNumber);
+	if (lineTokens.getStandardTokenType(0) === StandardTokenType.String) {
+		return true;
+	}
+	return false;
 }
