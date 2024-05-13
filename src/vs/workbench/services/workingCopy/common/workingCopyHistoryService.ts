@@ -360,6 +360,7 @@ export class WorkingCopyHistoryModel {
 
 		// Move all entries into the target folder so that we preserve
 		// any existing history entries that might already be present
+
 		const sourceHistoryEntriesFolder = assertIsDefined(this.historyEntriesFolder);
 		const targetHistoryEntriesFolder = assertIsDefined(target.historyEntriesFolder);
 		try {
@@ -515,6 +516,7 @@ export class WorkingCopyHistoryModel {
 
 	private async readEntriesFile(): Promise<ISerializedWorkingCopyHistoryModel | undefined> {
 		const historyEntriesListingFile = assertIsDefined(this.historyEntriesListingFile);
+
 		let serializedModel: ISerializedWorkingCopyHistoryModel | undefined = undefined;
 		try {
 			serializedModel = JSON.parse((await this.fileService.readFile(historyEntriesListingFile)).value.toString());
