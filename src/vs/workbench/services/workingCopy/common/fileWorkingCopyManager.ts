@@ -19,6 +19,8 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopyManagerResolveOptions } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
+import { ITextContentFileWorkingCopy, ITextContentFileWorkingCopyModel, ITextContentFileWorkingCopyModelFactory, TextContentFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/textContentFileWorkingCopy';
+import { ITextContentFileWorkingCopyResolveOptions, ITextContentFileWorkingCopyManager, TextContentFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/textContentFileWorkingCopyManager';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -37,14 +39,20 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { Schemas } from 'vs/base/common/network';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { Codicon } from 'vs/base/common/codicons';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 
-export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
+export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, T extends ITextContentFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | T | U, IFileWorkingCopy<S | T | U>> {
 
 	/**
 	 * Provides access to the manager for stored file working copies.
 	 */
 	readonly stored: IStoredFileWorkingCopyManager<S>;
+
+	/**
+	 * Provides access to the manager for text content provider file working copies.
+	 */
+	readonly textContent: ITextContentFileWorkingCopyManager<T>;
 
 	/**
 	 * Provides access to the manager for untitled file working copies.
@@ -58,6 +66,9 @@ export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, 
 	 * stored file working copy per `URI` until the stored file working copy is
 	 * disposed.
 	 *
+	 * It can also be used to return a file handled by a TextContentProvider, in
+	 * which case the only options that will be considered in the resource.
+	 *
 	 * Use the `IStoredFileWorkingCopyResolveOptions.reload` option to control the
 	 * behaviour for when a stored file working copy was previously already resolved
 	 * with regards to resolving it again from the underlying file resource
@@ -69,7 +80,7 @@ export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, 
 	 * case one is already known for this `URI`.
 	 * @param options
 	 */
-	resolve(resource: URI, options?: IStoredFileWorkingCopyManagerResolveOptions): Promise<IStoredFileWorkingCopy<S>>;
+	resolve(resource: URI, options?: IStoredFileWorkingCopyManagerResolveOptions): Promise<IStoredFileWorkingCopy<S> | ITextContentFileWorkingCopy<T>>;
 
 	/**
 	 * Create a new untitled file working copy with optional initial contents.
@@ -131,21 +142,24 @@ export interface IFileWorkingCopySaveAsOptions extends ISaveOptions {
 	suggestedTarget?: URI;
 }
 
-export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends Disposable implements IFileWorkingCopyManager<S, U> {
+export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, T extends ITextContentFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends Disposable implements IFileWorkingCopyManager<S, T, U> {
 
-	readonly onDidCreate: Event<IFileWorkingCopy<S | U>>;
+	readonly onDidCreate: Event<IFileWorkingCopy<S | T | U>>;
 
 	private static readonly FILE_WORKING_COPY_SAVE_CREATE_SOURCE = SaveSourceRegistry.registerSource('fileWorkingCopyCreate.source', localize('fileWorkingCopyCreate.source', "File Created"));
 	private static readonly FILE_WORKING_COPY_SAVE_REPLACE_SOURCE = SaveSourceRegistry.registerSource('fileWorkingCopyReplace.source', localize('fileWorkingCopyReplace.source', "File Replaced"));
 
 	readonly stored: IStoredFileWorkingCopyManager<S>;
+	readonly textContent: ITextContentFileWorkingCopyManager<T>;
 	readonly untitled: IUntitledFileWorkingCopyManager<U>;
 
 	constructor(
 		private readonly workingCopyTypeId: string,
 		private readonly storedWorkingCopyModelFactory: IStoredFileWorkingCopyModelFactory<S>,
+		private readonly textContentWorkingCopyModelFactory: ITextContentFileWorkingCopyModelFactory<T>,
 		private readonly untitledWorkingCopyModelFactory: IUntitledFileWorkingCopyModelFactory<U>,
 		@IFileService private readonly fileService: IFileService,
+		@ITextModelService textModelService: ITextModelService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILabelService labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
@@ -175,6 +189,18 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			notificationService, workingCopyEditorService, editorService, elevatedFileService
 		));
 
+		// TextContentProvider file working copies manager
+		this.textContent = this._register(new TextContentFileWorkingCopyManager(
+			this.workingCopyTypeId,
+			this.textContentWorkingCopyModelFactory,
+			async (workingCopy, options) => {
+				const result = await this.saveAs(workingCopy.resource, undefined, options);
+
+				return result ? true : false;
+			},
+			fileService, textModelService, labelService, logService, workingCopyBackupService, workingCopyService
+		));
+
 		// Untitled file working copies manager
 		this.untitled = this._register(new UntitledFileWorkingCopyManager(
 			this.workingCopyTypeId,
@@ -188,7 +214,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		));
 
 		// Events
-		this.onDidCreate = Event.any<IFileWorkingCopy<S | U>>(this.stored.onDidCreate, this.untitled.onDidCreate);
+		this.onDidCreate = Event.any<IFileWorkingCopy<S | T | U>>(this.stored.onDidCreate, this.untitled.onDidCreate);
 
 		// Decorations
 		this.provideDecorations();
@@ -304,8 +330,13 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			}
 
 			// else: via stored file manager
-			else {
+			else if (this.fileService.hasProvider(arg1)) {
 				return this.stored.resolve(arg1, arg2);
+			}
+
+			// else: try the TextConventProvider
+			else {
+				return this.textContent.resolve(arg1, arg2);
 			}
 		}
 

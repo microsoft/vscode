@@ -27,7 +27,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>>();
+	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>>();
 	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
 
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
@@ -71,9 +71,10 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 		if (!workingCopyManager) {
 			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService, this._configurationService, this._telemetryService);
-			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
+			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
 				FileWorkingCopyManager,
 				workingCopyTypeId,
+				factory,
 				factory,
 				factory,
 			);

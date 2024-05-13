@@ -11,8 +11,10 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
+import { isReadableStream } from 'vs/base/common/stream';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { ITextBuffer } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWriteFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,7 +26,8 @@ import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } fro
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileWorkingCopyModelConfiguration, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState, isStoredFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { ITextContentFileWorkingCopy, ITextContentFileWorkingCopyModel, ITextContentFileWorkingCopyModelContentChangedEvent, ITextContentFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/textContentFileWorkingCopy';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
@@ -44,7 +47,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
 	readonly onDidRevertUntitled: Event<void> = this._onDidRevertUntitled.event;
 
-	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
+	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | ITextContentFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = this._register(new DisposableStore());
 	private readonly scratchPad: boolean;
 
@@ -52,7 +55,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
-		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
+		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		scratchpad: boolean,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
 	) {
@@ -142,9 +145,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 					limits: options?.limits,
 					reload: options?.forceReadFromFile ? { async: false, force: true } : undefined
 				});
-				this._workingCopyListeners.add(this._workingCopy.onDidSave(e => this._onDidSave.fire(e)));
-				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
-				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
+				if (isStoredFileWorkingCopy(this._workingCopy)) {
+					this._workingCopyListeners.add(this._workingCopy.onDidSave(e => this._onDidSave.fire(e)));
+					this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
+					this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
+				}
 			}
 			this._workingCopyListeners.add(this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined));
 
@@ -183,9 +188,9 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 }
 
-export class NotebookFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
+export class NotebookFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel, ITextContentFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
 
-	private readonly _onDidChangeContent = this._register(new Emitter<IStoredFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>());
+	private readonly _onDidChangeContent = this._register(new Emitter<IStoredFileWorkingCopyModelContentChangedEvent & ITextContentFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	readonly onWillDispose: Event<void>;
@@ -352,7 +357,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel> {
+export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, ITextContentFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel> {
 
 	constructor(
 		private readonly _viewType: string,

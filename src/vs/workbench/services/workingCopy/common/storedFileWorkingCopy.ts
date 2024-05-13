@@ -167,6 +167,11 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	save(options?: IStoredFileWorkingCopySaveAsOptions): Promise<boolean>;
 }
 
+export function isStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel>(workingCopy: IFileWorkingCopy<M>): workingCopy is IStoredFileWorkingCopy<M> {
+	// TODO - DO_NOT_SUBMIT - Make this stricter...
+	return !!(workingCopy as IStoredFileWorkingCopy<M>).onDidChangeReadonly;
+}
+
 export interface IResolvedStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IStoredFileWorkingCopy<M> {
 
 	/**

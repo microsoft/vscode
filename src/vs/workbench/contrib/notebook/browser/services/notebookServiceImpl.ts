@@ -16,6 +16,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -60,6 +61,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@IUriIdentityService private readonly uriIdentService: IUriIdentityService,
 	) {
@@ -173,7 +175,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			};
 			const notebookEditorOptions = {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookSetting.textDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
-				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource)
+				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource) || this.textModelService.canHandleResource(resource),
 			};
 			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
 				const data = CellUri.parse(resource);
