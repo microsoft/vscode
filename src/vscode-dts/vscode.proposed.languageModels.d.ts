@@ -8,49 +8,7 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/206265
 
 	/**
-	 * Represents a language model response.
-	 *
-	 * @see {@link LanguageModelAccess.chatRequest}
-	 */
-	export interface LanguageModelChatResponse {
-
-		/**
-		 * An async iterable that is a stream of text chunks forming the overall response.
-		 *
-		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of
-		 * the stream should handle the errors accordingly.
-		 *
-		 * @example
-		 * ```ts
-		 * try {
-		 *   // consume stream
-		 *   for await (const chunk of response.stream) {
-		 *    console.log(chunk);
-		 *   }
-		 *
-		 * } catch(e) {
-		 *   // stream ended with an error
-		 *   console.error(e);
-		 * }
-		 * ```
-		 */
-		stream: AsyncIterable<string>;
-	}
-
-	//TODO@API give this some structure
-	// https://github.com/openai/openai-openapi/blob/master/openapi.yaml#L7700, https://platform.openai.com/docs/guides/text-generation/chat-completions-api
-	// https://github.com/ollama/ollama/blob/main/docs/api.md#response-7
-	// https://docs.anthropic.com/claude/reference/messages_post
-	export interface LanguageModelChatResponse2 {
-
-		message: {
-			role: LanguageModelChatMessageRole.Assistant;
-			content: AsyncIterable<string>;
-		};
-	}
-
-	/**
-	 * Represents the role of a chat message. This is either the user or the assistant/model.
+	 * Represents the role of a chat message. This is either the user or the assistant.
 	 */
 	export enum LanguageModelChatMessageRole {
 		/**
@@ -68,6 +26,23 @@ declare module 'vscode' {
 	 * Represents a message in a chat. Can assume different roles, like user or assistant.
 	 */
 	export class LanguageModelChatMessage {
+
+		/**
+		 * Utility to create a new user message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static User(content: string, name?: string): LanguageModelChatMessage;
+
+		/**
+		 * Utility to create a new assistant message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static Assistant(content: string, name?: string): LanguageModelChatMessage;
+
 		/**
 		 * The role of this message.
 		 */
@@ -94,11 +69,41 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a language model response.
+	 *
+	 * @see {@link LanguageModelAccess.chatRequest}
+	*/
+	// TODO@API add something like `modelResult: Thenable<{ [name: string]: any }>`
+	export interface LanguageModelChatResponse {
+
+		/**
+		 * An async iterable that is a stream of text chunks forming the overall response.
+		 *
+		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of
+		 * the stream should handle the errors accordingly.
+		 *
+		 * @example
+		 * ```ts
+		 * try {
+		 *   // consume stream
+		 *   for await (const chunk of response.stream) {
+		 *    console.log(chunk);
+		 *   }
+		 *
+		 * } catch(e) {
+		 *   // stream ended with an error
+		 *   console.error(e);
+		 * }
+		 * ```
+		 */
+		stream: AsyncIterable<string>;
+	}
+
+	/**
 	 * Represents a language model for making chat requests.
 	 *
 	 * @see {@link lm.selectChatModels}
 	 */
-	// TODO@API name LanguageModelChatEndpoint
 	export interface LanguageModelChat {
 		/**
 		 * Opaque identifier of the language model.
@@ -124,7 +129,7 @@ declare module 'vscode' {
 
 		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
-		 * and subject to change while the identifier is stable.
+		 * and subject to change.
 		 */
 		readonly version: string;
 
@@ -158,16 +163,13 @@ declare module 'vscode' {
 		sendRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		/**
-		 * Uses the model specific tokenzier and computes the length in tokens of a given message.
-		 *
+		 * Count the number of tokens in a message using the model specific tokenizer-logic.
+
 		 * @param text A string or a message instance.
-		 * @param token Optional cancellation token.
-		 * @returns A thenable that resolves to the length of the message in tokens.
+		 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+		 * @returns A thenable that resolves to the number of tokens.
 		 */
-		// TODO@API `undefined` when the language model does not support computing token length
-		// ollama has nothing
-		// anthropic suggests to count after the fact https://github.com/anthropics/anthropic-tokenizer-typescript?tab=readme-ov-file#anthropic-typescript-tokenizer
-		computeTokenLength(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number | undefined>;
+		countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
 	}
 
 	/**
@@ -295,7 +297,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that calling this function will not trigger a consent UI but just checks.
 		 *
-		 * @param languageModelId A language model identifier.
+		 * @param languageModelId A language model identifier, see {@link LanguageModelChat.id}
 		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
 		 * model does not exist or consent hasn't been asked for.
 		 */
