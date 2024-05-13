@@ -185,9 +185,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			// h: glyphHeight,
 		};
 
-		// TODO: Keeping track of the slab's x and y could allow variable sized slabs and less waste
-		// TODO: The unused rectangle at the bottom and side of a slab could house micro glyphs like `.`
-
 		const slabW = 64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1); // this._canvas.width / 8;
 		const slabH = slabW; // this._canvas.height / 8;
 		const slabsPerRow = Math.floor(this._canvas.width / slabW);
@@ -279,7 +276,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 						y: slab.y,
 						h: slabH - (unusedH ?? 0)
 					});
-					console.log('new unused (W)', this._unusedRects.at(-1));
 				}
 				if (unusedH) {
 					this._unusedRects.push({
@@ -288,7 +284,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 						y: slab.y + slabH - unusedH,
 						h: unusedH
 					});
-					console.log('new unused (H)', this._unusedRects.at(-1));
 				}
 				this._slabs.push(slab);
 				this._activeSlabsByDims.set(desiredSlabSize.w, desiredSlabSize.h, slab);
@@ -304,7 +299,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 		// Draw glyph
 		// TODO: Prefer putImageData as it doesn't do blending or scaling
-		console.log('dx dy', dx, dy);
 		this._ctx.drawImage(
 			rasterizedGlyph.source,
 			// source
@@ -348,9 +342,12 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 		let slabEntryPixels = 0;
 		let usedPixels = 0;
+		let slabEdgePixels = 0;
 		let wastedPixels = 0;
+		let restrictedPixels = 0;
 		const totalPixels = w * h;
 		const slabW = 64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1);
+		const slabH = slabW;
 
 		// Draw wasted underneath glyphs first
 		for (const slab of this._slabs) {
@@ -364,9 +361,14 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 				// TODO: This doesn't visualize wasted space between entries - draw glyphs on top?
 				ctx.fillStyle = '#FF0000';
 				ctx.fillRect(slab.x + x, slab.y + y, slab.entryW, slab.entryH);
+
 				slabEntryPixels += slab.entryW * slab.entryH;
 				x += slab.entryW;
 			}
+			const entriesPerRow = Math.floor(slabW / slab.entryW);
+			const entriesPerCol = Math.floor(slabH / slab.entryH);
+			const thisSlabPixels = slab.entryW * entriesPerRow * slab.entryH * entriesPerCol;
+			slabEdgePixels += (slabW * slabH) - thisSlabPixels;
 		}
 
 		// Draw glyphs
@@ -376,28 +378,35 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			ctx.fillRect(g.x, g.y, g.w, g.h);
 		}
 
-		// Draw unused space on side (currently wasted)
+		// Draw unused space on side
 		for (const r of this._unusedRects) {
-			// TODO: Unused space claimed by unused rects isn't handled
-			ctx.fillStyle = '#FF0000';
+			ctx.fillStyle = '#FF000080';
 			ctx.fillRect(r.x, r.y, r.w, r.h);
+			restrictedPixels += r.w * r.h;
 		}
+
+		const edgeUsedPixels = slabEdgePixels - restrictedPixels;
+		console.log({ edgeUsedPixels, slabEdgePixels, restrictedPixels });
+		wastedPixels = slabEntryPixels - (usedPixels - edgeUsedPixels);
+
 
 		// Overlay actual glyphs on top
 		ctx.globalAlpha = 0.5;
 		ctx.drawImage(this._canvas, 0, 0);
 		ctx.globalAlpha = 1;
 
-		wastedPixels = slabEntryPixels - usedPixels;
-		const efficiency = usedPixels / (usedPixels + wastedPixels);
+		// usedPixels += slabEdgePixels - restrictedPixels;
+		const efficiency = usedPixels / (usedPixels + wastedPixels + restrictedPixels);
 
 		// Report stats
 		console.log([
 			`Texture atlas stats:`,
-			`     Total: ${totalPixels}`,
-			`      Used: ${usedPixels} (${((usedPixels / totalPixels) * 100).toPrecision(2)}%)`,
-			`    Wasted: ${wastedPixels} (${((wastedPixels / totalPixels) * 100).toPrecision(2)}%)`,
-			`Efficiency: ${efficiency === 1 ? '100' : (efficiency * 100).toPrecision(2)}%`,
+			`     Total: ${totalPixels}px`,
+			`      Used: ${usedPixels}px (${((usedPixels / totalPixels) * 100).toFixed(2)}%)`,
+			`    Wasted: ${wastedPixels}px (${((wastedPixels / totalPixels) * 100).toFixed(2)}%)`,
+			`Restricted: ${restrictedPixels}px (${((restrictedPixels / totalPixels) * 100).toFixed(2)}%) (hard to allocate)`,
+			`Efficiency: ${efficiency === 1 ? '100' : (efficiency * 100).toFixed(2)}%`,
+			`     Slabs: ${this._slabs.length} of ${Math.floor(this._canvas.width / slabW) * Math.floor(this._canvas.height / slabH)}`
 		].join('\n'));
 
 		return canvas.convertToBlob();

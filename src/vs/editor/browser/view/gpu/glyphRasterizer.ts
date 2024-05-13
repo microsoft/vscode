@@ -41,19 +41,17 @@ export class GlyphRasterizer extends Disposable {
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
 		// TODO: Hot path: Reuse object
 		const boundingBox = this._findGlyphBoundingBox(imageData);
-		const offset = {
-			x: textMetrics.actualBoundingBoxLeft,
-			y: textMetrics.actualBoundingBoxAscent
-		};
-		const size = {
-			w: textMetrics.actualBoundingBoxRight + textMetrics.actualBoundingBoxLeft,
-			y: textMetrics.actualBoundingBoxDescent + textMetrics.actualBoundingBoxAscent,
-			wInt: Math.ceil(textMetrics.actualBoundingBoxRight + textMetrics.actualBoundingBoxLeft),
-			yInt: Math.ceil(textMetrics.actualBoundingBoxDescent + textMetrics.actualBoundingBoxAscent),
-		};
-
-		console.log(`${chars}_${fg}`, textMetrics, boundingBox, originX, originY, { width: boundingBox.right - boundingBox.left, height: boundingBox.bottom - boundingBox.top });
-		console.log('new', offset, size);
+		// const offset = {
+		// 	x: textMetrics.actualBoundingBoxLeft,
+		// 	y: textMetrics.actualBoundingBoxAscent
+		// };
+		// const size = {
+		// 	w: textMetrics.actualBoundingBoxRight + textMetrics.actualBoundingBoxLeft,
+		// 	y: textMetrics.actualBoundingBoxDescent + textMetrics.actualBoundingBoxAscent,
+		// 	wInt: Math.ceil(textMetrics.actualBoundingBoxRight + textMetrics.actualBoundingBoxLeft),
+		// 	yInt: Math.ceil(textMetrics.actualBoundingBoxDescent + textMetrics.actualBoundingBoxAscent),
+		// };
+		// console.log(`${chars}_${fg}`, textMetrics, boundingBox, originX, originY, { width: boundingBox.right - boundingBox.left, height: boundingBox.bottom - boundingBox.top });
 		const result: IRasterizedGlyph = {
 			source: this._canvas,
 			boundingBox,
