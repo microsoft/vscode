@@ -14,6 +14,8 @@ export interface ITextureAtlasAllocator {
 	getUsagePreview(): Promise<Blob>;
 }
 
+// #region Shelf allocator
+
 export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 	private _currentRow: ITextureAtlasShelf = {
 		x: 0,
@@ -133,3 +135,132 @@ interface ITextureAtlasShelf {
 	y: number;
 	h: number;
 }
+
+// #endregion
+
+// #region Slab allocator
+
+export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
+	// TODO: Is there a better way to index slabs other than an unsorted list?
+	private _slabs: ITextureAtlasSlab[] = [];
+	private _activeSlabsByDims: TwoKeyMap<number, number, ITextureAtlasSlab> = new TwoKeyMap();
+
+	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
+
+	private _nextIndex = 0;
+
+	constructor(
+		private readonly _canvas: OffscreenCanvas,
+		private readonly _ctx: OffscreenCanvasRenderingContext2D,
+	) {
+	}
+
+	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph {
+		// Find ideal slab, creating it if there is none suitable
+
+		// Slabs are sized: 1x1, 1x2, 1x4, 1x8, ...
+		//                  2x1, 2x2, 2x4, 2x8, ...
+		//                  4x1, 4x2, 4x4, 4x8, ...
+		//                  ...
+		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
+		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
+		const desiredSlabSize = {
+			// TODO: This can probably be optimized
+			w: 1 << Math.ceil(Math.sqrt(glyphWidth)),
+			h: 1 << Math.ceil(Math.sqrt(glyphHeight)),
+
+			// w: glyphWidth % 0 === 1 ? glyphWidth + 1 : glyphWidth,
+			// h: glyphHeight % 0 === 1 ? glyphHeight + 1 : glyphHeight,
+
+			// w: glyphWidth,
+			// h: glyphHeight,
+		};
+
+		const slabW = 256; // this._canvas.width / 8;
+		const slabH = 256; // this._canvas.height / 8;
+		const slabsPerRow = Math.floor(this._canvas.width / slabW);
+
+		let slab = this._activeSlabsByDims.get(desiredSlabSize.w, desiredSlabSize.h);
+		if (!slab) {
+			slab = {
+				x: Math.floor(this._slabs.length % slabsPerRow) * slabW,
+				y: Math.floor(this._slabs.length / slabsPerRow) * slabH,
+				entryW: desiredSlabSize.w,
+				entryH: desiredSlabSize.h,
+				count: 0
+			};
+			// console.log('new slab (full slab)', slab);
+			this._slabs.push(slab);
+			this._activeSlabsByDims.set(desiredSlabSize.w, desiredSlabSize.h, slab);
+		}
+
+		// Create another slab if this one is full
+		const glyphsPerSlab = Math.floor(slabW / slab.entryW) * Math.floor(slabH / slab.entryH);
+		if (slab.count >= glyphsPerSlab) {
+			slab = {
+				x: Math.floor(this._slabs.length % slabsPerRow) * slabW,
+				y: Math.floor(this._slabs.length / slabsPerRow) * slabH,
+				entryW: desiredSlabSize.w,
+				entryH: desiredSlabSize.h,
+				count: 0
+			};
+			// console.log('new slab (full slab)', slab);
+			this._slabs.push(slab);
+			this._activeSlabsByDims.set(desiredSlabSize.w, desiredSlabSize.h, slab);
+		}
+
+		// Draw glyph
+		// TODO: Prefer putImageData as it doesn't do blending or scaling
+		const glyphsPerRow = Math.floor(slabW / slab.entryW);
+		const dx = slab.x + Math.floor(slab.count % glyphsPerRow) * slab.entryW;
+		const dy = slab.y + Math.floor(slab.count / glyphsPerRow) * slab.entryH;
+		console.log('dx dy', dx, dy);
+		this._ctx.drawImage(
+			rasterizedGlyph.source,
+			// source
+			rasterizedGlyph.boundingBox.left,
+			rasterizedGlyph.boundingBox.top,
+			glyphWidth,
+			glyphHeight,
+			// destination
+			dx,
+			dy,
+			glyphWidth,
+			glyphHeight
+		);
+
+		// Create glyph object
+		const glyph: ITextureAtlasGlyph = {
+			index: this._nextIndex++,
+			x: dx,
+			y: dy,
+			w: glyphWidth,
+			h: glyphHeight,
+			originOffsetX: rasterizedGlyph.originOffset.x,
+			originOffsetY: rasterizedGlyph.originOffset.y
+		};
+
+		// Shift current row
+		slab.count++;
+
+		// Set the glyph
+		this.glyphMap.set(chars, tokenFg, glyph);
+
+		return glyph;
+	}
+
+	public getUsagePreview(): Promise<Blob> {
+		// TODO: Impl
+		return this._canvas.convertToBlob();
+	}
+}
+
+interface ITextureAtlasSlab {
+	x: number;
+	y: number;
+	entryH: number;
+	entryW: number;
+	count: number;
+}
+
+// #endregion

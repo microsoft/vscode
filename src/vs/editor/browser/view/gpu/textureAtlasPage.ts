@@ -9,7 +9,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/glyphRasterizer';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { TwoKeyMap } from 'vs/editor/browser/view/gpu/multiKeyMap';
-import { ITextureAtlasAllocator, TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/textureAtlasAllocator';
+import { ITextureAtlasAllocator, TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/textureAtlasAllocator';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -62,7 +62,8 @@ export class TextureAtlasPage extends Disposable {
 			this._colorMap = this._themeService.getColorTheme().tokenColorMap;
 		}));
 
-		this._allocator = new TextureAtlasShelfAllocator(this._canvas, this._ctx);
+		// this._allocator = new TextureAtlasShelfAllocator(this._canvas, this._ctx);
+		this._allocator = new TextureAtlasSlabAllocator(this._canvas, this._ctx);
 
 		// Reduce impact of a memory leak if this object is not released
 		this._register(toDisposable(() => {
