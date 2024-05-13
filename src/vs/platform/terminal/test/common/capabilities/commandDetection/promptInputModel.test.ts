@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { PromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
-import { Emitter } from 'vs/base/common/event';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { Terminal } from '@xterm/headless';
-import { strictEqual } from 'assert';
+
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { PromptInputModel, type IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
+import { Emitter } from 'vs/base/common/event';
+import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 
 suite('PromptInputModel', () => {
@@ -32,6 +32,10 @@ suite('PromptInputModel', () => {
 
 	function fireCommandExecuted() {
 		onCommandExecuted.fire(null!);
+	}
+
+	function setContinuationPrompt(prompt: string) {
+		promptInputModel.setContinuationPrompt(prompt);
 	}
 
 	async function assertPromptInput(valueWithCursor: string) {
@@ -76,6 +80,56 @@ suite('PromptInputModel', () => {
 		await writePromise('(command output)\r\n$ ');
 		fireCommandStart();
 		await assertPromptInput('|');
+	});
+
+	test('should not fire onDidChangeInput events when nothing changes', async () => {
+		const events: IPromptInputModelState[] = [];
+		store.add(promptInputModel.onDidChangeInput(e => events.push(e)));
+
+		await writePromise('$ ');
+		fireCommandStart();
+		await assertPromptInput('|');
+
+		await writePromise('foo');
+		await assertPromptInput('foo|');
+
+		await writePromise(' bar');
+		await assertPromptInput('foo bar|');
+
+		await writePromise('\r\n');
+		fireCommandExecuted();
+		await assertPromptInput('foo bar');
+
+		await writePromise('$ ');
+		fireCommandStart();
+		await assertPromptInput('|');
+
+		await writePromise('foo bar');
+		await assertPromptInput('foo bar|');
+
+		for (let i = 0; i < events.length - 1; i++) {
+			notDeepStrictEqual(events[i], events[i + 1], 'not adjacent events should fire with the same value');
+		}
+	});
+
+	test('should fire onDidInterrupt followed by onDidFinish when ctrl+c is pressed', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		await assertPromptInput('|');
+
+		await writePromise('foo');
+		await assertPromptInput('foo|');
+
+		await new Promise<void>(r => {
+			store.add(promptInputModel.onDidInterrupt(() => {
+				// Fire onDidFinishInput immediately after onDidInterrupt
+				store.add(promptInputModel.onDidFinishInput(() => {
+					r();
+				}));
+			}));
+			xterm.input('\x03');
+			writePromise('^C').then(() => fireCommandExecuted());
+		});
 	});
 
 	test('cursor navigation', async () => {
@@ -175,6 +229,244 @@ suite('PromptInputModel', () => {
 
 		await writePromise('\x1b[D');
 		await assertPromptInput('|✌️👍\n😎😕😅\n🤔🤷😩');
+	});
+
+	suite('trailing whitespace', () => {
+		test('delete whitespace with backspace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(' ');
+			await assertPromptInput(` |`);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput('|');
+
+			xterm.input(' '.repeat(4), true);
+			await writePromise(' '.repeat(4));
+			await assertPromptInput(`    |`);
+
+			xterm.input('\x1b[D'.repeat(2), true); // Left
+			await writePromise('\x1b[2D');
+			await assertPromptInput(`  |  `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput(` |  `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput(`|  `);
+
+			xterm.input(' ', true);
+			await writePromise(' ');
+			await assertPromptInput(` |  `);
+
+			xterm.input(' ', true);
+			await writePromise(' ');
+			await assertPromptInput(`  |  `);
+
+			xterm.input('\x1b[C', true); // Right
+			await writePromise('\x1b[C');
+			await assertPromptInput(`   | `);
+
+			xterm.input('a', true);
+			await writePromise('a');
+			await assertPromptInput(`   a| `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D\x1b[K');
+			await assertPromptInput(`   | `);
+
+			xterm.input('\x1b[D'.repeat(2), true); // Left
+			await writePromise('\x1b[2D');
+			await assertPromptInput(` |   `);
+
+			xterm.input('\x1b[3~', true); // Delete
+			await writePromise('');
+			await assertPromptInput(` |  `);
+		});
+
+		// TODO: This doesn't work correctly but it doesn't matter too much as it only happens when
+		// there is a lot of whitespace at the end of a prompt input
+		test.skip('track whitespace when ConPTY deletes whitespace unexpectedly', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			xterm.input('ls', true);
+			await writePromise('ls');
+			await assertPromptInput(`ls|`);
+
+			xterm.input(' '.repeat(4), true);
+			await writePromise(' '.repeat(4));
+			await assertPromptInput(`ls    |`);
+
+			xterm.input(' ', true);
+			await writePromise('\x1b[4D\x1b[5X\x1b[5C'); // Cursor left x(N-1), delete xN, cursor right xN
+			await assertPromptInput(`ls     |`);
+		});
+
+		test('track whitespace beyond cursor', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(' '.repeat(8));
+			await assertPromptInput(`${' '.repeat(8)}|`);
+
+			await writePromise('\x1b[4D');
+			await assertPromptInput(`${' '.repeat(4)}|${' '.repeat(4)}`);
+		});
+	});
+
+	suite('multi-line', () => {
+		test('basic 2 line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
+		});
+
+		test('basic 3 line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\nb\n|`);
+
+			await writePromise('c');
+			await assertPromptInput(`echo "a\nb\nc|`);
+		});
+
+		test('navigate left in multi-line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "a\n|b`);
+
+			await writePromise('\x1b[@c');
+			await assertPromptInput(`echo "a\nc|b`);
+
+			await writePromise('\x1b[K\n\r\∙ ');
+			await assertPromptInput(`echo "a\nc\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nc\nb|`);
+
+			await writePromise(' foo');
+			await assertPromptInput(`echo "a\nc\nb foo|`);
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput(`echo "a\nc\nb |foo`);
+		});
+
+		test('navigate up in multi-line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "foo');
+			await assertPromptInput(`echo "foo|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\n|`);
+
+			await writePromise('bar');
+			await assertPromptInput(`echo "foo\nbar|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\nbar\n|`);
+
+			await writePromise('baz');
+			await assertPromptInput(`echo "foo\nbar\nbaz|`);
+
+			await writePromise('\x1b[A');
+			await assertPromptInput(`echo "foo\nbar|\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nba|r\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nb|ar\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\n|bar\nbaz`);
+
+			await writePromise('\x1b[1;9H');
+			await assertPromptInput(`echo "|foo\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "f|oo\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "fo|o\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "foo|\nbar\nbaz`);
+		});
+
+		test('navigating up when first line contains invalid/stale trailing whitespace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "foo      \x1b[6D');
+			await assertPromptInput(`echo "foo|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\n|`);
+
+			await writePromise('bar');
+			await assertPromptInput(`echo "foo\nbar|`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nba|r`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nb|ar`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\n|bar`);
+		});
 	});
 
 	// To "record a session" for these tests:

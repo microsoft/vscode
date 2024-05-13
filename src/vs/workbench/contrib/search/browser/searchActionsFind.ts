@@ -88,7 +88,7 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 			menu: [{
 				id: MenuId.SearchContext,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(Constants.SearchContext.FileFocusKey, Constants.SearchContext.FolderFocusKey),
+					Constants.SearchContext.FolderFocusKey,
 					Constants.SearchContext.HasSearchResults
 				),
 				group: 'search',
@@ -97,8 +97,8 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: any): Promise<any> {
-		await expandSelectSubtree(accessor);
+	override run(accessor: any) {
+		expandSelectSubtree(accessor);
 	}
 });
 

@@ -7,13 +7,6 @@
 
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
-const { gracefulify } = require('graceful-fs');
-const fs = require('fs');
-try {
-	gracefulify(fs);
-} catch (e) {
-	logger.log(`Error enabling graceful-fs: ${e}`);
-}
 
 const gulp = require('gulp');
 const util = require('./lib/util');

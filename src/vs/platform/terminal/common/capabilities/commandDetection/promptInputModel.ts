@@ -14,15 +14,23 @@ import { throttle } from 'vs/base/common/decorators';
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {
-	Unknown,
-	Input,
-	Execute,
+	Unknown = 0,
+	Input = 1,
+	Execute = 2,
 }
 
+/**
+ * A model of the prompt input state using shell integration and analyzing the terminal buffer. This
+ * may not be 100% accurate but provides a best guess.
+ */
 export interface IPromptInputModel {
-	readonly onDidStartInput: Event<void>;
-	readonly onDidChangeInput: Event<void>;
-	readonly onDidFinishInput: Event<void>;
+	readonly onDidStartInput: Event<IPromptInputModelState>;
+	readonly onDidChangeInput: Event<IPromptInputModelState>;
+	readonly onDidFinishInput: Event<IPromptInputModelState>;
+	/**
+	 * Fires immediately before {@link onDidFinishInput} when a SIGINT/Ctrl+C/^C is detected.
+	 */
+	readonly onDidInterrupt: Event<IPromptInputModelState>;
 
 	readonly value: string;
 	readonly cursorIndex: number;
@@ -35,12 +43,21 @@ export interface IPromptInputModel {
 	getCombinedString(): string;
 }
 
+export interface IPromptInputModelState {
+	readonly value: string;
+	readonly cursorIndex: number;
+	readonly ghostTextIndex: number;
+}
+
 export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _state: PromptInputState = PromptInputState.Unknown;
 
 	private _commandStartMarker: IMarker | undefined;
 	private _commandStartX: number = 0;
+	private _lastPromptLine: string | undefined;
 	private _continuationPrompt: string | undefined;
+
+	private _lastUserInput: string = '';
 
 	private _value: string = '';
 	get value() { return this._value; }
@@ -51,12 +68,14 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _ghostTextIndex: number = -1;
 	get ghostTextIndex() { return this._ghostTextIndex; }
 
-	private readonly _onDidStartInput = this._register(new Emitter<void>());
+	private readonly _onDidStartInput = this._register(new Emitter<IPromptInputModelState>());
 	readonly onDidStartInput = this._onDidStartInput.event;
-	private readonly _onDidChangeInput = this._register(new Emitter<void>());
+	private readonly _onDidChangeInput = this._register(new Emitter<IPromptInputModelState>());
 	readonly onDidChangeInput = this._onDidChangeInput.event;
-	private readonly _onDidFinishInput = this._register(new Emitter<void>());
+	private readonly _onDidFinishInput = this._register(new Emitter<IPromptInputModelState>());
 	readonly onDidFinishInput = this._onDidFinishInput.event;
+	private readonly _onDidInterrupt = this._register(new Emitter<IPromptInputModelState>());
+	readonly onDidInterrupt = this._onDidInterrupt.event;
 
 	constructor(
 		private readonly _xterm: Terminal,
@@ -66,18 +85,46 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	) {
 		super();
 
-		this._register(this._xterm.onData(e => this._handleInput(e)));
 		this._register(Event.any(
-			this._xterm.onWriteParsed,
 			this._xterm.onCursorMove,
+			this._xterm.onData,
+			this._xterm.onWriteParsed,
 		)(() => this._sync()));
+		this._register(this._xterm.onData(e => this._handleUserInput(e)));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
+
+		this._register(this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput')));
+		this._register(this.onDidChangeInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidChangeInput')));
+		this._register(this.onDidFinishInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidFinishInput')));
+		this._register(this.onDidInterrupt(() => this._logCombinedStringIfTrace('PromptInputModel#onDidInterrupt')));
+	}
+
+	private _logCombinedStringIfTrace(message: string) {
+		// Only generate the combined string if trace
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace(message, this.getCombinedString());
+		}
 	}
 
 	setContinuationPrompt(value: string): void {
 		this._continuationPrompt = value;
+		this._sync();
+	}
+
+	setLastPromptLine(value: string): void {
+		this._lastPromptLine = value;
+		this._sync();
+	}
+
+	setConfidentCommandLine(value: string): void {
+		if (this._value !== value) {
+			this._value = value;
+			this._cursorIndex = -1;
+			this._ghostTextIndex = -1;
+			this._onDidChangeInput.fire(this._createStateObject());
+		}
 	}
 
 	getCombinedString(): string {
@@ -105,7 +152,19 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._commandStartX = this._xterm.buffer.active.cursorX;
 		this._value = '';
 		this._cursorIndex = 0;
-		this._onDidStartInput.fire();
+		this._onDidStartInput.fire(this._createStateObject());
+		this._onDidChangeInput.fire(this._createStateObject());
+
+		// Trigger a sync if prompt terminator is set as that could adjust the command start X
+		if (this._lastPromptLine) {
+			if (this._commandStartX !== this._lastPromptLine.length) {
+				const line = this._xterm.buffer.active.getLine(this._commandStartMarker.line);
+				if (line?.translateToString(true).startsWith(this._lastPromptLine)) {
+					this._commandStartX = this._lastPromptLine.length;
+					this._sync();
+				}
+			}
+		}
 	}
 
 	private _handleCommandExecuted() {
@@ -113,17 +172,35 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		this._state = PromptInputState.Execute;
 		this._cursorIndex = -1;
-		this._onDidFinishInput.fire();
-	}
 
-	private _handleInput(data: string) {
-		this._sync();
+		// Remove any ghost text from the input if it exists on execute
+		if (this._ghostTextIndex !== -1) {
+			this._value = this._value.substring(0, this._ghostTextIndex);
+			this._ghostTextIndex = -1;
+		}
+
+		const event = this._createStateObject();
+		if (this._lastUserInput === '\u0003') {
+			this._lastUserInput = '';
+			this._onDidInterrupt.fire(event);
+		}
+
+		this._state = PromptInputState.Execute;
+		this._onDidFinishInput.fire(event);
+		this._onDidChangeInput.fire(event);
 	}
 
 	@throttle(0)
 	private _sync() {
+		try {
+			this._doSync();
+		} catch (e) {
+			this._logService.error('Error while syncing prompt input model', e);
+		}
+	}
+
+	private _doSync() {
 		if (this._state !== PromptInputState.Input) {
 			return;
 		}
@@ -141,36 +218,35 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		// Command start line
-		this._value = commandLine;
-
-		// Get cursor index
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
-		this._cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.length + 1;
-		this._ghostTextIndex = -1;
+		let value = commandLine;
+		let cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.trimEnd().length + 1;
+		let ghostTextIndex = -1;
 
 		// Detect ghost text by looking for italic or dim text in or after the cursor and
 		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
 		if (absoluteCursorY === commandStartY && buffer.cursorX > 1) {
 			// Ghost text in pwsh only appears to happen on the cursor line
-			this._ghostTextIndex = this._scanForGhostText(buffer, line);
+			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
 		}
-
-		// IDEA: Detect line continuation if it's not set
 
 		// From command start line to cursor line
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
 			line = buffer.getLine(y);
-			let lineText = line?.translateToString(true);
+			const lineText = line?.translateToString(true);
 			if (lineText && line) {
 				// Verify continuation prompt if we have it, if this line doesn't have it then the
 				// user likely just pressed enter
 				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
-					lineText = this._trimContinuationPrompt(lineText);
-					this._value += `\n${lineText}`;
-					this._cursorIndex += (absoluteCursorY === y
-						? this._getRelativeCursorIndex(this._getContinuationPromptCellWidth(line, lineText), buffer, line)
-						: lineText.length + 1);
+					const trimmedLineText = this._trimContinuationPrompt(lineText);
+					value += `\n${trimmedLineText}`;
+					if (absoluteCursorY === y) {
+						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
+						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
+						cursorIndex += relativeCursorIndex;
+					} else {
+						cursorIndex += trimmedLineText.length + 1;
+					}
 				} else {
 					break;
 				}
@@ -183,10 +259,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			const lineText = line?.translateToString(true);
 			if (lineText && line) {
 				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
-					this._value += `\n${this._trimContinuationPrompt(lineText)}`;
+					value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
 					break;
 				}
+			} else {
+				break;
 			}
 		}
 
@@ -194,14 +272,83 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			this._logService.trace(`PromptInputModel#_sync: ${this.getCombinedString()}`);
 		}
 
-		this._onDidChangeInput.fire();
+		// Adjust trailing whitespace
+		{
+			let trailingWhitespace = this._value.length - this._value.trimEnd().length;
+
+			// Handle backspace key
+			if (this._lastUserInput === '\x7F') {
+				this._lastUserInput = '';
+				if (cursorIndex === this._cursorIndex - 1) {
+					// If trailing whitespace is being increased by removing a non-whitespace character
+					if (this._value.trimEnd().length > value.trimEnd().length && value.trimEnd().length <= cursorIndex) {
+						trailingWhitespace = Math.max((this._value.length - 1) - value.trimEnd().length, 0);
+					}
+					// Standard case; subtract from trailing whitespace
+					else {
+						trailingWhitespace = Math.max(trailingWhitespace - 1, 0);
+					}
+
+				}
+			}
+
+			// Handle delete key
+			if (this._lastUserInput === '\x1b[3~') {
+				this._lastUserInput = '';
+				if (cursorIndex === this._cursorIndex) {
+					trailingWhitespace = Math.max(trailingWhitespace - 1, 0);
+				}
+			}
+
+			const valueLines = value.split('\n');
+			const isMultiLine = valueLines.length > 1;
+			const valueEndTrimmed = value.trimEnd();
+			if (!isMultiLine) {
+				// Adjust trimmed whitespace value based on cursor position
+				if (valueEndTrimmed.length < value.length) {
+					// Handle space key
+					if (this._lastUserInput === ' ') {
+						this._lastUserInput = '';
+						if (cursorIndex > valueEndTrimmed.length && cursorIndex > this._cursorIndex) {
+							trailingWhitespace++;
+						}
+					}
+					trailingWhitespace = Math.max(cursorIndex - valueEndTrimmed.length, trailingWhitespace, 0);
+				}
+
+				// Handle case where a non-space character is inserted in the middle of trailing whitespace
+				const charBeforeCursor = cursorIndex === 0 ? '' : value[cursorIndex - 1];
+				if (trailingWhitespace > 0 && cursorIndex === this._cursorIndex + 1 && this._lastUserInput !== '' && charBeforeCursor !== ' ') {
+					trailingWhitespace = this._value.length - this._cursorIndex;
+				}
+			}
+
+			if (isMultiLine) {
+				valueLines[valueLines.length - 1] = valueLines.at(-1)?.trimEnd() ?? '';
+				const continuationOffset = (valueLines.length - 1) * (this._continuationPrompt?.length ?? 0);
+				trailingWhitespace = Math.max(0, cursorIndex - value.length - continuationOffset);
+			}
+
+			value = valueLines.map(e => e.trimEnd()).join('\n') + ' '.repeat(trailingWhitespace);
+		}
+
+		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
+			this._value = value;
+			this._cursorIndex = cursorIndex;
+			this._ghostTextIndex = ghostTextIndex;
+			this._onDidChangeInput.fire(this._createStateObject());
+		}
+	}
+
+	private _handleUserInput(e: string) {
+		this._lastUserInput = e;
 	}
 
 	/**
 	 * Detect ghost text by looking for italic or dim text in or after the cursor and
 	 * non-italic/dim text in the cell closest non-whitespace cell before the cursor.
 	 */
-	private _scanForGhostText(buffer: IBuffer, line: IBufferLine): number {
+	private _scanForGhostText(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
 		// Check last non-whitespace character has non-ghost text styles
 		let ghostTextIndex = -1;
 		let proceedWithGhostTextCheck = false;
@@ -228,7 +375,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					break;
 				}
 				if (this._isCellStyledLikeGhostText(cell)) {
-					ghostTextIndex = this._cursorIndex + potentialGhostIndexOffset;
+					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
 				}
 				potentialGhostIndexOffset += cell.getChars().length;
@@ -267,5 +414,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _isCellStyledLikeGhostText(cell: IBufferCell): boolean {
 		return !!(cell.isItalic() || cell.isDim());
+	}
+
+	private _createStateObject(): IPromptInputModelState {
+		return Object.freeze({
+			value: this._value,
+			cursorIndex: this._cursorIndex,
+			ghostTextIndex: this._ghostTextIndex
+		});
 	}
 }

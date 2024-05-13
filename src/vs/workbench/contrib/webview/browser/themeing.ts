@@ -57,13 +57,13 @@ export class WebviewThemeDataProvider extends Disposable {
 			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 
 			const theme = this._themeService.getColorTheme();
-			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
+			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce<Record<string, string>>((colors, entry) => {
 				const color = theme.getColor(entry.id);
 				if (color) {
 					colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
 				}
 				return colors;
-			}, {} as { [key: string]: string });
+			}, {});
 
 			const styles = {
 				'vscode-font-family': DEFAULT_FONT_FAMILY,

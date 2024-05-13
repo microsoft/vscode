@@ -29,7 +29,6 @@ export const enum DecorationSelector {
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
 	OverviewRuler = '.xterm-decoration-overview-ruler',
-	QuickFix = 'quick-fix'
 }
 
 export class TerminalDecorationHoverManager extends Disposable {

@@ -217,7 +217,7 @@ export function setupInstantiationService(disposables: DisposableStore) {
 	return instantiationService;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: MockNotebookCell[]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
 
 	const viewType = 'notebook';
 	const notebook = disposables.add(instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map((cell): ICellDto2 => {
@@ -419,7 +419,22 @@ interface IActiveTestNotebookEditorDelegate extends IActiveNotebookEditorDelegat
 	visibleRanges: ICellRange[];
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+export type MockNotebookCell = [
+	source: string,
+	lang: string,
+	kind: CellKind,
+	output?: IOutputDto[],
+	metadata?: NotebookCellMetadata,
+];
+
+export type MockDocumentSymbol = {
+	name: string;
+	range: {};
+	kind?: number;
+	children?: MockDocumentSymbol[];
+};
+
+export async function withTestNotebook<R = any>(cells: MockNotebookCell[], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
 	const disposables: DisposableStore = new DisposableStore();
 	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, disposables, cells);
@@ -502,7 +517,7 @@ class TestCellExecution implements INotebookCellExecution {
 	}
 }
 
-class TestNotebookExecutionStateService implements INotebookExecutionStateService {
+export class TestNotebookExecutionStateService implements INotebookExecutionStateService {
 	_serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();

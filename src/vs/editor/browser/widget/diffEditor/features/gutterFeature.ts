@@ -7,10 +7,14 @@ import { EventType, addDisposableListener, h } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { derivedDisposable, derivedWithSetter } from 'vs/base/common/observableInternal/derived';
 import { URI } from 'vs/base/common/uri';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
+import { DiffEditorSash, SashLayout } from 'vs/editor/browser/widget/diffEditor/components/diffEditorSash';
+import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { appendRemoveOnDispose, applyStyle, prependRemoveOnDispose } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from 'vs/editor/browser/widget/diffEditor/utils/editorGutter';
@@ -19,7 +23,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
+import { TextEdit } from 'vs/editor/common/core/textEdit';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { TextModelText } from 'vs/editor/common/model/textModelText';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
@@ -35,6 +39,7 @@ export class DiffEditorGutter extends Disposable {
 	private readonly _menu = this._register(this._menuService.createMenu(MenuId.DiffEditorHunkToolbar, this._contextKeyService));
 	private readonly _actions = observableFromEvent(this._menu.onDidChange, () => this._menu.getActions());
 	private readonly _hasActions = this._actions.map(a => a.length > 0);
+	private readonly _showSash = derived(this, reader => this._options.renderSideBySide.read(reader) && this._hasActions.read(reader));
 
 	public readonly width = derived(this, reader => this._hasActions.read(reader) ? width : 0);
 
@@ -44,6 +49,9 @@ export class DiffEditorGutter extends Disposable {
 		diffEditorRoot: HTMLDivElement,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _editors: DiffEditorEditors,
+		private readonly _options: DiffEditorOptions,
+		private readonly _sashLayout: SashLayout,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
@@ -57,6 +65,21 @@ export class DiffEditorGutter extends Disposable {
 		}));
 
 		this._register(applyStyle(this.elements.root, { display: this._hasActions.map(a => a ? 'block' : 'none') }));
+
+		derivedDisposable(this, reader => {
+			const showSash = this._showSash.read(reader);
+			return !showSash ? undefined : new DiffEditorSash(
+				diffEditorRoot,
+				this._sashLayout.dimensions,
+				this._options.enableSplitViewResizing,
+				this._boundarySashes,
+				derivedWithSetter(
+					this, reader => this._sashLayout.sashLeft.read(reader) - width,
+					(v, tx) => this._sashLayout.sashLeft.set(v + width, tx)
+				),
+				() => this._sashLayout.resetSash(),
+			);
+		}).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(new EditorGutter<DiffGutterItem>(this._editors.modified, this.elements.root, {
 			getIntersectingGutterItems: (range, reader) => {
@@ -106,8 +129,11 @@ export class DiffEditorGutter extends Disposable {
 
 	public computeStagedValue(mapping: DetailedLineRangeMapping): string {
 		const c = mapping.innerChanges ?? [];
-		const edit = new TextEdit(c.map(c => new SingleTextEdit(c.originalRange, this._editors.modifiedModel.get()!.getValueInRange(c.modifiedRange))));
-		const value = edit.apply(new TextModelText(this._editors.original.getModel()!));
+		const modified = new TextModelText(this._editors.modifiedModel.get()!);
+		const original = new TextModelText(this._editors.original.getModel()!);
+
+		const edit = new TextEdit(c.map(c => c.toTextEdit(modified)));
+		const value = edit.apply(original);
 		return value;
 	}
 
