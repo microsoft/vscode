@@ -33,8 +33,8 @@ import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'v
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModelInitState, IChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, extractAgentAndCommand } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
@@ -95,6 +95,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _onDidAcceptInput = this._register(new Emitter<void>());
 	readonly onDidAcceptInput = this._onDidAcceptInput.event;
+
+	private _onDidHideInput = this._register(new Emitter<void>());
+	readonly onDidHideInput = this._onDidHideInput.event;
 
 	private _onDidChangeParsedInput = this._register(new Emitter<void>());
 	readonly onDidChangeParsedInput = this._onDidChangeParsedInput.event;
@@ -388,6 +391,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setVisible(visible: boolean): void {
+		const wasVisible = this._visible;
 		this._visible = visible;
 		this.visibleChangeCount++;
 		this.renderer.setVisible(visible);
@@ -400,6 +404,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					this.onDidChangeItems(true);
 				}
 			}, 0));
+		} else if (wasVisible) {
+			this._onDidHideInput.fire();
 		}
 	}
 
@@ -578,11 +584,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._onDidChangeContentHeight.fire();
 		}));
-		this._register(this.inputEditor.onDidChangeModelContent(() => this.updateImplicitContextKinds()));
-		this._register(this.chatAgentService.onDidChangeAgents(() => {
-			if (this.viewModel) {
-				this.updateImplicitContextKinds();
+		this._register(this.inputPart.onDidChangeAttachedContext(() => {
+			if (this.bodyDimension) {
+				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
+			this._onDidChangeContentHeight.fire();
 		}));
 	}
 
@@ -590,23 +596,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
 		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
-	}
-
-	private updateImplicitContextKinds() {
-		if (!this.viewModel) {
-			return;
-		}
-		this.parsedChatRequest = undefined;
-		const agentAndSubcommand = extractAgentAndCommand(this.parsedInput);
-		const currentAgent = agentAndSubcommand.agentPart?.agent ?? this.chatAgentService.getDefaultAgent(this.location);
-		const implicitVariables = agentAndSubcommand.commandPart ?
-			agentAndSubcommand.commandPart.command.defaultImplicitVariables :
-			currentAgent?.defaultImplicitVariables;
-		this.inputPart.setImplicitContextKinds(implicitVariables ?? []);
-
-		if (this.bodyDimension) {
-			this.layout(this.bodyDimension.height, this.bodyDimension.width);
-		}
 	}
 
 	setModel(model: IChatModel, viewState: IChatViewState): void {
@@ -651,7 +640,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			revealLastElement(this.tree);
 		}
 
-		this.updateImplicitContextKinds();
 	}
 
 	getFocus(): ChatTreeItem | undefined {
@@ -721,7 +709,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, { implicitVariablesEnabled: this.inputPart.implicitContextEnabled, location: this.location, parserContext: { selectedAgent: this._lastSelectedAgent } });
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, { implicitVariablesEnabled: false, location: this.location, parserContext: { selectedAgent: this._lastSelectedAgent }, attachedContext: [...this.inputPart.attachedContext.values()] });
+			this.inputPart.attachedContext.clear();
 
 			if (result) {
 				const inputState = this.collectInputState();
@@ -736,6 +725,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 		return undefined;
+	}
+
+
+	attachContext(...contentReferences: IChatRequestVariableEntry[]) {
+		this.inputPart.attachContext(...contentReferences);
+		if (this.bodyDimension) {
+			this.layout(this.bodyDimension.height, this.bodyDimension.width);
+		}
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {

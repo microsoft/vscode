@@ -102,7 +102,8 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 
 	private _createHint(): void {
 		const instance = this._instance instanceof TerminalInstance ? this._instance : undefined;
-		if (!instance || !this._xterm || this._hintWidget || instance?.capabilities.get(TerminalCapability.CommandDetection)?.hasInput) {
+		const commandDetectionCapability = instance?.capabilities.get(TerminalCapability.CommandDetection);
+		if (!instance || !this._xterm || this._hintWidget || !commandDetectionCapability || !commandDetectionCapability?.hasInput || instance.reconnectionProperties) {
 			return;
 		}
 
@@ -130,6 +131,16 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			this._decoration?.dispose();
 			this._addon?.dispose();
 		}));
+
+		const inputModel = commandDetectionCapability.promptInputModel;
+		if (inputModel) {
+			this._register(inputModel.onDidChangeInput(() => {
+				if (inputModel.value) {
+					this._decoration?.dispose();
+					this._addon?.dispose();
+				}
+			}));
+		}
 
 		if (!this._decoration) {
 			return;

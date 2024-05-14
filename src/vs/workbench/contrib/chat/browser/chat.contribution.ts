@@ -51,10 +51,11 @@ import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVari
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { ILanguageModelsService, LanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ILanguageModelStatsService, LanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
-import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
+import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChatService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/chatColors';
+import { registerChatContextActions } from 'vs/workbench/contrib/chat/browser/actions/chatContextActions';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -92,6 +93,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.implicitContext': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.implicitContext', "Controls whether a checkbox is shown to allow the user to determine which implicit context is included with a chat participant's prompt."),
+			deprecated: true,
 			default: false
 		},
 	}
@@ -245,6 +247,7 @@ registerQuickChatActions();
 registerChatExportActions();
 registerMoveActions();
 registerNewChatActions();
+registerChatContextActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);

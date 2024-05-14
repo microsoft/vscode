@@ -49,12 +49,12 @@ export class ChatVariablesService implements IChatVariablesService {
 						};
 						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
 							if (value) {
-								resolvedVariables[i] = { name: part.variableName, range: part.range, value, references };
+								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references };
 							}
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { name: part.referenceText, range: part.range, value: part.data };
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data };
 				}
 			});
 

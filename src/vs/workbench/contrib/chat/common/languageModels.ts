@@ -12,6 +12,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -40,7 +41,8 @@ export interface ILanguageModelChatMetadata {
 	readonly vendor: string;
 	readonly version: string;
 	readonly family: string;
-	readonly tokens: number;
+	readonly maxInputTokens: number;
+	readonly maxOutputTokens: number;
 	readonly targetExtensions?: string[];
 
 	readonly auth?: {
@@ -139,6 +141,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 
 		languageModelExtensionPoint.setHandler((extensions) => {
@@ -230,14 +233,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 		}
 
+		this._logService.trace('[LM] selected language models', selector, result);
+
 		return result;
 	}
 
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable {
+
+		this._logService.trace('[LM] registering language model chat', identifier, provider.metadata);
+
 		if (!this._vendors.has(provider.metadata.vendor)) {
-			// throw new Error(`Chat response provider uses UNKNOWN vendor ${provider.metadata.vendor}.`);
-			console.warn('USING UNKNOWN vendor', provider.metadata.vendor);
-			this._vendors.add(provider.metadata.vendor);
+			throw new Error(`Chat response provider uses UNKNOWN vendor ${provider.metadata.vendor}.`);
 		}
 		if (this._providers.has(identifier)) {
 			throw new Error(`Chat response provider with identifier ${identifier} is already registered.`);
@@ -247,6 +253,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return toDisposable(() => {
 			if (this._providers.delete(identifier)) {
 				this._onDidChangeProviders.fire({ removed: [identifier] });
+				this._logService.trace('[LM] UNregistered language model chat', identifier, provider.metadata);
 			}
 		});
 	}
