@@ -19,6 +19,7 @@ import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from 'vs/workben
 import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
+import { IChatContentVariableReference } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
@@ -157,6 +158,7 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
+	attachContext(...context: IChatContentVariableReference[]): void;
 	clear(): void;
 }
 
