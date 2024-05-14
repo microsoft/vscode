@@ -73,10 +73,6 @@ export class TestLineTokens implements IViewLineTokens {
 		this._actual = actual;
 	}
 
-	public get languageIdCodec(): ILanguageIdCodec {
-		throw new Error('Not implemented');
-	}
-
 	public equals(other: IViewLineTokens): boolean {
 		if (other instanceof TestLineTokens) {
 			return TestLineToken.equalsArr(this._actual, other._actual);
@@ -133,6 +129,10 @@ export class TestLineTokens implements IViewLineTokens {
 	}
 
 	public forEach(callback: (tokenIndex: number) => void): void {
+		throw new Error('Not implemented');
+	}
+
+	public get languageIdCodec(): ILanguageIdCodec {
 		throw new Error('Not implemented');
 	}
 }

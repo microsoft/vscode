@@ -80,7 +80,6 @@ export class LanguagesRegistry extends Disposable {
 
 	constructor(useModesRegistry = true, warnOnOverwrite = false) {
 		super();
-		console.log('inside of constructor of LanguagesRegistry');
 		LanguagesRegistry.instanceCount++;
 
 		this._warnOnOverwrite = warnOnOverwrite;
@@ -100,7 +99,6 @@ export class LanguagesRegistry extends Disposable {
 	}
 
 	override dispose() {
-		console.log('inside of dispose of LanguagesRegistry')
 		LanguagesRegistry.instanceCount--;
 		super.dispose();
 	}

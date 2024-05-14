@@ -156,20 +156,20 @@ export class IndentationContextProcessor {
 		}
 
 		// Main code
-		const nullProcessedData: ProcessedLineData = { processedLine: '', processedLineTokens: LineTokens.createEmpty('', scopedLineTokens.languageIdCodec) };
+		const emptyProcessedData: ProcessedLineData = { processedLine: '', processedLineTokens: LineTokens.createEmpty('', scopedLineTokens.languageIdCodec) };
 		const previousLineNumber = range.startLineNumber - 1;
 		const isFirstLine = previousLineNumber === 0;
 		if (isFirstLine) {
-			return nullProcessedData;
+			return emptyProcessedData;
 		}
 		const canScopeExtendOnPreviousLine = scopedLineTokens.doesScopeStartAtOffsetZero();
 		if (!canScopeExtendOnPreviousLine) {
-			return nullProcessedData;
+			return emptyProcessedData;
 		}
 		const scopedLineTokensAtEndColumnOfPreviousLine = getScopedLineTokensAtEndColumnOfLine(previousLineNumber);
 		const doesLanguageContinueOnPreviousLine = scopedLineTokens.languageId === scopedLineTokensAtEndColumnOfPreviousLine.languageId;
 		if (!doesLanguageContinueOnPreviousLine) {
-			return nullProcessedData;
+			return emptyProcessedData;
 		}
 		const previousSlicedLineTokens = getSlicedLineTokensForScopeAtLine(scopedLineTokensAtEndColumnOfPreviousLine, previousLineNumber);
 		const processedPreviousScopedLineData = this.indentationLineProcessor.getProcessedLineAndTokens(previousSlicedLineTokens);

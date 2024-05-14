@@ -258,7 +258,7 @@ class SliceLineTokens implements IViewLineTokens {
 	private readonly _firstTokenIndex: number;
 	private readonly _tokensCount: number;
 
-	public languageIdCodec: ILanguageIdCodec;
+	public readonly languageIdCodec: ILanguageIdCodec;
 
 	constructor(source: LineTokens, startOffset: number, endOffset: number, deltaOffset: number) {
 		this._source = source;

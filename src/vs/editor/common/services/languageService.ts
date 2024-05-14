@@ -35,7 +35,6 @@ export class LanguageService extends Disposable implements ILanguageService {
 	constructor(warnOnOverwrite = false) {
 		super();
 		LanguageService.instanceCount++;
-		console.log('inside of constructor of languages registry');
 		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
 		this.languageIdCodec = this._registry.languageIdCodec;
 		this._register(this._registry.onDidChange(() => this._onDidChange.fire()));
@@ -43,7 +42,6 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	public override dispose(): void {
 		LanguageService.instanceCount--;
-		this._registry.dispose();
 		super.dispose();
 	}
 
