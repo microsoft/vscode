@@ -1251,6 +1251,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 }
 
 export interface IChatAgentCompletionItem {
+	id: string;
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
 	value: IChatRequestVariableValueDto;

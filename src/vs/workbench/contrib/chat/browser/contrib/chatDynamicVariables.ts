@@ -208,6 +208,7 @@ export class SelectAndInsertFileAction extends Action2 {
 		}
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: 'vscode.file',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: resource
 		});
@@ -216,6 +217,7 @@ export class SelectAndInsertFileAction extends Action2 {
 registerAction2(SelectAndInsertFileAction);
 
 export interface IAddDynamicVariableContext {
+	id: string;
 	widget: IChatWidget;
 	range: IRange;
 	variableData: IChatRequestVariableValue;
@@ -275,6 +277,7 @@ export class AddDynamicVariableAction extends Action2 {
 		}
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: context.id,
 			range: range,
 			data: variableData
 		});
