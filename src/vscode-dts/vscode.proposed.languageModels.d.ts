@@ -74,6 +74,7 @@ declare module 'vscode' {
 	 * @see {@link LanguageModelAccess.chatRequest}
 	*/
 	// TODO@API add something like `modelResult: Thenable<{ [name: string]: any }>`
+	// TODO@API: add a StopReason-enum that's also used in LanguageModelChat
 	export interface LanguageModelChatResponse {
 
 		/**
@@ -95,7 +96,11 @@ declare module 'vscode' {
 		 *   console.error(e);
 		 * }
 		 * ```
+		 *
+		 * To cancel the stream, the consumer can {@link CancellationTokenSource.cancel cancel} the token that was used to make the request
+		 * or break from the for-loop.
 		 */
+		// TODO@API rename: text
 		stream: AsyncIterable<string>;
 	}
 
@@ -105,6 +110,12 @@ declare module 'vscode' {
 	 * @see {@link lm.selectChatModels}
 	 */
 	export interface LanguageModelChat {
+
+		/**
+		 * Human-readable name of the language model.
+		 */
+		readonly name: string;
+
 		/**
 		 * Opaque identifier of the language model.
 		 */
@@ -115,11 +126,6 @@ declare module 'vscode' {
 		 * values are defined by extensions contributing chat models and need to be looked up with them.
 		 */
 		readonly vendor: string;
-
-		/**
-		 * Human-readable name of the language model.
-		 */
-		readonly name: string;
 
 		/**
 		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
@@ -133,11 +139,16 @@ declare module 'vscode' {
 		 */
 		readonly version: string;
 
-		// TODO@API
-		// max_prompt_tokens vs output_tokens vs context_size
-		// readonly inputTokens: number;
-		// readonly outputTokens: number;
-		readonly contextSize: number;
+		/**
+		 * The maximum number of tokens that can be sent to the model in a single request.
+		 */
+		readonly maxInputTokens: number;
+
+		/**
+		 * The maximum number of tokens that a model can generate in a single response.
+		 */
+		// TODO@API leave it out for now
+		readonly maxOutputTokens: number;
 
 		/**
 		 * Make a chat request using a language model.
@@ -273,14 +284,25 @@ declare module 'vscode' {
 		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models and
 		 * extensions must handle these cases, esp. when no chat model exists, gracefully.
 		 *
-		 * *Note* that extensions can hold-on to the results returned by this function and use them later. However, whenever the
+		 * ```ts
+		 *
+		 * const models = await vscode.lm.selectChatModels({family: 'gpt-3.5-turbo'})!;
+		 * if (models.length > 0) {
+		 * 	const [first] = models;
+		 * 	const response = await first.sendRequest(...)
+		 * 	// ...
+		 * } else {
+		 * 	// NO chat models available
+		 * }
+		 * ```
+		 *
+		 * *Note* that extensions can hold-on to the results returned by this function and use them later. However, when the
 		 * {@link onDidChangeChatModels}-event is fired the list of chat models might have changed and extensions should re-query.
 		 *
 		 * @param selector A chat model selector. When omitted all chat models are returned.
-		 * @returns An array of chat models or `undefined` when no chat model was selected.
+		 * @returns An array of chat models, can be empty!
 		 */
-		// TODO@API no undefined but empty array
-		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[] | undefined>;
+		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>;
 	}
 
 	/**
@@ -296,16 +318,13 @@ declare module 'vscode' {
 		/**
 		 * Checks if a request can be made to a language model.
 		 *
-		 * *Note* that calling this function will not trigger a consent UI but just checks.
+		 * *Note* that calling this function will not trigger a consent UI but just checks for a persisted state.
 		 *
-		 * @param languageModelId A language model identifier, see {@link LanguageModelChat.id}
+		 * @param chat A language model chat object.
 		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
 		 * model does not exist or consent hasn't been asked for.
 		 */
-		// TODO@API applies to chat and embeddings models
-		// TODO@API use LanguageModelChat
-		// TODO@API name: canUse, hasAccess?
-		canSendRequest(languageModelId: string): boolean | undefined;
+		canSendRequest(chat: LanguageModelChat): boolean | undefined;
 	}
 
 	export interface ExtensionContext {

@@ -315,14 +315,18 @@ app.on('ready', () => {
 		}
 	});
 
+	const reporters = [];
+
 	if (args.tfs) {
-		new mocha.reporters.Spec(runner);
-		new MochaJUnitReporter(runner, {
-			reporterOptions: {
-				testsuitesTitle: `${args.tfs} ${process.platform}`,
-				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
-			}
-		});
+		reporters.push(
+			new mocha.reporters.Spec(runner),
+			new MochaJUnitReporter(runner, {
+				reporterOptions: {
+					testsuitesTitle: `${args.tfs} ${process.platform}`,
+					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+				}
+			}),
+		);
 	} else {
 		// mocha patches symbols to use windows escape codes, but it seems like
 		// Electron mangles these in its output.
@@ -334,10 +338,13 @@ app.on('ready', () => {
 			});
 		}
 
-		applyReporter(runner, args);
+		reporters.push(applyReporter(runner, args));
 	}
 
 	if (!args.dev) {
-		ipcMain.on('all done', () => app.exit(runner.didFail ? 1 : 0));
+		ipcMain.on('all done', async () => {
+			await Promise.all(reporters.map(r => r.drain?.()));
+			app.exit(runner.didFail ? 1 : 0);
+		});
 	}
 });
