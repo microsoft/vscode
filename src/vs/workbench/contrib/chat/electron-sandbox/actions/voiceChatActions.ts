@@ -178,7 +178,7 @@ class VoiceChatSessionControllerFactory {
 		return undefined;
 	}
 
-	private static createContextKeyController(contextKeyService: IContextKeyService, context: VoiceChatSessionContext): (state: VoiceChatSessionState) => void {
+	private static createChatContextKeyController(contextKeyService: IContextKeyService, context: VoiceChatSessionContext): (state: VoiceChatSessionState) => void {
 		const contextVoiceChatGettingReady = SCOPED_VOICE_CHAT_GETTING_READY.bindTo(contextKeyService);
 		const contextVoiceChatInProgress = SCOPED_VOICE_CHAT_IN_PROGRESS.bindTo(contextKeyService);
 
@@ -211,7 +211,7 @@ class VoiceChatSessionControllerFactory {
 			getInput: () => chatWidget.getInput(),
 			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
 			clearInputPlaceholder: () => chatWidget.resetInputPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(chatWidget.scopedContextKeyService, context)
+			updateState: VoiceChatSessionControllerFactory.createChatContextKeyController(chatWidget.scopedContextKeyService, context)
 		};
 	}
 
@@ -227,7 +227,7 @@ class VoiceChatSessionControllerFactory {
 			getInput: () => terminalChat.getInput(),
 			setInputPlaceholder: text => terminalChat.setPlaceholder(text),
 			clearInputPlaceholder: () => terminalChat.resetPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(terminalChat.scopedContextKeyService, context)
+			updateState: VoiceChatSessionControllerFactory.createChatContextKeyController(terminalChat.scopedContextKeyService, context)
 		};
 	}
 }
@@ -439,7 +439,7 @@ export class VoiceChatInChatViewAction extends VoiceChatWithHoldModeAction {
 	constructor() {
 		super({
 			id: VoiceChatInChatViewAction.ID,
-			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in View"),
+			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in Chat View"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
