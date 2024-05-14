@@ -150,8 +150,7 @@ typescript/lib/tsserverlibrary.js
 !typescript/lib/lib*.d.ts
 
 # Include Markdown server
-!vscode-markdown-languageserver/**
-!*/node_modules/vscode-markdown-languageserver/**
+!vscode-markdown-languageserver/**/*
 
 jschardet/index.js
 jschardet/src/**
