@@ -325,19 +325,19 @@ export function getIndentForEnter(
 	const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterProcessedTokens.getLineContent());
 
 	const virtualModel = createVirtualModelWithModifiedTokensAtLine(model, range.startLineNumber, beforeEnterProcessedTokens);
-	const embeddedLanguage = isLanguageDifferentFromLineStart(model, range.getStartPosition());
+	const languageIsDifferentFromLineStart = isLanguageDifferentFromLineStart(model, range.getStartPosition());
 	const currentLine = model.getLineContent(range.startLineNumber);
 	const currentLineIndent = strings.getLeadingWhitespace(currentLine);
 	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService);
 	if (!afterEnterAction) {
-		const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
+		const beforeEnter = languageIsDifferentFromLineStart ? currentLineIndent : beforeEnterIndent;
 		return {
 			beforeEnter: beforeEnter,
 			afterEnter: beforeEnter
 		};
 	}
 
-	let afterEnterIndent = embeddedLanguage ? currentLineIndent : afterEnterAction.indentation;
+	let afterEnterIndent = languageIsDifferentFromLineStart ? currentLineIndent : afterEnterAction.indentation;
 
 	if (afterEnterAction.action === IndentAction.Indent) {
 		afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
@@ -348,7 +348,7 @@ export function getIndentForEnter(
 	}
 
 	return {
-		beforeEnter: embeddedLanguage ? currentLineIndent : beforeEnterIndent,
+		beforeEnter: languageIsDifferentFromLineStart ? currentLineIndent : beforeEnterIndent,
 		afterEnter: afterEnterIndent
 	};
 }
@@ -456,6 +456,6 @@ function isLanguageDifferentFromLineStart(model: ITextModel, position: Position)
 	const scopedLineTokens = createScopedLineTokens(lineTokens, position.column - 1);
 	const doesScopeStartAtOffsetZero = scopedLineTokens.firstCharOffset === 0;
 	const isScopedLanguageEqualToFirstLanguageOnLine = lineTokens.getLanguageId(0) === scopedLineTokens.languageId;
-	const isWithinEmbeddedLanguage = !doesScopeStartAtOffsetZero && !isScopedLanguageEqualToFirstLanguageOnLine;
-	return isWithinEmbeddedLanguage;
+	const languageIsDifferentFromLineStart = !doesScopeStartAtOffsetZero && !isScopedLanguageEqualToFirstLanguageOnLine;
+	return languageIsDifferentFromLineStart;
 }

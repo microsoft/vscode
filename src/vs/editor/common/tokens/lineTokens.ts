@@ -352,12 +352,10 @@ class SliceLineTokens implements IViewLineTokens {
 		const tokenEndOffset = this._source.getEndOffset(this._firstTokenIndex + tokenIndex);
 		let text = this._source.getTokenText(tokenIndex)
 		if (tokenStartOffset < this._startOffset) {
-			const offsetDifference = this._startOffset - tokenStartOffset;
-			text = text.substring(offsetDifference);
+			text = text.substring(this._startOffset - tokenStartOffset);
 		}
 		if (tokenEndOffset > this._endOffset) {
-			const offsetDifference = tokenEndOffset - this._endOffset;
-			text = text.substring(0, text.length - offsetDifference);
+			text = text.substring(0, text.length - (tokenEndOffset - this._endOffset));
 		}
 		return text;
 	}

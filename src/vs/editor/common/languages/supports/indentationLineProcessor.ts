@@ -211,7 +211,7 @@ class IndentationLineProcessor {
 	getProcessedTokens(tokens: IViewLineTokens): IViewLineTokens {
 
 		// Utility function
-		const isTokenTypeFromWhichToRemoveBrackets = (tokenType: StandardTokenType): boolean => {
+		const shouldRemoveBracketsFromTokenType = (tokenType: StandardTokenType): boolean => {
 			return tokenType === StandardTokenType.String
 				|| tokenType === StandardTokenType.RegEx
 				|| tokenType === StandardTokenType.Comment;
@@ -221,13 +221,14 @@ class IndentationLineProcessor {
 		const languageId = tokens.getLanguageId(0);
 		const bracketsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew;
 		const bracketsRegExp = bracketsConfiguration.getBracketRegExp();
-		let processedLine = '';
 		const textAndMetadata: { text: string, metadata: number }[] = [];
+
+		let processedLine = '';
 		tokens.forEach((tokenIndex: number) => {
 			const tokenType = tokens.getStandardTokenType(tokenIndex);
 			const text = tokens.getTokenText(tokenIndex);
 			const metadata = tokens.getMetadata(tokenIndex);
-			if (isTokenTypeFromWhichToRemoveBrackets(tokenType)) {
+			if (shouldRemoveBracketsFromTokenType(tokenType)) {
 				const processedText = text.replace(bracketsRegExp, '');
 				processedLine += processedText;
 				textAndMetadata.push({ text: processedText, metadata });
