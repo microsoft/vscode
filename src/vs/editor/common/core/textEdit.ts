@@ -5,12 +5,17 @@
 
 import { assert, assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
 import { Range } from 'vs/editor/common/core/range';
 import { TextLength } from 'vs/editor/common/core/textLength';
 
 export class TextEdit {
+	public static single(originalRange: Range, newText: string): TextEdit {
+		return new TextEdit([new SingleTextEdit(originalRange, newText)]);
+	}
+
 	constructor(public readonly edits: readonly SingleTextEdit[]) {
 		assertFn(() => checkAdjacentItems(edits, (a, b) => a.range.getEndPosition().isBeforeOrEqual(b.range.getStartPosition())));
 	}
@@ -161,10 +166,19 @@ export class SingleTextEdit {
 	static equals(first: SingleTextEdit, second: SingleTextEdit) {
 		return first.range.equalsRange(second.range) && first.text === second.text;
 	}
+
+	public toSingleEditOperation(): ISingleEditOperation {
+		return {
+			range: this.range,
+			text: this.text,
+		};
+	}
 }
 
 function rangeFromPositions(start: Position, end: Position): Range {
-	if (!start.isBeforeOrEqual(end)) {
+	if (start.lineNumber === end.lineNumber && start.column === Number.MAX_SAFE_INTEGER) {
+		return Range.fromPositions(end, end);
+	} else if (!start.isBeforeOrEqual(end)) {
 		throw new BugIndicatingError('start must be before end');
 	}
 	return new Range(start.lineNumber, start.column, end.lineNumber, end.column);

@@ -25,7 +25,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 	private readonly syncScrollDispoasbles = this._register(new DisposableStore());
 	private readonly paneDisposables = new DisposableStore();
 
-	private statusBarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly statusBarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private isActive: boolean = false;
 

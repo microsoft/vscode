@@ -20,6 +20,7 @@ import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/acti
 import { isEmptyObject, isString } from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 
@@ -33,9 +34,17 @@ interface ModifierLabels {
 	user: ModLabels;
 }
 
+export function createKeybindingCommandQuery(commandId: string, when?: string): string {
+	const whenPart = when ? ` +when:${when}` : '';
+	return `@command:${commandId}${whenPart}`;
+}
+
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+const COMMAND_REGEX = /@command:\s*([^\+]+)/i;
+const WHEN_REGEX = /\+when:\s*(.+)/i;
 const SOURCE_REGEX = /@source:\s*(user|default|system|extension)/i;
 const EXTENSION_REGEX = /@ext:\s*((".+")|([^\s]+))/i;
+const KEYBINDING_REGEX = /@keybinding:\s*((\".+\")|(\S+))/i;
 
 export class KeybindingsEditorModel extends EditorModel {
 
@@ -61,23 +70,38 @@ export class KeybindingsEditorModel extends EditorModel {
 	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
-		const commandIdMatches = /@command:\s*(.+)/i.exec(searchValue);
+		// @command:COMMAND_ID
+		const commandIdMatches = COMMAND_REGEX.exec(searchValue);
 		if (commandIdMatches && commandIdMatches[1]) {
-			return keybindingItems.filter(k => k.command === commandIdMatches[1])
-				.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+			const command = commandIdMatches[1].trim();
+			let filteredKeybindingItems = keybindingItems.filter(k => k.command === command);
+
+			// +when:WHEN_EXPRESSION
+			if (filteredKeybindingItems.length) {
+				const whenMatches = WHEN_REGEX.exec(searchValue);
+				if (whenMatches && whenMatches[1]) {
+					const whenValue = whenMatches[1].trim();
+					filteredKeybindingItems = this.filterByWhen(filteredKeybindingItems, command, whenValue);
+				}
+			}
+
+			return filteredKeybindingItems.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 		}
 
+		// @source:SOURCE
 		if (SOURCE_REGEX.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
 			searchValue = searchValue.replace(SOURCE_REGEX, '');
 		} else {
+			// @ext:EXTENSION_ID
 			const extensionMatches = EXTENSION_REGEX.exec(searchValue);
 			if (extensionMatches && (extensionMatches[2] || extensionMatches[3])) {
 				const extensionId = extensionMatches[2] ? extensionMatches[2].substring(1, extensionMatches[2].length - 1) : extensionMatches[3];
 				keybindingItems = this.filterByExtension(keybindingItems, extensionId);
 				searchValue = searchValue.replace(EXTENSION_REGEX, '');
 			} else {
-				const keybindingMatches = /@keybinding:\s*((\".+\")|(\S+))/i.exec(searchValue);
+				// @keybinding:KEYBINDING
+				const keybindingMatches = KEYBINDING_REGEX.exec(searchValue);
 				if (keybindingMatches && (keybindingMatches[2] || keybindingMatches[3])) {
 					searchValue = keybindingMatches[2] || `"${keybindingMatches[3]}"`;
 				}
@@ -154,6 +178,26 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
+	private filterByWhen(keybindingItems: IKeybindingItem[], command: string, when: string): IKeybindingItem[] {
+		if (keybindingItems.length === 0) {
+			return [];
+		}
+
+		// Check if a keybinding with the same command id and when clause exists
+		const keybindingItemsWithWhen = keybindingItems.filter(k => k.when === when);
+		if (keybindingItemsWithWhen.length) {
+			return keybindingItemsWithWhen;
+		}
+
+		// Create a new entry with the when clause which does not live in the model
+		// We can reuse some of the properties from the same command with different when clause
+		const commandLabel = keybindingItems[0].commandLabel;
+
+		const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, ContextKeyExpr.deserialize(when), false, null, false);
+		const actionLabels = new Map([[command, commandLabel]]);
+		return [KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, actionLabels, this.getExtensionsMapping())];
+	}
+
 	private splitKeybindingWords(wordsSeparatedBySpaces: string[]): string[] {
 		const result: string[] = [];
 		for (const word of wordsSeparatedBySpaces) {
@@ -163,10 +207,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	override async resolve(actionLabels = new Map<string, string>()): Promise<void> {
-		const extensions = new ExtensionIdentifierMap<IExtensionDescription>();
-		for (const extension of this.extensionService.extensions) {
-			extensions.set(extension.identifier, extension);
-		}
+		const extensions = this.getExtensionsMapping();
 
 		this._keybindingItemsSortedByPrecedence = [];
 		const boundCommands: Map<string, boolean> = new Map<string, boolean>();
@@ -190,6 +231,14 @@ export class KeybindingsEditorModel extends EditorModel {
 
 	private static getId(keybindingItem: IKeybindingItem): string {
 		return keybindingItem.command + (keybindingItem?.keybinding?.getAriaLabel() ?? '') + keybindingItem.when + (isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.identifier.value);
+	}
+
+	private getExtensionsMapping(): ExtensionIdentifierMap<IExtensionDescription> {
+		const extensions = new ExtensionIdentifierMap<IExtensionDescription>();
+		for (const extension of this.extensionService.extensions) {
+			extensions.set(extension.identifier, extension);
+		}
+		return extensions;
 	}
 
 	private static compareKeybindingData(a: IKeybindingItem, b: IKeybindingItem): number {

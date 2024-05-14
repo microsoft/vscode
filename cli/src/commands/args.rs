@@ -229,9 +229,12 @@ pub struct CommandShellArgs {
 	/// Listen on a socket instead of stdin/stdout.
 	#[clap(long)]
 	pub on_socket: bool,
-	/// Listen on a port instead of stdin/stdout.
+	/// Listen on a host/port instead of stdin/stdout.
 	#[clap(long, num_args = 0..=1, default_missing_value = "0")]
 	pub on_port: Option<u16>,
+	/// Listen on a host/port instead of stdin/stdout.
+	#[clap[long]]
+	pub on_host: Option<String>,
 	/// Require the given token string to be given in the handshake.
 	#[clap(long, env = "VSCODE_CLI_REQUIRE_TOKEN")]
 	pub require_token: Option<String>,
@@ -785,10 +788,13 @@ pub enum TunnelUserSubCommands {
 
 #[derive(Args, Debug, Clone)]
 pub struct LoginArgs {
-	/// An access token to store for authentication. Note: this will not be
-	/// refreshed if it expires!
+	/// An access token to store for authentication.
 	#[clap(long, requires = "provider")]
 	pub access_token: Option<String>,
+
+	/// An access token to store for authentication.
+	#[clap(long, requires = "access_token")]
+	pub refresh_token: Option<String>,
 
 	/// The auth provider to use. If not provided, a prompt will be shown.
 	#[clap(value_enum, long)]

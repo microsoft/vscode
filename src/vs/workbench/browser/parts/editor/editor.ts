@@ -209,7 +209,7 @@ export interface IEditorGroupsView {
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
-	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
+	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -333,6 +333,11 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * the top that the editor opens in.
 	 */
 	readonly preserveWindowOrder?: boolean;
+
+	/**
+	 * Whether to add the editor to the selection or not.
+	 */
+	readonly selected?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {

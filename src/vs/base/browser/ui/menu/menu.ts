@@ -1281,7 +1281,6 @@ ${formatRule(Codicon.menuSubmenu)}
 .monaco-menu .monaco-action-bar.vertical .keybinding {
 	font-size: inherit;
 	padding: 0 2em;
-	overflow: hidden;
 	max-height: 100%;
 }
 

@@ -26,13 +26,13 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalConfiguration, ITerminalProcessInfo, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IHoverAction } from 'vs/platform/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from '@xterm/xterm';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { TerminalMultiLineLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalMultiLineLinkDetector';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 

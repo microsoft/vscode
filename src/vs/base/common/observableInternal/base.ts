@@ -248,6 +248,10 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	}
 
 	public abstract get debugName(): string;
+
+	protected get debugValue() {
+		return this.get();
+	}
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
@@ -416,7 +420,7 @@ export class ObservableValue<T, TChange = void>
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this._equalityComparator(this._value, value)) {
+		if (change === undefined && this._equalityComparator(this._value, value)) {
 			return;
 		}
 

@@ -9,11 +9,10 @@ declare module 'vscode' {
 	 * Represents a user request in chat history.
 	 */
 	export class ChatRequestTurn {
-
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequestTurn.variables}.
+		 * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -21,7 +20,7 @@ declare module 'vscode' {
 		readonly prompt: string;
 
 		/**
-		 * The id of the chat participant and contributing extension to which this request was directed.
+		 * The id of the chat participant to which this request was directed.
 		 */
 		readonly participant: string;
 
@@ -31,20 +30,19 @@ declare module 'vscode' {
 		readonly command?: string;
 
 		/**
-		 * The variables that were referenced in this message.
+		 * The references that were used in this message.
 		 */
-		readonly variables: ChatResolvedVariable[];
+		readonly references: ChatValueReference[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: string);
+		private constructor(prompt: string, command: string | undefined, references: ChatValueReference[], participant: string);
 	}
 
 	/**
 	 * Represents a chat participant's response in chat history.
 	 */
 	export class ChatResponseTurn {
-
 		/**
-		* The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
 		 */
 		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>;
 
@@ -54,7 +52,7 @@ declare module 'vscode' {
 		readonly result: ChatResult;
 
 		/**
-		 * The id of the chat participant and contributing extension that this response came from.
+		 * The id of the chat participant that this response came from.
 		 */
 		readonly participant: string;
 
@@ -132,8 +130,8 @@ declare module 'vscode' {
 	 */
 	export interface ChatResultFeedback {
 		/**
-		 * The ChatResult that the user is providing feedback for.
-		 * This instance has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 * The ChatResult for which the user is providing feedback.
+		 * This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
 		 */
 		readonly result: ChatResult;
 
@@ -175,7 +173,7 @@ declare module 'vscode' {
 	export interface ChatFollowupProvider {
 		/**
 		 * Provide followups for the given result.
-		 * @param result This instance has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 * @param result This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
 		 * @param token A cancellation token.
 		 */
 		provideFollowups(result: ChatResult, context: ChatContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
@@ -197,7 +195,7 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * Icon for the participant shown in UI.
+		 * An icon for the participant shown in UI.
 		 */
 		iconPath?: Uri | {
 			/**
@@ -221,11 +219,6 @@ declare module 'vscode' {
 		followupProvider?: ChatFollowupProvider;
 
 		/**
-		 * When the user clicks this participant in `/help`, this text will be submitted to this participant.
-		 */
-		sampleRequest?: string;
-
-		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
 		 * a result.
 		 *
@@ -240,60 +233,42 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	/**
-	 * A resolved variable value is a name-value pair as well as the range in the prompt where a variable was used.
-	 */
-	export interface ChatResolvedVariable {
+	export interface ChatValueReference {
 		/**
-		 * The name of the variable.
-		 *
-		 * *Note* that the name doesn't include the leading `#`-character,
-		 * e.g `selection` for `#selection`.
+		 * A unique identifier for this reference.
+		 */
+		readonly id: string;
+
+		/**
+		 * The name of the reference.
+		 * TODO@API should name be provided at all, or only ID?
 		 */
 		readonly name: string;
 
 		/**
-		 * The start and end index of the variable in the {@link ChatRequest.prompt prompt}.
+		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the
 		 *
 		 * *Note* that the indices take the leading `#`-character into account which means they can
 		 * used to modify the prompt as-is.
 		 */
 		readonly range?: [start: number, end: number];
 
-		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
 		/**
-		 * The values of the variable. Can be an empty array if the variable doesn't currently have a value.
+		 * A description of this value that could be used in an LLM prompt.
 		 */
-		readonly values: ChatVariableValue[];
-	}
+		readonly modelDescription?: string;
 
-	/**
-	 * The location at which the chat is happening.
-	 */
-	export enum ChatLocation {
 		/**
-		 * The chat panel
+		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
 		 */
-		Panel = 1,
-		/**
-		 * Terminal inline chat
-		 */
-		Terminal = 2,
-		/**
-		 * Notebook inline chat
-		 */
-		Notebook = 3,
-		/**
-		 * Code editor inline chat
-		 */
-		Editor = 4
+		readonly value: string | Uri | Location | unknown;
 	}
 
 	export interface ChatRequest {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequest.variables}.
+		 * Information about references used in this request is stored in {@link ChatRequest.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -305,22 +280,17 @@ declare module 'vscode' {
 		 */
 		readonly command: string | undefined;
 
-		/**
-		 * The list of variables and their values that are referenced in the prompt.
-		 *
-		 * *Note* that the prompt contains varibale references as authored and that it is up to the participant
-		 * to further modify the prompt, for instance by inlining variable values or creating links to
-		 * headings which contain the resolved values. Variables are sorted in reverse by their range
-		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
-		 * string-manipulation of the prompt.
-		 */
-		// TODO@API Q? are there implicit variables that are not part of the prompt?
-		readonly variables: readonly ChatResolvedVariable[];
 
 		/**
-		 * The location at which the chat is happening. This will always be one of the supported values
+		 * The list of references and their values that are referenced in the prompt.
+		 *
+		 * *Note* that the prompt contains varibale references as authored and that it is up to the participant
+		 * to further modify the prompt, for instance by inlining reference values or creating links to
+		 * headings which contain the resolved values. References are sorted in reverse by their range
+		 * in the prompt. That means the last reference in the prompt is the first in this list. This simplifies
+		 * string-manipulation of the prompt.
 		 */
-		readonly location: ChatLocation;
+		readonly references: readonly ChatValueReference[];
 	}
 
 	/**
@@ -334,7 +304,7 @@ declare module 'vscode' {
 		 * `push(new ChatResponseMarkdownPart(value))`.
 		 *
 		 * @see {@link ChatResponseStream.push}
-		 * @param value A markdown string or a string that should be interpreted as markdown.
+		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
 		 * @returns This stream.
 		 */
 		markdown(value: string | MarkdownString): ChatResponseStream;
@@ -385,9 +355,10 @@ declare module 'vscode' {
 		 * *Note* that the reference is not rendered inline with the response.
 		 *
 		 * @param value A uri or location
+		 * @param iconPath Icon for the reference shown in UI
 		 * @returns This stream.
 		 */
-		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }): ChatResponseStream;
+		reference(value: Uri | Location, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
 
 		/**
 		 * Pushes a part to this stream.
@@ -399,6 +370,10 @@ declare module 'vscode' {
 
 	export class ChatResponseMarkdownPart {
 		value: MarkdownString;
+
+		/**
+		 * @param value Note: The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
+		 */
 		constructor(value: string | MarkdownString);
 	}
 
@@ -425,8 +400,9 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseReferencePart {
-		value: Uri | Location | { variableName: string; value?: Uri | Location };
-		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location });
+		value: Uri | Location;
+		iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri };
+		constructor(value: Uri | Location, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri });
 	}
 
 	export class ChatResponseCommandButtonPart {
@@ -450,31 +426,5 @@ declare module 'vscode' {
 		 * @returns A new chat participant
 		 */
 		export function createChatParticipant(id: string, handler: ChatRequestHandler): ChatParticipant;
-	}
-
-	/**
-	 * The detail level of this chat variable value.
-	 */
-	export enum ChatVariableLevel {
-		Short = 1,
-		Medium = 2,
-		Full = 3
-	}
-
-	export interface ChatVariableValue {
-		/**
-		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
-		 */
-		level: ChatVariableLevel;
-
-		/**
-		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
-		 */
-		value: string | Uri;
-
-		/**
-		 * A description of this value, which could be provided to the LLM as a hint.
-		 */
-		description?: string;
 	}
 }

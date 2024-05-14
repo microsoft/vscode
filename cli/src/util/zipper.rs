@@ -55,8 +55,12 @@ where
 		.map_err(|e| wrap(e, format!("failed to open zip archive {}", path.display())))?;
 
 	let skip_segments_no = usize::from(should_skip_first_segment(&mut archive));
+	let report_progress_every = archive.len() / 20;
+
 	for i in 0..archive.len() {
-		reporter.report_progress(i as u64, archive.len() as u64);
+		if i % report_progress_every == 0 {
+			reporter.report_progress(i as u64, archive.len() as u64);
+		}
 		let mut file = archive
 			.by_index(i)
 			.map_err(|e| wrap(e, format!("could not open zip entry {}", i)))?;

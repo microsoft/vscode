@@ -10,7 +10,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { coalesce, equals, flatten } from 'vs/base/common/arrays';
+import { coalesce, equals } from 'vs/base/common/arrays';
 import { Delayer, Throttler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
@@ -48,7 +48,6 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
 import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
@@ -68,7 +67,7 @@ import { startEntries } from 'vs/workbench/contrib/welcomeGettingStarted/common/
 import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { GettingStartedIndexList } from './gettingStartedList';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 
@@ -122,10 +121,10 @@ export class GettingStartedPage extends EditorPane {
 	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
 
-	private dispatchListeners: DisposableStore = new DisposableStore();
-	private stepDisposables: DisposableStore = new DisposableStore();
-	private detailsPageDisposables: DisposableStore = new DisposableStore();
-	private mediaDisposables: DisposableStore = new DisposableStore();
+	private readonly dispatchListeners: DisposableStore = new DisposableStore();
+	private readonly stepDisposables: DisposableStore = new DisposableStore();
+	private readonly detailsPageDisposables: DisposableStore = new DisposableStore();
+	private readonly mediaDisposables: DisposableStore = new DisposableStore();
 
 	// Ensure that the these are initialized before use.
 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
@@ -161,7 +160,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
-	private categoriesSlideDisposables: DisposableStore;
+	private readonly categoriesSlideDisposables: DisposableStore;
 	private showFeaturedWalkthrough = true;
 
 	constructor(
@@ -175,7 +174,7 @@ export class GettingStartedPage extends EditorPane {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService protected override readonly themeService: IWorkbenchThemeService,
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -571,7 +570,7 @@ export class GettingStartedPage extends EditorPane {
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
 
 			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
-				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
+				const hrefs = stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)).flat();
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
@@ -603,7 +602,7 @@ export class GettingStartedPage extends EditorPane {
 			}));
 
 			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
-				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
+				const hrefs = stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)).flat();
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
@@ -645,7 +644,7 @@ export class GettingStartedPage extends EditorPane {
 
 			if (serializedContextKeyExprs) {
 				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
-				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+				const watchingKeys = new Set(contextKeyExprs.flatMap(expr => expr.keys()));
 
 				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
 					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
@@ -690,12 +689,16 @@ export class GettingStartedPage extends EditorPane {
 
 			postTrueKeysMessage();
 
-			this.stepDisposables.add(this.webview.onMessage(e => {
+			this.stepDisposables.add(this.webview.onMessage(async e => {
 				const message: string = e.message as string;
 				if (message.startsWith('command:')) {
 					this.openerService.open(message, { allowCommands: true });
 				} else if (message.startsWith('setTheme:')) {
-					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
+					const themeId = message.slice('setTheme:'.length);
+					const theme = (await this.themeService.getColorThemes()).find(theme => theme.settingsId === themeId);
+					if (theme) {
+						this.themeService.setColorTheme(theme.id, ConfigurationTarget.USER);
+					}
 				} else {
 					console.error('Unexpected message', message);
 				}

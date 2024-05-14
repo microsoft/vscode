@@ -13,7 +13,7 @@ import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
+export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
 	return array[array.length - (1 + n)];
 }
 
@@ -341,7 +341,7 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
  * @returns New array with all falsy values removed. The original array IS NOT modified.
  */
 export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
-	return <T[]>array.filter(e => !!e);
+	return array.filter((e): e is T => !!e);
 }
 
 /**
@@ -433,13 +433,6 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	}
 
 	return result;
-}
-
-/**
- * @deprecated Use `[].flat()`
- */
-export function flatten<T>(arr: T[][]): T[] {
-	return (<T[]>[]).concat(...arr);
 }
 
 export function range(to: number): number[];

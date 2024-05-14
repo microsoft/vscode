@@ -393,7 +393,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	protected _environmentVariableCollections: Map<string, UnifiedEnvironmentVariableCollection> = new Map();
 	private _defaultProfile: ITerminalProfile | undefined;
 	private _defaultAutomationProfile: ITerminalProfile | undefined;
-	private _lastQuickFixCommands: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _lastQuickFixCommands: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();

@@ -28,7 +28,7 @@ import { CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, CellToolbarOrder,
 import { NotebookChangeTabDisplaySize, NotebookIndentUsingSpaces, NotebookIndentUsingTabs, NotebookIndentationToSpacesAction, NotebookIndentationToTabsAction } from 'vs/workbench/contrib/notebook/browser/controller/notebookIndentationActions';
 import { CHANGE_CELL_LANGUAGE, CellEditState, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -53,7 +53,8 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 						NOTEBOOK_CELL_LIST_FOCUSED,
 						ContextKeyExpr.not(InputFocusedContextKey),
 						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-						EditorContextKeys.hoverFocused.toNegated()
+						EditorContextKeys.hoverFocused.toNegated(),
+						NOTEBOOK_OUTPUT_INPUT_FOCUSED.toNegated()
 					),
 					primary: KeyCode.Enter,
 					weight: KeybindingWeight.WorkbenchContrib
@@ -155,7 +156,7 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace
 					},
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), NOTEBOOK_OUTPUT_INPUT_FOCUSED.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				menu: [
@@ -449,7 +450,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 				return;
 			}
 
-			const item = <ILanguagePickInput>{
+			const item: ILanguagePickInput = {
 				label: languageName,
 				iconClasses: getIconClasses(modelService, languageService, this.getFakeResource(languageName, languageService)),
 				description,

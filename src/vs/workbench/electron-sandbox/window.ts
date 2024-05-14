@@ -253,8 +253,8 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true, mainWindow); });
-		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false, mainWindow); });
+		ipcRenderer.on('vscode:enterFullScreen', () => setFullscreen(true, mainWindow));
+		ipcRenderer.on('vscode:leaveFullScreen', () => setFullscreen(false, mainWindow));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
@@ -331,7 +331,7 @@ export class NativeWindow extends BaseWindow {
 		// Allow to update security settings around protocol handlers
 		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
 			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
-			this.configurationService.updateValue(setting, false, ConfigurationTarget.USER_LOCAL);
+			this.configurationService.updateValue(setting, false);
 		});
 
 		// Window Zoom

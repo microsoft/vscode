@@ -196,7 +196,7 @@ export class TextAreaInput extends Disposable {
 
 	private readonly _asyncTriggerCut: RunOnceScheduler;
 
-	private _asyncFocusGainWriteScreenReaderContent: MutableDisposable<RunOnceScheduler> = this._register(new MutableDisposable());
+	private readonly _asyncFocusGainWriteScreenReaderContent: MutableDisposable<RunOnceScheduler> = this._register(new MutableDisposable());
 
 	private _textAreaState: TextAreaState;
 

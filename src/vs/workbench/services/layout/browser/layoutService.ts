@@ -311,18 +311,24 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
 }
 
-export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
+export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean, zenModeActive?: boolean): boolean {
 
 	if (!hasCustomTitlebar(configurationService)) {
+		return false;
+	}
+
+	if (zenModeActive) {
 		return false;
 	}
 
 	const inFullscreen = isFullscreen(window);
 	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
 
-	const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-	if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
-		return false;
+	if (!isWeb) {
+		const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
+			return false;
+		}
 	}
 
 	if (!isTitleBarEmpty(configurationService)) {

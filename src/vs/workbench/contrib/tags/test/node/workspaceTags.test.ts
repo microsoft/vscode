@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/common/workspaceTags';
 
 function hash(value: string): string {
-	return crypto.createHash('sha1').update(value.toString()).digest('hex');
+	return crypto.createHash('sha1').update(value.toString()).digest('hex'); // CodeQL [SM04514] Using SHA1 to convert a URL to a fixed length
 }
 
 async function asyncHash(value: string): Promise<string> {

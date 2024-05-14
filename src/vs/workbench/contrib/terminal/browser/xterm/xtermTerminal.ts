@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
-import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
@@ -45,7 +44,6 @@ const enum RenderConstants {
 	SmoothScrollDuration = 125
 }
 
-let CanvasAddon: typeof CanvasAddonType;
 let ImageAddon: typeof ImageAddonType;
 let SearchAddon: typeof SearchAddonType;
 let SerializeAddon: typeof SerializeAddonType;
@@ -121,7 +119,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
-	private _canvasAddon?: CanvasAddonType;
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
@@ -136,7 +133,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
-	get isGpuAccelerated(): boolean { return !!(this._canvasAddon || this._webglAddon); }
+	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -159,7 +156,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 
 	get textureAtlas(): Promise<ImageBitmap> | undefined {
-		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
+		const canvas = this._webglAddon?.textureAtlas;
 		if (!canvas) {
 			return undefined;
 		}
@@ -332,8 +329,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
 				this._enableWebglRenderer();
-			} else if (this._shouldLoadCanvas()) {
-				this._enableCanvasRenderer();
 			}
 		}
 
@@ -406,11 +401,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._enableWebglRenderer();
 			} else {
 				this._disposeOfWebglRenderer();
-				if (this._shouldLoadCanvas()) {
-					this._enableCanvasRenderer();
-				} else {
-					this._disposeOfCanvasRenderer();
-				}
 			}
 		}
 	}
@@ -421,10 +411,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private _shouldLoadWebgl(): boolean {
 		return (this._terminalConfigurationService.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._terminalConfigurationService.config.gpuAcceleration === 'on';
-	}
-
-	private _shouldLoadCanvas(): boolean {
-		return this._terminalConfigurationService.config.gpuAcceleration === 'canvas';
 	}
 
 	forceRedraw() {
@@ -680,7 +666,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		const Addon = await this._getWebglAddonConstructor();
 		this._webglAddon = new Addon();
-		this._disposeOfCanvasRenderer();
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -706,38 +691,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._disposeOfWebglRenderer();
 	}
 
-	/**
-	 * @deprecated This will be removed in the future, see https://github.com/microsoft/vscode/issues/209276
-	 */
-	private async _enableCanvasRenderer(): Promise<void> {
-		if (!this.raw.element || this._canvasAddon) {
-			return;
-		}
-		const Addon = await this._getCanvasAddonConstructor();
-		this._canvasAddon = new Addon();
-		this._disposeOfWebglRenderer();
-		try {
-			this.raw.loadAddon(this._canvasAddon);
-			this._logService.trace('Canvas renderer was loaded');
-		} catch (e) {
-			this._logService.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
-			XtermTerminal._suggestedRendererType = 'dom';
-			this._disposeOfCanvasRenderer();
-		}
-		this._refreshImageAddon();
-	}
-
-	protected async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
-		if (!CanvasAddon) {
-			CanvasAddon = (await importAMDNodeModule<typeof import('@xterm/addon-canvas')>('@xterm/addon-canvas', 'lib/xterm-addon-canvas.js')).CanvasAddon;
-		}
-		return CanvasAddon;
-	}
-
 	@debounce(100)
 	private async _refreshImageAddon(): Promise<void> {
-		// Only allow the image addon when a canvas is being used to avoid possible GPU issues
-		if (this._terminalConfigurationService.config.enableImages && (this._canvasAddon || this._webglAddon)) {
+		// Only allow the image addon when webgl is being used to avoid possible GPU issues
+		if (this._terminalConfigurationService.config.enableImages && this._webglAddon) {
 			if (!this._imageAddon) {
 				const AddonCtor = await this._getImageAddonConstructor();
 				this._imageAddon = new AddonCtor();
@@ -786,16 +743,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			SerializeAddon = (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon;
 		}
 		return SerializeAddon;
-	}
-
-	private _disposeOfCanvasRenderer(): void {
-		try {
-			this._canvasAddon?.dispose();
-		} catch {
-			// ignore
-		}
-		this._canvasAddon = undefined;
-		this._refreshImageAddon();
 	}
 
 	private _disposeOfWebglRenderer(): void {

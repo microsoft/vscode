@@ -13,23 +13,23 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 class TestTerminalConfigurationService extends TerminalConfigurationService {
 	get fontMetrics() { return this._fontMetrics; }
 }
 
 suite('Workbench - TerminalConfigurationService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let configurationService: TestConfigurationService;
 	let terminalConfigurationService: ITerminalConfigurationService;
 
 	setup(() => {
-		const instantiationService = new TestInstantiationService();
-		configurationService = new TestConfigurationService();
-		instantiationService.set(IConfigurationService, configurationService);
-		terminalConfigurationService = instantiationService.createInstance(TerminalConfigurationService);
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		terminalConfigurationService = instantiationService.get(ITerminalConfigurationService);
 	});
-
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('config', () => {
 		test('should update on any change to terminal.integrated', () => {

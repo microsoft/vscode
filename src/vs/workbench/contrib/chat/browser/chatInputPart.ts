@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Checkbox } from 'vs/base/browser/ui/toggle/toggle';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
@@ -22,7 +22,7 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
@@ -32,22 +32,22 @@ import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { FileKind } from 'vs/platform/files/common/files';
 import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { defaultCheckboxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { asCssVariableWithDefault, checkboxBorder, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { CancelAction, IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { CancelAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
@@ -87,21 +87,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
+	private _onDidChangeAttachedContext = this._register(new Emitter<void>());
+	readonly onDidChangeAttachedContext = this._onDidChangeAttachedContext.event;
+	public get attachedContext() {
+		return this._attachedContext;
+	}
+
+	private readonly _attachedContext = new Set<IChatRequestVariableEntry>();
+
+	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: new Emitter<boolean>().event });
+
 	private inputEditorHeight = 0;
 	private container!: HTMLElement;
 
 	private inputSideToolbarContainer?: HTMLElement;
 
 	private followupsContainer!: HTMLElement;
-	private followupsDisposables = this._register(new DisposableStore());
+	private readonly followupsDisposables = this._register(new DisposableStore());
 
-	private implicitContextContainer!: HTMLElement;
-	private implicitContextLabel!: HTMLElement;
-	private implicitContextCheckbox!: Checkbox;
-	private implicitContextSettingEnabled = false;
-	get implicitContextEnabled() {
-		return this.implicitContextCheckbox.checked;
-	}
+	private attachedContextContainer!: HTMLElement;
 
 	private _inputPartHeight: number = 0;
 	get inputPartHeight() {
@@ -126,7 +130,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
-	private providerId: string | undefined;
 
 	private cachedDimensions: dom.Dimension | undefined;
 	private cachedToolbarWidth: number | undefined;
@@ -154,14 +157,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
 
-		this.implicitContextSettingEnabled = this.configurationService.getValue<boolean>('chat.experimental.implicitContext');
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
-			}
-
-			if (e.affectsConfiguration('chat.experimental.implicitContext')) {
-				this.implicitContextSettingEnabled = this.configurationService.getValue<boolean>('chat.experimental.implicitContext');
 			}
 		}));
 	}
@@ -175,9 +173,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return localize('chatInput', "Chat Input");
 	}
 
-	setState(providerId: string, inputValue: string | undefined): void {
-		this.providerId = providerId;
-		const history = this.historyService.getHistory(providerId);
+	setState(inputValue: string | undefined): void {
+		const history = this.historyService.getHistory();
 		this.history = new HistoryNavigator(history, 50);
 
 		if (typeof inputValue === 'string') {
@@ -273,13 +270,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.focus();
 	}
 
+	attachContext(...contentReferences: IChatRequestVariableEntry[]): void {
+		for (const reference of contentReferences) {
+			this.attachedContext.add(reference);
+		}
+
+		this.initAttachedContext(this.attachedContextContainer);
+	}
+
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this.container = dom.append(container, $('.interactive-input-part'));
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
 
 		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-		this.implicitContextContainer = dom.append(this.container, $('.chat-implicit-context'));
-		this.initImplicitContext(this.implicitContextContainer);
+		this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+		this.initAttachedContext(this.attachedContextContainer);
 		const inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
 		const inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
 
@@ -374,7 +379,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			actionViewItemProvider: (action, options) => {
 				if (this.location === ChatAgentLocation.Panel) {
 					if ((action.id === SubmitAction.ID || action.id === CancelAction.ID) && action instanceof MenuItemAction) {
-						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined);
+						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
 						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction);
 					}
 				}
@@ -418,16 +423,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private initImplicitContext(container: HTMLElement) {
-		this.implicitContextCheckbox = new Checkbox('#selection', true, { ...defaultCheckboxStyles, checkboxBorder: asCssVariableWithDefault(checkboxBorder, inputBackground) });
-		container.append(this.implicitContextCheckbox.domNode);
-		this.implicitContextLabel = dom.append(container, $('span.chat-implicit-context-label'));
-		this.implicitContextLabel.textContent = '#selection';
-	}
+	private initAttachedContext(container: HTMLElement) {
+		dom.clearNode(container);
+		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
+		for (const attachment of this.attachedContext) {
+			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
+			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
+			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			if (file) {
+				label.setFile(file, {
+					fileKind: FileKind.FILE,
+					hidePath: true,
+				});
+			} else {
+				label.setLabel(attachment.name);
+			}
 
-	setImplicitContextKinds(kinds: string[]) {
-		dom.setVisibility(this.implicitContextSettingEnabled && kinds.length > 0, this.implicitContextContainer);
-		this.implicitContextLabel.textContent = localize('use', "Use") + ' ' + kinds.map(k => `#${k}`).join(', ');
+			const clearButton = new Button(widget, { supportIcons: true });
+			clearButton.icon = Codicon.close;
+			const disp = clearButton.onDidClick(() => {
+				this.attachedContext.delete(attachment);
+				disp.dispose();
+				this._onDidChangeAttachedContext.fire();
+			});
+		}
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
@@ -472,6 +491,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.previousInputEditorDimension = newDimension;
 		}
 
+		this.initAttachedContext(this.attachedContextContainer);
+
 		if (allowRecurse && initialEditorScrollWidth < 10) {
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
 			return this._layout(height, width, false);
@@ -485,7 +506,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 8 : 40,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 24,
-			implicitContextHeight: this.implicitContextContainer.offsetHeight,
+			implicitContextHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
 			editorPadding: 12,
 			toolbarPadding: 4,
@@ -496,7 +517,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
-		this.historyService.saveHistory(this.providerId!, inputHistory);
+		this.historyService.saveHistory(inputHistory);
 	}
 }
 
@@ -540,7 +561,7 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 			const secondaryAgent = chatAgentService.getSecondaryAgent();
 			if (secondaryAgent) {
 				secondary.forEach(a => {
-					if (a.id === ChatSubmitSecondaryAgentEditorAction.ID) {
+					if (a.id === ChatSubmitSecondaryAgentAction.ID) {
 						a.label = localize('chat.submitToSecondaryAgent', "Send to @{0}", secondaryAgent.name);
 					}
 

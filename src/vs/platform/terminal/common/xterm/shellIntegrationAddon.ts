@@ -21,6 +21,7 @@ import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/b
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from 'vs/base/common/uri';
 import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
+import { removeAnsiEscapeCodesFromPrompt } from 'vs/base/common/strings';
 
 
 /**
@@ -40,7 +41,7 @@ import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 /**
  * The identifier for the first numeric parameter (`Ps`) for OSC commands used by shell integration.
  */
-const enum ShellIntegrationOscPs {
+export const enum ShellIntegrationOscPs {
 	/**
 	 * Sequences pioneered by FinalTerm.
 	 */
@@ -59,38 +60,86 @@ const enum ShellIntegrationOscPs {
 }
 
 /**
- * VS Code-specific shell integration sequences. Some of these are based on more common alternatives
- * like those pioneered in FinalTerm. The decision to move to entirely custom sequences was to try
- * to improve reliability and prevent the possibility of applications confusing the terminal. If
- * multiple shell integration scripts run, VS Code will prioritize the VS Code-specific ones.
- *
- * It's recommended that authors of shell integration scripts use the common sequences (eg. 133)
- * when building general purpose scripts and the VS Code-specific (633) when targeting only VS Code
- * or when there are no other alternatives.
+ * Sequences pioneered by FinalTerm.
  */
-const enum VSCodeOscPt {
+const enum FinalTermOscPt {
 	/**
 	 * The start of the prompt, this is expected to always appear at the start of a line.
-	 * Based on FinalTerm's `OSC 133 ; A ST`.
+	 *
+	 * Format: `OSC 133 ; A ST`
 	 */
 	PromptStart = 'A',
 
 	/**
 	 * The start of a command, ie. where the user inputs their command.
-	 * Based on FinalTerm's `OSC 133 ; B ST`.
+	 *
+	 * Format: `OSC 133 ; B ST`
 	 */
 	CommandStart = 'B',
 
 	/**
 	 * Sent just before the command output begins.
-	 * Based on FinalTerm's `OSC 133 ; C ST`.
+	 *
+	 * Format: `OSC 133 ; C ST`
 	 */
 	CommandExecuted = 'C',
 
 	/**
 	 * Sent just after a command has finished. The exit code is optional, when not specified it
 	 * means no command was run (ie. enter on empty prompt or ctrl+c).
-	 * Based on FinalTerm's `OSC 133 ; D [; <ExitCode>] ST`.
+	 *
+	 * Format: `OSC 133 ; D [; <ExitCode>] ST`
+	 */
+	CommandFinished = 'D',
+}
+
+/**
+ * VS Code-specific shell integration sequences. Some of these are based on more common alternatives
+ * like those pioneered in {@link FinalTermOscPt FinalTerm}. The decision to move to entirely custom
+ * sequences was to try to improve reliability and prevent the possibility of applications confusing
+ * the terminal. If multiple shell integration scripts run, VS Code will prioritize the VS
+ * Code-specific ones.
+ *
+ * It's recommended that authors of shell integration scripts use the common sequences (`133`)
+ * when building general purpose scripts and the VS Code-specific (`633`) when targeting only VS
+ * Code or when there are no other alternatives (eg. {@link CommandLine `633 ; E`}). These sequences
+ * support mix-and-matching.
+ */
+const enum VSCodeOscPt {
+	/**
+	 * The start of the prompt, this is expected to always appear at the start of a line.
+	 *
+	 * Format: `OSC 633 ; A ST`
+	 *
+	 * Based on {@link FinalTermOscPt.PromptStart}.
+	 */
+	PromptStart = 'A',
+
+	/**
+	 * The start of a command, ie. where the user inputs their command.
+	 *
+	 * Format: `OSC 633 ; B ST`
+	 *
+	 * Based on  {@link FinalTermOscPt.CommandStart}.
+	 */
+	CommandStart = 'B',
+
+	/**
+	 * Sent just before the command output begins.
+	 *
+	 * Format: `OSC 633 ; C ST`
+	 *
+	 * Based on {@link FinalTermOscPt.CommandExecuted}.
+	 */
+	CommandExecuted = 'C',
+
+	/**
+	 * Sent just after a command has finished. The exit code is optional, when not specified it
+	 * means no command was run (ie. enter on empty prompt or ctrl+c).
+	 *
+	 * Format: `OSC 633 ; D [; <ExitCode>] ST`
+	 *
+	 * Based on {@link FinalTermOscPt.CommandFinished}.
 	 */
 	CommandFinished = 'D',
 
@@ -118,7 +167,7 @@ const enum VSCodeOscPt {
 	 * An optional nonce can be provided which is may be required by the terminal in order enable
 	 * some features. This helps ensure no malicious command injection has occurred.
 	 *
-	 * Format: `OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST`.
+	 * Format: `OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST`
 	 */
 	CommandLine = 'E',
 
@@ -151,8 +200,9 @@ const enum VSCodeOscPt {
 	RightPromptEnd = 'I',
 
 	/**
-	 * Set an arbitrary property: `OSC 633 ; P ; <Property>=<Value> ST`, only known properties will
-	 * be handled.
+	 * Set the value of an arbitrary property, only known properties will be handled by VS Code.
+	 *
+	 * Format: `OSC 633 ; P ; <Property>=<Value> ST`
 	 *
 	 * Known properties:
 	 *
@@ -160,13 +210,18 @@ const enum VSCodeOscPt {
 	 * - `IsWindows` - Indicates whether the terminal is using a Windows backend like winpty or
 	 *   conpty. This may be used to enable additional heuristics as the positioning of the shell
 	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
+	 * - `ContinuationPrompt` - Reports the continuation prompt that is printed at the start of
+	 *   multi-line inputs.
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
 	Property = 'P',
 
 	/**
-	 * Sets a mark/point-of-interest in the buffer. `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 * Sets a mark/point-of-interest in the buffer.
+	 *
+	 * Format: `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 *
 	 * `Id` - The identifier of the mark that can be used to reference it
 	 * `Hidden` - When set, the mark will be available to reference internally but will not visible
 	 *
@@ -180,12 +235,16 @@ const enum VSCodeOscPt {
  */
 const enum ITermOscPt {
 	/**
-	 * Sets a mark/point-of-interest in the buffer. `OSC 1337 ; SetMark`
+	 * Sets a mark/point-of-interest in the buffer.
+	 *
+	 * Format: `OSC 1337 ; SetMark`
 	 */
 	SetMark = 'SetMark',
 
 	/**
-	 * Reports current working directory (CWD). `OSC 1337 ; CurrentDir=<Cwd> ST`
+	 * Reports current working directory (CWD).
+	 *
+	 * Format: `OSC 1337 ; CurrentDir=<Cwd> ST`
 	 */
 	CurrentDir = 'CurrentDir'
 }
@@ -264,17 +323,17 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// a type flag through the capability calls
 		const [command, ...args] = data.split(';');
 		switch (command) {
-			case 'A':
+			case FinalTermOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
-			case 'B':
+			case FinalTermOscPt.CommandStart:
 				// Ignore the command line for these sequences as it's unreliable for example in powerlevel10k
 				this._createOrGetCommandDetection(this._terminal).handleCommandStart({ ignoreCommandLine: true });
 				return true;
-			case 'C':
+			case FinalTermOscPt.CommandExecuted:
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
-			case 'D': {
+			case FinalTermOscPt.CommandFinished: {
 				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
@@ -379,12 +438,22 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					return true;
 				}
 				switch (key) {
+					case 'ContinuationPrompt': {
+						this._updateContinuationPrompt(removeAnsiEscapeCodesFromPrompt(value));
+						return true;
+					}
 					case 'Cwd': {
 						this._updateCwd(value);
 						return true;
 					}
 					case 'IsWindows': {
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
+						return true;
+					}
+					case 'Prompt': {
+						// Remove escape sequences from the user's prompt
+						const sanitizedValue = value.replace(/\x1b\[[0-9;]*m/g, '');
+						this._updatePromptTerminator(sanitizedValue);
 						return true;
 					}
 					case 'Task': {
@@ -402,6 +471,24 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Unrecognized sequence
 		return false;
+	}
+
+	private _updateContinuationPrompt(value: string) {
+		if (!this._terminal) {
+			return;
+		}
+		this._createOrGetCommandDetection(this._terminal).setContinuationPrompt(value);
+	}
+
+	private _updatePromptTerminator(prompt: string) {
+		if (!this._terminal) {
+			return;
+		}
+		const lastPromptLine = prompt.substring(prompt.lastIndexOf('\n') + 1);
+		const promptTerminator = lastPromptLine.substring(lastPromptLine.lastIndexOf(' '));
+		if (promptTerminator) {
+			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator, lastPromptLine);
+		}
 	}
 
 	private _updateCwd(value: string) {

@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
@@ -15,6 +14,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -112,6 +112,9 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 
 	templateId = TOC_ENTRY_TEMPLATE_ID;
 
+	constructor(private readonly _hoverService: IHoverService) {
+	}
+
 	renderTemplate(container: HTMLElement): ITOCEntryTemplate {
 		return {
 			labelElement: DOM.append(container, $('.settings-toc-entry')),
@@ -128,7 +131,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 		const label = element.label;
 
 		template.labelElement.textContent = label;
-		template.elementDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), template.labelElement, label));
+		template.elementDisposables.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), template.labelElement, label));
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;
@@ -208,6 +211,7 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		// test open mode
@@ -233,7 +237,7 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			'SettingsTOC',
 			container,
 			new TOCTreeDelegate(),
-			[new TOCRenderer()],
+			[new TOCRenderer(hoverService)],
 			options,
 			instantiationService,
 			contextKeyService,

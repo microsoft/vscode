@@ -2518,7 +2518,7 @@ declare module 'vscode' {
 		/**
 		 * Checks if this code action kind intersects `other`.
 		 *
-		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and ``"refactor.extract.function"`,
+		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and `"refactor.extract.function"`,
 		 * but not `"unicorn.refactor.extract"`, or `"refactor.extractAll"`.
 		 *
 		 * @param other Kind to check.
@@ -10299,6 +10299,12 @@ declare module 'vscode' {
 		 * Whether the current window is focused.
 		 */
 		readonly focused: boolean;
+
+		/**
+		 * Whether the window has been interacted with recently. This will change
+		 * immediately on activity, or after a short time of user inactivity.
+		 */
+		readonly active: boolean;
 	}
 
 	/**
@@ -10450,7 +10456,7 @@ declare module 'vscode' {
 		export const state: WindowState;
 
 		/**
-		 * An {@link Event} which fires when the focus state of the current window
+		 * An {@link Event} which fires when the focus or activity state of the current window
 		 * changes. The value of the event represents whether the window is focused.
 		 */
 		export const onDidChangeWindowState: Event<WindowState>;
@@ -16190,6 +16196,50 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a thread in a debug session.
+	 */
+	export class DebugThread {
+		/**
+		 * Debug session for thread.
+		 */
+		readonly session: DebugSession;
+
+		/**
+		 * ID of the associated thread in the debug protocol.
+		 */
+		readonly threadId: number;
+
+		/**
+		 * @hidden
+		 */
+		private constructor(session: DebugSession, threadId: number);
+	}
+
+	/**
+	 * Represents a stack frame in a debug session.
+	 */
+	export class DebugStackFrame {
+		/**
+		 * Debug session for thread.
+		 */
+		readonly session: DebugSession;
+
+		/**
+		 * ID of the associated thread in the debug protocol.
+		 */
+		readonly threadId: number;
+		/**
+		 * ID of the stack frame in the debug protocol.
+		 */
+		readonly frameId: number;
+
+		/**
+		 * @hidden
+		 */
+		private constructor(session: DebugSession, threadId: number, frameId: number);
+	}
+
+	/**
 	 * Namespace for debug functionality.
 	 */
 	export namespace debug {
@@ -16238,6 +16288,19 @@ declare module 'vscode' {
 		 * An {@link Event} that is emitted when the set of breakpoints is added, removed, or changed.
 		 */
 		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+
+		/**
+		 * The currently focused thread or stack frame, or `undefined` if no
+		 * thread or stack is focused. A thread can be focused any time there is
+		 * an active debug session, while a stack frame can only be focused when
+		 * a session is paused and the call stack has been retrieved.
+		 */
+		export const activeStackItem: DebugThread | DebugStackFrame | undefined;
+
+		/**
+		 * An event which fires when the {@link debug.activeStackItem} has changed.
+		 */
+		export const onDidChangeActiveStackItem: Event<DebugThread | DebugStackFrame | undefined>;
 
 		/**
 		 * Register a {@link DebugConfigurationProvider debug configuration provider} for a specific debug type.
@@ -17395,12 +17458,21 @@ declare module 'vscode' {
 		readonly continuous?: boolean;
 
 		/**
+		 * Controls how test Test Results view is focused.  If true, the editor
+		 * will keep the maintain the user's focus. If false, the editor will
+		 * prefer to move focus into the Test Results view, although
+		 * this may be configured by users.
+		 */
+		readonly preserveFocus: boolean;
+
+		/**
 		 * @param include Array of specific tests to run, or undefined to run all tests
 		 * @param exclude An array of tests to exclude from the run.
 		 * @param profile The run profile used for this request.
 		 * @param continuous Whether to run tests continuously as source changes.
+		 * @param preserveFocus Whether to preserve the user's focus when the run is started
 		 */
-		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile, continuous?: boolean);
+		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile, continuous?: boolean, preserveFocus?: boolean);
 	}
 
 	/**

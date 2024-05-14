@@ -16,7 +16,7 @@ import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/c
  */
 export abstract class CellContentPart extends Disposable {
 	protected currentCell: ICellViewModel | undefined;
-	protected cellDisposables = new DisposableStore();
+	protected readonly cellDisposables = new DisposableStore();
 
 	constructor() {
 		super();
@@ -133,9 +133,9 @@ function safeInvokeNoArg<T>(func: () => T): T | null {
 }
 
 export class CellPartsCollection extends Disposable {
-	private _scheduledOverlayRendering = this._register(new MutableDisposable());
-	private _scheduledOverlayUpdateState = this._register(new MutableDisposable());
-	private _scheduledOverlayUpdateExecutionState = this._register(new MutableDisposable());
+	private readonly _scheduledOverlayRendering = this._register(new MutableDisposable());
+	private readonly _scheduledOverlayUpdateState = this._register(new MutableDisposable());
+	private readonly _scheduledOverlayUpdateExecutionState = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly targetWindow: Window,

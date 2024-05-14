@@ -54,7 +54,7 @@ export const chatSubcommandLeader = '/';
 export class ChatRequestVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'var';
 	readonly kind = ChatRequestVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string, readonly variableId: string) { }
 
 	get text(): string {
 		const argPart = this.variableArg ? `:${this.variableArg}` : '';
@@ -80,23 +80,6 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 
 	get promptText(): string {
 		return '';
-	}
-
-	/**
-	 * Don't stringify all the agent methods, just data.
-	 */
-	toJSON(): any {
-		return {
-			kind: this.kind,
-			range: this.range,
-			editorRange: this.editorRange,
-			agent: {
-				id: this.agent.id,
-				name: this.agent.name,
-				description: this.agent.description,
-				metadata: this.agent.metadata
-			}
-		};
 	}
 }
 
@@ -140,7 +123,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -166,7 +149,8 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestVariablePart).variableName,
-					(part as ChatRequestVariablePart).variableArg
+					(part as ChatRequestVariablePart).variableArg,
+					(part as ChatRequestVariablePart).variableName || '',
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
 				let agent = (part as ChatRequestAgentPart).agent;
@@ -200,6 +184,8 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestDynamicVariablePart).text,
+					(part as ChatRequestDynamicVariablePart).id,
+					(part as ChatRequestDynamicVariablePart).modelDescription,
 					revive((part as ChatRequestDynamicVariablePart).data)
 				);
 			} else {

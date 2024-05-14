@@ -33,7 +33,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { IHoverService, nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 class LanguageStatusViewModel {
 
@@ -104,6 +104,7 @@ class LanguageStatus {
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
@@ -324,7 +325,7 @@ class LanguageStatus {
 				href: URI.from({
 					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
 				}).toString()
-			}, { hoverDelegate: nativeHoverDelegate }, this._openerService));
+			}, { hoverDelegate: nativeHoverDelegate }, this._hoverService, this._openerService));
 		}
 
 		// -- pin
@@ -374,7 +375,7 @@ class LanguageStatus {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);
 			} else {
-				store.add(new Link(target, node, undefined, this._openerService));
+				store.add(new Link(target, node, undefined, this._hoverService, this._openerService));
 			}
 		}
 	}

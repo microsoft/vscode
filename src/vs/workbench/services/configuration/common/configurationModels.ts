@@ -12,6 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { isBoolean } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
@@ -21,11 +22,11 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 	private _launchModel: ConfigurationModel;
 	private _tasksModel: ConfigurationModel;
 
-	constructor(name: string) {
-		super(name);
-		this._settingsModelParser = new ConfigurationModelParser(name);
-		this._launchModel = new ConfigurationModel();
-		this._tasksModel = new ConfigurationModel();
+	constructor(name: string, logService: ILogService) {
+		super(name, logService);
+		this._settingsModelParser = new ConfigurationModelParser(name, logService);
+		this._launchModel = ConfigurationModel.createEmptyModel(logService);
+		this._tasksModel = ConfigurationModel.createEmptyModel(logService);
 	}
 
 	get folders(): IStoredWorkspaceFolder[] {
@@ -72,16 +73,16 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 			const scopedContents = Object.create(null);
 			scopedContents[key] = contents;
 			const keys = Object.keys(data).map(k => `${key}.${k}`);
-			return new ConfigurationModel(scopedContents, keys, []);
+			return new ConfigurationModel(scopedContents, keys, [], undefined, this.logService);
 		}
-		return new ConfigurationModel();
+		return ConfigurationModel.createEmptyModel(this.logService);
 	}
 }
 
 export class StandaloneConfigurationModelParser extends ConfigurationModelParser {
 
-	constructor(name: string, private readonly scope: string) {
-		super(name);
+	constructor(name: string, private readonly scope: string, logService: ILogService,) {
+		super(name, logService);
 	}
 
 	protected override doParseRaw(raw: any, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
@@ -106,8 +107,10 @@ export class Configuration extends BaseConfiguration {
 		folders: ResourceMap<ConfigurationModel>,
 		memoryConfiguration: ConfigurationModel,
 		memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
-		private readonly _workspace?: Workspace) {
-		super(defaults, policy, application, localUser, remoteUser, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
+		private readonly _workspace: Workspace | undefined,
+		logService: ILogService
+	) {
+		super(defaults, policy, application, localUser, remoteUser, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource, logService);
 	}
 
 	override getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): any {

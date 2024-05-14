@@ -229,6 +229,10 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 				obj = curr[s] = Object.create(null);
 				break;
 			case 'object':
+				if (obj === null) {
+					conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is null`);
+					return;
+				}
 				break;
 			default:
 				conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is ${JSON.stringify(obj)}`);
