@@ -157,14 +157,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
 
-		this.attachedContextSettingEnabled = this.configurationService.getValue<boolean>('chat.experimental.attachedContext');
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
-			}
-
-			if (e.affectsConfiguration('chat.experimental.attachedContext')) {
-				this.attachedContextSettingEnabled = this.configurationService.getValue<boolean>('chat.experimental.attachedContext');
 			}
 		}));
 	}
