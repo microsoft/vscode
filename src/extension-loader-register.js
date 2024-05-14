@@ -12,5 +12,5 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const absolutePath = join(__dirname, 'extension-loader.js')
 const absoluteUri = pathToFileURL(absolutePath).toString()
-console.log({ absoluteUri, absolutePath })
+
 register(absoluteUri);
