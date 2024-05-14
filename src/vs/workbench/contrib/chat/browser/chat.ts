@@ -16,7 +16,7 @@ import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestVariableEntry, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -128,6 +128,7 @@ export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewCon
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
+	readonly onDidHideInput: Event<void>;
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
 	readonly location: ChatAgentLocation;
@@ -157,6 +158,7 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
+	attachContext(...context: IChatRequestVariableEntry[]): void;
 	clear(): void;
 }
 

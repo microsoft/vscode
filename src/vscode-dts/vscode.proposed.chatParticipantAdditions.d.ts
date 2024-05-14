@@ -160,6 +160,8 @@ declare module 'vscode' {
 		 */
 		warning(message: string | MarkdownString): ChatResponseStream;
 
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
+
 		push(part: ExtendedChatResponsePart): ChatResponseStream;
 	}
 
