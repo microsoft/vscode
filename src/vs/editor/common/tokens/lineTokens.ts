@@ -49,6 +49,18 @@ export class LineTokens implements IViewLineTokens {
 		return new LineTokens(tokens, lineContent, decoder);
 	}
 
+	public static createFromTextAndMetadata(data: { text: string, metadata: number }[], decoder: ILanguageIdCodec): LineTokens {
+		let offset: number = 0;
+		let fullText: string = '';
+		const tokens = new Array<number>();
+		for (const { text, metadata } of data) {
+			tokens.push(offset + text.length, metadata);
+			offset += text.length;
+			fullText += text;
+		}
+		return new LineTokens(new Uint32Array(tokens), fullText, decoder);
+	}
+
 	constructor(tokens: Uint32Array, text: string, decoder: ILanguageIdCodec) {
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);

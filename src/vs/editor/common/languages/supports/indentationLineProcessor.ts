@@ -211,7 +211,7 @@ class IndentationLineProcessor {
 	getProcessedTokens(tokens: IViewLineTokens): IViewLineTokens {
 
 		// Utility functions
-		const isTokenTypeToProcess = (tokenType: StandardTokenType): boolean => {
+		const isTokenTypeFromWhichToRemoveBrackets = (tokenType: StandardTokenType): boolean => {
 			return tokenType === StandardTokenType.String
 				|| tokenType === StandardTokenType.RegEx
 				|| tokenType === StandardTokenType.Comment;
@@ -248,27 +248,22 @@ class IndentationLineProcessor {
 		const openBrackets = brackets.brackets.map((brackets) => brackets.open).flat();
 		const closedBrackets = brackets.brackets.map((brackets) => brackets.close).flat();
 
-		let offset = 0;
 		let processedLine = '';
-		const processedTokensArray: number[] = [];
+		const textAndMetadata: { text: string, metadata: number }[] = [];
 		tokens.forEach((tokenIndex: number) => {
 			const tokenType = tokens.getStandardTokenType(tokenIndex);
 			const text = tokens.getTokenText(tokenIndex);
 			const metadata = tokens.getMetadata(tokenIndex);
-			const endOffset = tokens.getEndOffset(tokenIndex) - offset;
-			processedTokensArray.push(endOffset);
-			processedTokensArray.push(metadata);
-
-			if (isTokenTypeToProcess(tokenType)) {
+			if (isTokenTypeFromWhichToRemoveBrackets(tokenType)) {
 				const processedText = removeBracketsFromText(text);
 				processedLine += processedText;
-				offset += text.length - processedText.length;
+				textAndMetadata.push({ text: processedText, metadata });
 			} else {
 				processedLine += text;
+				textAndMetadata.push({ text, metadata });
 			}
 		});
-		const processedTokens = new Uint32Array(processedTokensArray);
-		const processedLineTokens = new LineTokens(processedTokens, processedLine, tokens.languageIdCodec);
+		const processedLineTokens = LineTokens.createFromTextAndMetadata(textAndMetadata, tokens.languageIdCodec);
 		return processedLineTokens;
 	}
 }
