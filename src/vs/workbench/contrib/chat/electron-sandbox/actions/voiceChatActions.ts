@@ -99,105 +99,90 @@ interface IVoiceChatSessionController {
 
 class VoiceChatSessionControllerFactory {
 
-	static async create(accessor: ServicesAccessor, context: VoiceChatSessionContext | 'focused'): Promise<IVoiceChatSessionController | undefined> {
+	static async create(accessor: ServicesAccessor, context: 'view' | 'inline' | 'quick' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
 		const terminalService = accessor.get(ITerminalService);
+		const chatService = accessor.get(IChatService);
+		const viewsService = accessor.get(IViewsService);
 
-		// Currently Focused Context
-		if (context === 'focused') {
-
-			// Try with the terminal chat
-			const activeInstance = terminalService.activeInstance;
-			if (activeInstance) {
-				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-				if (terminalChat?.hasFocus()) {
-					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
-				}
+		switch (context) {
+			case 'focused': {
+				const controller = VoiceChatSessionControllerFactory.doCreateForFocusedChat(terminalService, chatWidgetService, layoutService, quickChatService, chatService, viewsService);
+				return controller ?? VoiceChatSessionControllerFactory.create(accessor, 'view'); // fallback to 'view'
 			}
-
-			// Try with the chat widget service, which currently
-			// only supports the chat view and quick chat
-			// https://github.com/microsoft/vscode/issues/191191
-			const chatWidget = chatWidgetService.lastFocusedWidget;
-			if (chatWidget?.hasInputFocus()) {
-				// Unfortunately there does not seem to be a better way
-				// to figure out if the chat widget is in a part or picker
-				if (
-					layoutService.hasFocus(Parts.SIDEBAR_PART) ||
-					layoutService.hasFocus(Parts.PANEL_PART) ||
-					layoutService.hasFocus(Parts.AUXILIARYBAR_PART)
-				) {
+			case 'view': {
+				const chatWidget = await VoiceChatSessionControllerFactory.revealChatView(chatService, viewsService);
+				if (chatWidget) {
 					return VoiceChatSessionControllerFactory.doCreateForChatView(chatWidget);
 				}
-
-				if (layoutService.hasFocus(Parts.EDITOR_PART)) {
-					return VoiceChatSessionControllerFactory.doCreateForChatEditor(chatWidget);
+				break;
+			}
+			case 'inline': {
+				const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+				if (activeCodeEditor) {
+					const inlineChat = InlineChatController.get(activeCodeEditor);
+					if (inlineChat) {
+						return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
+					}
 				}
-
-				return VoiceChatSessionControllerFactory.doCreateForQuickChat(chatWidget, quickChatService);
+				break;
 			}
+			case 'quick': {
+				quickChatService.open();
 
-			// Try with the inline chat
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
-			if (activeCodeEditor) {
-				const inlineChat = InlineChatController.get(activeCodeEditor);
-				if (inlineChat?.hasFocus()) {
-					return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
+				const quickChat = chatWidgetService.lastFocusedWidget;
+				if (quickChat) {
+					return VoiceChatSessionControllerFactory.doCreateForQuickChat(quickChat, quickChatService);
 				}
-			}
-		}
-
-		// View Chat
-		if (context === 'view' || context === 'focused' /* fallback in case 'focused' was not successful */) {
-			const chatWidget = await VoiceChatSessionControllerFactory.revealChatView(accessor);
-			if (chatWidget) {
-				return VoiceChatSessionControllerFactory.doCreateForChatView(chatWidget);
-			}
-		}
-
-		// Inline Chat
-		if (context === 'inline') {
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
-			if (activeCodeEditor) {
-				const inlineChat = InlineChatController.get(activeCodeEditor);
-				if (inlineChat) {
-					return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
-				}
-			}
-		}
-
-		// Terminal Chat
-		if (context === 'terminal') {
-			const activeInstance = terminalService.activeInstance;
-			if (activeInstance) {
-				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-				if (terminalChat) {
-					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
-				}
-			}
-		}
-
-		// Quick Chat
-		if (context === 'quick') {
-			quickChatService.open();
-
-			const quickChat = chatWidgetService.lastFocusedWidget;
-			if (quickChat) {
-				return VoiceChatSessionControllerFactory.doCreateForQuickChat(quickChat, quickChatService);
+				break;
 			}
 		}
 
 		return undefined;
 	}
 
-	static async revealChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
-		const chatService = accessor.get(IChatService);
-		const viewsService = accessor.get(IViewsService);
+	static async revealChatView(chatService: IChatService, viewsService: IViewsService): Promise<IChatWidget | undefined> {
 		if (chatService.isEnabled(ChatAgentLocation.Panel)) {
 			return showChatView(viewsService);
+		}
+
+		return undefined;
+	}
+
+	private static doCreateForFocusedChat(terminalService: ITerminalService, chatWidgetService: IChatWidgetService, layoutService: IWorkbenchLayoutService, quickChatService: IQuickChatService, chatService: IChatService, viewsService: IViewsService): IVoiceChatSessionController | undefined {
+
+		// 1.) probe terminal chat which is not part of chat widget service
+		const activeInstance = terminalService.activeInstance;
+		if (activeInstance) {
+			const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+			if (terminalChat?.hasFocus()) {
+				return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
+			}
+		}
+
+		// 2.) otherwise go via chat widget service
+		const chatWidget = chatWidgetService.lastFocusedWidget;
+		if (chatWidget?.hasInputFocus()) {
+
+			// Unfortunately there does not seem to be a better way
+			// to figure out if the chat widget is in a part or picker
+
+			if (
+				layoutService.hasFocus(Parts.SIDEBAR_PART) ||
+				layoutService.hasFocus(Parts.PANEL_PART) ||
+				layoutService.hasFocus(Parts.AUXILIARYBAR_PART)
+			) {
+				return VoiceChatSessionControllerFactory.doCreateForChatView(chatWidget);
+			}
+
+			if (layoutService.hasFocus(Parts.EDITOR_PART)) {
+				return VoiceChatSessionControllerFactory.doCreateForChatEditor(chatWidget);
+			}
+
+			return VoiceChatSessionControllerFactory.doCreateForQuickChat(chatWidget, quickChatService);
 		}
 
 		return undefined;
@@ -465,7 +450,7 @@ class VoiceChatSessions {
 
 export const VOICE_KEY_HOLD_THRESHOLD = 500;
 
-async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor, target: VoiceChatSessionContext | 'focused', context?: IChatExecuteActionContext): Promise<void> {
+async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor, target: 'view' | 'inline' | 'quick' | 'focused', context?: IChatExecuteActionContext): Promise<void> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const keybindingService = accessor.get(IKeybindingService);
 
@@ -493,7 +478,7 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 
 class VoiceChatWithHoldModeAction extends Action2 {
 
-	constructor(desc: Readonly<IAction2Options>, private readonly target: VoiceChatSessionContext) {
+	constructor(desc: Readonly<IAction2Options>, private readonly target: 'view' | 'inline' | 'quick') {
 		super(desc);
 	}
 
@@ -550,6 +535,8 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
+		const chatService = accessor.get(IChatService);
+		const viewsService = accessor.get(IViewsService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(HoldToVoiceChatInChatViewAction.ID);
 
@@ -562,7 +549,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 			}
 		}, VOICE_KEY_HOLD_THRESHOLD);
 
-		(await VoiceChatSessionControllerFactory.revealChatView(accessor))?.focusInput();
+		(await VoiceChatSessionControllerFactory.revealChatView(chatService, viewsService))?.focusInput();
 
 		await holdMode;
 		handle.dispose();
