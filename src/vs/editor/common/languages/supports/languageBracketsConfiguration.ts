@@ -5,6 +5,7 @@
 
 import { CachedFunction } from 'vs/base/common/cache';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
+import { createBracketOrRegExp } from 'vs/editor/common/languages/supports/richEditBrackets';
 
 /**
  * Captures all bracket related configurations for a single language.
@@ -90,6 +91,11 @@ export class LanguageBracketsConfiguration {
 
 	public getBracketInfo(bracketText: string): BracketKind | undefined {
 		return this.getOpeningBracketInfo(bracketText) || this.getClosingBracketInfo(bracketText);
+	}
+
+	public getBracketRegExp(): RegExp {
+		const brackets = Array.from([...this._openingBrackets.keys(), ...this._closingBrackets.keys()]);
+		return createBracketOrRegExp(brackets);
 	}
 }
 

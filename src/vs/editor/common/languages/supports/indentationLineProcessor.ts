@@ -210,44 +210,17 @@ class IndentationLineProcessor {
 	 */
 	getProcessedTokens(tokens: IViewLineTokens): IViewLineTokens {
 
-		// Utility functions
+		// Utility function
 		const isTokenTypeFromWhichToRemoveBrackets = (tokenType: StandardTokenType): boolean => {
 			return tokenType === StandardTokenType.String
 				|| tokenType === StandardTokenType.RegEx
 				|| tokenType === StandardTokenType.Comment;
 		}
-		const removeBracketsFromText = (line: string): string => {
-			let processedLine = line;
-			openBrackets.forEach((bracket) => {
-				const regex = new RegExp(escapeStringForRegex(bracket), 'g');
-				processedLine = processedLine.replace(regex, '');
-			});
-			closedBrackets.forEach((bracket) => {
-				const regex = new RegExp(escapeStringForRegex(bracket), 'g');
-				processedLine = processedLine.replace(regex, '');
-			});
-			return processedLine;
-		}
-		const escapeStringForRegex = (text: string): string => {
-			let res = '';
-			for (const chr of text) {
-				res += escapeCharacterForRegex(chr);
-			}
-			return res;
-		};
-		const escapeCharacterForRegex = (character: string): string => {
-			return character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		}
 
 		// Main code
 		const languageId = tokens.getLanguageId(0);
-		const brackets = this.languageConfigurationService.getLanguageConfiguration(languageId).brackets;
-		if (!brackets) {
-			return tokens;
-		}
-		const openBrackets = brackets.brackets.map((brackets) => brackets.open).flat();
-		const closedBrackets = brackets.brackets.map((brackets) => brackets.close).flat();
-
+		const bracketsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew;
+		const bracketsRegExp = bracketsConfiguration.getBracketRegExp();
 		let processedLine = '';
 		const textAndMetadata: { text: string, metadata: number }[] = [];
 		tokens.forEach((tokenIndex: number) => {
@@ -255,7 +228,7 @@ class IndentationLineProcessor {
 			const text = tokens.getTokenText(tokenIndex);
 			const metadata = tokens.getMetadata(tokenIndex);
 			if (isTokenTypeFromWhichToRemoveBrackets(tokenType)) {
-				const processedText = removeBracketsFromText(text);
+				const processedText = text.replace(bracketsRegExp, '');
 				processedLine += processedText;
 				textAndMetadata.push({ text: processedText, metadata });
 			} else {

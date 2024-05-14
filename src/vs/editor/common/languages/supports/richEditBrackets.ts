@@ -408,7 +408,7 @@ function prepareBracketForRegExp(str: string): string {
 	return (insertWordBoundaries ? `\\b${str}\\b` : str);
 }
 
-function createBracketOrRegExp(pieces: string[]): RegExp {
+export function createBracketOrRegExp(pieces: string[]): RegExp {
 	const regexStr = `(${pieces.map(prepareBracketForRegExp).join(')|(')})`;
 	return strings.createRegExp(regexStr, true);
 }
