@@ -623,25 +623,25 @@ export class StartVoiceChatAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
-					FocusInChatInput,							// scope this action to chat input fields only
-					EditorContextKeys.focus.negate(), 			// do not steal the editor inline-chat keybinding
-					NOTEBOOK_EDITOR_FOCUSED.negate()			// do not steal the notebook inline-chat keybinding
+					FocusInChatInput,						// scope this action to chat input fields only
+					EditorContextKeys.focus.negate(), 		// do not steal the editor inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate()		// do not steal the notebook inline-chat keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			icon: Codicon.mic,
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
-				SCOPED_VOICE_CHAT_GETTING_READY.negate(),		// disable when voice chat is getting ready
-				AnyChatRequestInProgress?.negate(),				// disable when any chat request is in progress
-				SpeechToTextInProgress.negate()					// disable when speech to text is in progress
+				SCOPED_VOICE_CHAT_GETTING_READY.negate(),	// disable when voice chat is getting ready
+				AnyChatRequestInProgress?.negate(),			// disable when any chat request is in progress
+				SpeechToTextInProgress.negate()				// disable when speech to text is in progress
 			),
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
-					TextToSpeechInProgress.negate(),			// hide when text to speech is in progress
-					ScopedVoiceChatInProgress?.negate(),		// hide when voice chat is in progress
+					TextToSpeechInProgress.negate(),		// hide when text to speech is in progress
+					ScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
 				),
 				group: 'navigation',
 				order: -1
@@ -649,8 +649,8 @@ export class StartVoiceChatAction extends Action2 {
 				id: TerminalChatExecute,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
-					TextToSpeechInProgress.negate(),			// hide when text to speech is in progress
-					ScopedVoiceChatInProgress?.negate(),		// hide when voice chat is in progress
+					TextToSpeechInProgress.negate(),		// hide when text to speech is in progress
+					ScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
 				),
 				group: 'navigation',
 				order: -1
