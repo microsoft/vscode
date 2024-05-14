@@ -124,7 +124,10 @@ class VoiceChatSessionControllerFactory {
 				if (activeCodeEditor) {
 					const inlineChat = InlineChatController.get(activeCodeEditor);
 					if (inlineChat) {
-						return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
+						if (!inlineChat.joinCurrentRun()) {
+							inlineChat.run();
+						}
+						return VoiceChatSessionControllerFactory.doCreateForChatWidget('inline', inlineChat.chatWidget);
 					}
 				}
 				break;
@@ -209,27 +212,6 @@ class VoiceChatSessionControllerFactory {
 			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
 			clearInputPlaceholder: () => chatWidget.resetInputPlaceholder(),
 			updateState: VoiceChatSessionControllerFactory.createContextKeyController(chatWidget.scopedContextKeyService, context)
-		};
-	}
-
-	private static doCreateForInlineChat(inlineChat: InlineChatController): IVoiceChatSessionController {
-		const context = 'inline';
-		const inlineChatSession = inlineChat.joinCurrentRun() ?? inlineChat.run();
-
-		return {
-			context,
-			onDidAcceptInput: inlineChat.onDidAcceptInput,
-			onDidHideInput: Event.any(
-				inlineChat.onDidHideInput,
-				Event.fromPromise(inlineChatSession)
-			),
-			focusInput: () => inlineChat.focus(),
-			acceptInput: () => inlineChat.acceptInput(),
-			updateInput: text => inlineChat.updateInput(text, false),
-			getInput: () => inlineChat.getInput(),
-			setInputPlaceholder: text => inlineChat.setPlaceholder(text),
-			clearInputPlaceholder: () => inlineChat.resetPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(inlineChat.scopedContextKeyService, context)
 		};
 	}
 

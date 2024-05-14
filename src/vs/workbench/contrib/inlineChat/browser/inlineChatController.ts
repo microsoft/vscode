@@ -122,9 +122,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _onWillStartSession = this._store.add(new Emitter<void>());
 	readonly onWillStartSession = this._onWillStartSession.event;
 
-	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
-	get onDidHideInput() { return this._visibleInput.onDidHideInput; }
-	private get _visibleInput() {
+	get chatWidget() {
 		if (this._input.value.isVisible) {
 			return this._input.value.chatWidget;
 		} else {
@@ -1026,27 +1024,13 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- controller API
 
-	get scopedContextKeyService(): IContextKeyService {
-		return this._visibleInput.scopedContextKeyService;
-	}
-
 	showSaveHint(): void {
 		const status = localize('savehint', "Accept or discard changes to continue saving");
 		this._zone.value.widget.updateStatus(status, { classes: ['warn'] });
 	}
 
-	setPlaceholder(text: string): void {
-		this._forcedPlaceholder = text;
-		this._updatePlaceholder();
-	}
-
-	resetPlaceholder(): void {
-		this._forcedPlaceholder = undefined;
-		this._updatePlaceholder();
-	}
-
 	acceptInput() {
-		return this._visibleInput.acceptInput();
+		return this.chatWidget.acceptInput();
 	}
 
 	updateInput(text: string, selectAll = true): void {
@@ -1058,12 +1042,6 @@ export class InlineChatController implements IEditorContribution {
 			this._input.value.chatWidget.inputEditor.setSelection(newSelection);
 			this._zone.value.widget.chatWidget.inputEditor.setSelection(newSelection);
 		}
-	}
-
-	getInput(): string {
-		return this._input.value.isVisible
-			? this._input.value.value
-			: this._zone.value.widget.value;
 	}
 
 	cancelCurrentRequest(): void {
