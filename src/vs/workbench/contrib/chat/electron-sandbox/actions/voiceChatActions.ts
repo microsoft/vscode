@@ -457,7 +457,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 	constructor() {
 		super({
 			id: HoldToVoiceChatInChatViewAction.ID,
-			title: localize2('workbench.action.chat.holdToVoiceChatInChatView.label', "Hold to Voice Chat in View"),
+			title: localize2('workbench.action.chat.holdToVoiceChatInChatView.label', "Hold to Voice Chat in Chat View"),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
