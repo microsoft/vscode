@@ -38,7 +38,7 @@ import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/act
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from 'vs/workbench/contrib/chat/common/voiceChatService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -105,16 +105,15 @@ class VoiceChatSessionControllerFactory {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
 		const terminalService = accessor.get(ITerminalService);
-		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
 
 		switch (context) {
 			case 'focused': {
-				const controller = VoiceChatSessionControllerFactory.doCreateForFocusedChat(terminalService, chatWidgetService, layoutService, quickChatService, chatService, viewsService);
+				const controller = VoiceChatSessionControllerFactory.doCreateForFocusedChat(terminalService, chatWidgetService, layoutService);
 				return controller ?? VoiceChatSessionControllerFactory.create(accessor, 'view'); // fallback to 'view'
 			}
 			case 'view': {
-				const chatWidget = await VoiceChatSessionControllerFactory.revealChatView(chatService, viewsService);
+				const chatWidget = await showChatView(viewsService);
 				if (chatWidget) {
 					return VoiceChatSessionControllerFactory.doCreateForChatWidget('view', chatWidget);
 				}
@@ -139,15 +138,7 @@ class VoiceChatSessionControllerFactory {
 		return undefined;
 	}
 
-	static async revealChatView(chatService: IChatService, viewsService: IViewsService): Promise<IChatWidget | undefined> {
-		if (chatService.isEnabled(ChatAgentLocation.Panel)) {
-			return showChatView(viewsService);
-		}
-
-		return undefined;
-	}
-
-	private static doCreateForFocusedChat(terminalService: ITerminalService, chatWidgetService: IChatWidgetService, layoutService: IWorkbenchLayoutService, quickChatService: IQuickChatService, chatService: IChatService, viewsService: IViewsService): IVoiceChatSessionController | undefined {
+	private static doCreateForFocusedChat(terminalService: ITerminalService, chatWidgetService: IChatWidgetService, layoutService: IWorkbenchLayoutService): IVoiceChatSessionController | undefined {
 
 		// 1.) probe terminal chat which is not part of chat widget service
 		const activeInstance = terminalService.activeInstance;
@@ -171,9 +162,7 @@ class VoiceChatSessionControllerFactory {
 			if (layoutService.hasFocus(Parts.EDITOR_PART)) {
 				context = chatWidget.location === ChatAgentLocation.Panel ? 'editor' : 'inline';
 			} else if (
-				layoutService.hasFocus(Parts.SIDEBAR_PART) ||
-				layoutService.hasFocus(Parts.PANEL_PART) ||
-				layoutService.hasFocus(Parts.AUXILIARYBAR_PART)
+				[Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.TITLEBAR_PART, Parts.STATUSBAR_PART, Parts.BANNER_PART, Parts.ACTIVITYBAR_PART].some(part => layoutService.hasFocus(part))
 			) {
 				context = 'view';
 			} else {
@@ -509,7 +498,6 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
-		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(HoldToVoiceChatInChatViewAction.ID);
@@ -523,7 +511,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 			}
 		}, VOICE_KEY_HOLD_THRESHOLD);
 
-		(await VoiceChatSessionControllerFactory.revealChatView(chatService, viewsService))?.focusInput();
+		(await showChatView(viewsService))?.focusInput();
 
 		await holdMode;
 		handle.dispose();
