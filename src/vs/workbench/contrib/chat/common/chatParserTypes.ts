@@ -6,7 +6,7 @@
 import { revive } from 'vs/base/common/marshalling';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -154,13 +154,7 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
 				let agent = (part as ChatRequestAgentPart).agent;
-				if (!('name' in agent)) {
-					// Port old format
-					agent = {
-						...(agent as any),
-						name: (agent as any).id
-					};
-				}
+				agent = reviveSerializedAgent(agent);
 
 				return new ChatRequestAgentPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
