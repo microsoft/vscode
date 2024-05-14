@@ -80,7 +80,7 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'titleBar.border': '#2b2b2b',
 	'titleBar.inactiveBackground': '#1f1f1f',
 	'titleBar.inactiveForeground': '#9d9d9d',
-	'welcomePage.tileBackground': '#2b2b2b'
+	'welcomePage.titleBackground': '#2b2b2b'
 };
 
 export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
@@ -107,7 +107,7 @@ export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
 	'titleBar.border': '#E5E5E5',
 	'titleBar.inactiveBackground': '#f8f8f8',
 	'titleBar.inactiveForeground': '#8b949e',
-	'welcomePage.tileBackground': '#f3f3f3'
+	'welcomePage.titleBackground': '#f3f3f3'
 };
 
 export interface IWorkbenchTheme {

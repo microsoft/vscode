@@ -122,7 +122,7 @@
 		"titleBar.border": "#2B2B2B",
 		"titleBar.inactiveBackground": "#1F1F1F",
 		"titleBar.inactiveForeground": "#9D9D9D",
-		"welcomePage.tileBackground": "#2B2B2B",
+		"welcomePage.titleBackground": "#2B2B2B",
 		"welcomePage.progress.foreground": "#0078D4",
 		"widget.border": "#313131",
 	},

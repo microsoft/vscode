@@ -420,7 +420,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded {
 	cursor: default !important;
-	border: 1px solid var(--vscode-welcomePage-tileBorder);
+	border: 1px solid var(--vscode-welcomePage-titleBorder);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded h3 {
@@ -438,7 +438,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded):hover {
-	background: var(--vscode-welcomePage-tileHoverBackground);
+	background: var(--vscode-welcomePage-titleHoverBackground);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-title {
@@ -897,16 +897,16 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button {
-	background: var(--vscode-welcomePage-tileBackground);
+	background: var(--vscode-welcomePage-titleBackground);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:hover {
-	background: var(--vscode-welcomePage-tileHoverBackground);
+	background: var(--vscode-welcomePage-titleHoverBackground);
 	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button.expanded:hover  {
-	background: var(--vscode-welcomePage-tileBackground);
+	background: var(--vscode-welcomePage-titleBackground);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button.emphasis {

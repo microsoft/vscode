@@ -141,7 +141,7 @@
 		"titleBar.border": "#E5E5E5",
 		"titleBar.inactiveBackground": "#F8F8F8",
 		"titleBar.inactiveForeground": "#8B949E",
-		"welcomePage.tileBackground": "#F3F3F3",
+		"welcomePage.titleBackground": "#F3F3F3",
 		"widget.border": "#E5E5E5"
 	},
 }
