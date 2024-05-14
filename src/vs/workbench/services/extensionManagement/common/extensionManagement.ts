@@ -68,6 +68,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	onDidEnableExtensions: Event<IExtension[]>;
 
 	getExtensions(locations: URI[]): Promise<IResourceExtension[]>;
+	getInstalledWorkspaceExtensionLocations(): URI[];
 	getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]>;
 
 	canInstall(extension: IGalleryExtension | IResourceExtension): Promise<boolean>;
