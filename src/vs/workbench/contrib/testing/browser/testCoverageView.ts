@@ -23,6 +23,7 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { localize, localize2 } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -685,6 +686,7 @@ registerAction2(class TestCoverageChangePerTestFilterAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CoverageFilterToTest,
+			category: Categories.Test,
 			title: localize2('testing.changeCoverageFilter', 'Filter Coverage by Test...'),
 			precondition: TestingContextKeys.hasPerTestCoverage,
 			f1: true,

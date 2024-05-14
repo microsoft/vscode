@@ -160,6 +160,8 @@ declare module 'vscode' {
 		 */
 		warning(message: string | MarkdownString): ChatResponseStream;
 
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
+
 		push(part: ExtendedChatResponsePart): ChatResponseStream;
 	}
 
@@ -196,6 +198,7 @@ declare module 'vscode' {
 	}
 
 	export class ChatCompletionItem {
+		id: string;
 		label: string | CompletionItemLabel;
 		values: ChatVariableValue[];
 		insertText?: string;
@@ -203,7 +206,7 @@ declare module 'vscode' {
 		documentation?: string | MarkdownString;
 		command?: Command;
 
-		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
+		constructor(id: string, label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;

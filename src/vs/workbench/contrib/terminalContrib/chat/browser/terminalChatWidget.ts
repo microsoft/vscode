@@ -5,7 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
 import 'vs/css!./media/terminalChatWidget';
@@ -26,6 +26,9 @@ const enum Constants {
 export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
+
+	private readonly _onDidHideInput = this._register(new Emitter<void>());
+	readonly onDidHideInput = this._onDidHideInput.event;
 
 	private readonly _inlineChatWidget: InlineChatWidget;
 	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
@@ -171,6 +174,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.value = '';
 		this._instance.focus();
 		this._setTerminalOffset(undefined);
+		this._onDidHideInput.fire();
 	}
 	private _setTerminalOffset(offset: number | undefined) {
 		if (offset === undefined || this._container.classList.contains('hide')) {

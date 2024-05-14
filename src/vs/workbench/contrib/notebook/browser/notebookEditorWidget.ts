@@ -366,6 +366,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				|| e.dragAndDropEnabled
 				|| e.fontSize
 				|| e.markupFontSize
+				|| e.markdownLineHeight
 				|| e.fontFamily
 				|| e.insertToolbarAlignment
 				|| e.outputFontSize

@@ -932,6 +932,7 @@ export const NotebookSetting = {
 	openGettingStarted: 'notebook.experimental.openGettingStarted',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
+	markdownLineHeight: 'notebook.markdown.lineHeight',
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
 	outputScrolling: 'notebook.output.scrolling',
