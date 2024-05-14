@@ -74,7 +74,7 @@ export class ExtensionsDownloader extends Disposable {
 			}
 
 			try {
-				verificationStatus = await this.extensionSignatureVerificationService.verify(extension.identifier.id, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform);
+				verificationStatus = await this.extensionSignatureVerificationService.verify(extension, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform);
 			} catch (error) {
 				verificationStatus = (error as ExtensionSignatureVerificationError).code;
 				if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
