@@ -358,7 +358,7 @@ declare module 'vscode' {
 		 * @param iconPath Icon for the reference shown in UI
 		 * @returns This stream.
 		 */
-		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
+		reference(value: Uri | Location, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
 
 		/**
 		 * Pushes a part to this stream.
@@ -400,9 +400,9 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseReferencePart {
-		value: Uri | Location | { variableName: string; value?: Uri | Location };
+		value: Uri | Location;
 		iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri };
-		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri });
+		constructor(value: Uri | Location, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri });
 	}
 
 	export class ChatResponseCommandButtonPart {

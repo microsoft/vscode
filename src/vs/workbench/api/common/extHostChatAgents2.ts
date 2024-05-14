@@ -153,6 +153,10 @@ class ChatAgentResponseStream {
 				reference(value, iconPath) {
 					throwIfDone(this.reference);
 
+					if ('variableName' in value) {
+						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					}
+
 					if ('variableName' in value && !value.value) {
 						// The participant used this variable. Does that variable have any references to pull in?
 						const matchingVarData = that._request.variables.variables.find(v => v.name === value.variableName);
