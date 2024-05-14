@@ -41,7 +41,8 @@ export interface ILanguageModelChatMetadata {
 	readonly vendor: string;
 	readonly version: string;
 	readonly family: string;
-	readonly tokens: number;
+	readonly maxInputTokens: number;
+	readonly maxOutputTokens: number;
 	readonly targetExtensions?: string[];
 
 	readonly auth?: {

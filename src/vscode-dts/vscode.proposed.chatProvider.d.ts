@@ -44,6 +44,13 @@ declare module 'vscode' {
 		 */
 		readonly version: string;
 
+		readonly maxInputTokens: number;
+
+		readonly maxOutputTokens: number;
+
+		/**
+		 * @deprecated
+		 */
 		tokens: number;
 
 		/**
