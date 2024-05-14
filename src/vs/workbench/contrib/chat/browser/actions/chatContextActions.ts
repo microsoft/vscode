@@ -12,9 +12,11 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export function registerChatContextActions() {
@@ -30,6 +32,7 @@ class AttachContextAction extends Action2 {
 			id: AttachContextAction.ID,
 			title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
 			icon: Codicon.attach,
+			category: CHAT_CATEGORY,
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
@@ -37,10 +40,12 @@ class AttachContextAction extends Action2 {
 			},
 			menu: [
 				{
+					when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel),
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 				},
 				{
+					when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel),
 					id: MenuId.ChatExecute,
 					group: 'navigation',
 				},
