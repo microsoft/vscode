@@ -18,7 +18,7 @@ import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
-import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
+import { isWeb, isWebAndHasSharedArrayBuffers, supportsReadableByteStreams } from './utils/platform';
 
 
 const validateSetting = 'validate.enable';
@@ -143,7 +143,9 @@ export default class LanguageProvider extends Disposable {
 		}
 
 		if (diagnosticsKind === DiagnosticKind.Semantic && isWeb()) {
-			if (!isWebAndHasSharedArrayBuffers()
+			if (
+				!isWebAndHasSharedArrayBuffers()
+				|| !supportsReadableByteStreams() // No ata. Will result in lots of false positives
 				|| this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors
 				|| !this.client.configuration.webProjectWideIntellisenseEnabled
 			) {
