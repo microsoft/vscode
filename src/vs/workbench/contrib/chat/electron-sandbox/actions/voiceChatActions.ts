@@ -676,58 +676,6 @@ export class StartVoiceChatAction extends Action2 {
 	}
 }
 
-const InstallingSpeechProvider = new RawContextKey<boolean>('installingSpeechProvider', false, true);
-
-abstract class BaseInstallSpeechProviderAction extends Action2 {
-
-	private static readonly SPEECH_EXTENSION_ID = 'ms-vscode.vscode-speech';
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		try {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
-			await extensionsWorkbenchService.install(BaseInstallSpeechProviderAction.SPEECH_EXTENSION_ID, {
-				justification: this.getJustification(),
-				enable: true
-			}, ProgressLocation.Notification);
-		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
-		}
-	}
-
-	protected abstract getJustification(): string;
-}
-
-export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
-
-	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
-
-	constructor() {
-		super({
-			id: InstallSpeechProviderForVoiceChatAction.ID,
-			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
-			icon: Codicon.mic,
-			precondition: InstallingSpeechProvider.negate(),
-			menu: [{
-				id: MenuId.ChatExecute,
-				when: HasSpeechProvider.negate(),
-				group: 'navigation',
-				order: -1
-			}, {
-				id: TerminalChatExecute,
-				when: HasSpeechProvider.negate(),
-				group: 'navigation',
-				order: -1
-			}]
-		});
-	}
-
-	protected getJustification(): string {
-		return localize('installProviderForVoiceChat.justification', "Microphone support requires this extension.");
-	}
-}
-
 class BaseStopListeningAction extends Action2 {
 
 	constructor(
@@ -926,29 +874,6 @@ class ChatSynthesizerSessions {
 	stop(): void {
 		this.activeSession?.dispose(true);
 		this.activeSession = undefined;
-	}
-}
-
-export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
-
-	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
-
-	constructor() {
-		super({
-			id: InstallSpeechProviderForSynthesizeChatAction.ID,
-			title: localize2('workbench.action.chat.installProviderForSynthesis.label', "Read Aloud"),
-			icon: Codicon.unmute,
-			precondition: InstallingSpeechProvider.negate(),
-			menu: [{
-				id: MenuId.ChatMessageTitle,
-				when: HasSpeechProvider.negate(),
-				group: 'navigation'
-			}]
-		});
-	}
-
-	protected getJustification(): string {
-		return localize('installProviderForSynthesis.justification', "Speaker support requires this extension.");
 	}
 }
 
@@ -1294,6 +1219,85 @@ class KeywordActivationStatusEntry extends Disposable {
 
 	private updateStatusLabel(): void {
 		this.entry.value?.update(this.getStatusEntryProperties());
+	}
+}
+
+//#endregion
+
+//#region Install Provider Actions
+
+const InstallingSpeechProvider = new RawContextKey<boolean>('installingSpeechProvider', false, true);
+
+abstract class BaseInstallSpeechProviderAction extends Action2 {
+
+	private static readonly SPEECH_EXTENSION_ID = 'ms-vscode.vscode-speech';
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		try {
+			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
+			await extensionsWorkbenchService.install(BaseInstallSpeechProviderAction.SPEECH_EXTENSION_ID, {
+				justification: this.getJustification(),
+				enable: true
+			}, ProgressLocation.Notification);
+		} finally {
+			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
+		}
+	}
+
+	protected abstract getJustification(): string;
+}
+
+export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
+
+	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
+
+	constructor() {
+		super({
+			id: InstallSpeechProviderForVoiceChatAction.ID,
+			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
+			icon: Codicon.mic,
+			precondition: InstallingSpeechProvider.negate(),
+			menu: [{
+				id: MenuId.ChatExecute,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation',
+				order: -1
+			}, {
+				id: TerminalChatExecute,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation',
+				order: -1
+			}]
+		});
+	}
+
+	protected getJustification(): string {
+		return localize('installProviderForVoiceChat.justification', "Microphone support requires this extension.");
+	}
+}
+
+export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
+
+	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
+
+	constructor() {
+		super({
+			id: InstallSpeechProviderForSynthesizeChatAction.ID,
+			title: localize2('workbench.action.chat.installProviderForSynthesis.label', "Read Aloud"),
+			icon: Codicon.unmute,
+			precondition: InstallingSpeechProvider.negate(),
+			menu: [{
+				id: MenuId.ChatMessageTitle,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation'
+			}]
+		});
+	}
+
+	protected getJustification(): string {
+		return localize('installProviderForSynthesis.justification', "Speaker support requires this extension.");
 	}
 }
 
