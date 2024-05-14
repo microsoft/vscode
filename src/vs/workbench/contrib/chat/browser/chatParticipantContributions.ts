@@ -265,12 +265,13 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	private registerDefaultParticipantView(defaultParticipantDescriptor: IRawChatParticipantContribution): IDisposable {
 		// Register View
+		const name = defaultParticipantDescriptor.fullName ?? defaultParticipantDescriptor.name;
 		const viewDescriptor: IViewDescriptor[] = [{
 			id: CHAT_VIEW_ID,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
 			singleViewPaneContainerTitle: this._viewContainer.title.value,
-			name: { value: defaultParticipantDescriptor.name, original: defaultParticipantDescriptor.name },
+			name: { value: name, original: name },
 			canToggleVisibility: false,
 			canMoveView: true,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane),
