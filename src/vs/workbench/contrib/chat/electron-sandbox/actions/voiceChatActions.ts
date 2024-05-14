@@ -58,7 +58,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 
 //#region Speech to Text
 
-type VoiceChatSessionContext = 'inline' | 'terminal' | 'quick' | 'view' | 'editor';
+type VoiceChatSessionContext = 'view' | 'inline' | 'terminal' | 'quick' | 'editor';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<VoiceChatSessionContext | undefined>('voiceChatInProgress', undefined, { type: 'string', description: localize('voiceChatInProgress', "Defined as a location where voice recording from microphone is in progress for voice chat.") });
@@ -68,7 +68,7 @@ const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_C
 
 const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, TerminalChatContextKeys.requestActive);
 
-const TerminalChatExecute = MenuId.for('terminalChatInput'); // TODO@bpasero revisit this when terminal is using chat widget
+const TerminalChatExecute = MenuId.for('terminalChatInput');
 
 enum VoiceChatSessionState {
 	Stopped = 1,
@@ -287,7 +287,7 @@ class VoiceChatSessionControllerFactory {
 		return {
 			context,
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
-			onDidHideInput: terminalChat.onDidAcceptInput, //TODO@bpasero revisit this when terminal is using chat widget
+			onDidHideInput: terminalChat.onDidHideInput,
 			focusInput: () => terminalChat.focus(),
 			acceptInput: () => terminalChat.acceptInput(),
 			updateInput: text => terminalChat.updateInput(text, false),
