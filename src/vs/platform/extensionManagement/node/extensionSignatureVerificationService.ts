@@ -72,6 +72,7 @@ export const enum ExtensionSignatureVerificationCode {
 export interface ExtensionSignatureVerificationResult {
 	readonly code: ExtensionSignatureVerificationCode;
 	readonly didExecute: boolean;
+	readonly internalCode?: number;
 	readonly output?: string;
 }
 
@@ -145,6 +146,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension identifier' };
 			extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension version' };
 			code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'result code of the verification' };
+			internalCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true; comment: 'internal code of the verification' };
 			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true; comment: 'amount of time taken to verify the signature' };
 			didExecute: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'whether the verification was executed' };
 			clientTargetPlatform?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'target platform of the client' };
@@ -153,6 +155,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 			extensionId: string;
 			extensionVersion: string;
 			code: string;
+			internalCode?: number;
 			duration: number;
 			didExecute: boolean;
 			clientTargetPlatform?: string;
@@ -161,6 +164,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 			extensionId,
 			extensionVersion: extension.version,
 			code: result.code,
+			internalCode: result.internalCode,
 			duration,
 			didExecute: result.didExecute,
 			clientTargetPlatform,
