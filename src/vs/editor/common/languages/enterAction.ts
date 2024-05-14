@@ -23,10 +23,10 @@ export function getEnterAction(
 		return null;
 	}
 	const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
-	const processedContext = indentationContextProcessor.getProcessedContextAroundRange(range);
-	const previousLineText = processedContext.previousLineProcessedData.processedLine;
-	const beforeRangeText = processedContext.beforeRangeProcessedData.processedLine;
-	const afterRangeText = processedContext.afterRangeProcessedData.processedLine;
+	const processedContextTokens = indentationContextProcessor.getProcessedTokenContextAroundRange(range);
+	const previousLineText = processedContextTokens.previousLineProcessedTokens.getLineContent();
+	const beforeRangeText = processedContextTokens.beforeRangeProcessedTokens.getLineContent();
+	const afterRangeText = processedContextTokens.afterRangeProcessedTokens.getLineContent();
 
 	const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeRangeText, afterRangeText);
 	if (!enterResult) {

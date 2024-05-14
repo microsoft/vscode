@@ -13,11 +13,6 @@ import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens'
 import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
-interface ProcessedLineData {
-	processedLine: string;
-	processedLineTokens: IViewLineTokens;
-};
-
 /**
  * This class is a wrapper class around {@link IndentRulesSupport}.
  * It processes the lines by removing the language configuration brackets from the regex, string and comment tokens.
@@ -94,31 +89,31 @@ export class IndentationContextProcessor {
 	/**
 	 * Returns the processed text, stripped from the language configuration brackets within the string, comment and regex tokens, around the given range
 	 */
-	getProcessedContextAroundRange(range: Range): {
-		beforeRangeProcessedData: ProcessedLineData;
-		afterRangeProcessedData: ProcessedLineData;
-		previousLineProcessedData: ProcessedLineData;
+	getProcessedTokenContextAroundRange(range: Range): {
+		beforeRangeProcessedTokens: IViewLineTokens;
+		afterRangeProcessedTokens: IViewLineTokens;
+		previousLineProcessedTokens: IViewLineTokens;
 	} {
 		this.model.tokenization.forceTokenization(range.startLineNumber);
 		const lineTokens = this.model.tokenization.getLineTokens(range.startLineNumber);
 		const scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
-		const beforeRangeProcessedData = this._getProcessedTextBeforeRange(range, scopedLineTokens);
-		const afterRangeProcessedData = this._getProcessedTextAfterRange(range, scopedLineTokens);
-		const previousLineProcessedData = this._getProcessedPreviousLine(range, scopedLineTokens);
-		return { beforeRangeProcessedData, afterRangeProcessedData, previousLineProcessedData };
+		const beforeRangeProcessedTokens = this._getProcessedTokensBeforeRange(range, scopedLineTokens);
+		const afterRangeProcessedTokens = this._getProcessedTokensAfterRange(range, scopedLineTokens);
+		const previousLineProcessedTokens = this._getProcessedPreviousLineTokens(range, scopedLineTokens);
+		return { beforeRangeProcessedTokens, afterRangeProcessedTokens, previousLineProcessedTokens };
 	}
 
-	private _getProcessedTextBeforeRange(range: Range, scopedLineTokens: ScopedLineTokens): ProcessedLineData {
+	private _getProcessedTokensBeforeRange(range: Range, scopedLineTokens: ScopedLineTokens): IViewLineTokens {
 		const lineTokens = this.model.tokenization.getLineTokens(range.startLineNumber);
 		const columnIndexWithinScope = (range.startColumn - 1) - scopedLineTokens.firstCharOffset;
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope;
 		const slicedTokensBefore = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLineData = this.indentationLineProcessor.getProcessedLineAndTokens(slicedTokensBefore);
-		return processedLineData;
+		const processedTokens = this.indentationLineProcessor.getProcessedTokens(slicedTokensBefore);
+		return processedTokens;
 	}
 
-	private _getProcessedTextAfterRange(range: Range, scopedLineTokens: ScopedLineTokens): ProcessedLineData {
+	private _getProcessedTokensAfterRange(range: Range, scopedLineTokens: ScopedLineTokens): IViewLineTokens {
 		let columnIndexWithinScope: number;
 		let lineTokens: LineTokens;
 		if (range.isEmpty()) {
@@ -132,11 +127,11 @@ export class IndentationContextProcessor {
 		const firstCharacterOffset = scopedLineTokens.firstCharOffset + columnIndexWithinScope;
 		const lastCharacterOffset = scopedLineTokens.firstCharOffset + scopedLineContent.length;
 		const slicedTokensAfter = lineTokens.sliceAndInflate(firstCharacterOffset, lastCharacterOffset, 0);
-		const processedLineData = this.indentationLineProcessor.getProcessedLineAndTokens(slicedTokensAfter);
-		return processedLineData;
+		const processedTokens = this.indentationLineProcessor.getProcessedTokens(slicedTokensAfter);
+		return processedTokens;
 	}
 
-	private _getProcessedPreviousLine(range: Range, scopedLineTokens: ScopedLineTokens): ProcessedLineData {
+	private _getProcessedPreviousLineTokens(range: Range, scopedLineTokens: ScopedLineTokens): IViewLineTokens {
 
 		// Utility functions
 		const getScopedLineTokensAtEndColumnOfLine = (lineNumber: number): ScopedLineTokens => {
@@ -156,24 +151,24 @@ export class IndentationContextProcessor {
 		}
 
 		// Main code
-		const emptyProcessedData: ProcessedLineData = { processedLine: '', processedLineTokens: LineTokens.createEmpty('', scopedLineTokens.languageIdCodec) };
+		const emptyTokens = LineTokens.createEmpty('', scopedLineTokens.languageIdCodec);
 		const previousLineNumber = range.startLineNumber - 1;
 		const isFirstLine = previousLineNumber === 0;
 		if (isFirstLine) {
-			return emptyProcessedData;
+			return emptyTokens;
 		}
-		const canScopeExtendOnPreviousLine = scopedLineTokens.doesScopeStartAtOffsetZero();
+		const canScopeExtendOnPreviousLine = scopedLineTokens.firstCharOffset === 0;
 		if (!canScopeExtendOnPreviousLine) {
-			return emptyProcessedData;
+			return emptyTokens;
 		}
 		const scopedLineTokensAtEndColumnOfPreviousLine = getScopedLineTokensAtEndColumnOfLine(previousLineNumber);
 		const doesLanguageContinueOnPreviousLine = scopedLineTokens.languageId === scopedLineTokensAtEndColumnOfPreviousLine.languageId;
 		if (!doesLanguageContinueOnPreviousLine) {
-			return emptyProcessedData;
+			return emptyTokens;
 		}
 		const previousSlicedLineTokens = getSlicedLineTokensForScopeAtLine(scopedLineTokensAtEndColumnOfPreviousLine, previousLineNumber);
-		const processedPreviousScopedLineData = this.indentationLineProcessor.getProcessedLineAndTokens(previousSlicedLineTokens);
-		return processedPreviousScopedLineData;
+		const processedTokens = this.indentationLineProcessor.getProcessedTokens(previousSlicedLineTokens);
+		return processedTokens;
 	}
 }
 
@@ -203,7 +198,7 @@ class IndentationLineProcessor {
 
 		// Main code
 		const tokens = this.model.tokenization.getLineTokens(lineNumber);
-		let processedLine = this.getProcessedLineAndTokens(tokens).processedLine;
+		let processedLine = this.getProcessedTokens(tokens).getLineContent();
 		if (newIndentation !== undefined) {
 			processedLine = adjustIndentation(processedLine, newIndentation);
 		}
@@ -213,7 +208,7 @@ class IndentationLineProcessor {
 	/**
 	 * Process the line with the given tokens, remove the language configuration brackets from the regex, string and comment tokens.
 	 */
-	getProcessedLineAndTokens(tokens: IViewLineTokens): ProcessedLineData {
+	getProcessedTokens(tokens: IViewLineTokens): IViewLineTokens {
 
 		// Utility functions
 		const isTokenTypeToProcess = (tokenType: StandardTokenType): boolean => {
@@ -248,7 +243,7 @@ class IndentationLineProcessor {
 		const languageId = tokens.getLanguageId(0);
 		const brackets = this.languageConfigurationService.getLanguageConfiguration(languageId).brackets;
 		if (!brackets) {
-			return { processedLine: tokens.getLineContent(), processedLineTokens: tokens };
+			return tokens;
 		}
 		const openBrackets = brackets.brackets.map((brackets) => brackets.open).flat();
 		const closedBrackets = brackets.brackets.map((brackets) => brackets.close).flat();
@@ -274,6 +269,6 @@ class IndentationLineProcessor {
 		});
 		const processedTokens = new Uint32Array(processedTokensArray);
 		const processedLineTokens = new LineTokens(processedTokens, processedLine, tokens.languageIdCodec);
-		return { processedLine, processedLineTokens };
+		return processedLineTokens;
 	}
 }

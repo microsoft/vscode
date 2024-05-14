@@ -81,10 +81,6 @@ export class ScopedLineTokens {
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
 		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
 	}
-
-	public doesScopeStartAtOffsetZero(): boolean {
-		return this.firstCharOffset === 0;
-	}
 }
 
 const enum IgnoreBracketsInTokens {

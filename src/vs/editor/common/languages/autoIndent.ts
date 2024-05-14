@@ -319,16 +319,16 @@ export function getIndentForEnter(
 
 	model.tokenization.forceTokenization(range.startLineNumber);
 	const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
-	const processedContext = indentationContextProcessor.getProcessedContextAroundRange(range);
-	const afterEnterProcessedData = processedContext.afterRangeProcessedData;
-	const beforeEnterProcessedData = processedContext.beforeRangeProcessedData;
-	const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterProcessedData.processedLine);
+	const processedContextTokens = indentationContextProcessor.getProcessedTokenContextAroundRange(range);
+	const afterEnterProcessedTokens = processedContextTokens.afterRangeProcessedTokens;
+	const beforeEnterProcessedTokens = processedContextTokens.beforeRangeProcessedTokens;
+	const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterProcessedTokens.getLineContent());
 
 	const virtualModel: IVirtualModel = {
 		tokenization: {
 			getLineTokens: (lineNumber: number): IViewLineTokens => {
 				if (lineNumber === range.startLineNumber) {
-					return beforeEnterProcessedData.processedLineTokens;
+					return beforeEnterProcessedTokens;
 				} else {
 					return model.tokenization.getLineTokens(lineNumber);
 				}
@@ -342,14 +342,14 @@ export function getIndentForEnter(
 		},
 		getLineContent: (lineNumber: number): string => {
 			if (lineNumber === range.startLineNumber) {
-				return beforeEnterProcessedData.processedLine;
+				return beforeEnterProcessedTokens.getLineContent();
 			} else {
 				return model.getLineContent(lineNumber);
 			}
 		}
 	};
 
-	const embeddedLanguage = isWithinEmbeddedLanguage(model, range.getStartPosition());
+	const embeddedLanguage = isLanguageDifferentFromLineStart(model, range.getStartPosition());
 	const currentLine = model.getLineContent(range.startLineNumber);
 	const currentLineIndent = strings.getLeadingWhitespace(currentLine);
 	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService);
@@ -367,7 +367,7 @@ export function getIndentForEnter(
 		afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
 	}
 
-	if (indentRulesSupport.shouldDecrease(afterEnterProcessedData.processedLine)) {
+	if (indentRulesSupport.shouldDecrease(afterEnterProcessedTokens.getLineContent())) {
 		afterEnterIndent = indentConverter.unshiftIndent(afterEnterIndent);
 	}
 
@@ -392,8 +392,8 @@ export function getIndentActionForType(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
-	const isPositionWithinEmbeddedLanguage = isWithinEmbeddedLanguage(model, range.getStartPosition());
-	if (isPositionWithinEmbeddedLanguage) {
+	const languageIsDifferentFromLineStart = isLanguageDifferentFromLineStart(model, range.getStartPosition());
+	if (languageIsDifferentFromLineStart) {
 		// this line has mixed languages and indentation rules will not work
 		return null;
 	}
@@ -405,9 +405,9 @@ export function getIndentActionForType(
 	}
 
 	const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
-	const processedContext = indentationContextProcessor.getProcessedContextAroundRange(range);
-	const beforeRangeText = processedContext.beforeRangeProcessedData.processedLine;
-	const afterRangeText = processedContext.afterRangeProcessedData.processedLine;
+	const processedContextTokens = indentationContextProcessor.getProcessedTokenContextAroundRange(range);
+	const beforeRangeText = processedContextTokens.beforeRangeProcessedTokens.getLineContent();
+	const afterRangeText = processedContextTokens.afterRangeProcessedTokens.getLineContent();
 	const textAroundRange = beforeRangeText + afterRangeText;
 	const textAroundRangeWithCharacter = beforeRangeText + ch + afterRangeText;
 
@@ -447,10 +447,10 @@ export function getIndentMetadata(
 	return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
 }
 
-export function isWithinEmbeddedLanguage(model: ITextModel, position: Position): boolean {
+function isLanguageDifferentFromLineStart(model: ITextModel, position: Position): boolean {
 	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 	const scopedLineTokens = createScopedLineTokens(lineTokens, position.column - 1);
-	const doesScopeStartAtOffsetZero = scopedLineTokens.doesScopeStartAtOffsetZero();
+	const doesScopeStartAtOffsetZero = scopedLineTokens.firstCharOffset === 0;
 	const isScopedLanguageEqualToFirstLanguageOnLine = lineTokens.getLanguageId(0) === scopedLineTokens.languageId;
 	const isWithinEmbeddedLanguage = !doesScopeStartAtOffsetZero && !isScopedLanguageEqualToFirstLanguageOnLine;
 	return isWithinEmbeddedLanguage;
