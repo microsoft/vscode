@@ -818,7 +818,7 @@ export class StopListeningAndSubmitAction extends Action2 {
 				when: FocusInChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
-			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_IN_PROGRESS)
+			precondition: ContextKeyExpr.and(CanVoiceChat, VoiceChatInProgress)
 		});
 	}
 
