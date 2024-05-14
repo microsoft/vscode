@@ -74,6 +74,7 @@ declare module 'vscode' {
 	 * @see {@link LanguageModelAccess.chatRequest}
 	*/
 	// TODO@API add something like `modelResult: Thenable<{ [name: string]: any }>`
+	// TODO@API: add a StopReason-enum that's also used in LanguageModelChat
 	export interface LanguageModelChatResponse {
 
 		/**
@@ -95,7 +96,11 @@ declare module 'vscode' {
 		 *   console.error(e);
 		 * }
 		 * ```
+		 *
+		 * To cancel the stream, the consumer can {@link CancellationTokenSource.cancel cancel} the token that was used to make the request
+		 * or break from the for-loop.
 		 */
+		// TODO@API rename: text
 		stream: AsyncIterable<string>;
 	}
 
@@ -105,6 +110,12 @@ declare module 'vscode' {
 	 * @see {@link lm.selectChatModels}
 	 */
 	export interface LanguageModelChat {
+
+		/**
+		 * Human-readable name of the language model.
+		 */
+		readonly name: string;
+
 		/**
 		 * Opaque identifier of the language model.
 		 */
@@ -115,11 +126,6 @@ declare module 'vscode' {
 		 * values are defined by extensions contributing chat models and need to be looked up with them.
 		 */
 		readonly vendor: string;
-
-		/**
-		 * Human-readable name of the language model.
-		 */
-		readonly name: string;
 
 		/**
 		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
@@ -141,6 +147,7 @@ declare module 'vscode' {
 		/**
 		 * The maximum number of tokens that a model can generate in a single response.
 		 */
+		// TODO@API leave it out for now
 		readonly maxOutputTokens: number;
 
 		/**
@@ -317,8 +324,6 @@ declare module 'vscode' {
 		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
 		 * model does not exist or consent hasn't been asked for.
 		 */
-		// TODO@API applies to chat and embeddings models
-		// TODO@API name: canUse, hasAccess?
 		canSendRequest(chat: LanguageModelChat): boolean | undefined;
 	}
 
