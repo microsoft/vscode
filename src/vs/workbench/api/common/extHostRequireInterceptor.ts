@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ExtensionPaths, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { isESM } from 'vs/base/common/amd';
 
 
 interface LoadFunction {
@@ -76,8 +77,11 @@ export abstract class RequireInterceptor {
 			version: '0.0.0'
 		}
 
-		const api = this._apiFactory(fakeExtension, this._extensionRegistry, configProvider)
-		console.log({ api })
+		if (isESM) {
+			const fakeApi = this._apiFactory(fakeExtension, this._extensionRegistry, configProvider);
+			// @ts-ignore
+			globalThis.vscodeFakeApi = fakeApi;
+		}
 		this.register(this._instaService.createInstance(NodeModuleAliasingModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));

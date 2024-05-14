@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const window = {
-	value: 124
+console.log('fake api', typeof globalThis.vscodeFakeApi)
+
+const api = globalThis.vscodeFakeApi
+if (!api) {
+	throw new Error('vscode api not available')
 }
 
-export const commands = {
-	registerCommand(key, value) {
-		throw new Error('fake register command')
-	}
-}
+const { window, commands } = api
+
+export { window, commands }
