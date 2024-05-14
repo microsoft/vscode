@@ -5,8 +5,8 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
-import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, MultipleEditorsSelectedContext, TwoEditorsSelectedContext } from 'vs/workbench/common/contextkeys';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
+import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, MultipleEditorsSelectedContext, TwoEditorsSelectedContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
@@ -56,6 +56,8 @@ import { EditorTitleControl } from 'vs/workbench/browser/parts/editor/editorTitl
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -157,7 +159,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@ILogService private readonly logService: ILogService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IHostService private readonly hostService: IHostService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(themeService);
 
@@ -255,6 +258,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const multipleEditorsSelectedContext = MultipleEditorsSelectedContext.bindTo(this.contextKeyService);
 		const twoEditorsSelectedContext = TwoEditorsSelectedContext.bindTo(this.contextKeyService);
 
+		const groupActiveEditorContext = ActiveEditorContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorIsReadonly = ActiveEditorReadonlyContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorCanRevert = ActiveEditorCanRevertContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorCanToggleReadonly = ActiveEditorCanToggleReadonlyContext.bindTo(this.scopedContextKeyService);
+		const groupActiveCompareEditorCanSwap = ActiveCompareEditorCanSwapContext.bindTo(this.scopedContextKeyService);
+		const groupTextCompareEditorVisibleContext = TextCompareEditorVisibleContext.bindTo(this.scopedContextKeyService);
+		const groupTextCompareEditorActiveContext = TextCompareEditorActiveContext.bindTo(this.scopedContextKeyService);
+
 		const groupActiveEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.scopedContextKeyService);
 		const groupActiveEditorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.scopedContextKeyService);
 		const sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.scopedContextKeyService);
@@ -266,21 +277,45 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			this.scopedContextKeyService.bufferChangeEvents(() => {
 				const activeEditor = this.activeEditor;
+				const activeEditorPane = this.activeEditorPane;
 
 				this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }));
 
 				applyAvailableEditorIds(groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService);
 
-				groupActiveEditorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-				sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
-
 				if (activeEditor) {
+					groupActiveEditorCanSplitInGroupContext.set(activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
+					sideBySideEditorContext.set(activeEditor.typeId === SideBySideEditorInput.ID);
+
 					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 					activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
 						groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 					});
 				} else {
+					groupActiveEditorCanSplitInGroupContext.set(false);
+					sideBySideEditorContext.set(false);
 					groupActiveEditorDirtyContext.set(false);
+				}
+
+				if (activeEditorPane) {
+					groupActiveEditorContext.set(activeEditorPane.getId());
+					groupActiveEditorCanRevert.set(!activeEditorPane.input.hasCapability(EditorInputCapabilities.Untitled));
+					groupActiveEditorIsReadonly.set(!!activeEditorPane.input.isReadonly());
+
+					const primaryEditorResource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
+					const secondaryEditorResource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.SECONDARY });
+					groupActiveCompareEditorCanSwap.set(activeEditorPane.input instanceof DiffEditorInput && !activeEditorPane.input.original.isReadonly() && !!primaryEditorResource && (this.fileService.hasProvider(primaryEditorResource) || primaryEditorResource.scheme === Schemas.untitled) && !!secondaryEditorResource && (this.fileService.hasProvider(secondaryEditorResource) || secondaryEditorResource.scheme === Schemas.untitled));
+					groupActiveEditorCanToggleReadonly.set(!!primaryEditorResource && this.fileService.hasProvider(primaryEditorResource) && !this.fileService.hasCapability(primaryEditorResource, FileSystemProviderCapabilities.Readonly));
+
+					const activePaneDiffEditor = activeEditorPane?.getId() === TEXT_DIFF_EDITOR_ID;
+					groupTextCompareEditorActiveContext.set(activePaneDiffEditor);
+					groupTextCompareEditorVisibleContext.set(activePaneDiffEditor);
+				} else {
+					groupActiveEditorContext.reset();
+					groupActiveEditorCanRevert.reset();
+					groupActiveEditorIsReadonly.reset();
+					groupActiveCompareEditorCanSwap.reset();
+					groupActiveEditorCanToggleReadonly.reset();
 				}
 			});
 		};
