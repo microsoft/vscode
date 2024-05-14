@@ -87,6 +87,7 @@ declare module 'vscode' {
 		 * For example, if the response terminated after sending part of a triple-backtick code block, then the editor will
 		 * render it as a complete code block.
 		 */
+		// TODO@API: consider to have this always on, the presence of an error is a good indicator
 		responseIsIncomplete?: boolean;
 
 		/**
@@ -243,6 +244,7 @@ declare module 'vscode' {
 		 * The name of the reference.
 		 * TODO@API should name be provided at all, or only ID?
 		 */
+		// TODO@API nuke it, add when needed
 		readonly name: string;
 
 		/**
@@ -290,6 +292,7 @@ declare module 'vscode' {
 		 * in the prompt. That means the last reference in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
+		// TODO@API: name ChatRequestReference, ChatPromptReference
 		readonly references: readonly ChatValueReference[];
 	}
 
@@ -298,6 +301,7 @@ declare module 'vscode' {
 	 * which will be rendered in an appropriate way in the chat view. A participant can use the helper method for the type of content it wants to return, or it
 	 * can instantiate a {@link ChatResponsePart} and use the generic {@link ChatResponseStream.push} method to return it.
 	 */
+	// TODO@API make them return void
 	export interface ChatResponseStream {
 		/**
 		 * Push a markdown part to this stream. Short-hand for
