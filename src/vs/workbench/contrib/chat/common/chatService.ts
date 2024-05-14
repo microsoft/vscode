@@ -299,7 +299,6 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 }
 
 export interface IChatSendRequestOptions {
-	implicitVariablesEnabled?: boolean;
 	location?: ChatAgentLocation;
 	parserContext?: IChatParserContext;
 	attempt?: number;
