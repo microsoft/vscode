@@ -36,7 +36,7 @@ import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
@@ -84,7 +84,7 @@ enum VoiceChatSessionState {
 interface IVoiceChatSessionController {
 
 	readonly onDidAcceptInput: Event<unknown>;
-	readonly onDidCancelInput: Event<unknown>;
+	readonly onDidHideInput: Event<unknown>;
 
 	readonly context: VoiceChatSessionContext;
 
@@ -109,7 +109,6 @@ class VoiceChatSessionControllerFactory {
 	static create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'terminal' | 'focused'): Promise<IVoiceChatSessionController | undefined>;
 	static async create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'terminal' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const viewsService = accessor.get(IViewsService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
@@ -130,8 +129,8 @@ class VoiceChatSessionControllerFactory {
 			// Try with the chat widget service, which currently
 			// only supports the chat view and quick chat
 			// https://github.com/microsoft/vscode/issues/191191
-			const chatInput = chatWidgetService.lastFocusedWidget;
-			if (chatInput?.hasInputFocus()) {
+			const chatWidget = chatWidgetService.lastFocusedWidget;
+			if (chatWidget?.hasInputFocus()) {
 				// Unfortunately there does not seem to be a better way
 				// to figure out if the chat widget is in a part or picker
 				if (
@@ -139,14 +138,14 @@ class VoiceChatSessionControllerFactory {
 					layoutService.hasFocus(Parts.PANEL_PART) ||
 					layoutService.hasFocus(Parts.AUXILIARYBAR_PART)
 				) {
-					return VoiceChatSessionControllerFactory.doCreateForChatView(chatInput, viewsService);
+					return VoiceChatSessionControllerFactory.doCreateForChatView(chatWidget);
 				}
 
 				if (layoutService.hasFocus(Parts.EDITOR_PART)) {
-					return VoiceChatSessionControllerFactory.doCreateForChatEditor(chatInput, viewsService);
+					return VoiceChatSessionControllerFactory.doCreateForChatEditor(chatWidget);
 				}
 
-				return VoiceChatSessionControllerFactory.doCreateForQuickChat(chatInput, quickChatService);
+				return VoiceChatSessionControllerFactory.doCreateForQuickChat(chatWidget, quickChatService);
 			}
 
 			// Try with the inline chat
@@ -161,9 +160,9 @@ class VoiceChatSessionControllerFactory {
 
 		// View Chat
 		if (context === 'view' || context === 'focused' /* fallback in case 'focused' was not successful */) {
-			const chatView = await VoiceChatSessionControllerFactory.revealChatView(accessor);
-			if (chatView) {
-				return VoiceChatSessionControllerFactory.doCreateForChatView(chatView, viewsService);
+			const chatWidget = await VoiceChatSessionControllerFactory.revealChatView(accessor);
+			if (chatWidget) {
+				return VoiceChatSessionControllerFactory.doCreateForChatView(chatWidget);
 			}
 		}
 
@@ -212,12 +211,12 @@ class VoiceChatSessionControllerFactory {
 		return undefined;
 	}
 
-	private static doCreateForChatView(chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
-		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('view', chatView, viewsService);
+	private static doCreateForChatView(chatWidget: IChatWidget): IVoiceChatSessionController {
+		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('view', chatWidget);
 	}
 
-	private static doCreateForChatEditor(chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
-		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('editor', chatView, viewsService);
+	private static doCreateForChatEditor(chatWidget: IChatWidget): IVoiceChatSessionController {
+		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('editor', chatWidget);
 	}
 
 	private static createContextKeyController(contextKeyService: IContextKeyService, rawControllerVoiceChatInProgress: RawContextKey<boolean>): (state: VoiceChatSessionState) => void {
@@ -246,19 +245,18 @@ class VoiceChatSessionControllerFactory {
 		};
 	}
 
-	private static doCreateForChatViewOrEditor(context: 'view' | 'editor', chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
+	private static doCreateForChatViewOrEditor(context: 'view' | 'editor', chatWidget: IChatWidget): IVoiceChatSessionController {
 		return {
 			context,
-			onDidAcceptInput: chatView.onDidAcceptInput,
-			// TODO@bpasero cancellation needs to work better for chat editors that are not view bound
-			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === CHAT_VIEW_ID),
-			focusInput: () => chatView.focusInput(),
-			acceptInput: () => chatView.acceptInput(),
-			updateInput: text => chatView.setInput(text),
-			getInput: () => chatView.getInput(),
-			setInputPlaceholder: text => chatView.setInputPlaceholder(text),
-			clearInputPlaceholder: () => chatView.resetInputPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(chatView.scopedContextKeyService, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS)
+			onDidAcceptInput: chatWidget.onDidAcceptInput,
+			onDidHideInput: chatWidget.onDidHideInput,
+			focusInput: () => chatWidget.focusInput(),
+			acceptInput: () => chatWidget.acceptInput(),
+			updateInput: text => chatWidget.setInput(text),
+			getInput: () => chatWidget.getInput(),
+			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
+			clearInputPlaceholder: () => chatWidget.resetInputPlaceholder(),
+			updateState: VoiceChatSessionControllerFactory.createContextKeyController(chatWidget.scopedContextKeyService, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS)
 		};
 	}
 
@@ -266,7 +264,7 @@ class VoiceChatSessionControllerFactory {
 		return {
 			context: 'quick',
 			onDidAcceptInput: quickChat.onDidAcceptInput,
-			onDidCancelInput: quickChatService.onDidClose,
+			onDidHideInput: quickChatService.onDidClose,
 			focusInput: () => quickChat.focusInput(),
 			acceptInput: () => quickChat.acceptInput(),
 			updateInput: text => quickChat.setInput(text),
@@ -283,8 +281,8 @@ class VoiceChatSessionControllerFactory {
 		return {
 			context: 'inline',
 			onDidAcceptInput: inlineChat.onDidAcceptInput,
-			onDidCancelInput: Event.any(
-				inlineChat.onDidCancelInput,
+			onDidHideInput: Event.any(
+				inlineChat.onDidHideInput,
 				Event.fromPromise(inlineChatSession)
 			),
 			focusInput: () => inlineChat.focus(),
@@ -301,7 +299,7 @@ class VoiceChatSessionControllerFactory {
 		return {
 			context: 'terminal',
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
-			onDidCancelInput: terminalChat.onDidCancelInput,
+			onDidHideInput: terminalChat.onDidAcceptInput, //TODO@bpasero revisit this when terminal is using chat widget
 			focusInput: () => terminalChat.focus(),
 			acceptInput: () => terminalChat.acceptInput(),
 			updateInput: text => terminalChat.updateInput(text, false),
@@ -369,7 +367,7 @@ class VoiceChatSessions {
 		session.disposables.add(toDisposable(() => cts.dispose(true)));
 
 		session.disposables.add(controller.onDidAcceptInput(() => this.stop(sessionId, controller.context)));
-		session.disposables.add(controller.onDidCancelInput(() => this.stop(sessionId, controller.context)));
+		session.disposables.add(controller.onDidHideInput(() => this.stop(sessionId, controller.context)));
 
 		controller.focusInput();
 

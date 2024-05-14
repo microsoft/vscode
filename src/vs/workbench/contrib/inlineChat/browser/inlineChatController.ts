@@ -123,7 +123,14 @@ export class InlineChatController implements IEditorContribution {
 	readonly onWillStartSession = this._onWillStartSession.event;
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
-	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
+	get onDidHideInput() { return this._visibleInput.onDidHideInput; }
+	private get _visibleInput() {
+		if (this._input.value.isVisible) {
+			return this._input.value.chatWidget;
+		} else {
+			return this._zone.value.widget.chatWidget;
+		}
+	}
 
 	private readonly _sessionStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession = this._store.add(new MutableDisposable<StashedSession>());
@@ -1020,11 +1027,7 @@ export class InlineChatController implements IEditorContribution {
 	// ---- controller API
 
 	get scopedContextKeyService(): IContextKeyService {
-		if (this._input.value.isVisible) {
-			return this._input.value.chatWidget.scopedContextKeyService;
-		} else {
-			return this._zone.value.widget.chatWidget.scopedContextKeyService;
-		}
+		return this._visibleInput.scopedContextKeyService;
 	}
 
 	showSaveHint(): void {
@@ -1043,11 +1046,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	acceptInput() {
-		if (this._input.value.isVisible) {
-			return this._input.value.chatWidget.acceptInput();
-		} else {
-			return this._zone.value.widget.chatWidget.acceptInput();
-		}
+		return this._visibleInput.acceptInput();
 	}
 
 	updateInput(text: string, selectAll = true): void {
