@@ -474,6 +474,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
+		this.initAttachedContext(this.attachedContextContainer);
 
 		const data = this.getLayoutData();
 
@@ -490,8 +491,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._inputEditor.layout(newDimension);
 			this.previousInputEditorDimension = newDimension;
 		}
-
-		this.initAttachedContext(this.attachedContextContainer);
 
 		if (allowRecurse && initialEditorScrollWidth < 10) {
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
