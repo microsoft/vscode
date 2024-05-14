@@ -133,11 +133,15 @@ declare module 'vscode' {
 		 */
 		readonly version: string;
 
-		// TODO@API
-		// max_prompt_tokens vs output_tokens vs context_size
-		// readonly inputTokens: number;
-		// readonly outputTokens: number;
-		readonly contextSize: number;
+		/**
+		 * The maximum number of tokens that can be sent to the model in a single request.
+		 */
+		readonly maxInputTokens: number;
+
+		/**
+		 * The maximum number of tokens that a model can generate in a single response.
+		 */
+		readonly maxOutputTokens: number;
 
 		/**
 		 * Make a chat request using a language model.
@@ -273,14 +277,25 @@ declare module 'vscode' {
 		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models and
 		 * extensions must handle these cases, esp. when no chat model exists, gracefully.
 		 *
-		 * *Note* that extensions can hold-on to the results returned by this function and use them later. However, whenever the
+		 * ```ts
+		 *
+		 * const models = await vscode.lm.selectChatModels({family: 'gpt-3.5-turbo'})!;
+		 * if (models.length > 0) {
+		 * 	const [first] = models;
+		 * 	const response = await first.sendRequest(...)
+		 * 	// ...
+		 * } else {
+		 * 	// NO chat models available
+		 * }
+		 * ```
+		 *
+		 * *Note* that extensions can hold-on to the results returned by this function and use them later. However, when the
 		 * {@link onDidChangeChatModels}-event is fired the list of chat models might have changed and extensions should re-query.
 		 *
 		 * @param selector A chat model selector. When omitted all chat models are returned.
-		 * @returns An array of chat models or `undefined` when no chat model was selected.
+		 * @returns An array of chat models, can be empty!
 		 */
-		// TODO@API no undefined but empty array
-		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[] | undefined>;
+		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>;
 	}
 
 	/**
@@ -296,9 +311,9 @@ declare module 'vscode' {
 		/**
 		 * Checks if a request can be made to a language model.
 		 *
-		 * *Note* that calling this function will not trigger a consent UI but just checks.
+		 * *Note* that calling this function will not trigger a consent UI but just checks for a persisted state.
 		 *
-		 * @param languageModelId A language model identifier, see {@link LanguageModelChat.id}
+		 * @param chat A language model chat object.
 		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
 		 * model does not exist or consent hasn't been asked for.
 		 */
