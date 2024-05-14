@@ -62,12 +62,14 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 type VoiceChatSessionContext = 'inline' | 'terminal' | 'quick' | 'view' | 'editor';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
-const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<VoiceChatSessionContext | undefined>('voiceChatInProgress', undefined, { type: 'boolean', description: localize('voiceChatInProgress', "Defined as a location where voice recording from microphone is in progress for voice chat.") });
+const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<VoiceChatSessionContext | undefined>('voiceChatInProgress', undefined, { type: 'string', description: localize('voiceChatInProgress', "Defined as a location where voice recording from microphone is in progress for voice chat.") });
 
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT);
 
 const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, TerminalChatContextKeys.requestActive);
+
+const TerminalChatExecute = MenuId.for('terminalChatInput'); // TODO@bpasero revisit this when terminal is using chat widget
 
 enum VoiceChatSessionState {
 	Stopped = 1,
@@ -645,7 +647,7 @@ export class StartVoiceChatAction extends Action2 {
 				group: 'navigation',
 				order: -1
 			}, {
-				id: MenuId.for('terminalChatInput'),
+				id: TerminalChatExecute,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
 					TextToSpeechInProgress.negate(),						// hide when text to speech is in progress
@@ -713,7 +715,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 				group: 'navigation',
 				order: -1
 			}, {
-				id: MenuId.for('terminalChatInput'),
+				id: TerminalChatExecute,
 				when: HasSpeechProvider.negate(),
 				group: 'navigation',
 				order: -1
@@ -797,7 +799,7 @@ export class StopListeningInTerminalChatAction extends BaseStopListeningAction {
 	static readonly ID = 'workbench.action.chat.stopListeningInTerminalChat';
 
 	constructor() {
-		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('terminal'), MenuId.for('terminalChatInput'));
+		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('terminal'), TerminalChatExecute);
 	}
 }
 
@@ -1004,7 +1006,7 @@ export class StopReadAloud extends Action2 {
 					order: -1
 				},
 				{
-					id: MenuId.for('terminalChatInput'),
+					id: TerminalChatExecute,
 					when: TextToSpeechInProgress,
 					group: 'navigation',
 					order: -1
