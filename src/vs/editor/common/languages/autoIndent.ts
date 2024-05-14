@@ -324,31 +324,7 @@ export function getIndentForEnter(
 	const beforeEnterProcessedTokens = processedContextTokens.beforeRangeProcessedTokens;
 	const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterProcessedTokens.getLineContent());
 
-	const virtualModel: IVirtualModel = {
-		tokenization: {
-			getLineTokens: (lineNumber: number): IViewLineTokens => {
-				if (lineNumber === range.startLineNumber) {
-					return beforeEnterProcessedTokens;
-				} else {
-					return model.tokenization.getLineTokens(lineNumber);
-				}
-			},
-			getLanguageId: (): string => {
-				return model.getLanguageId();
-			},
-			getLanguageIdAtPosition: (lineNumber: number, column: number): string => {
-				return model.getLanguageIdAtPosition(lineNumber, column);
-			},
-		},
-		getLineContent: (lineNumber: number): string => {
-			if (lineNumber === range.startLineNumber) {
-				return beforeEnterProcessedTokens.getLineContent();
-			} else {
-				return model.getLineContent(lineNumber);
-			}
-		}
-	};
-
+	const virtualModel = createVirtualModelWithModifiedTokensAtLine(model, range.startLineNumber, beforeEnterProcessedTokens);
 	const embeddedLanguage = isLanguageDifferentFromLineStart(model, range.getStartPosition());
 	const currentLine = model.getLineContent(range.startLineNumber);
 	const currentLineIndent = strings.getLeadingWhitespace(currentLine);
@@ -447,6 +423,34 @@ export function getIndentMetadata(
 	return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
 }
 
+function createVirtualModelWithModifiedTokensAtLine(model: ITextModel, modifiedLineNumber: number, modifiedTokens: IViewLineTokens): IVirtualModel {
+	const virtualModel: IVirtualModel = {
+		tokenization: {
+			getLineTokens: (lineNumber: number): IViewLineTokens => {
+				if (lineNumber === modifiedLineNumber) {
+					return modifiedTokens;
+				} else {
+					return model.tokenization.getLineTokens(lineNumber);
+				}
+			},
+			getLanguageId: (): string => {
+				return model.getLanguageId();
+			},
+			getLanguageIdAtPosition: (lineNumber: number, column: number): string => {
+				return model.getLanguageIdAtPosition(lineNumber, column);
+			},
+		},
+		getLineContent: (lineNumber: number): string => {
+			if (lineNumber === modifiedLineNumber) {
+				return modifiedTokens.getLineContent();
+			} else {
+				return model.getLineContent(lineNumber);
+			}
+		}
+	};
+	return virtualModel;
+}
+
 function isLanguageDifferentFromLineStart(model: ITextModel, position: Position): boolean {
 	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 	const scopedLineTokens = createScopedLineTokens(lineTokens, position.column - 1);
@@ -454,4 +458,4 @@ function isLanguageDifferentFromLineStart(model: ITextModel, position: Position)
 	const isScopedLanguageEqualToFirstLanguageOnLine = lineTokens.getLanguageId(0) === scopedLineTokens.languageId;
 	const isWithinEmbeddedLanguage = !doesScopeStartAtOffsetZero && !isScopedLanguageEqualToFirstLanguageOnLine;
 	return isWithinEmbeddedLanguage;
-};
+}
