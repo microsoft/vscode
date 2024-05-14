@@ -32,4 +32,5 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 	model.dispose();
 	configuration.dispose();
 	testLanguageConfigurationService.dispose();
+	languageService.dispose();
 }

@@ -977,6 +977,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				const actual = getEditOperation(model, op);
 				assert.deepStrictEqual(actual, expected);
 				testLanguageConfigurationService.dispose();
+				languageService.dispose();
 			});
 		}
 
@@ -995,6 +996,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				const actual = getEditOperation(model, op);
 				assert.deepStrictEqual(actual, expected);
 				testLanguageConfigurationService.dispose();
+				languageService.dispose();
 			});
 		}
 	});
