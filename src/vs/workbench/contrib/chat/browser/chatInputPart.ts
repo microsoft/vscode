@@ -105,7 +105,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private followupsContainer!: HTMLElement;
 	private readonly followupsDisposables = this._register(new DisposableStore());
 
-	private attachedContextSettingEnabled = false;
 	private attachedContextContainer!: HTMLElement;
 
 	private _inputPartHeight: number = 0;
@@ -426,7 +425,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private initAttachedContext(container: HTMLElement) {
 		dom.clearNode(container);
-		dom.setVisibility(Boolean(this.attachedContext.size) && this.attachedContextSettingEnabled, this.attachedContextContainer);
+		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
 		for (const attachment of this.attachedContext) {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
