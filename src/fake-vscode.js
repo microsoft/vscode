@@ -6,3 +6,9 @@
 export const window = {
 	value: 124
 }
+
+export const commands = {
+	registerCommand(key, value) {
+		throw new Error('fake register command')
+	}
+}
