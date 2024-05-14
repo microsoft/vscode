@@ -47,7 +47,8 @@ import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatContentVariableReference, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -92,7 +93,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachedContext;
 	}
 
-	private readonly _attachedContext = new Set<IChatContentVariableReference>();
+	private readonly _attachedContext = new Set<IChatRequestVariableEntry>();
 
 	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: new Emitter<boolean>().event });
 
@@ -270,7 +271,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.focus();
 	}
 
-	attachContext(...contentReferences: IChatContentVariableReference[]): void {
+	attachContext(...contentReferences: IChatRequestVariableEntry[]): void {
 		for (const reference of contentReferences) {
 			this.attachedContext.add(reference);
 		}
@@ -429,13 +430,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		for (const attachment of this.attachedContext) {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
-			if (attachment.value) {
-				label.setFile(URI.isUri(attachment.value) ? attachment.value : attachment.value.uri, {
+			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			if (file) {
+				label.setFile(file, {
 					fileKind: FileKind.FILE,
 					hidePath: true,
 				});
 			} else {
-				label.setLabel(attachment.variableName);
+				label.setLabel(attachment.name);
 			}
 
 			const clearButton = new Button(widget, { supportIcons: true });

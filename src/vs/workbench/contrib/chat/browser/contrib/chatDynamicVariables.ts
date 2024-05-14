@@ -131,6 +131,7 @@ export class SelectAndInsertFileAction extends Action2 {
 	static readonly Item = {
 		label: localize('allFiles', 'All Files'),
 		description: localize('allFilesDescription', 'Search for relevant files in the workspace and provide context from them'),
+		id: 'vscode.file'
 	};
 	static readonly ID = 'workbench.action.chat.selectAndInsertFile';
 
