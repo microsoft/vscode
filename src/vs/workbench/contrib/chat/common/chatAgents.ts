@@ -109,6 +109,7 @@ export interface IChatAgentMetadata {
 	followupPlaceholder?: string;
 	isSticky?: boolean;
 	requester?: IChatRequesterInformation;
+	supportsSlowVariables?: boolean;
 }
 
 

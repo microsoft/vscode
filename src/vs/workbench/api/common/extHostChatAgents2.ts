@@ -469,6 +469,7 @@ class ExtHostChatAgent {
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
+	private _supportsSlowReferences: boolean | undefined;
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -566,7 +567,8 @@ class ExtHostChatAgent {
 					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
-					requester: this._requester
+					requester: this._requester,
+					supportsSlowVariables: this._supportsSlowReferences,
 				});
 				updateScheduled = false;
 			});
@@ -691,6 +693,13 @@ class ExtHostChatAgent {
 			},
 			get requester() {
 				return that._requester;
+			},
+			set supportsSlowReferences(v) {
+				that._supportsSlowReferences = v;
+				updateMetadataSoon();
+			},
+			get supportsSlowReferences() {
+				return that._supportsSlowReferences;
 			},
 			dispose() {
 				disposed = true;
