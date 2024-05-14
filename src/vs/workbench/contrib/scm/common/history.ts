@@ -74,6 +74,7 @@ export interface ISCMHistoryItem {
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
+	readonly labels?: string[];
 }
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {

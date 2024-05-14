@@ -107,6 +107,23 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			const newLineIndex = commit.message.indexOf('\n');
 			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
 
+			const labels: string[] = [];
+			for (const label of commit.refNames) {
+				if (label === 'origin/HEAD') {
+					continue;
+				}
+
+				if (label !== '') {
+					if (label.startsWith('HEAD -> ')) {
+						labels.push('HEAD');
+						labels.push(label.substring(8));
+						continue;
+					}
+
+					labels.push(label);
+				}
+			}
+
 			return {
 				id: commit.hash,
 				parentIds: commit.parents,
@@ -115,6 +132,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				icon: new ThemeIcon('git-commit'),
 				timestamp: commit.authorDate?.getTime(),
 				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
+				labels: labels.length !== 0 ? labels : undefined
 			};
 		}));
 

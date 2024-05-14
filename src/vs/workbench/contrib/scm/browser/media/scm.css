@@ -138,6 +138,27 @@
 	flex-shrink: 0;
 }
 
+.scm-view .monaco-list-row .history-item > .label-container {
+	display: flex;
+	flex-shrink: 0;
+	gap: 4px;
+}
+
+.scm-view .monaco-list-row .history-item > .label-container > .monaco-icon-label {
+	opacity: 0.75;
+}
+
+.scm-view .monaco-list-row .history-item > .label-container > .monaco-icon-label .monaco-highlighted-label {
+	display: block;
+	height: 22px;
+}
+
+.scm-view .monaco-list-row .history-item > .label-container > .monaco-icon-label .monaco-highlighted-label .codicon {
+	border: 1px solid var(--vscode-scm-historyItemStatisticsBorder);
+	border-radius: 2px;
+	padding: 2px
+}
+
 .scm-view .monaco-list-row .history-item .stats-container {
 	display: flex;
 	font-size: 11px;

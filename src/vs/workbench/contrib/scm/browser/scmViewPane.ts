@@ -860,6 +860,7 @@ interface HistoryItemTemplate {
 	// readonly iconContainer: HTMLElement;
 	readonly label: IconLabel;
 	readonly graphContainer: SVGElement;
+	readonly labelContainer: HTMLElement;
 	// readonly statsContainer: HTMLElement;
 	// readonly statsCustomHover: IUpdatableHover;
 	// readonly filesLabel: HTMLElement;
@@ -896,6 +897,9 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		const iconLabel = new IconLabel(element, { supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true });
 		//const iconContainer = prepend(iconLabel.element, $('.icon-container'));
 
+		const labelContainer = append(element, $('.label-container'));
+		element.appendChild(labelContainer);
+
 		const disposables = new DisposableStore();
 		// const actionsContainer = append(element, $('.actions'));
 		// const actionBar = new ActionBar(actionsContainer, { actionRunner: this.actionRunner, actionViewItemProvider: this.actionViewItemProvider });
@@ -909,7 +913,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		// const statsCustomHover = this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), statsContainer, '');
 		// disposables.add(statsCustomHover);
 
-		return { graphContainer, label: iconLabel, elementDisposables: new DisposableStore(), disposables };
+		return { graphContainer, label: iconLabel, labelContainer, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -920,22 +924,30 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		// 	templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItem.icon));
 		// }
 
-
-		// const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-		// line.setAttribute('x1', '11');
-		// line.setAttribute('y1', '0');
-		// line.setAttribute('x2', '11');
-		// line.setAttribute('y2', '22');
-		// line.setAttribute('stroke', 'black');
-		// line.setAttribute('stroke-width', '1');
-		// templateData.graphContainer.append(line);
-
-		// templateData.graphContainer.style.width = '22px';
-		this.renderGraph(templateData.graphContainer, historyItem,);
+		this.renderGraph(templateData.graphContainer, historyItem);
 
 		const title = this.getTooltip(historyItem);
 		// const [matches, descriptionMatches] = this.processMatches(historyItem, node.filterData);
 		templateData.label.setLabel(historyItem.message, undefined, { title });
+
+		templateData.labelContainer.textContent = '';
+		if (historyItem.labels) {
+			for (const label of historyItem.labels) {
+				// HACK
+				const iconLabel = new IconLabel(templateData.labelContainer, { supportIcons: true });
+				if (label === 'HEAD') {
+					iconLabel.setLabel('$(target)', undefined, { title: 'HEAD' });
+				} else if (label.startsWith('tag: ')) {
+					iconLabel.setLabel('$(tag)', undefined, { title: label.substring(5) });
+				} else if (label.startsWith('origin/')) {
+					iconLabel.setLabel('$(cloud)', undefined, { title: label });
+				} else {
+					iconLabel.setLabel('$(git-branch)', undefined, { title: label });
+				}
+
+				templateData.elementDisposables.add(iconLabel);
+			}
+		}
 
 		// templateData.actionBar.clear();
 		// templateData.actionBar.context = historyItem;
@@ -956,60 +968,105 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 	private renderGraph(graphContainer: SVGElement, historyItem: SCMHistoryItemTreeElement): void {
 		graphContainer.textContent = '';
 
+		// TODO@lszomoru - handle curved branches
 		const swimlaneIndex = historyItem.graphSwimlanes.indexOf(historyItem.id);
 		for (let index = 0; index < historyItem.graphSwimlanes.length; index++) {
-			// Circle
-			if (index === swimlaneIndex) {
-				const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-				circle.setAttribute('cx', `${11 * (index + 1)}`);
-				circle.setAttribute('cy', '11');
-				circle.setAttribute('r', '4');
-				graphContainer.append(circle);
-			}
-
-			// Lines
-			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-
+			// Line(s)
+			const d: string[] = [];
+			const path = this.createPath();
 			if (historyItem.graphSwimlanes[index] === historyItem.id && index !== swimlaneIndex) {
 				// Draw /
-				path.setAttribute('d', `M ${11 * ((index - swimlaneIndex) + 1)} 0 A 11 11 0 0 1 11 11`);
+				d.push(`M ${11 * ((index - swimlaneIndex) + 1)} 0`);
+				d.push(`A 11 11 0 0 1 ${11 * ((index - swimlaneIndex))} 11`);
+
+				// Draw -
+				d.push(`H ${11 * (swimlaneIndex + 1)}`);
 			} else {
 				// Draw |
-				path.setAttribute('d', `M${11 * (index + 1)} 0 V22`);
+				d.push(`M${11 * (index + 1)} 0`);
+				d.push(`V 22`);
+
+				// Merge commit - draw \
+				if (historyItem.parentIds.length > 1) {
+					d.push(`M${11 * (index + 1)} 11`);
+					d.push(`A 11 11 0 0 1 ${11 * (index + 2)} 22`);
+				}
 			}
 
-			path.style.fill = 'none';
-			path.style.stroke = 'black';
-			path.style.strokeWidth = '1px';
-
+			path.setAttribute('d', d.join(' '));
 			graphContainer.append(path);
+		}
+
+		// Circle
+		if (swimlaneIndex !== -1) {
+			const circle = this.createCircle(swimlaneIndex, 4, '#f8f8f8', 'black');
+			graphContainer.append(circle);
 		}
 
 		// New swimlane
 		if (swimlaneIndex === -1) {
-			// Circle
-			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-			circle.setAttribute('cx', `${11 * (historyItem.graphSwimlanes.length + 1)}`);
-			circle.setAttribute('cy', '11');
-			circle.setAttribute('r', '4');
-			graphContainer.append(circle);
+			// Draw |
+			const path = this.createPath();
 
-			// Line(s)
-			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			path.setAttribute('d', `M${11 * (historyItem.graphSwimlanes.length + 1)} 11 V22`);
-			path.style.fill = 'none';
-			path.style.stroke = 'black';
-			path.style.strokeWidth = '1px';
+			const d: string[] = [];
+			d.push(`M${11 * (historyItem.graphSwimlanes.length + 1)} 11`);
+			d.push(`V 22`);
 
+			path.setAttribute('d', d.join(' '));
 			graphContainer.append(path);
+
+			// Merge commit - draw \
+			if (historyItem.parentIds.length > 1) {
+				const path = this.createPath();
+
+				const d: string[] = [];
+				d.push(`M${11 * (historyItem.graphSwimlanes.length + 1)} 11`);
+				d.push(`A 11 11 0 0 1 ${11 * (historyItem.graphSwimlanes.length + 2)} 22`);
+
+				path.setAttribute('d', d.join(' '));
+				graphContainer.append(path);
+			}
+
+			// Draw *
+			if (historyItem.parentIds.length === 1) {
+				const circle = this.createCircle(historyItem.graphSwimlanes.length, 4, '#f8f8f8', 'black');
+				graphContainer.append(circle);
+			} else {
+				const circleOuter = this.createCircle(historyItem.graphSwimlanes.length, 5, '#f8f8f8', 'black');
+				graphContainer.append(circleOuter);
+
+				const circleInner = this.createCircle(historyItem.graphSwimlanes.length, 3, '#f8f8f8', 'black');
+				graphContainer.append(circleInner);
+			}
 		}
 
 		// Container width
-		const containerWidth = swimlaneIndex === -1 ?
-			11 * (historyItem.graphSwimlanes.length + 2) :
-			11 * (historyItem.graphSwimlanes.length + 1);
+		const containerWidth = swimlaneIndex === -1
+			? 11 * (historyItem.graphSwimlanes.length + 1 + historyItem.parentIds.length)
+			: 11 * (historyItem.graphSwimlanes.length + historyItem.parentIds.length);
 
 		graphContainer.style.width = `${containerWidth}px`;
+	}
+
+	private createCircle(index: number, radius: number, stroke: string, fill: string): SVGCircleElement {
+		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+		circle.setAttribute('cx', `${11 * (index + 1)}`);
+		circle.setAttribute('cy', '11');
+		circle.setAttribute('r', `${radius}`);
+		circle.setAttribute('fill', fill);
+		circle.setAttribute('stroke', stroke);
+
+		return circle;
+	}
+
+	private createPath(color: string = 'black'): SVGPathElement {
+		const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		path.setAttribute('fill', 'none');
+		path.setAttribute('stroke', color);
+		path.setAttribute('stroke-width', '1px');
+		path.setAttribute('stroke-linecap', 'round');
+
+		return path;
 	}
 
 	private getTooltip(historyItem: SCMHistoryItemTreeElement): IUpdatableHoverTooltipMarkdownString {
@@ -3783,7 +3840,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
 		if (!historyItemsElement) {
-			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 10 }) ?? [];
+			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 32 }) ?? [];
 
 			// All Changes
 			// const { showChangesSummary } = this.getConfiguration();
@@ -3853,6 +3910,11 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				}
 
 				i++;
+			}
+
+			// Add remaining parent(s) to the graph
+			for (let i = 1; i < historyItem.parentIds.length; i++) {
+				graphSwimlanes.push(historyItem.parentIds[i]);
 			}
 		}
 

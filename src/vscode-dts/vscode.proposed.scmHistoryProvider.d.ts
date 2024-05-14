@@ -61,6 +61,7 @@ declare module 'vscode' {
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
+		readonly labels?: string[];
 	}
 
 	export interface SourceControlHistoryItemChange {
