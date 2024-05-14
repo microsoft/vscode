@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.90.0",
-  "distro": "25c9442cad1fee4c5b7fd96dd526ae00022f881b",
+  "distro": "b545c05b2646e72d172e58e08b9315e5e8478296",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -117,7 +117,7 @@
     "@types/kerberos": "^1.1.2",
     "@types/minimist": "^1.2.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
@@ -132,7 +132,7 @@
     "@typescript-eslint/experimental-utils": "^5.57.0",
     "@typescript-eslint/parser": "^6.21.0",
     "@vscode/gulp-electron": "^1.36.0",
-    "@vscode/l10n-dev": "0.0.30",
+    "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",
     "@vscode/test-electron": "^2.3.8",
@@ -148,7 +148,7 @@
     "cssnano": "^6.0.3",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "28.2.8",
+    "electron": "29.3.1",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^46.5.0",
@@ -207,8 +207,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.5.0-dev.20240408",
-    "typescript-formatter": "7.1.0",
+    "typescript": "^5.5.0-dev.20240506",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^5.91.0",
@@ -216,6 +215,9 @@
     "webpack-stream": "^7.0.0",
     "xml2js": "^0.5.0",
     "yaserver": "^0.4.0"
+  },
+  "resolutions": {
+    "node-gyp-build": "4.8.1"
   },
   "repository": {
     "type": "git",

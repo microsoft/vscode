@@ -20,13 +20,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { TerminalStickyScrollSettingId } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
@@ -82,8 +82,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// React to configuration changes
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollMaxLineCount)) {
-				this._rawMaxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
+			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.MaxLineCount)) {
+				this._rawMaxLineCount = configurationService.getValue(TerminalStickyScrollSettingId.MaxLineCount);
 			}
 		}));
 

@@ -5,49 +5,48 @@
 
 declare module 'vscode' {
 
+	// https://github.com/microsoft/vscode/issues/206265
+
 	/**
-	 * Represents a language model response.
-	 *
-	 * @see {@link LanguageModelAccess.chatRequest}
+	 * Represents the role of a chat message. This is either the user or the assistant.
 	 */
-	export interface LanguageModelChatResponse {
+	export enum LanguageModelChatMessageRole {
+		/**
+		 * The user role, e.g the human interacting with a language model.
+		 */
+		User = 1,
 
 		/**
-		 * An async iterable that is a stream of text chunks forming the overall response.
-		 *
-		 * *Note* that this stream will error when during data receiving an error occurrs.
+		 * The assistant role, e.g. the language model generating responses.
 		 */
-		stream: AsyncIterable<string>;
+		Assistant = 2
 	}
 
 	/**
-	 * A language model message that represents a system message.
-	 *
-	 * System messages provide instructions to the language model that define the context in
-	 * which user messages are interpreted.
-	 *
-	 * *Note* that a language model may choose to add additional system messages to the ones
-	 * provided by extensions.
+	 * Represents a message in a chat. Can assume different roles, like user or assistant.
 	 */
-	export class LanguageModelChatSystemMessage {
+	export class LanguageModelChatMessage {
 
 		/**
-		 * The content of this message.
-		 */
-		content: string;
-
-		/**
-		 * Create a new system message.
+		 * Utility to create a new user message.
 		 *
 		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
 		 */
-		constructor(content: string);
-	}
+		static User(content: string, name?: string): LanguageModelChatMessage;
 
-	/**
-	 * A language model message that represents a user message.
-	 */
-	export class LanguageModelChatUserMessage {
+		/**
+		 * Utility to create a new assistant message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static Assistant(content: string, name?: string): LanguageModelChatMessage;
+
+		/**
+		 * The role of this message.
+		 */
+		role: LanguageModelChatMessageRole;
 
 		/**
 		 * The content of this message.
@@ -62,83 +61,151 @@ declare module 'vscode' {
 		/**
 		 * Create a new user message.
 		 *
+		 * @param role The role of the message.
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(content: string, name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
 	}
 
 	/**
-	 * A language model message that represents an assistant message, usually in response to a user message
-	 * or as a sample response/reply-pair.
-	 */
-	export class LanguageModelChatAssistantMessage {
+	 * Represents a language model response.
+	 *
+	 * @see {@link LanguageModelAccess.chatRequest}
+	*/
+	// TODO@API add something like `modelResult: Thenable<{ [name: string]: any }>`
+	export interface LanguageModelChatResponse {
 
 		/**
-		 * The content of this message.
-		 */
-		content: string;
-
-		/**
-		 * The optional name of a user for this message.
-		 */
-		name: string | undefined;
-
-		/**
-		 * Create a new assistant message.
+		 * An async iterable that is a stream of text chunks forming the overall response.
 		 *
-		 * @param content The content of the message.
-		 * @param name The optional name of a user for the message.
+		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of
+		 * the stream should handle the errors accordingly.
+		 *
+		 * @example
+		 * ```ts
+		 * try {
+		 *   // consume stream
+		 *   for await (const chunk of response.stream) {
+		 *    console.log(chunk);
+		 *   }
+		 *
+		 * } catch(e) {
+		 *   // stream ended with an error
+		 *   console.error(e);
+		 * }
+		 * ```
 		 */
-		constructor(content: string, name?: string);
+		stream: AsyncIterable<string>;
 	}
 
 	/**
-	 * Different types of language model messages.
+	 * Represents a language model for making chat requests.
+	 *
+	 * @see {@link lm.selectChatModels}
 	 */
-	export type LanguageModelChatMessage = LanguageModelChatSystemMessage | LanguageModelChatUserMessage | LanguageModelChatAssistantMessage;
-
-	/**
-	 * Represents information about a registered language model.
-	 */
-	export interface LanguageModelInformation {
+	export interface LanguageModelChat {
 		/**
-		 * The identifier of the language model.
+		 * Opaque identifier of the language model.
 		 */
 		readonly id: string;
 
 		/**
-		 * The human-readable name of the language model.
+		 * A well-know identifier of the vendor of the language model, a sample is `copilot`, but
+		 * values are defined by extensions contributing chat models and need to be looked up with them.
+		 */
+		readonly vendor: string;
+
+		/**
+		 * Human-readable name of the language model.
 		 */
 		readonly name: string;
 
 		/**
-		 * The version of the language model.
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 * but they are defined by extensions contributing languages and subject to change.
+		 */
+		readonly family: string;
+
+		/**
+		 * Opaque version string of the model. This is defined by the extension contributing the language model
+		 * and subject to change.
 		 */
 		readonly version: string;
 
 		/**
-		 * The number of available tokens that can be used when sending requests
-		 * to the language model.
-		 *
-		 * @see {@link lm.sendChatRequest}
+		 * The maximum number of tokens that can be sent to the model in a single request.
 		 */
-		readonly tokens: number;
+		readonly maxInputTokens: number;
+
+		/**
+		 * The maximum number of tokens that a model can generate in a single response.
+		 */
+		readonly maxOutputTokens: number;
+
+		/**
+		 * Make a chat request using a language model.
+		 *
+		 * *Note* that language model use may be subject to access restrictions and user consent. Calling this function
+		 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
+		 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
+		 * to check if they have the necessary permissions to make a request.
+		 *
+		 * This function will return a rejected promise if making a request to the language model is not
+		 * possible. Reasons for this can be:
+		 *
+		 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
+		 * - model does not exist anymore, see {@link LanguageModelError.NotFound `NotFound`}
+		 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
+		 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
+		 *
+		 * @param messages An array of message instances.
+		 * @param options Options that control the request.
+		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
+		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
+		 */
+		sendRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+
+		/**
+		 * Count the number of tokens in a message using the model specific tokenizer-logic.
+
+		 * @param text A string or a message instance.
+		 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+		 * @returns A thenable that resolves to the number of tokens.
+		 */
+		countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
 	}
 
 	/**
-	 * An event describing the change in the set of available language models.
+	 * Describes how to select language models for chat requests.
+	 *
+	 * @see {@link lm.selectChatModels}
 	 */
-	// TODO@API use LanguageModelInformation instead of string?
-	export interface LanguageModelChangeEvent {
+	export interface LanguageModelChatSelector {
+
 		/**
-		 * Added language models.
+		 * A vendor of language models.
+		 * @see {@link LanguageModelChat.vendor}
 		 */
-		readonly added: readonly string[];
+		vendor?: string;
+
 		/**
-		 * Removed language models.
+		 * A family of language models.
+		 * @see {@link LanguageModelChat.family}
 		 */
-		readonly removed: readonly string[];
+		family?: string;
+
+		/**
+		 * The version of a language model.
+		 * @see {@link LanguageModelChat.version}
+		 */
+		version?: string;
+
+		/**
+		 * The identifier of a language model.
+		 * @see {@link LanguageModelChat.id}
+		 */
+		id?: string;
 	}
 
 	/**
@@ -152,15 +219,20 @@ declare module 'vscode' {
 	export class LanguageModelError extends Error {
 
 		/**
-		 * The language model does not exist.
-		 */
-		static NotFound(message?: string): LanguageModelError;
-
-		/**
 		 * The requestor does not have permissions to use this
 		 * language model
 		 */
 		static NoPermissions(message?: string): LanguageModelError;
+
+		/**
+		 * The requestor is blocked from using this language model.
+		 */
+		static Blocked(message?: string): LanguageModelError;
+
+		/**
+		 * The language model does not exist.
+		 */
+		static NotFound(message?: string): LanguageModelError;
 
 		/**
 		 * A code that identifies this error.
@@ -175,7 +247,7 @@ declare module 'vscode' {
 	/**
 	 * Options for making a chat request using a language model.
 	 *
-	 * @see {@link lm.chatRequest}
+	 * @see {@link LanguageModelChat.sendRequest}
 	 */
 	export interface LanguageModelChatRequestOptions {
 
@@ -183,12 +255,6 @@ declare module 'vscode' {
 		 * A human-readable message that explains why access to a language model is needed and what feature is enabled by it.
 		 */
 		justification?: string;
-
-		/**
-		 * Do not show the consent UI if the user has not yet granted access to the language model but fail the request instead.
-		 */
-		// TODO@API Revisit this, how do you do the first request?
-		silent?: boolean;
 
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
@@ -203,58 +269,33 @@ declare module 'vscode' {
 	export namespace lm {
 
 		/**
-		 * The identifiers of all language models that are currently available.
+		 * An event that is fired when the set of available chat models changes.
 		 */
-		export const languageModels: readonly string[];
+		export const onDidChangeChatModels: Event<void>;
 
 		/**
-		 * An event that is fired when the set of available language models changes.
+		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models and
+		 * extensions must handle these cases, esp. when no chat model exists, gracefully.
+		 *
+		 * ```ts
+		 *
+		 * const models = await vscode.lm.selectChatModels({family: 'gpt-3.5-turbo'})!;
+		 * if (models.length > 0) {
+		 * 	const [first] = models;
+		 * 	const response = await first.sendRequest(...)
+		 * 	// ...
+		 * } else {
+		 * 	// NO chat models available
+		 * }
+		 * ```
+		 *
+		 * *Note* that extensions can hold-on to the results returned by this function and use them later. However, when the
+		 * {@link onDidChangeChatModels}-event is fired the list of chat models might have changed and extensions should re-query.
+		 *
+		 * @param selector A chat model selector. When omitted all chat models are returned.
+		 * @returns An array of chat models, can be empty!
 		 */
-		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
-
-		/**
-		 * Retrieve information about a language model.
-		 *
-		 * @param languageModel A language model identifier.
-		 * @returns A {@link LanguageModelInformation} instance or `undefined` if the language model does not exist.
-		 */
-		export function getLanguageModelInformation(languageModel: string): LanguageModelInformation | undefined;
-
-		/**
-		 * Make a chat request using a language model.
-		 *
-		 * - *Note 1:* language model use may be subject to access restrictions and user consent.
-		 *
-		 * - *Note 2:* language models are contributed by other extensions and as they evolve and change,
-		 * the set of available language models may change over time. Therefore it is strongly recommend to check
-		 * {@link languageModels} for aviailable values and handle missing language models gracefully.
-		 *
-		 * This function will return a rejected promise if making a request to the language model is not
-		 * possible. Reasons for this can be:
-		 *
-		 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
-		 * - model does not exist, see {@link LanguageModelError.NotFound `NotFound`}
-		 * - quota limits exceeded, see {@link LanguageModelError.cause `LanguageModelError.cause`}
-		 *
-		 * @param languageModel A language model identifier.
-		 * @param messages An array of message instances.
-		 * @param options Options that control the request.
-		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
-		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
-		 */
-		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
-
-		/**
-		 * Uses the language model specific tokenzier and computes the length in token of a given message.
-		 *
-		 * *Note* that this function will throw when the language model does not exist.
-		 *
-		 * @param languageModel A language model identifier.
-		 * @param text A string or a message instance.
-		 * @param token Optional cancellation token.
-		 * @returns A thenable that resolves to the length of the message in tokens.
-		 */
-		export function computeTokenLength(languageModel: string, text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>;
 	}
 
 	/**
@@ -270,13 +311,15 @@ declare module 'vscode' {
 		/**
 		 * Checks if a request can be made to a language model.
 		 *
-		 * *Note* that calling this function will not trigger a consent UI but just checks.
+		 * *Note* that calling this function will not trigger a consent UI but just checks for a persisted state.
 		 *
-		 * @param languageModelId A language model identifier.
+		 * @param chat A language model chat object.
 		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
 		 * model does not exist or consent hasn't been asked for.
 		 */
-		canSendRequest(languageModelId: string): boolean | undefined;
+		// TODO@API applies to chat and embeddings models
+		// TODO@API name: canUse, hasAccess?
+		canSendRequest(chat: LanguageModelChat): boolean | undefined;
 	}
 
 	export interface ExtensionContext {

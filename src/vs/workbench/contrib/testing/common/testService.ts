@@ -198,6 +198,8 @@ export const testsUnderUri = async function* (testService: ITestService, ident: 
 			} else if (!test.item.uri) {
 				queue.push(test.children.values());
 				continue;
+			} else if (ident.extUri.isEqualOrParent(test.item.uri, uri)) {
+				yield test;
 			} else if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
 				if (test.expand === TestItemExpandState.Expandable) {
 					await testService.collection.expand(test.item.extId, 1);
@@ -206,8 +208,6 @@ export const testsUnderUri = async function* (testService: ITestService, ident: 
 					await waitForTestToBeIdle(testService, test);
 				}
 				queue.push(test.children.values());
-			} else if (ident.extUri.isEqualOrParent(test.item.uri, uri)) {
-				yield test;
 			}
 		}
 	}

@@ -13,7 +13,7 @@ import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/sugges
 import { SimpleSuggestWidgetItemRenderer } from 'vs/workbench/services/suggest/browser/simpleSuggestWidgetRenderer';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -56,28 +56,27 @@ export interface IWorkbenchSuggestWidgetOptions {
 	statusBarMenuId?: MenuId;
 }
 
-export class SimpleSuggestWidget implements IDisposable {
+export class SimpleSuggestWidget extends Disposable {
 
 	private _state: State = State.Hidden;
 	private _completionModel?: SimpleCompletionModel;
 	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
 	private _preference?: WidgetPositionPreference;
-	private readonly _pendingLayout = new MutableDisposable();
+	private readonly _pendingLayout = this._register(new MutableDisposable());
 
 	readonly element: ResizableHTMLElement;
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
 	private readonly _status?: SuggestWidgetStatus;
 
-	private readonly _showTimeout = new TimeoutTimer();
-	private readonly _disposables = new DisposableStore();
+	private readonly _showTimeout = this._register(new TimeoutTimer());
 
-	private readonly _onDidSelect = new Emitter<ISimpleSelectedSuggestion>();
+	private readonly _onDidSelect = this._register(new Emitter<ISimpleSelectedSuggestion>());
 	readonly onDidSelect: Event<ISimpleSelectedSuggestion> = this._onDidSelect.event;
-	private readonly _onDidHide = new Emitter<this>();
+	private readonly _onDidHide = this._register(new Emitter<this>());
 	readonly onDidHide: Event<this> = this._onDidHide.event;
-	private readonly _onDidShow = new Emitter<this>();
+	private readonly _onDidShow = this._register(new Emitter<this>());
 	readonly onDidShow: Event<this> = this._onDidShow.event;
 
 	get list(): List<SimpleCompletionItem> { return this._list; }
@@ -88,7 +87,9 @@ export class SimpleSuggestWidget implements IDisposable {
 		options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		this.element = new ResizableHTMLElement();
+		super();
+
+		this.element = this._register(new ResizableHTMLElement());
 		this.element.domNode.classList.add('workbench-suggest-widget');
 		this._container.appendChild(this.element.domNode);
 
@@ -102,11 +103,11 @@ export class SimpleSuggestWidget implements IDisposable {
 		}
 
 		let state: ResizeState | undefined;
-		this._disposables.add(this.element.onDidWillResize(() => {
+		this._register(this.element.onDidWillResize(() => {
 			// this._preferenceLocked = true;
 			state = new ResizeState(this._persistedSize.restore(), this.element.size);
 		}));
-		this._disposables.add(this.element.onDidResize(e => {
+		this._register(this.element.onDidResize(e => {
 
 			this._resize(e.dimension.width, e.dimension.height);
 
@@ -140,9 +141,9 @@ export class SimpleSuggestWidget implements IDisposable {
 		}));
 
 		const renderer = new SimpleSuggestWidgetItemRenderer();
-		this._disposables.add(renderer);
+		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
-		this._list = new List('SuggestWidget', this._listElement, {
+		this._list = this._register(new List('SuggestWidget', this._listElement, {
 			getHeight: (_element: SimpleCompletionItem): number => this._getLayoutInfo().itemHeight,
 			getTemplateId: (_element: SimpleCompletionItem): string => 'suggestion'
 		}, [renderer], {
@@ -184,22 +185,16 @@ export class SimpleSuggestWidget implements IDisposable {
 					// return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", label, docs);
 				},
 			}
-		});
+		}));
 
 		if (options.statusBarMenuId) {
-			this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId);
+			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
 		}
 
-		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
-		this._disposables.add(this._list.onTap(e => this._onListMouseDownOrTap(e)));
-		this._disposables.add(this._list.onDidChangeSelection(e => this._onListSelection(e)));
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
-		this._status?.dispose();
-		this.element.dispose();
+		this._register(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
+		this._register(this._list.onTap(e => this._onListMouseDownOrTap(e)));
+		this._register(this._list.onDidChangeSelection(e => this._onListSelection(e)));
 	}
 
 	private _cursorPosition?: { top: number; left: number; height: number };

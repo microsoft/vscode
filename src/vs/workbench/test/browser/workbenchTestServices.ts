@@ -884,6 +884,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	groupsView: IEditorGroupsView = undefined!;
 	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: EditorInput;
+	selectedEditors: EditorInput[] = [];
 	previewEditor!: EditorInput;
 	count!: number;
 	stickyCount!: number;
@@ -927,6 +928,11 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isSticky(_editor: EditorInput): boolean { return false; }
 	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
+	selectEditor(_editor: EditorInput, _active?: boolean): Promise<void> { throw new Error('not implemented'); }
+	selectEditors(_editors: EditorInput[], _activeEditor?: EditorInput): Promise<void> { throw new Error('not implemented'); }
+	unSelectEditor(_editor: EditorInput): Promise<void> { throw new Error('not implemented'); }
+	unSelectEditors(_editors: EditorInput[]): Promise<void> { throw new Error('not implemented'); }
+	isSelected(_editor: EditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): boolean { return true; }
 	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): boolean { return true; }
@@ -2055,6 +2061,7 @@ export class TestQuickInputService implements IQuickInputService {
 	readonly onShow = Event.None;
 	readonly onHide = Event.None;
 
+	readonly currentQuickInput = undefined;
 	readonly quickAccess = undefined!;
 	backButton!: IQuickInputButton;
 
@@ -2186,6 +2193,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	toggleAppliationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
+	getInstalledWorkspaceExtensionLocations(): URI[] { throw new Error('Method not implemented.'); }
 	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> { throw new Error('Method not implemented.'); }
 	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
 	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }

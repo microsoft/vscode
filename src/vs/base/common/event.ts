@@ -1565,28 +1565,70 @@ export class DynamicListEventMultiplexer<TItem, TEventType> implements IDynamicL
  */
 export class EventBufferer {
 
-	private buffers: Function[][] = [];
+	private data: { buffers: Function[] }[] = [];
 
-	wrapEvent<T>(event: Event<T>): Event<T> {
+	wrapEvent<T>(event: Event<T>): Event<T>;
+	wrapEvent<T>(event: Event<T>, reduce: (last: T | undefined, event: T) => T): Event<T>;
+	wrapEvent<T, O>(event: Event<T>, reduce: (last: O | undefined, event: T) => O, initial: O): Event<O>;
+	wrapEvent<T, O>(event: Event<T>, reduce?: (last: T | O | undefined, event: T) => T | O, initial?: O): Event<O | T> {
 		return (listener, thisArgs?, disposables?) => {
 			return event(i => {
-				const buffer = this.buffers[this.buffers.length - 1];
+				const data = this.data[this.data.length - 1];
 
-				if (buffer) {
-					buffer.push(() => listener.call(thisArgs, i));
-				} else {
-					listener.call(thisArgs, i);
+				// Non-reduce scenario
+				if (!reduce) {
+					// Buffering case
+					if (data) {
+						data.buffers.push(() => listener.call(thisArgs, i));
+					} else {
+						// Not buffering case
+						listener.call(thisArgs, i);
+					}
+					return;
+				}
+
+				// Reduce scenario
+				const reduceData = data as typeof data & {
+					/**
+					 * The accumulated items that will be reduced.
+					 */
+					items?: T[];
+					/**
+					 * The reduced result cached to be shared with other listeners.
+					 */
+					reducedResult?: T | O;
+				};
+
+				// Not buffering case
+				if (!reduceData) {
+					// TODO: Is there a way to cache this reduce call for all listeners?
+					listener.call(thisArgs, reduce(initial, i));
+					return;
+				}
+
+				// Buffering case
+				reduceData.items ??= [];
+				reduceData.items.push(i);
+				if (reduceData.buffers.length === 0) {
+					// Include a single buffered function that will reduce all events when we're done buffering events
+					data.buffers.push(() => {
+						// cache the reduced result so that the value can be shared across all listeners
+						reduceData.reducedResult ??= initial
+							? reduceData.items!.reduce(reduce as (last: O | undefined, event: T) => O, initial)
+							: reduceData.items!.reduce(reduce as (last: T | undefined, event: T) => T);
+						listener.call(thisArgs, reduceData.reducedResult);
+					});
 				}
 			}, undefined, disposables);
 		};
 	}
 
 	bufferEvents<R = void>(fn: () => R): R {
-		const buffer: Array<() => R> = [];
-		this.buffers.push(buffer);
+		const data = { buffers: new Array<Function>() };
+		this.data.push(data);
 		const r = fn();
-		this.buffers.pop();
-		buffer.forEach(flush => flush());
+		this.data.pop();
+		data.buffers.forEach(flush => flush());
 		return r;
 	}
 }

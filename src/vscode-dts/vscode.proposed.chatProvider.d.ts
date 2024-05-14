@@ -19,21 +19,38 @@ declare module 'vscode' {
 
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
-		provideLanguageModelResponse2(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 
 		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
 	}
 
 	export interface ChatResponseProviderMetadata {
+
+		readonly vendor: string;
+
 		/**
-		 * The name of the model that is used for this chat access. It is expected that the model name can
-		 * be used to lookup properties like token limits and ChatML support
+		 * Human-readable name of the language model.
 		 */
-		// TODO@API rename to model
-		name: string;
+		readonly name: string;
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 * but they are defined by extensions contributing languages and subject to change.
+		 */
+		readonly family: string;
 
-		version: string;
+		/**
+		 * Opaque version string of the model. This is defined by the extension contributing the language model
+		 * and subject to change while the identifier is stable.
+		 */
+		readonly version: string;
 
+		readonly maxInputTokens: number;
+
+		readonly maxOutputTokens: number;
+
+		/**
+		 * @deprecated
+		 */
 		tokens: number;
 
 		/**
@@ -42,6 +59,11 @@ declare module 'vscode' {
 		 * Additionally, the extension can provide a label that will be shown in the UI.
 		 */
 		auth?: true | { label: string };
+	}
+
+	export interface ChatResponseProviderMetadata {
+		// limit this provider to some extensions
+		extensions?: string[];
 	}
 
 	export namespace chat {
