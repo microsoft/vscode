@@ -18,7 +18,7 @@ import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -667,7 +667,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
-						this.reviveSerializedAgent(raw.agent) : undefined;
+						reviveSerializedAgent(raw.agent) : undefined;
 
 					// Port entries from old format
 					const result = 'responseErrorDetails' in raw ?
@@ -710,26 +710,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 
 		return variableData;
-	}
-
-	private reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
-		const agent = 'name' in raw ?
-			raw :
-			{
-				...(raw as any),
-				name: (raw as any).id,
-			};
-
-		// Fill in required fields that may be missing from old data
-		if (!('extensionPublisherId' in agent)) {
-			agent.extensionPublisherId = agent.extensionPublisher ?? '';
-		}
-
-		if (!('extensionDisplayName' in agent)) {
-			agent.extensionDisplayName = '';
-		}
-
-		return revive(agent);
 	}
 
 	private getParsedRequestFromString(message: string): IParsedChatRequest {
