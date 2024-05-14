@@ -486,6 +486,7 @@
 .interactive-session .chat-attached-context {
 	padding: 8px 8px 13px;
 	margin-right: -3px;
+	margin-top: 4px;
 	margin-bottom: -4px;
 	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
 	border-radius: 6px 6px 0px 0px;
