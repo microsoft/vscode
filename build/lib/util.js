@@ -34,7 +34,6 @@ const rename = require("gulp-rename");
 const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
-const VinylFile = require("vinyl");
 const url_1 = require("url");
 const ternaryStream = require("ternary-stream");
 const root = path.dirname(path.dirname(__dirname));
@@ -155,6 +154,8 @@ function cleanNodeModules(rulePath) {
         .filter(line => line && !/^#/.test(line));
     const excludes = rules.filter(line => !/^!/.test(line)).map(line => `!**/node_modules/${line}`);
     const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
+    console.log('excludes', excludes);
+    console.log('includes', includes);
     const input = es.through();
     const output = es.merge(input.pipe(_filter(['**', ...excludes])), input.pipe(_filter(includes)));
     return es.duplex(input, output);
