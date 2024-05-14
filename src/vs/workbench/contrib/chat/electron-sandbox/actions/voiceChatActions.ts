@@ -11,7 +11,6 @@ import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { isNumber } from 'vs/base/common/types';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -20,7 +19,7 @@ import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/act
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -676,78 +675,43 @@ export class StartVoiceChatAction extends Action2 {
 	}
 }
 
-class BaseStopListeningAction extends Action2 {
+export class StopListeningAction extends Action2 {
 
-	constructor(
-		desc: { id: string; icon?: ThemeIcon; f1?: boolean },
-		context: ContextKeyExpression,
-		menu: MenuId | undefined,
-	) {
+	static readonly ID = 'workbench.action.chat.stopListening';
+
+	constructor() {
 		super({
-			...desc,
+			id: StopListeningAction.ID,
 			title: localize2('workbench.action.chat.stopListening.label', "Stop Listening"),
 			category: CHAT_CATEGORY,
+			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape
 			},
-			precondition: ContextKeyExpr.and(CanVoiceChat, context),
-			menu: menu ? [{
-				id: menu,
-				when: ContextKeyExpr.and(CanVoiceChat, context),
+			icon: spinningLoading,
+			precondition: VoiceChatInProgress,
+			menu: [{
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.or(
+					CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('view'),
+					CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('editor'),
+					CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('quick'),
+					CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('inline')
+				),
 				group: 'navigation',
 				order: -1
-			}] : undefined
+			}, {
+				id: TerminalChatExecute,
+				when: CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('terminal'),
+				group: 'navigation',
+				order: -1
+			}]
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop();
-	}
-}
-
-export class StopListeningAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListening';
-
-	constructor() {
-		super({ id: StopListeningAction.ID, f1: true }, VoiceChatInProgress, undefined);
-	}
-}
-
-export class StopListeningInChatViewAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInChatView';
-
-	constructor() {
-		super({ id: StopListeningInChatViewAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('view'), MenuId.ChatExecute);
-	}
-}
-
-export class StopListeningInChatEditorAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInChatEditor';
-
-	constructor() {
-		super({ id: StopListeningInChatEditorAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('editor'), MenuId.ChatExecute);
-	}
-}
-
-export class StopListeningInQuickChatAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInQuickChat';
-
-	constructor() {
-		super({ id: StopListeningInQuickChatAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('quick'), MenuId.ChatExecute);
-	}
-}
-
-export class StopListeningInTerminalChatAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInTerminalChat';
-
-	constructor() {
-		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('terminal'), TerminalChatExecute);
 	}
 }
 
@@ -766,7 +730,7 @@ export class StopListeningAndSubmitAction extends Action2 {
 				when: FocusInChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
-			precondition: ContextKeyExpr.and(CanVoiceChat, VoiceChatInProgress)
+			precondition: VoiceChatInProgress
 		});
 	}
 
