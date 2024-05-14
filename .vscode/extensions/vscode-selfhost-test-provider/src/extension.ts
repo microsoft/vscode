@@ -55,7 +55,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	};
 
-	let startedTrackingFailures = false;
+	guessWorkspaceFolder().then(folder => {
+		if (folder) {
+			context.subscriptions.push(new FailureTracker(context, folder.uri.fsPath));
+		}
+	});
 
 	const createRunHandler = (
 		runnerCtor: { new (folder: vscode.WorkspaceFolder): VSCodeTestRunner },
@@ -69,11 +73,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			const folder = await guessWorkspaceFolder();
 			if (!folder) {
 				return;
-			}
-
-			if (!startedTrackingFailures) {
-				startedTrackingFailures = true;
-				context.subscriptions.push(new FailureTracker(folder.uri.fsPath));
 			}
 
 			const runner = new runnerCtor(folder);

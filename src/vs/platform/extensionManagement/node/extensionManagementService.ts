@@ -21,7 +21,7 @@ import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
-import { extract, ExtractError, IFile, zip } from 'vs/base/node/zip';
+import { extract, IFile, zip } from 'vs/base/node/zip';
 import * as nls from 'vs/nls';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -29,14 +29,15 @@ import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVer
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
 	Metadata, InstallOptions,
-	IProductVersion
+	IProductVersion,
+	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService, IScannedExtension, ScanOptions } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
-import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { fromExtractError, getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
 import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -288,7 +289,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		const key = ExtensionKey.create(extension).toString();
 		let installExtensionTask = this.installGalleryExtensionsTasks.get(key);
 		if (!installExtensionTask) {
-			this.installGalleryExtensionsTasks.set(key, installExtensionTask = new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.uriIdentityService, this.userDataProfilesService, this.extensionsScannerService, this.extensionsProfileScannerService, this.logService, this.telemetryService));
+			this.installGalleryExtensionsTasks.set(key, installExtensionTask = new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.uriIdentityService, this.userDataProfilesService, this.extensionsScannerService, this.extensionsProfileScannerService, this.logService));
 			installExtensionTask.waitUntilTaskIsFinished().finally(() => this.installGalleryExtensionsTasks.delete(key));
 		}
 		return installExtensionTask;
@@ -517,15 +518,7 @@ export class ExtensionsScanner extends Disposable {
 					await extract(zipPath, tempLocation.fsPath, { sourcePath: 'extension', overwrite: true }, token);
 					this.logService.info(`Extracted extension to ${extensionLocation}:`, extensionKey.id);
 				} catch (e) {
-					let errorCode = ExtensionManagementErrorCode.Extract;
-					if (e instanceof ExtractError) {
-						if (e.type === 'CorruptZip') {
-							errorCode = ExtensionManagementErrorCode.CorruptZip;
-						} else if (e.type === 'Incomplete') {
-							errorCode = ExtensionManagementErrorCode.IncompleteZip;
-						}
-					}
-					throw toExtensionManagementError(e, errorCode);
+					throw fromExtractError(e);
 				}
 
 				try {
@@ -911,7 +904,6 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		extensionsScannerService: IExtensionsScannerService,
 		extensionsProfileScannerService: IExtensionsProfileScannerService,
 		logService: ILogService,
-		private readonly telemetryService: ITelemetryService,
 	) {
 		super(manifest, gallery.identifier, gallery, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
 	}
@@ -948,7 +940,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			return [local, metadata];
 		}
 
-		const { verificationStatus, location } = await this.download(metadata, token);
+		const { verificationStatus, location } = await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature, this.options.context?.[EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT]);
 		try {
 			this._verificationStatus = verificationStatus;
 			await this.validateManifest(location.fsPath);
@@ -965,46 +957,9 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		}
 	}
 
-	private async download(metadata: Metadata, token: CancellationToken): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
-		try {
-			return await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature);
-		} catch (error) {
-			this.logService.info(`Failed downloading. Retry again...`, this.gallery.identifier.id);
-			type RetryDownloadingVSIXClassification = {
-				owner: 'sandy081';
-				comment: 'Event reporting the retry of downloading the VSIX';
-				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension Id' };
-				succeeded?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Success value' };
-			};
-			type RetryDownloadingVSIXEvent = {
-				extensionId: string;
-				succeeded: boolean;
-			};
-			try {
-				const result = await this.download(metadata, token);
-				this.telemetryService.publicLog2<RetryDownloadingVSIXEvent, RetryDownloadingVSIXClassification>('extensiongallery:download:retry', {
-					extensionId: this.gallery.identifier.id,
-					succeeded: true
-				});
-				return result;
-			} catch (error) {
-				this.telemetryService.publicLog2<RetryDownloadingVSIXEvent, RetryDownloadingVSIXClassification>('extensiongallery:download:retry', {
-					extensionId: this.gallery.identifier.id,
-					succeeded: false
-				});
-				throw error;
-			}
-		}
-	}
-
 	protected async validateManifest(zipPath: string): Promise<void> {
-		try {
-			await getManifest(zipPath);
-		} catch (error) {
-			throw toExtensionManagementError(error, ExtensionManagementErrorCode.Invalid);
-		}
+		await getManifest(zipPath);
 	}
-
 }
 
 class InstallVSIXTask extends InstallExtensionTask {

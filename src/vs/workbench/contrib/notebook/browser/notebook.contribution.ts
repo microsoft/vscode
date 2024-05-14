@@ -941,6 +941,12 @@ configurationRegistry.registerConfiguration({
 			default: 0,
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.markdownLineHeight]: {
+			markdownDescription: nls.localize('notebook.markdown.lineHeight', "Controls the line height in pixels of markdown cells in notebooks. When set to {0}, {1} will be used", '`0`', '`normal`'),
+			type: 'number',
+			default: 0,
+			tags: ['notebookLayout']
+		},
 		[NotebookSetting.cellEditorOptionsCustomizations]: editorOptionsCustomizationSchema,
 		[NotebookSetting.interactiveWindowCollapseCodeCells]: {
 			markdownDescription: nls.localize('notebook.interactiveWindow.collapseCodeCells', "Controls whether code cells in the interactive window are collapsed by default."),

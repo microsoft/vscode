@@ -149,7 +149,9 @@ export class ChatRequestParser {
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
 		if (this.variableService.hasVariable(name)) {
-			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg);
+			// TODO - not really handling duplicate variables names yet
+			const id = this.variableService.getVariable(name)!.id ?? '';
+			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg, id);
 		}
 
 		return;
@@ -209,7 +211,7 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.data);
+			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data);
 		}
 
 		return;

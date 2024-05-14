@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequestTurn.variables}.
+		 * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -30,12 +30,11 @@ declare module 'vscode' {
 		readonly command?: string;
 
 		/**
-		 * The variables that were used in this message.
-		 * TODO@API rename to `references`?
+		 * The references that were used in this message.
 		 */
-		readonly variables: ChatValueReference[];
+		readonly references: ChatValueReference[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatValueReference[], participant: string);
+		private constructor(prompt: string, command: string | undefined, references: ChatValueReference[], participant: string);
 	}
 
 	/**
@@ -88,6 +87,7 @@ declare module 'vscode' {
 		 * For example, if the response terminated after sending part of a triple-backtick code block, then the editor will
 		 * render it as a complete code block.
 		 */
+		// TODO@API: consider to have this always on, the presence of an error is a good indicator
 		responseIsIncomplete?: boolean;
 
 		/**
@@ -236,18 +236,29 @@ declare module 'vscode' {
 
 	export interface ChatValueReference {
 		/**
-		 * The name of the reference.
-		 * TODO@API How to handle name conflicts? Need id vs name?
+		 * A unique identifier for this reference.
 		 */
+		readonly id: string;
+
+		/**
+		 * The name of the reference.
+		 * TODO@API should name be provided at all, or only ID?
+		 */
+		// TODO@API nuke it, add when needed
 		readonly name: string;
 
 		/**
-		 * The start and end index of the variable in the {@link ChatRequest.prompt prompt}.
+		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the
 		 *
 		 * *Note* that the indices take the leading `#`-character into account which means they can
 		 * used to modify the prompt as-is.
 		 */
-		readonly range: [start: number, end: number];
+		readonly range?: [start: number, end: number];
+
+		/**
+		 * A description of this value that could be used in an LLM prompt.
+		 */
+		readonly modelDescription?: string;
 
 		/**
 		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
@@ -259,7 +270,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request is stored in {@link ChatRequest.variables}.
+		 * Information about references used in this request is stored in {@link ChatRequest.references}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
@@ -273,15 +284,16 @@ declare module 'vscode' {
 
 
 		/**
-		 * The list of variables and their values that are referenced in the prompt.
+		 * The list of references and their values that are referenced in the prompt.
 		 *
 		 * *Note* that the prompt contains varibale references as authored and that it is up to the participant
-		 * to further modify the prompt, for instance by inlining variable values or creating links to
-		 * headings which contain the resolved values. Variables are sorted in reverse by their range
-		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
+		 * to further modify the prompt, for instance by inlining reference values or creating links to
+		 * headings which contain the resolved values. References are sorted in reverse by their range
+		 * in the prompt. That means the last reference in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		readonly variables: readonly ChatValueReference[];
+		// TODO@API: name ChatRequestReference, ChatPromptReference
+		readonly references: readonly ChatValueReference[];
 	}
 
 	/**
@@ -289,6 +301,7 @@ declare module 'vscode' {
 	 * which will be rendered in an appropriate way in the chat view. A participant can use the helper method for the type of content it wants to return, or it
 	 * can instantiate a {@link ChatResponsePart} and use the generic {@link ChatResponseStream.push} method to return it.
 	 */
+	// TODO@API make them return void
 	export interface ChatResponseStream {
 		/**
 		 * Push a markdown part to this stream. Short-hand for
@@ -349,7 +362,7 @@ declare module 'vscode' {
 		 * @param iconPath Icon for the reference shown in UI
 		 * @returns This stream.
 		 */
-		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
+		reference(value: Uri | Location, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
 
 		/**
 		 * Pushes a part to this stream.
@@ -391,9 +404,9 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseReferencePart {
-		value: Uri | Location | { variableName: string; value?: Uri | Location };
-		iconPath?: ThemeIcon | { light: Uri; dark: Uri };
-		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: ThemeIcon | { light: Uri; dark: Uri });
+		value: Uri | Location;
+		iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri };
+		constructor(value: Uri | Location, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri });
 	}
 
 	export class ChatResponseCommandButtonPart {
