@@ -5,71 +5,46 @@
 
 import { fail } from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { ITerminalLogService, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestEditorService, TestEnvironmentService, TestLifecycleService, TestRemoteAgentService, TestTerminalEditorService, TestTerminalGroupService, TestTerminalInstanceService, TestTerminalProfileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
+import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Workbench - TerminalService', () => {
-	let store: DisposableStore;
-	let instantiationService: TestInstantiationService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let terminalService: TerminalService;
 	let configurationService: TestConfigurationService;
 	let dialogService: TestDialogService;
 
 	setup(async () => {
-		store = new DisposableStore();
 		dialogService = new TestDialogService();
 		configurationService = new TestConfigurationService({
+			files: {},
 			terminal: {
 				integrated: {
-					fontWeight: 'normal'
+					confirmOnKill: 'never'
 				}
 			}
 		});
 
-		instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IThemeService, new TestThemeService());
-		instantiationService.stub(ITerminalLogService, new NullLogService());
-		instantiationService.stub(IEditorService, store.add(new TestEditorService()));
-		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(ITerminalEditorService, new TestTerminalEditorService());
-		instantiationService.stub(ITerminalGroupService, new TestTerminalGroupService());
-		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+		}, store);
+		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(ITerminalInstanceService, 'getBackend', undefined);
 		instantiationService.stub(ITerminalInstanceService, 'getRegisteredBackends', []);
-		instantiationService.stub(ITerminalProfileService, new TestTerminalProfileService());
-		instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 		instantiationService.stub(IRemoteAgentService, 'getConnection', null);
-		instantiationService.stub(IDialogService, dialogService);
 
 		terminalService = store.add(instantiationService.createInstance(TerminalService));
 		instantiationService.stub(ITerminalService, terminalService);
 	});
-
-	teardown(() => store.dispose());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('safeDisposeTerminal', () => {
 		let onExitEmitter: Emitter<number | undefined>;
@@ -186,7 +161,7 @@ suite('Workbench - TerminalService', () => {
 });
 
 async function setConfirmOnKill(configurationService: TestConfigurationService, value: 'never' | 'always' | 'panel' | 'editor') {
-	await configurationService.setUserConfiguration('terminal', { integrated: { confirmOnKill: value } });
+	await configurationService.setUserConfiguration(TERMINAL_CONFIG_SECTION, { confirmOnKill: value });
 	configurationService.onDidChangeConfigurationEmitter.fire({
 		affectsConfiguration: () => true,
 		affectedKeys: ['terminal.integrated.confirmOnKill']

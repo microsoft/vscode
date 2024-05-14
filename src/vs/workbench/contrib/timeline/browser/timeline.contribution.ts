@@ -92,12 +92,12 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 
 const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
 
-MenuRegistry.appendMenuItem(MenuId.TimelineTitle, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.TimelineTitle, {
 	submenu: MenuId.TimelineFilterSubMenu,
 	title: localize('filterTimeline', "Filter Timeline"),
 	group: 'navigation',
 	order: 100,
 	icon: timelineFilter
-});
+} satisfies ISubmenuItem);
 
 registerSingleton(ITimelineService, TimelineService, InstantiationType.Delayed);

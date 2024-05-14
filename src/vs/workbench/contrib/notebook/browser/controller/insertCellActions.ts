@@ -17,6 +17,7 @@ import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/not
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
@@ -110,7 +111,7 @@ registerAction2(class InsertCodeCellBelowAction extends InsertCellCommand {
 				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
-					when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, InputFocusedContext.toNegated()),
+					when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, InputFocusedContext.toNegated(), CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('')),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				menu: {

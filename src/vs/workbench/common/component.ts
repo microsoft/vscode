@@ -20,7 +20,6 @@ export class Component extends Themable {
 	) {
 		super(themeService);
 
-		this.id = id;
 		this.memento = new Memento(this.id, storageService);
 
 		this._register(storageService.onWillSaveState(() => {

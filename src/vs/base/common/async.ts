@@ -137,6 +137,21 @@ export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	});
 }
 
+/**
+ * Creates and returns a new promise, plus its `resolve` and `reject` callbacks.
+ *
+ * Replace with standardized [`Promise.withResolvers`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers) once it is supported
+ */
+export function promiseWithResolvers<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void; reject: (err?: any) => void } {
+	let resolve: (value: T | PromiseLike<T>) => void;
+	let reject: (reason?: any) => void;
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	return { promise, resolve: resolve!, reject: reject! };
+}
+
 export interface ITask<T> {
 	(): T;
 }
@@ -1467,13 +1482,7 @@ export class TaskSequentializer {
 		// so that we can return a promise that completes when the task has
 		// completed.
 		if (!this._queued) {
-			let promiseResolve: () => void;
-			let promiseReject: (error: Error) => void;
-			const promise = new Promise<void>((resolve, reject) => {
-				promiseResolve = resolve;
-				promiseReject = reject;
-			});
-
+			const { promise, resolve: promiseResolve, reject: promiseReject } = promiseWithResolvers<void>();
 			this._queued = {
 				run,
 				promise,
@@ -1809,12 +1818,14 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	private _state: AsyncIterableSourceState;
 	private _results: T[];
 	private _error: Error | null;
+	private readonly _onReturn?: () => void | Promise<void>;
 	private readonly _onStateChanged: Emitter<void>;
 
-	constructor(executor: AsyncIterableExecutor<T>) {
+	constructor(executor: AsyncIterableExecutor<T>, onReturn?: () => void | Promise<void>) {
 		this._state = AsyncIterableSourceState.Initial;
 		this._results = [];
 		this._error = null;
+		this._onReturn = onReturn;
 		this._onStateChanged = new Emitter<void>();
 
 		queueMicrotask(async () => {
@@ -1852,6 +1863,10 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 					}
 					await Event.toPromise(this._onStateChanged.event);
 				} while (true);
+			},
+			return: async () => {
+				this._onReturn?.();
+				return { done: true, value: undefined };
 			}
 		};
 	}
@@ -2011,7 +2026,13 @@ export class AsyncIterableSource<T> {
 	private _errorFn: (error: Error) => void;
 	private _emitFn: (item: T) => void;
 
-	constructor() {
+	/**
+	 *
+	 * @param onReturn A function that will be called when consuming the async iterable
+	 * has finished by the consumer, e.g the for-await-loop has be existed (break, return) early.
+	 * This is NOT called when resolving this source by its owner.
+	 */
+	constructor(onReturn?: () => Promise<void> | void) {
 		this._asyncIterable = new AsyncIterableObject(emitter => {
 
 			if (earlyError) {
@@ -2024,7 +2045,7 @@ export class AsyncIterableSource<T> {
 			this._errorFn = (error: Error) => emitter.reject(error);
 			this._emitFn = (item: T) => emitter.emitOne(item);
 			return this._deferred.p;
-		});
+		}, onReturn);
 
 		let earlyError: Error | undefined;
 		let earlyItems: T[] | undefined;

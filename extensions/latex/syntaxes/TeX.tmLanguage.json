@@ -4,10 +4,39 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/69915f318570484ef40ed8798c73c63c58704183",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/8624d0bdae950a70cdf4a1c3d19c7398ef851721",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
+		{
+			"begin": "(?<=^\\s*)((\\\\)iffalse)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.tex"
+				},
+				"2": {
+					"name": "punctuation.definition.keyword.tex"
+				}
+			},
+			"contentName": "comment.line.percentage.tex",
+			"end": "(?<=^\\s*)((\\\\)(?:else|fi))",
+			"endCaptures": {
+				"1": {
+					"name": "keyword.control.tex"
+				},
+				"2": {
+					"name": "punctuation.definition.keyword.tex"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#conditionals"
+				}
+			]
+		},
 		{
 			"captures": {
 				"1": {
@@ -36,35 +65,7 @@
 			"name": "meta.catcode.tex"
 		},
 		{
-			"begin": "(^[ \\t]+)?(?=%)",
-			"beginCaptures": {
-				"1": {
-					"name": "punctuation.whitespace.comment.leading.tex"
-				}
-			},
-			"end": "(?!\\G)",
-			"patterns": [
-				{
-					"begin": "%:?",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.comment.tex"
-						}
-					},
-					"end": "$\\n?",
-					"name": "comment.line.percentage.tex"
-				},
-				{
-					"begin": "^(%!TEX) (\\S*) =",
-					"beginCaptures": {
-						"1": {
-							"name": "punctuation.definition.comment.tex"
-						}
-					},
-					"end": "$\\n?",
-					"name": "comment.line.percentage.directive.tex"
-				}
-			]
+			"include": "#comment"
 		},
 		{
 			"match": "[\\[\\]]",
@@ -107,7 +108,7 @@
 					"name": "punctuation.definition.function.tex"
 				}
 			},
-			"match": "(\\\\)(?:[\\p{Alphabetic}@]+|[,;])",
+			"match": "(\\\\)(?:[,;]|(?:[\\p{Alphabetic}@]+(?:(?:_[\\p{Alphabetic}@]+)*:[NncVvoxefTFpwD]*)?))",
 			"name": "support.function.general.tex"
 		},
 		{
@@ -121,6 +122,69 @@
 		}
 	],
 	"repository": {
+		"braces": {
+			"begin": "(?<!\\\\)\\{",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.group.begin.tex"
+				}
+			},
+			"end": "(?<!\\\\)\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.group.end.tex"
+				}
+			},
+			"name": "meta.group.braces.tex",
+			"patterns": [
+				{
+					"include": "#braces"
+				}
+			]
+		},
+		"comment": {
+			"begin": "(^[ \\t]+)?(?=%)",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.whitespace.comment.leading.tex"
+				}
+			},
+			"end": "(?!\\G)",
+			"patterns": [
+				{
+					"begin": "%:?",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.tex"
+						}
+					},
+					"end": "$\\n?",
+					"name": "comment.line.percentage.tex"
+				},
+				{
+					"begin": "^(%!TEX) (\\S*) =",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.comment.tex"
+						}
+					},
+					"end": "$\\n?",
+					"name": "comment.line.percentage.directive.tex"
+				}
+			]
+		},
+		"conditionals": {
+			"begin": "(?<=^\\s*)\\\\if[a-z]*",
+			"end": "(?<=^\\s*)\\\\fi",
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#conditionals"
+				}
+			]
+		},
 		"math": {
 			"patterns": [
 				{
@@ -148,7 +212,7 @@
 							"include": "#math"
 						},
 						{
-							"include": "$base"
+							"include": "$self"
 						}
 					]
 				},
@@ -259,26 +323,6 @@
 				{
 					"match": "[\\+\\*/_\\^-]",
 					"name": "punctuation.math.operator.tex"
-				}
-			]
-		},
-		"braces": {
-			"begin": "(?<!\\\\)\\{",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.group.begin.tex"
-				}
-			},
-			"end": "(?<!\\\\)\\}",
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.group.end.tex"
-				}
-			},
-			"name": "meta.group.braces.tex",
-			"patterns": [
-				{
-					"include": "#braces"
 				}
 			]
 		}

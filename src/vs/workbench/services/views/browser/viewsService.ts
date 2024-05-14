@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { Event, Emitter } from 'vs/base/common/event';
 import { isString } from 'vs/base/common/types';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
@@ -137,6 +137,11 @@ export class ViewsService extends Disposable implements IViewsService {
 	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
 		this.deregisterPaneComposite(viewContainer, from);
 		this.registerPaneComposite(viewContainer, to);
+
+		// Open view container if part is visible and there is only one view container in location
+		if (this.layoutService.isVisible(getPartByLocation(to)) && this.viewDescriptorService.getViewContainersByLocation(to).length === 1) {
+			this.openViewContainer(viewContainer.id);
+		}
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
@@ -501,10 +506,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
 		return registerAction2(class FocusViewAction extends Action2 {
 			constructor() {
-				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name.value);
+				const title = localize2({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name.value);
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-					title: { original: `Focus on ${viewDescriptor.name.original} View`, value: title },
+					title,
 					category,
 					menu: [{
 						id: MenuId.CommandPalette,
@@ -520,7 +525,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						win: viewDescriptor.focusCommand?.keybindings?.win
 					},
 					metadata: {
-						description: title,
+						description: title.value,
 						args: [
 							{
 								name: 'focusOptions',
@@ -550,10 +555,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			constructor() {
 				super({
 					id: `${viewDescriptor.id}.resetViewLocation`,
-					title: {
-						original: 'Reset Location',
-						value: localize('resetViewLocation', "Reset Location")
-					},
+					title: localize2('resetViewLocation', "Reset Location"),
 					menu: [{
 						id: MenuId.ViewTitleContext,
 						when: ContextKeyExpr.or(
@@ -633,7 +635,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
-		const viewPaneContainer: ViewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || []));
+		const viewPaneContainer: ViewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor.ctor, ...(viewContainer.ctorDescriptor.staticArguments || []));
 
 		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
 		disposables.add(toDisposable(() => this.viewPaneContainers.delete(viewPaneContainer.getId())));

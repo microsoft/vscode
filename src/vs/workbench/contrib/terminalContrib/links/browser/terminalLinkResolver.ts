@@ -15,8 +15,6 @@ import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
 import { mainWindow } from 'vs/base/browser/window';
 
 export class TerminalLinkResolver implements ITerminalLinkResolver {
-	declare _serviceBrand: undefined;
-
 	// Link cache could be shared across all terminals, but that could lead to weird results when
 	// both local and remote terminals are present
 	private readonly _resolvedLinkCaches: Map<string, LinkCache> = new Map();
@@ -27,6 +25,14 @@ export class TerminalLinkResolver implements ITerminalLinkResolver {
 	}
 
 	async resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink> {
+		// Correct scheme and authority for remote terminals
+		if (uri && uri.scheme === Schemas.file && processManager.remoteAuthority) {
+			uri = uri.with({
+				scheme: Schemas.vscodeRemote,
+				authority: processManager.remoteAuthority
+			});
+		}
+
 		// Get the link cache
 		let cache = this._resolvedLinkCaches.get(processManager.remoteAuthority ?? '');
 		if (!cache) {

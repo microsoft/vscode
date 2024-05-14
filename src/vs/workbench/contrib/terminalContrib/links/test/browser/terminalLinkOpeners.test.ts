@@ -136,12 +136,14 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			// Set a fake detected command starting as line 0 to establish the cwd
 			commandDetection.setCommands([new TerminalCommand(xterm, {
 				command: '',
+				commandLineConfidence: 'low',
 				exitCode: 0,
 				commandStartLineContent: '',
 				markProperties: {},
 				isTrusted: true,
 				cwd: '/initial/cwd',
 				timestamp: 0,
+				duration: 0,
 				executedX: undefined,
 				startX: undefined,
 				marker: {
@@ -276,9 +278,11 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([new TerminalCommand(xterm, {
 					command: '',
+					commandLineConfidence: 'low',
 					isTrusted: true,
 					cwd,
 					timestamp: 0,
+					duration: 0,
 					executedX: undefined,
 					startX: undefined,
 					marker: {
@@ -536,11 +540,13 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					commandStartLineContent: '',
 					markProperties: {},
 					command: '',
+					commandLineConfidence: 'low',
 					isTrusted: true,
 					cwd,
 					executedX: undefined,
 					startX: undefined,
 					timestamp: 0,
+					duration: 0,
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,

@@ -142,7 +142,15 @@ export type TestExplorerTreeElement = TestItemTreeElement | TestTreeErrorMessage
 
 export const testIdentityProvider: IIdentityProvider<TestExplorerTreeElement> = {
 	getId(element) {
-		return element.treeId + '\0' + (element instanceof TestTreeErrorMessage ? 'error' : element.test.expand);
+		// For "not expandable" elements, whether they have children is part of the
+		// ID so they're rerendered if that changes (#204805)
+		const expandComponent = element instanceof TestTreeErrorMessage
+			? 'error'
+			: element.test.expand === TestItemExpandState.NotExpandable
+				? !!element.children.size
+				: element.test.expand;
+
+		return element.treeId + '\0' + expandComponent;
 	}
 };
 

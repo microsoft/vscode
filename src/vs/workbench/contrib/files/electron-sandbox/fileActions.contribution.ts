@@ -22,9 +22,10 @@ import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
-const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
+const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");
 const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -36,7 +37,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyR
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
@@ -57,13 +58,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, REVEAL_IN_OS_WHEN_CONTEXT, '2_files', 0);
+appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL.value, REVEAL_IN_OS_WHEN_CONTEXT, '2_files', false, 0);
 
 // Menu registration - open editors
 
 const revealInOsCommand = {
 	id: REVEAL_IN_OS_COMMAND_ID,
-	title: REVEAL_IN_OS_LABEL
+	title: REVEAL_IN_OS_LABEL.value
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
@@ -89,9 +90,9 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 
 // Command Palette
 
-const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
+const category = nls.localize2('filesCategory', "File");
 appendToCommandPalette({
 	id: REVEAL_IN_OS_COMMAND_ID,
-	title: { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' },
+	title: REVEAL_IN_OS_LABEL,
 	category: category
 }, REVEAL_IN_OS_WHEN_CONTEXT);

@@ -664,6 +664,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		}
 	}
 
+	public get canHotExit() { return typeof this._backupId === 'string' && this._hotExitState.type === HotExitState.Type.Allowed; }
+
 	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const editors = this._getEditors();
 		if (!editors.length) {
@@ -735,6 +737,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			return backupData;
 		}
 
-		throw new Error(`Cannot back up in this state: ${errorMessage}`);
+		throw new Error(`Cannot backup in this state: ${errorMessage}`);
 	}
 }

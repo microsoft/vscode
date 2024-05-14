@@ -69,12 +69,12 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 					const id = getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name);
 					return {
 						identifier: { id },
-						location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
+						location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.extensionPath),
 						type: ExtensionType.System,
 						isBuiltin: true,
 						manifest: e.packageNLS ? await this.localizeManifest(id, e.packageJSON, e.packageNLS) : e.packageJSON,
-						readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
-						changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
+						readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.readmePath) : undefined,
+						changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.changelogPath) : undefined,
 						targetPlatform: TargetPlatform.WEB,
 						validations: [],
 						isValid: true

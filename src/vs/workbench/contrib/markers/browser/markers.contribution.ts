@@ -311,7 +311,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.problems.focus',
-			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
+			title: Messages.MARKERS_PANEL_SHOW_LABEL,
 			category: Categories.View,
 			f1: true,
 		});
@@ -446,7 +446,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKERS_VIEW_SHOW_MULTILINE_MESSAGE,
-			title: { value: localize('show multiline', "Show message in multiple lines"), original: 'Problems: Show message in multiple lines' },
+			title: localize2('show multiline', "Show message in multiple lines"),
 			category: localize('problems', "Problems"),
 			menu: {
 				id: MenuId.CommandPalette,
@@ -464,7 +464,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKERS_VIEW_SHOW_SINGLELINE_MESSAGE,
-			title: { value: localize('show singleline', "Show message in single line"), original: 'Problems: Show message in single line' },
+			title: localize2('show singleline', "Show message in single line"),
 			category: localize('problems', "Problems"),
 			menu: {
 				id: MenuId.CommandPalette,

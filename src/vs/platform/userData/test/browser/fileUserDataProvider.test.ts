@@ -247,8 +247,8 @@ suite('FileUserDataProvider', () => {
 		const result = await testObject.resolve(userDataProfilesService.defaultProfile.snippetsHome);
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
-		assert.strictEqual(result.children!.length, 1);
-		assert.strictEqual(result.children![0].resource.toString(), joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json').toString());
+		assert.strictEqual(result.children.length, 1);
+		assert.strictEqual(result.children[0].resource.toString(), joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json').toString());
 	});
 
 	test('read backup file', async () => {
@@ -275,8 +275,8 @@ suite('FileUserDataProvider', () => {
 		const result = await testObject.resolve(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }));
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
-		assert.strictEqual(result.children!.length, 1);
-		assert.strictEqual(result.children![0].resource.toString(), joinPath(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }), `backup.json`).toString());
+		assert.strictEqual(result.children.length, 1);
+		assert.strictEqual(result.children[0].resource.toString(), joinPath(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }), `backup.json`).toString());
 	});
 });
 

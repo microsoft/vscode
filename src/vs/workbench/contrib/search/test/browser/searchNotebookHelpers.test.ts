@@ -217,6 +217,7 @@ suite('searchNotebookHelpers', () => {
 			const fileMatch = instantiationService.createInstance(FileMatch, {
 				pattern: ''
 			}, undefined, undefined, folderMatch, rawMatch, null, '');
+			fileMatch.createMatches(false);
 			store.add(folderMatch);
 			store.add(fileMatch);
 

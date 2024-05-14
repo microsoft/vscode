@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createStatsStream = void 0;
+exports.createStatsStream = createStatsStream;
 const es = require("event-stream");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
@@ -73,5 +73,4 @@ function createStatsStream(group, log) {
         this.emit('end');
     });
 }
-exports.createStatsStream = createStatsStream;
 //# sourceMappingURL=stats.js.map

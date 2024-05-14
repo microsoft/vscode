@@ -137,7 +137,11 @@ suite('Sticky Scroll Tests', () => {
 					enabled: true,
 					maxLineCount: 5,
 					defaultModel: 'outlineModel'
-				}, serviceCollection: serviceCollection
+				},
+				envConfig: {
+					outerHeight: 500
+				},
+				serviceCollection: serviceCollection
 			}, async (editor, _viewModel, instantiationService) => {
 				const languageService = instantiationService.get(ILanguageFeaturesService);
 				const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
@@ -162,7 +166,11 @@ suite('Sticky Scroll Tests', () => {
 					enabled: true,
 					maxLineCount: 5,
 					defaultModel: 'outlineModel'
-				}, serviceCollection
+				},
+				envConfig: {
+					outerHeight: 500
+				},
+				serviceCollection
 			}, async (editor, _viewModel, instantiationService) => {
 
 				const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
@@ -211,7 +219,11 @@ suite('Sticky Scroll Tests', () => {
 					enabled: true,
 					maxLineCount: 5,
 					defaultModel: 'outlineModel'
-				}, serviceCollection
+				},
+				envConfig: {
+					outerHeight: 500
+				},
+				serviceCollection
 			}, async (editor, viewModel, instantiationService) => {
 
 				const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
@@ -305,7 +317,11 @@ suite('Sticky Scroll Tests', () => {
 					enabled: true,
 					maxLineCount: 5,
 					defaultModel: 'outlineModel'
-				}, serviceCollection
+				},
+				envConfig: {
+					outerHeight: 500
+				},
+				serviceCollection
 			}, async (editor, _viewModel, instantiationService) => {
 
 				const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);

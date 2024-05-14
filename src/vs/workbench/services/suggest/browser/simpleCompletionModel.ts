@@ -40,7 +40,7 @@ export class SimpleCompletionModel {
 		private readonly _items: SimpleCompletionItem[],
 		private _lineContext: LineContext,
 		readonly replacementIndex: number,
-		readonly replacementLength: number
+		readonly replacementLength: number,
 	) {
 	}
 
@@ -174,15 +174,13 @@ export class SimpleCompletionModel {
 			}
 
 			item.idx = i;
-			// TODO: Word distance
-			item.distance = 1;//this._wordDistance.distance(item.position, item.completion);
 			target.push(item);
 
 			// update stats
 			labelLengths.push(item.completion.label.length);
 		}
 
-		this._filteredItems = target; // target.sort(this._snippetCompareFn);
+		this._filteredItems = target.sort((a, b) => b.score[0] - a.score[0]);
 		this._refilterKind = Refilter.Nothing;
 
 		this._stats = {

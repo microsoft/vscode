@@ -82,6 +82,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			{
 				tunnelFeatures: {
 					elevation: false,
+					protocol: false,
 					privacyOptions: [
 						{ themeIcon: 'globe', id: TunnelPrivacyId.Public, label: vscode.l10n.t('Public') },
 						{ themeIcon: 'lock', id: TunnelPrivacyId.Private, label: vscode.l10n.t('Private') },

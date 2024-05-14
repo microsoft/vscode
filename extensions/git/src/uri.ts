@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri } from 'vscode';
+import { Change, Status } from './api/git';
 
 export interface GitUriParams {
 	path: string;
@@ -58,4 +59,17 @@ export function toMergeUris(uri: Uri): { base: Uri; ours: Uri; theirs: Uri } {
 		ours: toGitUri(uri, ':2'),
 		theirs: toGitUri(uri, ':3'),
 	};
+}
+
+export function toMultiFileDiffEditorUris(change: Change, originalRef: string, modifiedRef: string): { originalUri: Uri | undefined; modifiedUri: Uri | undefined } {
+	switch (change.status) {
+		case Status.INDEX_ADDED:
+			return { originalUri: undefined, modifiedUri: toGitUri(change.uri, modifiedRef) };
+		case Status.DELETED:
+			return { originalUri: toGitUri(change.uri, originalRef), modifiedUri: undefined };
+		case Status.INDEX_RENAMED:
+			return { originalUri: toGitUri(change.originalUri, originalRef), modifiedUri: toGitUri(change.uri, modifiedRef) };
+		default:
+			return { originalUri: toGitUri(change.uri, originalRef), modifiedUri: toGitUri(change.uri, modifiedRef) };
+	}
 }

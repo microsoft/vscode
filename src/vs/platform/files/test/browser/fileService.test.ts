@@ -81,7 +81,7 @@ suite('File Service', () => {
 		assert.strictEqual(service.hasCapability(resource, FileSystemProviderCapabilities.Readonly), true);
 		assert.strictEqual(service.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose), false);
 
-		registrationDisposable!.dispose();
+		registrationDisposable.dispose();
 
 		assert.strictEqual(await service.canHandleResource(resource), false);
 		assert.strictEqual(service.hasProvider(resource), false);

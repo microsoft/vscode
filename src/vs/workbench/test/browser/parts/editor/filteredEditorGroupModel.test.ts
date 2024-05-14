@@ -789,5 +789,27 @@ suite('FilteredEditorGroupModel', () => {
 		assert.strictEqual(label1ChangeCounterUnsticky, 1);
 	});
 
+	test('Sticky/Unsticky isTransient()', async () => {
+		const model = createEditorGroupModel();
+
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		const input4 = input();
+
+		model.openEditor(input1, { pinned: true, transient: false });
+		model.openEditor(input2, { pinned: true });
+		model.openEditor(input3, { pinned: true, transient: true });
+		model.openEditor(input4, { pinned: false, transient: true });
+
+		assert.strictEqual(stickyFilteredEditorGroup.isTransient(input1), false);
+		assert.strictEqual(unstickyFilteredEditorGroup.isTransient(input2), false);
+		assert.strictEqual(stickyFilteredEditorGroup.isTransient(input3), true);
+		assert.strictEqual(unstickyFilteredEditorGroup.isTransient(input4), true);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

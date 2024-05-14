@@ -22,7 +22,7 @@ export class UserDataSyncAccountServiceChannel implements IServerChannel {
 			case 'onDidChangeAccount': return this.service.onDidChangeAccount;
 			case 'onTokenFailed': return this.service.onTokenFailed;
 		}
-		throw new Error(`Event not found: ${event}`);
+		throw new Error(`[UserDataSyncAccountServiceChannel] Event not found: ${event}`);
 	}
 
 	call(context: any, command: string, args?: any): Promise<any> {
@@ -70,7 +70,7 @@ export class UserDataSyncStoreManagementServiceChannel implements IServerChannel
 		switch (event) {
 			case 'onDidChangeUserDataSyncStore': return this.service.onDidChangeUserDataSyncStore;
 		}
-		throw new Error(`Event not found: ${event}`);
+		throw new Error(`[UserDataSyncStoreManagementServiceChannel] Event not found: ${event}`);
 	}
 
 	call(context: any, command: string, args?: any): Promise<any> {

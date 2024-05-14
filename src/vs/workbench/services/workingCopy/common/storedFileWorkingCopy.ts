@@ -27,7 +27,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
@@ -813,7 +813,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Fill in content if we are resolved
 		let content: VSBufferReadableStream | undefined = undefined;
 		if (this.isResolved()) {
-			content = await raceCancellation(this.model.snapshot(token), token);
+			content = await raceCancellation(this.model.snapshot(SnapshotContext.Backup, token), token);
 		}
 
 		return { meta, content };
@@ -1026,7 +1026,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					else {
 
 						// Snapshot working copy model contents
-						const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
+						const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(SnapshotContext.Save, saveCancellation.token), saveCancellation.token);
 
 						// It is possible that a subsequent save is cancelling this
 						// running save. As such we return early when we detect that
@@ -1100,13 +1100,13 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		}
 
 		// Show save error to user for handling
-		this.doHandleSaveError(error);
+		this.doHandleSaveError(error, options);
 
 		// Emit as event
 		this._onDidSaveError.fire();
 	}
 
-	private doHandleSaveError(error: Error): void {
+	private doHandleSaveError(error: Error, options: IStoredFileWorkingCopySaveAsOptions): void {
 		const fileOperationError = error as FileOperationError;
 		const primaryActions: IAction[] = [];
 
@@ -1116,7 +1116,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 			message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Do you want to overwrite the file with your changes?", this.name);
 
-			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ignoreModifiedSince: true }) }));
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ...options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT }) }));
 			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
 		}
 
@@ -1140,19 +1140,19 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 						isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") :
 						isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."),
 					run: () => {
-						this.save({ writeElevated: true, writeUnlock: triedToUnlock, reason: SaveReason.EXPLICIT });
+						this.save({ ...options, writeElevated: true, writeUnlock: triedToUnlock, reason: SaveReason.EXPLICIT });
 					}
 				}));
 			}
 
 			// Unlock
 			else if (isWriteLocked) {
-				primaryActions.push(toAction({ id: 'fileWorkingCopy.unlock', label: localize('overwrite', "Overwrite"), run: () => this.save({ writeUnlock: true, reason: SaveReason.EXPLICIT }) }));
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.unlock', label: localize('overwrite', "Overwrite"), run: () => this.save({ ...options, writeUnlock: true, reason: SaveReason.EXPLICIT }) }));
 			}
 
 			// Retry
 			else {
-				primaryActions.push(toAction({ id: 'fileWorkingCopy.retry', label: localize('retry', "Retry"), run: () => this.save({ reason: SaveReason.EXPLICIT }) }));
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.retry', label: localize('retry', "Retry"), run: () => this.save({ ...options, reason: SaveReason.EXPLICIT }) }));
 			}
 
 			// Save As
@@ -1164,7 +1164,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					if (editor) {
 						const result = await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
 						if (!result.success) {
-							this.doHandleSaveError(error); // show error again given the operation failed
+							this.doHandleSaveError(error, options); // show error again given the operation failed
 						}
 					}
 				}

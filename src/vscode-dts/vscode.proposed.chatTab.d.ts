@@ -8,11 +8,7 @@ declare module 'vscode' {
 	 * The tab represents an interactive window.
 	 */
 	export class TabInputChat {
-		/**
-		 * The uri of the history notebook in the interactive window.
-		 */
-		readonly providerId: string;
-		constructor(providerId: string);
+		constructor();
 	}
 
 	export interface Tab {

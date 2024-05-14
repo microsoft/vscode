@@ -76,6 +76,7 @@ export class CursorConfiguration {
 	public readonly surroundingPairs: CharacterMap;
 	public readonly blockCommentStartToken: string | null;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean; comment: (ch: string) => boolean };
+	public readonly wordSegmenterLocales: string[];
 
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
@@ -97,6 +98,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.useTabStops)
 			|| e.hasChanged(EditorOption.fontInfo)
 			|| e.hasChanged(EditorOption.readOnly)
+			|| e.hasChanged(EditorOption.wordSegmenterLocales)
 		);
 	}
 
@@ -134,6 +136,7 @@ export class CursorConfiguration {
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
+		this.wordSegmenterLocales = options.get(EditorOption.wordSegmenterLocales);
 
 		this.surroundingPairs = {};
 		this._electricChars = null;

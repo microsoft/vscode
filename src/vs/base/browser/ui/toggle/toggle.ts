@@ -13,6 +13,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./toggle';
 import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
@@ -20,6 +24,7 @@ export interface IToggleOpts extends IToggleStyles {
 	readonly title: string;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export interface IToggleStyles {
@@ -55,6 +60,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
 			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
+			hoverDelegate: options.hoverDelegate
 		}));
 		this._register(this.toggle.onChange(() => this._action.checked = !!this.toggle && this.toggle.checked));
 	}
@@ -107,6 +113,7 @@ export class Toggle extends Widget {
 	readonly domNode: HTMLElement;
 
 	private _checked: boolean;
+	private _hover: IUpdatableHover;
 
 	constructor(opts: IToggleOpts) {
 		super();
@@ -127,7 +134,7 @@ export class Toggle extends Widget {
 		}
 
 		this.domNode = document.createElement('div');
-		this.domNode.title = this._opts.title;
+		this._hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(opts.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
 		this.domNode.classList.add(...classes);
 		if (!this._opts.notFocusable) {
 			this.domNode.tabIndex = 0;
@@ -213,8 +220,16 @@ export class Toggle extends Widget {
 	}
 
 	setTitle(newTitle: string): void {
-		this.domNode.title = newTitle;
+		this._hover.update(newTitle);
 		this.domNode.setAttribute('aria-label', newTitle);
+	}
+
+	set visible(visible: boolean) {
+		this.domNode.style.display = visible ? '' : 'none';
+	}
+
+	get visible() {
+		return this.domNode.style.display !== 'none';
 	}
 }
 
@@ -231,7 +246,7 @@ export class Checkbox extends Widget {
 	constructor(private title: string, private isChecked: boolean, styles: ICheckboxStyles) {
 		super();
 
-		this.checkbox = new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-checkbox', ...unthemedToggleStyles });
+		this.checkbox = this._register(new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-checkbox', ...unthemedToggleStyles }));
 
 		this.domNode = this.checkbox.domNode;
 

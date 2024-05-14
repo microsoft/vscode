@@ -202,7 +202,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile'
+		'force-color-profile',
+
+		// disable LCD font rendering, a Chromium flag
+		'disable-lcd-text'
 	];
 
 	if (process.platform === 'linux') {
@@ -233,24 +236,24 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
-
-			if (
-				// Color profile
-				argvKey === 'force-color-profile' ||
-				// Password store
-				argvKey === 'password-store'
-			) {
-				if (argvValue) {
-					app.commandLine.appendSwitch(argvKey, argvValue);
-				}
-			}
-
-			// Others
-			else if (argvValue === true || argvValue === 'true') {
+			if (argvValue === true || argvValue === 'true') {
 				if (argvKey === 'disable-hardware-acceleration') {
 					app.disableHardwareAcceleration(); // needs to be called explicitly
 				} else {
 					app.commandLine.appendSwitch(argvKey);
+				}
+			} else if (argvValue) {
+				if (argvKey === 'force-color-profile') {
+					// Color profile
+					app.commandLine.appendSwitch(argvKey, argvValue);
+				} else if (argvKey === 'password-store') {
+					// Password store
+					// TODO@TylerLeonhardt: Remove this migration in 3 months
+					let migratedArgvValue = argvValue;
+					if (argvValue === 'gnome' || argvValue === 'gnome-keyring') {
+						migratedArgvValue = 'gnome-libsecret';
+					}
+					app.commandLine.appendSwitch(argvKey, migratedArgvValue);
 				}
 			}
 		}

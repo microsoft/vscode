@@ -72,7 +72,7 @@ textarea {
 	width: auto;
 	padding: 4px 10px;
 	align-self: flex-end;
-	margin-bottom: 10px;
+	margin-bottom: 1em;
 	font-size: 13px;
 }
 
@@ -157,7 +157,8 @@ body {
 	padding-bottom: 2em;
 	display: flex;
 	flex-direction: column;
-	height: 100%;
+	min-height: 100%;
+	overflow: visible;
 }
 
 .description-section {
@@ -211,6 +212,10 @@ select, input, textarea {
 	font-size: 12px;
 	padding: 10px;
 	border-top: 0px !important;
+}
+
+#issue-reporter .system-info {
+	margin-bottom: 10px;
 }
 
 
@@ -364,6 +369,7 @@ a {
 }
 
 .issues-container > .issue > .issue-state {
+	display: flex;
 	width: 77px;
 	padding: 3px 6px;
 	margin-right: 5px;
@@ -373,8 +379,13 @@ a {
 }
 
 .issues-container > .issue .label {
+	padding-top: 2px;
 	margin-left: 5px;
 	width: 44px;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.issues-container > .issue .issue-icon{
+	padding-top: 2px;
 }

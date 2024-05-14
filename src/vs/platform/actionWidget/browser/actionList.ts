@@ -130,9 +130,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
-				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
 			} else {
-				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
+				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
 			}
 		} else {
 			data.container.title = '';
@@ -140,7 +140,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	}
 
 	disposeTemplate(_templateData: IActionMenuTemplateData): void {
-		// noop
+		_templateData.keybinding.dispose();
 	}
 }
 

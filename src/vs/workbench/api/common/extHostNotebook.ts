@@ -331,14 +331,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
 		}
 
-		// validate write
-		await this._validateWriteFile(uri, options);
 
 		const data: vscode.NotebookData = {
 			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
 			cells: [],
 		};
 
+		// this data must be retrieved before any async calls to ensure the data is for the correct version
 		for (const cell of document.apiNotebook.getCells()) {
 			const cellData = new extHostTypes.NotebookCellData(
 				cell.kind,
@@ -353,6 +352,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			cellData.metadata = filter(cell.metadata, key => !(serializer.options?.transientCellMetadata ?? {})[key]);
 			data.cells.push(cellData);
 		}
+
+		// validate write
+		await this._validateWriteFile(uri, options);
 
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
 		await this._extHostFileSystem.value.writeFile(uri, bytes);
@@ -434,6 +436,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							}
 							finalMatchedTargets.add(uri);
 						});
+					}).catch(err => {
+						// temporary fix for https://github.com/microsoft/vscode/issues/205044: don't show notebook results for remotehub repos.
+						if (err.code === 'ENOENT') {
+							console.warn(`Could not find notebook search results, ignoring notebook results.`);
+							return {
+								limitHit: false,
+								messages: [],
+							};
+						} else {
+							throw err;
+						}
 					});
 				}))
 			));
@@ -614,7 +627,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				);
 
 				// add cell document as vscode.TextDocument
-				addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(document.apiNotebook, cell)));
+				addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(cell)));
 
 				this._documents.get(uri)?.dispose();
 				this._documents.set(uri, document);

@@ -13,8 +13,22 @@
       },
       agent: {
         id: "agent",
-        metadata: { description: "" },
-        provideSlashCommands: [Function provideSlashCommands]
+        name: "agent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        extensionPublisherId: "",
+        locations: [ "panel" ],
+        metadata: {  },
+        slashCommands: [
+          {
+            name: "subCommand",
+            description: ""
+          }
+        ]
       },
       kind: "agent"
     },
@@ -45,6 +59,7 @@
       },
       variableName: "selection",
       variableArg: "",
+      variableId: "copilot.selection",
       kind: "var"
     },
     {
@@ -74,6 +89,7 @@
       },
       variableName: "debugConsole",
       variableArg: "",
+      variableId: "copilot.debugConsole",
       kind: "var"
     }
   ],

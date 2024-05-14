@@ -400,13 +400,16 @@ export class MainThreadTextEditor {
 		}
 
 		if (typeof newConfiguration.lineNumbers !== 'undefined') {
-			let lineNumbers: 'on' | 'off' | 'relative';
+			let lineNumbers: 'on' | 'off' | 'relative' | 'interval';
 			switch (newConfiguration.lineNumbers) {
 				case RenderLineNumbersType.On:
 					lineNumbers = 'on';
 					break;
 				case RenderLineNumbersType.Relative:
 					lineNumbers = 'relative';
+					break;
+				case RenderLineNumbersType.Interval:
+					lineNumbers = 'interval';
 					break;
 				default:
 					lineNumbers = 'off';

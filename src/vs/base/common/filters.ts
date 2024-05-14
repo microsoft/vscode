@@ -280,8 +280,9 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 		return null;
 	}
 
+	// TODO: Consider removing this check
 	if (camelCaseWord.length > 60) {
-		return null;
+		camelCaseWord = camelCaseWord.substring(0, 60);
 	}
 
 	const analysis = analyzeCamelCaseWord(camelCaseWord);
@@ -763,7 +764,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 		result.push(column);
 	}
 
-	if (wordLen === patternLen && options.boostFullMatch) {
+	if (wordLen - wordStart === patternLen && options.boostFullMatch) {
 		// the word matches the pattern with all characters!
 		// giving the score a total match boost (to come up ahead other words)
 		result[0] += 2;

@@ -83,14 +83,14 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	},
 	deserializeNotebook(_content, _token) {
 		const dto: vscode.NotebookData = {
-			metadata: { custom: { testMetadata: false } },
+			metadata: { testMetadata: false },
 			cells: [
 				{
 					value: 'test',
 					languageId: 'typescript',
 					kind: vscode.NotebookCellKind.Code,
 					outputs: [],
-					metadata: { custom: { testCellMetadata: 123 } },
+					metadata: { testCellMetadata: 123 },
 					executionSummary: { timing: { startTime: 10, endTime: 20 } }
 				},
 				{
@@ -107,7 +107,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 							})
 					],
 					executionSummary: { executionOrder: 5, success: true },
-					metadata: { custom: { testCellMetadata: 456 } }
+					metadata: { testCellMetadata: 456 }
 				}
 			]
 		};
@@ -225,6 +225,30 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	test('#102411 - untitled notebook creation failed', async function () {
 		const document = await vscode.workspace.openNotebookDocument(notebookType, undefined);
 		await vscode.window.showNotebookDocument(document);
+		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+
+		await closeAllEditors();
+	});
+
+	test('#207742 - New Untitled notebook failed if previous untilted notebook is modified', async function () {
+		await vscode.commands.executeCommand('ipynb.newUntitledIpynb');
+		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+		const document = vscode.window.activeNotebookEditor!.notebook;
+
+		// open another text editor
+		const textDocument = await vscode.workspace.openTextDocument({ language: 'javascript', content: 'let abc = 0;' });
+		await vscode.window.showTextDocument(textDocument);
+
+		// insert a new cell to notebook document
+		const edit = new vscode.WorkspaceEdit();
+		const notebookEdit = new vscode.NotebookEdit(new vscode.NotebookRange(1, 1), [new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(1)', 'python')]);
+		edit.set(document.uri, [notebookEdit]);
+		await vscode.workspace.applyEdit(edit);
+
+		// switch to the notebook editor
+		await vscode.window.showNotebookDocument(document);
+		await closeAllEditors();
+		await vscode.commands.executeCommand('ipynb.newUntitledIpynb');
 		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
 
 		await closeAllEditors();

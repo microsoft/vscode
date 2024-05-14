@@ -160,10 +160,6 @@ export class ApiRepository implements Repository {
 		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
-	getDiff(): Promise<string[]> {
-		return this.repository.getDiff();
-	}
-
 	hashObject(data: string): Promise<string> {
 		return this.repository.hashObject(data);
 	}
@@ -257,7 +253,7 @@ export class ApiRepository implements Repository {
 	}
 
 	commit(message: string, opts?: CommitOptions): Promise<void> {
-		return this.repository.commit(message, opts);
+		return this.repository.commit(message, { ...opts, postCommitCommand: null });
 	}
 
 	merge(ref: string): Promise<void> {

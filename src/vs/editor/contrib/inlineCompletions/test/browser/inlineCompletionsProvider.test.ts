@@ -15,12 +15,14 @@ import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeatu
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { Selection } from 'vs/editor/common/core/selection';
+import { computeGhostText } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,7 +38,7 @@ suite('Inline Completions', () => {
 			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
-				result[option] = new SingleTextEdit(range, suggestion).computeGhostText(tempModel, option)?.render(cleanedText, true);
+				result[option] = computeGhostText(new SingleTextEdit(range, suggestion), tempModel, option)?.render(cleanedText, true);
 			}
 
 			tempModel.dispose();
@@ -561,6 +563,200 @@ suite('Inline Completions', () => {
 			}
 		);
 	});
+
+	suite('inlineCompletionMultiCursor', () => {
+
+		test('Basic', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('console\nconsole\n');
+					editor.setSelections([
+						new Selection(1, 1000, 1, 1000),
+						new Selection(2, 1000, 2, 1000),
+					]);
+					provider.setReturnValue({
+						insertText: 'console.log("hello");',
+						range: new Range(1, 1, 1, 1000),
+					});
+					model.triggerExplicitly();
+					await timeout(1000);
+					model.accept(editor);
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`console.log("hello");`,
+							`console.log("hello");`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+
+		test('Multi Part', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('console.log()\nconsole.log\n');
+					editor.setSelections([
+						new Selection(1, 12, 1, 12),
+						new Selection(2, 1000, 2, 1000),
+					]);
+					provider.setReturnValue({
+						insertText: 'console.log("hello");',
+						range: new Range(1, 1, 1, 1000),
+					});
+					model.triggerExplicitly();
+					await timeout(1000);
+					model.accept(editor);
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`console.log("hello");`,
+							`console.log("hello");`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+
+		test('Multi Part and Different Cursor Columns', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('console.log()\nconsole.warn\n');
+					editor.setSelections([
+						new Selection(1, 12, 1, 12),
+						new Selection(2, 14, 2, 14),
+					]);
+					provider.setReturnValue({
+						insertText: 'console.log("hello");',
+						range: new Range(1, 1, 1, 1000),
+					});
+					model.triggerExplicitly();
+					await timeout(1000);
+					model.accept(editor);
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`console.log("hello");`,
+							`console.warn("hello");`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+
+		async function acceptNextWord(model: InlineCompletionsModel, editor: ITestCodeEditor, timesToAccept: number = 1): Promise<void> {
+			for (let i = 0; i < timesToAccept; i++) {
+				model.triggerExplicitly();
+				await timeout(1000);
+				await model.acceptNextWord(editor);
+			}
+		}
+
+		test('Basic Partial Completion', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('let\nlet\n');
+					editor.setSelections([
+						new Selection(1, 1000, 1, 1000),
+						new Selection(2, 1000, 2, 1000),
+					]);
+
+					provider.setReturnValue({
+						insertText: `let a = 'some word'; `,
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					await acceptNextWord(model, editor, 2);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`let a`,
+							`let a`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+
+		test('Partial Multi-Part Completion', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('for ()\nfor \n');
+					editor.setSelections([
+						new Selection(1, 5, 1, 5),
+						new Selection(2, 1000, 2, 1000),
+					]);
+
+					provider.setReturnValue({
+						insertText: `for (let i = 0; i < 10; i++) {`,
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					model.triggerExplicitly();
+					await timeout(1000);
+
+					await acceptNextWord(model, editor, 3);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`for (let i)`,
+							`for (let i`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+
+		test('Partial Mutli-Part and Different Cursor Columns Completion', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType(`console.log()\nconsole.warnnnn\n`);
+					editor.setSelections([
+						new Selection(1, 12, 1, 12),
+						new Selection(2, 16, 2, 16),
+					]);
+
+					provider.setReturnValue({
+						insertText: `console.log("hello" + " " + "world");`,
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					model.triggerExplicitly();
+					await timeout(1000);
+
+					await acceptNextWord(model, editor, 4);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`console.log("hello" + )`,
+							`console.warnnnn("hello" + `,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+	});
 });
 
 async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
@@ -580,9 +776,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					options.serviceCollection = new ServiceCollection();
 				}
 				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
-				options.serviceCollection.set(IAudioCueService, {
-					playAudioCue: async () => { },
-					isEnabled(cue: unknown) { return false; },
+				options.serviceCollection.set(IAccessibilitySignalService, {
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
 				} as any);
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);

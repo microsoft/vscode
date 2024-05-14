@@ -22,7 +22,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { detectLinks, getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
@@ -98,9 +98,26 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	async open(link: ITerminalSimpleLink): Promise<void> {
 		const osPath = osPathModule(this._getOS());
 		const pathSeparator = osPath.sep;
+
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
 		text = osPath.normalize(text).replace(/^(\.+[\\/])+/, '');
+
+		// Try extract any trailing line and column numbers by matching the text against parsed
+		// links. This will give a search link `foo` on a line like `"foo", line 10` to open the
+		// quick pick with `foo:10` as the contents.
+		if (link.contextLine) {
+			const parsedLinks = detectLinks(link.contextLine, this._getOS());
+			const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text === parsedLink.path.text);
+			if (matchingParsedLink) {
+				if (matchingParsedLink.suffix?.row !== undefined) {
+					text += `:${matchingParsedLink.suffix.row}`;
+					if (matchingParsedLink.suffix?.col !== undefined) {
+						text += `:${matchingParsedLink.suffix.col}`;
+					}
+				}
+			}
+		}
 
 		// Remove `:<one or more non number characters>` from the end of the link.
 		// Examples:

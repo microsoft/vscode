@@ -38,12 +38,11 @@ export class NotebookCellAnchor implements IDisposable {
 		const newFocusBottom = cellListView.elementTop(focusedIndex) + cellListView.elementHeight(focusedIndex) + heightDelta;
 		const viewBottom = cellListView.renderHeight + cellListView.getScrollTop();
 		const focusStillVisible = viewBottom > newFocusBottom;
-		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
 		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
 		const growing = heightDelta > 0;
-		const autoAnchor = allowScrolling && growing && !focusStillVisible && anchorFocusedSetting !== 'off';
+		const autoAnchor = allowScrolling && growing && !focusStillVisible;
 
-		if (autoAnchor || anchorFocusedSetting === 'on') {
+		if (autoAnchor) {
 			this.watchAchorDuringExecution(executingCellUri);
 			return true;
 		}

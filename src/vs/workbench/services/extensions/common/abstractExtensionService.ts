@@ -6,30 +6,35 @@
 import { Barrier } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as perf from 'vs/base/common/performance';
 import { isCI } from 'vs/base/common/platform';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
-import { ExtensionIdentifier, ExtensionIdentifierMap, IExtension, IExtensionContributions, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, IExtension, IExtensionContributions, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesExtensions, IExtensionFeatureMarkdownRenderer, IRenderedData, } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionDescriptionRegistryLock, ExtensionDescriptionRegistrySnapshot, IActivationEventsReader, LockableExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
@@ -156,10 +161,19 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}));
 
+		this._register(this._extensionManagementService.onDidEnableExtensions(extensions => {
+			if (extensions.length) {
+				if (isCI) {
+					this._logService.info(`AbstractExtensionService.onDidEnableExtensions fired`);
+				}
+				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, []));
+			}
+		}));
+
 		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
 			const extensions: IExtension[] = [];
 			for (const { local, operation } of result) {
-				if (local && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
+				if (local && local.isValid && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
 					extensions.push(local);
 				}
 			}
@@ -754,7 +768,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			this._onDidChangeResponsiveChange.fire({
 				extensionHostKind: processManager.kind,
 				isResponsive: responsiveState === ResponsiveState.Responsive,
-				getInspectPort: (tryEnableInspector: boolean) => {
+				getInspectListener: (tryEnableInspector: boolean) => {
 					return processManager.getInspectPort(tryEnableInspector);
 				}
 			});
@@ -860,8 +874,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	public async startExtensionHosts(): Promise<void> {
+	public async startExtensionHosts(updates?: { toAdd: IExtension[]; toRemove: string[] }): Promise<void> {
 		this._doStopExtensionHosts();
+
+		if (updates) {
+			await this._handleDeltaExtensions(new DeltaExtensionsQueueItem(updates.toAdd, updates.toRemove));
+		}
 
 		const lock = await this._registry.acquireLock('startExtensionHosts');
 		try {
@@ -984,12 +1002,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
-	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<number[]> {
+	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<{ port: number; host: string }[]> {
 		const result = await Promise.all(
 			this._getExtensionHostManagers(extensionHostKind).map(extHost => extHost.getInspectPort(tryEnableInspector))
 		);
 		// remove 0s:
-		return result.filter(element => Boolean(element));
+		return result.filter(isDefined);
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
@@ -1070,7 +1088,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			type ExtensionsMessageClassification = {
 				owner: 'alexdima';
 				comment: 'A validation message for an extension';
-				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Severity of problem.'; isMeasurement: true };
+				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Severity of problem.' };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the extension that has a problem.' };
 				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension point that has a problem.' };
 				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The message of the problem.' };
@@ -1342,3 +1360,35 @@ export class ImplicitActivationAwareReader implements IActivationEventsReader {
 		return ImplicitActivationEvents.readActivationEvents(extensionDescription);
 	}
 }
+
+class ActivationFeatureMarkdowneRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+
+	readonly type = 'markdown';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.activationEvents;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
+		const activationEvents = manifest.activationEvents || [];
+		const data = new MarkdownString();
+		if (activationEvents.length) {
+			for (const activationEvent of activationEvents) {
+				data.appendMarkdown(`- \`${activationEvent}\`\n`);
+			}
+		}
+		return {
+			data,
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'activationEvents',
+	label: nls.localize('activation', "Activation Events"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ActivationFeatureMarkdowneRenderer),
+});

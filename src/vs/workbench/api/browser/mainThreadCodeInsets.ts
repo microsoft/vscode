@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -43,7 +44,7 @@ class EditorWebviewZone implements IViewZone {
 		this.heightInLines = height;
 
 		editor.changeViewZones(accessor => this._id = accessor.addZone(this));
-		webview.mountTo(this.domNode);
+		webview.mountTo(this.domNode, getWindow(editor.getDomNode()));
 	}
 
 	dispose(): void {

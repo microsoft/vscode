@@ -16,6 +16,79 @@ declare module 'vscode' {
 			id: string,
 			provider: DebugVisualizationProvider<T>
 		): Disposable;
+
+		/**
+		 * Registers a tree that can be referenced by {@link DebugVisualization.visualization}.
+		 * @param id
+		 * @param provider
+		 */
+		export function registerDebugVisualizationTreeProvider<T extends DebugTreeItem>(
+			id: string,
+			provider: DebugVisualizationTree<T>
+		): Disposable;
+	}
+
+	/**
+	 * An item from the {@link DebugVisualizationTree}
+	 */
+	export interface DebugTreeItem {
+		/**
+		 * A human-readable string describing this item.
+		 */
+		label: string;
+
+		/**
+		 * A human-readable string which is rendered less prominent.
+		 */
+		description?: string;
+
+		/**
+		 * {@link TreeItemCollapsibleState} of the tree item.
+		 */
+		collapsibleState?: TreeItemCollapsibleState;
+
+		/**
+		 * Context value of the tree item. This can be used to contribute item specific actions in the tree.
+		 * For example, a tree item is given a context value as `folder`. When contributing actions to `view/item/context`
+		 * using `menus` extension point, you can specify context value for key `viewItem` in `when` expression like `viewItem == folder`.
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "view/item/context": [
+		 *       {
+		 *         "command": "extension.deleteFolder",
+		 *         "when": "viewItem == folder"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
+		 * ```
+		 * This will show action `extension.deleteFolder` only for items with `contextValue` is `folder`.
+		 */
+		contextValue?: string;
+
+		/**
+		 * Whether this item can be edited by the user.
+		 */
+		canEdit?: boolean;
+	}
+
+	/**
+	 * Provides a tree that can be referenced in debug visualizations.
+	 */
+	export interface DebugVisualizationTree<T extends DebugTreeItem = DebugTreeItem> {
+		/**
+		 * Gets the tree item for an element or the base context item.
+		 */
+		getTreeItem(context: DebugVisualizationContext): ProviderResult<T>;
+		/**
+		 * Gets children for the tree item or the best context item.
+		 */
+		getChildren(element: T): ProviderResult<T[]>;
+		/**
+		 * Handles the user editing an item.
+		 */
+		editItem?(item: T, value: string): ProviderResult<T>;
 	}
 
 	export class DebugVisualization {
@@ -32,12 +105,9 @@ declare module 'vscode' {
 		/**
 		 * Visualization to use for the variable. This may be either:
 		 * - A command to run when the visualization is selected for a variable.
-		 * - A {@link TreeDataProvider} which is used to display the data in-line
-		 *   where the variable is shown. If a single root item is returned from
-		 *   the data provider, it will replace the variable in its tree.
-		 *   Otherwise, the items will be shown as children of the variable.
+		 * - A reference to a previously-registered {@link DebugVisualizationTree}
 		 */
-		visualization?: Command | TreeDataProvider<unknown>;
+		visualization?: Command | { treeId: string };
 
 		/**
 		 * Creates a new debug visualization object.
@@ -80,7 +150,7 @@ declare module 'vscode' {
 		 * that came from user evaluations in the Debug Console.
 		 * @see https://microsoft.github.io/debug-adapter-protocol/specification#Types_Variable
 		 */
-		containerId?: string;
+		containerId?: number;
 		/**
 		 * The ID of the Debug Adapter Protocol StackFrame in which the variable was found,
 		 * for variables that came from scopes in a stack frame.

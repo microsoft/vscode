@@ -144,7 +144,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 		this._breadcrumbsDataSource = new DocumentSymbolBreadcrumbsSource(_editor, textResourceConfigurationService);
 		const delegate = new DocumentSymbolVirtualDelegate();
-		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true)];
+		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true, target)];
 		const treeDataSource: IDataSource<this, DocumentSymbolItem> = {
 			getChildren: (parent) => {
 				if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
@@ -219,7 +219,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return this._outlineModel?.uri;
 	}
 
-	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
+	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean, select: boolean): Promise<void> {
 		const model = OutlineModel.get(entry);
 		if (!model || !(entry instanceof OutlineElement)) {
 			return;
@@ -228,7 +228,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			resource: model.uri,
 			options: {
 				...options,
-				selection: Range.collapseToStart(entry.symbol.selectionRange),
+				selection: select ? entry.symbol.range : Range.collapseToStart(entry.symbol.selectionRange),
 				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 			}
 		}, this._editor, sideBySide);
@@ -433,7 +433,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 			return undefined;
 		}
 		const firstLoadBarrier = new Barrier();
-		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor!, target, firstLoadBarrier));
+		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier));
 		await firstLoadBarrier.wait();
 		return result;
 	}

@@ -9,17 +9,18 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { EventHelper, addDisposableListener, getActiveDocument, getWindow } from 'vs/base/browser/dom';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { isNative } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event as BaseEvent } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 
-	private textInputActions: IAction[] = [];
+	static readonly ID = 'workbench.contrib.textInputActionsProvider';
+
+	private readonly textInputActions = new Lazy<IAction[]>(() => this.createActions());
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -28,13 +29,11 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this.createActions();
-
 		this.registerListeners();
 	}
 
-	private createActions(): void {
-		this.textInputActions.push(
+	private createActions(): IAction[] {
+		return [
 
 			// Undo/Redo
 			new Action('undo', localize('undo', "Undo"), undefined, true, async () => getActiveDocument().execCommand('undo')),
@@ -72,7 +71,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 
 			// Select All
 			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => getActiveDocument().execCommand('selectAll'))
-		);
+		];
 	}
 
 	private registerListeners(): void {
@@ -99,10 +98,14 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
-			getActions: () => this.textInputActions,
+			getActions: () => this.textInputActions.value,
 			getActionsContext: () => target,
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextInputActionsProvider, LifecyclePhase.Ready);
+registerWorkbenchContribution2(
+	TextInputActionsProvider.ID,
+	TextInputActionsProvider,
+	WorkbenchPhase.BlockRestore // Block to allow right-click into input fields before restore finished
+);

@@ -184,7 +184,7 @@ export class GhostTextWidget extends Disposable {
 	}
 }
 
-class AdditionalLinesWidget extends Disposable {
+export class AdditionalLinesWidget extends Disposable {
 	private _viewZoneId: string | undefined = undefined;
 	public get viewZoneId(): string | undefined { return this._viewZoneId; }
 
@@ -263,7 +263,7 @@ class AdditionalLinesWidget extends Disposable {
 	}
 }
 
-interface LineData {
+export interface LineData {
 	content: string; // Must not contain a linebreak!
 	decorations: LineDecoration[];
 }
@@ -325,4 +325,4 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	domNode.innerHTML = trustedhtml as string;
 }
 
-const ttPolicy = createTrustedTypesPolicy('editorGhostText', { createHTML: value => value });
+export const ttPolicy = createTrustedTypesPolicy('editorGhostText', { createHTML: value => value });

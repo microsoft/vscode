@@ -6,12 +6,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, TabInputTextDiff, TabInputNotebookDiff, TabInputTextMultiDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions } from './git';
+import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions, LsTreeElement } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
@@ -975,10 +975,9 @@ export class Repository implements Disposable {
 		this.setCountBadge();
 	}
 
-	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
-		let tooManyChangesWarning: SourceControlInputBoxValidation | undefined;
+	validateInput(text: string, _: number): SourceControlInputBoxValidation | undefined {
 		if (this.isRepositoryHuge) {
-			tooManyChangesWarning = {
+			return {
 				message: l10n.t('Too many changes were detected. Only the first {0} changes will be shown below.', this.isRepositoryHuge.limit),
 				type: SourceControlInputBoxValidationType.Warning
 			};
@@ -993,59 +992,7 @@ export class Repository implements Disposable {
 			}
 		}
 
-		const config = workspace.getConfiguration('git');
-		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
-
-		if (setting === 'off') {
-			return tooManyChangesWarning;
-		}
-
-		if (/^\s+$/.test(text)) {
-			return {
-				message: l10n.t('Current commit message only contains whitespace characters'),
-				type: SourceControlInputBoxValidationType.Warning
-			};
-		}
-
-		let lineNumber = 0;
-		let start = 0;
-		let match: RegExpExecArray | null;
-		const regex = /\r?\n/g;
-
-		while ((match = regex.exec(text)) && position > match.index) {
-			start = match.index + match[0].length;
-			lineNumber++;
-		}
-
-		const end = match ? match.index : text.length;
-
-		const line = text.substring(start, end);
-
-		let threshold = config.get<number>('inputValidationLength', 50);
-
-		if (lineNumber === 0) {
-			const inputValidationSubjectLength = config.get<number | null>('inputValidationSubjectLength', null);
-
-			if (inputValidationSubjectLength !== null) {
-				threshold = inputValidationSubjectLength;
-			}
-		}
-
-		if (line.length <= threshold) {
-			if (setting !== 'always') {
-				return tooManyChangesWarning;
-			}
-
-			return {
-				message: l10n.t('{0} characters left in current line', threshold - line.length),
-				type: SourceControlInputBoxValidationType.Information
-			};
-		} else {
-			return {
-				message: l10n.t('{0} characters over {1} in current line', line.length - threshold, threshold),
-				type: SourceControlInputBoxValidationType.Warning
-			};
-		}
+		return undefined;
 	}
 
 	/**
@@ -1219,9 +1166,10 @@ export class Repository implements Disposable {
 		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, async () => {
 			await this.repository.stage(path, contents);
+
+			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
 		});
-		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
@@ -1410,21 +1358,28 @@ export class Repository implements Disposable {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
-		const diffEditorTabsToClose: Tab[] = [];
-
-		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
-			const { input } = tab;
-			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
-				if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
-					// Index
-					diffEditorTabsToClose.push(tab);
-				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
-					// Working Tree
-					diffEditorTabsToClose.push(tab);
-				}
+		function checkTabShouldClose(input: TabInputTextDiff | TabInputNotebookDiff) {
+			if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
+				// Index
+				return true;
 			}
+			if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
+				// Working Tree
+				return true;
+			}
+			return false;
 		}
+
+		const diffEditorTabsToClose = window.tabGroups.all
+			.flatMap(g => g.tabs)
+			.filter(({ input }) => {
+				if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
+					return checkTabShouldClose(input);
+				} else if (input instanceof TabInputTextMultiDiff) {
+					return input.textDiffs.every(checkTabShouldClose);
+				}
+				return false;
+			});
 
 		// Close editors
 		window.tabGroups.close(diffEditorTabsToClose, true);
@@ -1484,11 +1439,6 @@ export class Repository implements Disposable {
 
 	async getBranchBase(ref: string): Promise<Branch | undefined> {
 		const branch = await this.getBranch(ref);
-		const branchUpstream = await this.getUpstreamBranch(branch);
-
-		if (branchUpstream) {
-			return branchUpstream;
-		}
 
 		// Git config
 		const mergeBaseConfigKey = `branch.${branch.name}.vscode-merge-base`;
@@ -1652,27 +1602,8 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
-	async getCommitFiles(ref: string): Promise<string[]> {
-		return await this.repository.getCommitFiles(ref);
-	}
-
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
-	}
-
-	async getDiff(): Promise<string[]> {
-		const diff: string[] = [];
-		if (this.indexGroup.resourceStates.length !== 0) {
-			for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-				diff.push(await this.diffIndexWithHEAD(file));
-			}
-		} else {
-			for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-				diff.push(await this.diffWithHEAD(file));
-			}
-		}
-
-		return diff;
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {
@@ -1953,6 +1884,10 @@ export class Repository implements Disposable {
 			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
 			return this.repository.buffer(`${ref}:${path}`);
 		});
+	}
+
+	getObjectFiles(ref: string): Promise<LsTreeElement[]> {
+		return this.run(Operation.GetObjectFiles, () => this.repository.lstree(ref));
 	}
 
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
@@ -2635,13 +2570,23 @@ export class Repository implements Disposable {
 			throw new Error(`Unable to extract tag names from error message: ${raw}`);
 		}
 
-		// Notification
-		const replaceLocalTags = l10n.t('Replace Local Tag(s)');
-		const message = l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '));
-		const choice = await window.showErrorMessage(message, { modal: true }, replaceLocalTags);
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const replaceTagsWhenPull = config.get<boolean>('replaceTagsWhenPull', false) === true;
 
-		if (choice !== replaceLocalTags) {
-			return false;
+		if (!replaceTagsWhenPull) {
+			// Notification
+			const replaceLocalTags = l10n.t('Replace Local Tag(s)');
+			const replaceLocalTagsAlways = l10n.t('Always Replace Local Tag(s)');
+			const message = l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '));
+			const choice = await window.showErrorMessage(message, { modal: true }, replaceLocalTags, replaceLocalTagsAlways);
+
+			if (choice !== replaceLocalTags && choice !== replaceLocalTagsAlways) {
+				return false;
+			}
+
+			if (choice === replaceLocalTagsAlways) {
+				await config.update('replaceTagsWhenPull', true, true);
+			}
 		}
 
 		// Force fetch tags

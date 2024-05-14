@@ -25,7 +25,7 @@ import 'vs/css!./media/repl';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -70,7 +70,8 @@ import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -133,6 +134,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILogService private readonly logService: ILogService,
@@ -141,11 +143,11 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		super({
 			...options,
 			filterOptions: {
-				placeholder: localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude)"),
+				placeholder: localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude, \\escape)"),
 				text: filterText,
 				history: JSON.parse(storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[],
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);
@@ -153,7 +155,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.filter = new ReplFilter();
 		this.filter.filterQuery = filterText;
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
-		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getBackgroundColor()));
+		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getLocationBasedColors().background));
 		this._register(this.replOptions.onDidChange(() => this.onDidStyleChange()));
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
@@ -421,7 +423,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		if (session) {
 			this.replElementsChangeListener?.dispose();
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
-				this.refreshReplElements(session!.getReplElements().length === 0);
+				this.refreshReplElements(session.getReplElements().length === 0);
 			});
 
 			if (this.tree && treeInput !== session) {
@@ -579,6 +581,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	override render(): void {
 		super.render();
 		this._register(registerNavigableContainer({
+			name: 'repl',
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
 				const element = this.tree?.getHTMLElement();
@@ -612,6 +615,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+
 		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
@@ -622,11 +626,11 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				this.instantiationService.createInstance(ReplOutputElementRenderer, linkDetector),
 				new ReplEvaluationInputsRenderer(),
 				this.instantiationService.createInstance(ReplGroupRenderer, linkDetector),
-				new ReplEvaluationResultsRenderer(linkDetector),
-				new ReplRawObjectsRenderer(linkDetector),
+				new ReplEvaluationResultsRenderer(linkDetector, this.hoverService),
+				new ReplRawObjectsRenderer(linkDetector, this.hoverService),
 			],
 			// https://github.com/microsoft/TypeScript/issues/32526
-			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>,
 			{
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
@@ -637,9 +641,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				}
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			});
 
 		this._register(tree.onDidChangeContentHeight(() => {
@@ -973,6 +975,9 @@ registerAction2(class extends ViewAction<Repl> {
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
 			title: localize2('clearRepl', 'Clear Console'),
+			metadata: {
+				description: localize2('clearRepl.descriotion', 'Clears all program output from your debug REPL')
+			},
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{
@@ -989,9 +994,9 @@ registerAction2(class extends ViewAction<Repl> {
 	}
 
 	runInView(_accessor: ServicesAccessor, view: Repl): void {
-		const audioCueService = _accessor.get(IAudioCueService);
+		const accessibilitySignalService = _accessor.get(IAccessibilitySignalService);
 		view.clearRepl();
-		audioCueService.playAudioCue(AudioCue.clear);
+		accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 });
 

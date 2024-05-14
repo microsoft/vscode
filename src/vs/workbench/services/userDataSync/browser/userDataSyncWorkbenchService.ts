@@ -641,7 +641,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			quickPickItems.push({ type: 'separator', label: localize('signed in', "Signed in") });
 			for (const authenticationProvider of authenticationProviders) {
 				const accounts = (allAccounts.get(authenticationProvider.id) || []).sort(({ sessionId }) => sessionId === this.currentSessionId ? -1 : 1);
-				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
+				const providerName = this.authenticationService.getProvider(authenticationProvider.id).label;
 				for (const account of accounts) {
 					quickPickItems.push({
 						label: `${account.accountName} (${providerName})`,
@@ -656,8 +656,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		// Account Providers
 		for (const authenticationProvider of authenticationProviders) {
-			if (!allAccounts.has(authenticationProvider.id) || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
-				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
+			const provider = this.authenticationService.getProvider(authenticationProvider.id);
+			if (!allAccounts.has(authenticationProvider.id) || provider.supportsMultipleAccounts) {
+				const providerName = provider.label;
 				quickPickItems.push({ label: localize('sign in using account', "Sign in with {0}", providerName), authenticationProvider });
 			}
 		}

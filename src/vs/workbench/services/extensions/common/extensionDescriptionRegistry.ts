@@ -7,6 +7,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { Emitter } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { promiseWithResolvers } from 'vs/base/common/async';
 
 export class DeltaExtensionsResult {
 	constructor(
@@ -323,14 +324,14 @@ export class ExtensionDescriptionRegistryLock extends Disposable {
 
 class LockCustomer {
 	public readonly promise: Promise<IDisposable>;
-	private _resolve!: (value: IDisposable) => void;
+	private readonly _resolve: (value: IDisposable) => void;
 
 	constructor(
 		public readonly name: string
 	) {
-		this.promise = new Promise<IDisposable>((resolve, reject) => {
-			this._resolve = resolve;
-		});
+		const withResolvers = promiseWithResolvers<IDisposable>();
+		this.promise = withResolvers.promise;
+		this._resolve = withResolvers.resolve;
 	}
 
 	resolve(value: IDisposable): void {

@@ -429,7 +429,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		// verify that we do not mark the model as saved when undoing once because
 		// we never really had a saved state
-		await model.textEditorModel!.undo();
+		await model.textEditorModel.undo();
 		assert.ok(model.isDirty());
 
 		model.dispose();
@@ -501,7 +501,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.revert({ soft: true });
 		assert.strictEqual(model.isDirty(), false);
 		assert.strictEqual(model.isModified(), false);
-		assert.strictEqual(model.textEditorModel!.getValue(), 'foo');
+		assert.strictEqual(model.textEditorModel.getValue(), 'foo');
 		assert.strictEqual(eventCounter, 1);
 
 		assert.ok(workingCopyEvent);
@@ -515,7 +515,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('Hello Text'));
 		assert.ok(model.isDirty());
 
-		await model.textEditorModel!.undo();
+		await model.textEditorModel.undo();
 		assert.ok(!model.isDirty());
 	});
 

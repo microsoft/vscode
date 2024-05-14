@@ -21,6 +21,7 @@ const ExtensionEditorIcon = registerIcon('extensions-editor-label-icon', Codicon
 export interface IExtensionEditorOptions extends IEditorOptions {
 	showPreReleaseVersion?: boolean;
 	tab?: ExtensionEditorTab;
+	feature?: string;
 	sideByside?: boolean;
 }
 
@@ -33,7 +34,7 @@ export class ExtensionsInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.AuxWindowUnsupported;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
 	}
 
 	override get resource() {

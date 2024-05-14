@@ -16,7 +16,7 @@ class ToggleKeybindingsLogAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleKeybindingsLog',
-			title: { value: nls.localize('toggleKeybindingsLog', "Toggle Keyboard Shortcuts Troubleshooting"), original: 'Toggle Keyboard Shortcuts Troubleshooting' },
+			title: nls.localize2('toggleKeybindingsLog', "Toggle Keyboard Shortcuts Troubleshooting"),
 			category: Categories.Developer,
 			f1: true
 		});

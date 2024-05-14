@@ -9,6 +9,11 @@ import { IDebuggerContribution, ICompound, IBreakpointContribution } from 'vs/wo
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>({
@@ -261,3 +266,49 @@ export const launchSchema: IJSONSchema = {
 		inputs: inputsSchema.definitions!.inputs
 	}
 };
+
+class DebuggersDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.debuggers;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contrib = manifest.contributes?.debuggers || [];
+		if (!contrib.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			nls.localize('debugger name', "Name"),
+			nls.localize('debugger type', "Type"),
+		];
+
+		const rows: IRowData[][] = contrib.map(d => {
+			return [
+				d.label ?? '',
+				d.type
+			];
+		});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'debuggers',
+	label: nls.localize('debuggers', "Debuggers"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(DebuggersDataRenderer),
+});
+

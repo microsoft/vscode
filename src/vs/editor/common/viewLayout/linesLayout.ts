@@ -727,7 +727,8 @@ export class LinesLayout {
 			relativeVerticalOffset: linesOffsets,
 			centeredLineNumber: centeredLineNumber,
 			completelyVisibleStartLineNumber: completelyVisibleStartLineNumber,
-			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber
+			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber,
+			lineHeight: this._lineHeight,
 		};
 	}
 

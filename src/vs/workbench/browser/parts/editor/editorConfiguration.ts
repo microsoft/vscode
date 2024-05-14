@@ -19,6 +19,8 @@ import { ByteSize, getLargeFileConfirmationLimit } from 'vs/platform/files/commo
 
 export class DynamicEditorConfigurations extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.dynamicEditorConfigurations';
+
 	private static readonly AUTO_LOCK_DEFAULT_ENABLED = new Set<string>([
 		'terminalEditor',
 		'mainThreadWebview-simpleBrowser.view',
@@ -91,7 +93,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 	private registerListeners(): void {
 
 		// Registered editors (debounced to reduce perf overhead)
-		Event.debounce(this.editorResolverService.onDidChangeEditorRegistrations, (_, e) => e)(() => this.updateDynamicEditorConfigurations());
+		this._register(Event.debounce(this.editorResolverService.onDidChangeEditorRegistrations, (_, e) => e)(() => this.updateDynamicEditorConfigurations()));
 	}
 
 	private updateDynamicEditorConfigurations(): void {

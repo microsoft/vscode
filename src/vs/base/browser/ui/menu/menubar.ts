@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { cleanMnemonic, Direction, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
+import { cleanMnemonic, HorizontalDirection, IMenuDirection, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, VerticalDirection } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { asArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -32,7 +32,7 @@ export interface IMenuBarOptions {
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
-	compactMode?: Direction;
+	compactMode?: IMenuDirection;
 	actionRunner?: IActionRunner;
 	getCompactMenuActions?: () => IAction[];
 }
@@ -333,9 +333,9 @@ export class MenuBar extends Disposable {
 			} else {
 				triggerKeys.push(KeyCode.Space);
 
-				if (this.options.compactMode === Direction.Right) {
+				if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
 					triggerKeys.push(KeyCode.RightArrow);
-				} else if (this.options.compactMode === Direction.Left) {
+				} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
 					triggerKeys.push(KeyCode.LeftArrow);
 				}
 			}
@@ -1007,16 +1007,23 @@ export class MenuBar extends Disposable {
 		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
 		const titleBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.titleElement);
 
-		if (this.options.compactMode === Direction.Right) {
-			menuHolder.style.top = `${titleBoundingRect.top}px`;
+		if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
 			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
-		} else if (this.options.compactMode === Direction.Left) {
+		} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
 			menuHolder.style.top = `${titleBoundingRect.top}px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
 			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;
+		}
+
+		if (this.options.compactMode?.vertical === VerticalDirection.Above) {
+			// TODO@benibenj Do not hardcode the height of the menu holder
+			menuHolder.style.top = `${titleBoundingRect.top - this.menus.length * 30 + this.container.clientHeight}px`;
+		} else if (this.options.compactMode?.vertical === VerticalDirection.Below) {
+			menuHolder.style.top = `${titleBoundingRect.top}px`;
+		} else {
+			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);
@@ -1026,7 +1033,7 @@ export class MenuBar extends Disposable {
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
 			ariaLabel: customMenu.buttonElement.getAttribute('aria-label') ?? undefined,
-			expandDirection: this.isCompact ? this.options.compactMode : Direction.Right,
+			expandDirection: this.isCompact ? this.options.compactMode : { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below },
 			useEventAsContext: true
 		};
 

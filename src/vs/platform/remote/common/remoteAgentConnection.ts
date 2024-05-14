@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, promiseWithResolvers } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { RemoteAuthorities } from 'vs/base/common/network';
 import * as performance from 'vs/base/common/performance';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -17,7 +18,6 @@ import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from 'vs/ba
 import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteAuthorityResolverError, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -105,8 +105,8 @@ class PromiseWithTimeout<T> {
 	private _state: 'pending' | 'resolved' | 'rejected' | 'timedout';
 	private readonly _disposables: DisposableStore;
 	public readonly promise: Promise<T>;
-	private _resolvePromise!: (value: T) => void;
-	private _rejectPromise!: (err: any) => void;
+	private readonly _resolvePromise: (value: T) => void;
+	private readonly _rejectPromise: (err: any) => void;
 
 	public get didTimeout(): boolean {
 		return (this._state === 'timedout');
@@ -115,10 +115,8 @@ class PromiseWithTimeout<T> {
 	constructor(timeoutCancellationToken: CancellationToken) {
 		this._state = 'pending';
 		this._disposables = new DisposableStore();
-		this.promise = new Promise<T>((resolve, reject) => {
-			this._resolvePromise = resolve;
-			this._rejectPromise = reject;
-		});
+
+		({ promise: this.promise, resolve: this._resolvePromise, reject: this._rejectPromise } = promiseWithResolvers<T>());
 
 		if (timeoutCancellationToken.isCancellationRequested) {
 			this._timeout();
@@ -234,7 +232,7 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 
 	let socket: ISocket;
 	try {
-		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, getRemoteServerRootPath(options), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
+		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, RemoteAuthorities.getServerRootPath(), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
 	} catch (error) {
 		options.logService.error(`${logPrefix} socketFactory.connect() failed or timed out. Error:`);
 		options.logService.error(error);

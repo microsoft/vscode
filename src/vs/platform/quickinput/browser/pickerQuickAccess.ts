@@ -6,7 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { isFunction } from 'vs/base/common/types';
 
@@ -44,6 +44,22 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	*/
 	accept?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
 
+	/**
+	 * A method that will be executed when a button of the pick item was
+	 * clicked on.
+	 *
+	 * @param buttonIndex index of the button of the item that
+	 * was clicked.
+	 *
+	 * @param the state of modifier keys when the button was triggered.
+	 *
+	 * @returns a value that indicates what should happen after the trigger
+	 * which can be a `Promise` for long running operations.
+	 */
+	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
+}
+
+export interface IPickerQuickAccessSeparator extends IQuickPickSeparator {
 	/**
 	 * A method that will be executed when a button of the pick item was
 	 * clicked on.
@@ -320,47 +336,52 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			}
 		}));
 
-		// Trigger the pick with button index if button triggered
-		disposables.add(picker.onDidTriggerItemButton(async ({ button, item }) => {
-			if (typeof item.trigger === 'function') {
-				const buttonIndex = item.buttons?.indexOf(button) ?? -1;
-				if (buttonIndex >= 0) {
-					const result = item.trigger(buttonIndex, picker.keyMods);
-					const action = (typeof result === 'number') ? result : await result;
+		const buttonTrigger = async (button: IQuickInputButton, item: T | IPickerQuickAccessSeparator) => {
+			if (typeof item.trigger !== 'function') {
+				return;
+			}
 
-					if (token.isCancellationRequested) {
-						return;
-					}
+			const buttonIndex = item.buttons?.indexOf(button) ?? -1;
+			if (buttonIndex >= 0) {
+				const result = item.trigger(buttonIndex, picker.keyMods);
+				const action = (typeof result === 'number') ? result : await result;
 
-					switch (action) {
-						case TriggerAction.NO_ACTION:
-							break;
-						case TriggerAction.CLOSE_PICKER:
-							picker.hide();
-							break;
-						case TriggerAction.REFRESH_PICKER:
-							updatePickerItems();
-							break;
-						case TriggerAction.REMOVE_ITEM: {
-							const index = picker.items.indexOf(item);
-							if (index !== -1) {
-								const items = picker.items.slice();
-								const removed = items.splice(index, 1);
-								const activeItems = picker.activeItems.filter(activeItem => activeItem !== removed[0]);
-								const keepScrollPositionBefore = picker.keepScrollPosition;
-								picker.keepScrollPosition = true;
-								picker.items = items;
-								if (activeItems) {
-									picker.activeItems = activeItems;
-								}
-								picker.keepScrollPosition = keepScrollPositionBefore;
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				switch (action) {
+					case TriggerAction.NO_ACTION:
+						break;
+					case TriggerAction.CLOSE_PICKER:
+						picker.hide();
+						break;
+					case TriggerAction.REFRESH_PICKER:
+						updatePickerItems();
+						break;
+					case TriggerAction.REMOVE_ITEM: {
+						const index = picker.items.indexOf(item);
+						if (index !== -1) {
+							const items = picker.items.slice();
+							const removed = items.splice(index, 1);
+							const activeItems = picker.activeItems.filter(activeItem => activeItem !== removed[0]);
+							const keepScrollPositionBefore = picker.keepScrollPosition;
+							picker.keepScrollPosition = true;
+							picker.items = items;
+							if (activeItems) {
+								picker.activeItems = activeItems;
 							}
-							break;
+							picker.keepScrollPosition = keepScrollPositionBefore;
 						}
+						break;
 					}
 				}
 			}
-		}));
+		};
+
+		// Trigger the pick with button index if button triggered
+		disposables.add(picker.onDidTriggerItemButton(({ button, item }) => buttonTrigger(button, item)));
+		disposables.add(picker.onDidTriggerSeparatorButton(({ button, separator }) => buttonTrigger(button, separator)));
 
 		return disposables;
 	}

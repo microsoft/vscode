@@ -34,6 +34,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
 import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -71,6 +73,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IHoverService protected readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInlineChatSessionService private readonly inlineChatSessionService: IInlineChatSessionService,
 		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
@@ -83,6 +86,11 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => this.update()));
 		this.toDispose.push(this.inlineChatService.onDidChangeProviders(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.update()));
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.readOnly)) {
+				this.update();
+			}
+		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(emptyTextEditorHintSetting)) {
 				this.update();
@@ -152,6 +160,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 				this.editorGroupsService,
 				this.commandService,
 				this.configurationService,
+				this.hoverService,
 				this.keybindingService,
 				this.inlineChatService,
 				this.telemetryService,
@@ -174,7 +183,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 	private static readonly ID = 'editor.widget.emptyHint';
 
 	private domNode: HTMLElement | undefined;
-	private toDispose: DisposableStore;
+	private readonly toDispose: DisposableStore;
 	private isVisible = false;
 	private ariaLabel: string = '';
 
@@ -184,6 +193,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
+		private readonly hoverService: IHoverService,
 		private readonly keybindingService: IKeybindingService,
 		private readonly inlineChatService: IInlineChatService,
 		private readonly telemetryService: ITelemetryService,
@@ -219,7 +229,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 				id: 'inlineChat.hintAction',
 				from: 'hint'
 			});
-			void this.commandService.executeCommand(inlineChatId, { from: 'hint' });
+			this.commandService.executeCommand(inlineChatId, { from: 'hint' });
 		};
 
 		const hintHandler: IContentActionHandler = {
@@ -247,7 +257,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 					const hintPart = $('a', undefined, fragment);
 					hintPart.style.fontStyle = 'italic';
 					hintPart.style.cursor = 'pointer';
-					hintPart.onclick = handleClick;
+					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
 					return hintPart;
 				} else {
 					const hintPart = $('span', undefined, fragment);
@@ -258,14 +268,14 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 
 			hintElement.appendChild(before);
 
-			const label = new KeybindingLabel(hintElement, OS);
+			const label = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
 			label.set(keybindingHint);
 			label.element.style.width = 'min-content';
 			label.element.style.display = 'inline';
 
 			if (this.options.clickable) {
 				label.element.style.cursor = 'pointer';
-				label.element.onclick = handleClick;
+				this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
 			}
 
 			hintElement.appendChild(after);
@@ -377,7 +387,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			anchor.style.cursor = 'pointer';
 			const id = keybindingsLookup.shift();
 			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
-			anchor.title = title ?? '';
+			hintHandler.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
 		}
 
 		return { hintElement, ariaLabel };

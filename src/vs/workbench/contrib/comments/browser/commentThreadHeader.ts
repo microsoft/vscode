@@ -22,6 +22,7 @@ import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
@@ -122,7 +123,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 			getAnchor: () => event,
 			getActions: () => actions,
 			actionRunner: new ActionRunner(),
-			getActionsContext: () => {
+			getActionsContext: (): MarshalledCommentThread => {
 				return {
 					commentControlHandle: this._commentThread.controllerHandle,
 					commentThreadHandle: this._commentThread.commentThreadHandle,

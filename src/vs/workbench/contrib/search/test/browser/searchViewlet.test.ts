@@ -76,7 +76,7 @@ suite('Search - Viewlet', () => {
 					endColumn: 1
 				}
 			}]
-		}], '');
+		}], '', false);
 
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
@@ -89,9 +89,9 @@ suite('Search - Viewlet', () => {
 		const fileMatch1 = aFileMatch('/foo');
 		const fileMatch2 = aFileMatch('/with/path');
 		const fileMatch3 = aFileMatch('/with/path/foo');
-		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
-		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
-		const lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
+		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
+		const lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
 
 		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
 		assert(searchMatchComparer(fileMatch2, fileMatch1) > 0);
@@ -127,13 +127,13 @@ suite('Search - Viewlet', () => {
 		const fileMatch2 = aFileMatch('/with/path.c', folderMatch2);
 		const fileMatch3 = aFileMatch('/with/path/bar.b', folderMatch2);
 
-		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
-		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
+		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
 
-		const lineMatch3 = new Match(fileMatch2, ['barfoo'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
-		const lineMatch4 = new Match(fileMatch2, ['fooooo'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		const lineMatch3 = new Match(fileMatch2, ['barfoo'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
+		const lineMatch4 = new Match(fileMatch2, ['fooooo'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
 
-		const lineMatch5 = new Match(fileMatch3, ['foobar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		const lineMatch5 = new Match(fileMatch3, ['foobar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
 
 		/***
 		 * Structure would take the following form:
@@ -180,6 +180,7 @@ suite('Search - Viewlet', () => {
 		const fileMatch = instantiation.createInstance(FileMatch, {
 			pattern: ''
 		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
+		fileMatch.createMatches(false);
 		store.add(fileMatch);
 		return fileMatch;
 	}

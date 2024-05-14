@@ -116,6 +116,9 @@ import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityR
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
+import { getOSReleaseInfo } from 'vs/base/node/osReleaseInfo';
+import { getDesktopEnvironment } from 'vs/base/common/desktopEnvironmentInfo';
+import { getCodeDisplayProtocol, getDisplayProtocol } from 'vs/base/node/osDisplayProtocolInfo';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -172,6 +175,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			// Report Profiles Info
 			this.reportProfilesInfo(telemetryService, userDataProfilesService);
 			this._register(userDataProfilesService.onDidChangeProfiles(() => this.reportProfilesInfo(telemetryService, userDataProfilesService)));
+
+			// Report Client OS/DE Info
+			this.reportClientOSInfo(telemetryService, logService);
 		});
 
 		// Instantiate Contributions
@@ -458,6 +464,45 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		});
 	}
 
+	private async reportClientOSInfo(telemetryService: ITelemetryService, logService: ILogService): Promise<void> {
+		if (isLinux) {
+			const [releaseInfo, displayProtocol] = await Promise.all([
+				getOSReleaseInfo(logService.error.bind(logService)),
+				getDisplayProtocol(logService.error.bind(logService))
+			]);
+			const desktopEnvironment = getDesktopEnvironment();
+			const codeSessionType = getCodeDisplayProtocol(displayProtocol, this.configuration.args['ozone-platform']);
+			if (releaseInfo) {
+				type ClientPlatformInfoClassification = {
+					platformId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system without any version information.' };
+					platformVersionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system version excluding any name information or release code.' };
+					platformIdLike: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system the current OS derivate is closely related to.' };
+					desktopEnvironment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the desktop environment the user is using.' };
+					displayProtocol: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the users display protocol type.' };
+					codeDisplayProtocol: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the vscode display protocol type.' };
+					owner: 'benibenj';
+					comment: 'Provides insight into the distro and desktop environment information on Linux.';
+				};
+				type ClientPlatformInfoEvent = {
+					platformId: string;
+					platformVersionId: string | undefined;
+					platformIdLike: string | undefined;
+					desktopEnvironment: string | undefined;
+					displayProtocol: string | undefined;
+					codeDisplayProtocol: string | undefined;
+				};
+				telemetryService.publicLog2<ClientPlatformInfoEvent, ClientPlatformInfoClassification>('clientPlatformInfo', {
+					platformId: releaseInfo.id,
+					platformVersionId: releaseInfo.version_id,
+					platformIdLike: releaseInfo.id_like,
+					desktopEnvironment: desktopEnvironment,
+					displayProtocol: displayProtocol,
+					codeDisplayProtocol: codeSessionType
+				});
+			}
+		}
+	}
+
 	handledClientConnection(e: MessageEvent): boolean {
 
 		// This filter on message port messages will look for
@@ -485,15 +530,24 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 	// create shared process and signal back to main that we are
 	// ready to accept message ports as client connections
 
-	const sharedProcess = new SharedProcessMain(configuration);
-	process.parentPort.postMessage(SharedProcessLifecycle.ipcReady);
+	try {
+		const sharedProcess = new SharedProcessMain(configuration);
+		process.parentPort.postMessage(SharedProcessLifecycle.ipcReady);
 
-	// await initialization and signal this back to electron-main
-	await sharedProcess.init();
+		// await initialization and signal this back to electron-main
+		await sharedProcess.init();
 
-	process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+		process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+	} catch (error) {
+		process.parentPort.postMessage({ error: error.toString() });
+	}
 }
 
+const handle = setTimeout(() => {
+	process.parentPort.postMessage({ warning: '[SharedProcess] did not receive configuration within 30s...' });
+}, 30000);
+
 process.parentPort.once('message', (e: Electron.MessageEvent) => {
+	clearTimeout(handle);
 	main(e.data as ISharedProcessConfiguration);
 });

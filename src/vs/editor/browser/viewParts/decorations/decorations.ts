@@ -15,7 +15,6 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 export class DecorationsOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;
-	private _lineHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
 	private _renderResult: string[] | null;
 
@@ -23,7 +22,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this._renderResult = null;
 
@@ -40,7 +38,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		return true;
 	}
@@ -116,7 +113,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	}
 
 	private _renderWholeLineDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
-		const lineHeight = String(this._lineHeight);
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 
@@ -130,9 +126,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 			const decorationOutput = (
 				'<div class="cdr '
 				+ d.options.className
-				+ '" style="left:0;width:100%;height:'
-				+ lineHeight
-				+ 'px;"></div>'
+				+ '" style="left:0;width:100%;"></div>'
 			);
 
 			const startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
@@ -145,7 +139,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	}
 
 	private _renderNormalDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
-		const lineHeight = String(this._lineHeight);
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 
 		let prevClassName: string | null = null;
@@ -176,7 +169,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 			// flush previous decoration
 			if (prevClassName !== null) {
-				this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShouldFillLineOnLineBreak, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+				this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShouldFillLineOnLineBreak, prevShowIfCollapsed, visibleStartLineNumber, output);
 			}
 
 			prevClassName = className;
@@ -186,11 +179,11 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		}
 
 		if (prevClassName !== null) {
-			this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShouldFillLineOnLineBreak, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+			this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShouldFillLineOnLineBreak, prevShowIfCollapsed, visibleStartLineNumber, output);
 		}
 	}
 
-	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, shouldFillLineOnLineBreak: boolean, showIfCollapsed: boolean, lineHeight: string, visibleStartLineNumber: number, output: string[]): void {
+	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, shouldFillLineOnLineBreak: boolean, showIfCollapsed: boolean, visibleStartLineNumber: number, output: string[]): void {
 		const linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
 		if (!linesVisibleRanges) {
 			return;
@@ -222,12 +215,12 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 					+ className
 					+ '" style="left:'
 					+ String(visibleRange.left)
+					+ 'px;width:'
 					+ (expandToLeft ?
-						'px;width:100%;height:' :
-						('px;width:' + String(visibleRange.width) + 'px;height:')
+						'100%;' :
+						(String(visibleRange.width) + 'px;')
 					)
-					+ lineHeight
-					+ 'px;"></div>'
+					+ '"></div>'
 				);
 				output[lineIndex] += decorationOutput;
 			}

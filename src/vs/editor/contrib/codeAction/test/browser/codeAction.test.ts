@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -148,20 +149,20 @@ suite('CodeAction', () => {
 		disposables.add(registry.register('fooLang', provider));
 
 		{
-			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new CodeActionKind('a') } }, Progress.None, CancellationToken.None));
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new HierarchicalKind('a') } }, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 2);
 			assert.strictEqual(actions[0].action.title, 'a');
 			assert.strictEqual(actions[1].action.title, 'a.b');
 		}
 
 		{
-			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new CodeActionKind('a.b') } }, Progress.None, CancellationToken.None));
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new HierarchicalKind('a.b') } }, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 1);
 			assert.strictEqual(actions[0].action.title, 'a.b');
 		}
 
 		{
-			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new CodeActionKind('a.b.c') } }, Progress.None, CancellationToken.None));
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new HierarchicalKind('a.b.c') } }, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 0);
 		}
 	});
@@ -180,7 +181,7 @@ suite('CodeAction', () => {
 
 		disposables.add(registry.register('fooLang', provider));
 
-		const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new CodeActionKind('a') } }, Progress.None, CancellationToken.None));
+		const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new HierarchicalKind('a') } }, Progress.None, CancellationToken.None));
 		assert.strictEqual(actions.length, 1);
 		assert.strictEqual(actions[0].action.title, 'a');
 	});

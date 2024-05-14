@@ -27,8 +27,9 @@ export function registerHotReloadHandler(handler: HotReloadHandler): IDisposable
  *
  * If no handler can apply the new exports, the module will not be reloaded.
  */
-export type HotReloadHandler = (args: { oldExports: Record<string, unknown>; newSrc: string }) => AcceptNewExportsHandler | undefined;
+export type HotReloadHandler = (args: { oldExports: Record<string, unknown>; newSrc: string; config: IHotReloadConfig }) => AcceptNewExportsHandler | undefined;
 export type AcceptNewExportsHandler = (newExports: Record<string, unknown>) => boolean;
+export type IHotReloadConfig = HotReloadConfig;
 
 function registerGlobalHotReloadHandler() {
 	if (!hotReloadHandlers) {
@@ -37,9 +38,11 @@ function registerGlobalHotReloadHandler() {
 
 	const g = globalThis as unknown as GlobalThisAddition;
 	if (!g.$hotReload_applyNewExports) {
-		g.$hotReload_applyNewExports = oldExports => {
+		g.$hotReload_applyNewExports = args => {
+			const args2 = { config: { mode: undefined }, ...args };
+
 			for (const h of hotReloadHandlers!) {
-				const result = h(oldExports);
+				const result = h(args2);
 				if (result) { return result; }
 			}
 			return undefined;
@@ -49,22 +52,25 @@ function registerGlobalHotReloadHandler() {
 	return hotReloadHandlers;
 }
 
-let hotReloadHandlers: Set<(args: { oldExports: Record<string, unknown>; newSrc: string }) => AcceptNewExportsFn | undefined> | undefined = undefined;
+let hotReloadHandlers: Set<(args: { oldExports: Record<string, unknown>; newSrc: string; config: HotReloadConfig }) => AcceptNewExportsFn | undefined> | undefined = undefined;
 
-interface GlobalThisAddition {
-	$hotReload_applyNewExports?(args: { oldExports: Record<string, unknown>; newSrc: string }): AcceptNewExportsFn | undefined;
+interface HotReloadConfig {
+	mode?: 'patch-prototype' | undefined;
 }
 
+interface GlobalThisAddition {
+	$hotReload_applyNewExports?(args: { oldExports: Record<string, unknown>; newSrc: string; config?: HotReloadConfig }): AcceptNewExportsFn | undefined;
+}
 
 type AcceptNewExportsFn = (newExports: Record<string, unknown>) => boolean;
 
 if (isHotReloadEnabled()) {
 	// This code does not run in production.
-	registerHotReloadHandler(({ oldExports, newSrc }) => {
-		// Don't match its own source code
-		if (newSrc.indexOf('/* ' + 'hot-reload:patch-prototype-methods */') === -1) {
+	registerHotReloadHandler(({ oldExports, newSrc, config }) => {
+		if (config.mode !== 'patch-prototype') {
 			return undefined;
 		}
+
 		return newExports => {
 			for (const key in newExports) {
 				const exportedItem = newExports[key];

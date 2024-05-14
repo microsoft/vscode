@@ -45,7 +45,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.setDefaultLogLevel',
-			title: { value: nls.localize('setDefaultLogLevel', "Set Default Log Level"), original: 'Set Default Log Level' },
+			title: nls.localize2('setDefaultLogLevel', "Set Default Log Level"),
 			category: Categories.Developer,
 		});
 	}
@@ -195,11 +195,11 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerShowWindowLogAction(): void {
-		registerAction2(class ShowWindowLogAction extends Action2 {
+		this._register(registerAction2(class ShowWindowLogAction extends Action2 {
 			constructor() {
 				super({
 					id: showWindowLogActionId,
-					title: { value: nls.localize('show window log', "Show Window Log"), original: 'Show Window Log' },
+					title: nls.localize2('show window log', "Show Window Log"),
 					category: Categories.Developer,
 					f1: true
 				});
@@ -208,9 +208,8 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 				const outputService = servicesAccessor.get(IOutputService);
 				outputService.showChannel(windowLogId);
 			}
-		});
+		}));
 	}
-
 }
 
 class LogLevelMigration implements IWorkbenchContribution {

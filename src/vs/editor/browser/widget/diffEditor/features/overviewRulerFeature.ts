@@ -10,7 +10,7 @@ import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { Color } from 'vs/base/common/color';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { appendRemoveOnDispose } from 'vs/editor/browser/widget/diffEditor/utils';

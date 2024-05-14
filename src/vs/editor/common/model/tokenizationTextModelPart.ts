@@ -32,8 +32,6 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 
-/* hot-reload:patch-prototype-methods */
-
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
 
@@ -142,6 +140,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	public forceTokenization(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
 		this.grammarTokens.forceTokenization(lineNumber);
+	}
+
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		this.validateLineNumber(lineNumber);
+		return this.grammarTokens.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
@@ -568,6 +571,13 @@ class GrammarTokens extends Disposable {
 		this._tokenizer?.updateTokensUntilLine(builder, lineNumber);
 		this.setTokens(builder.finalize());
 		this._defaultBackgroundTokenizer?.checkFinished();
+	}
+
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		if (!this._tokenizer) {
+			return true;
+		}
+		return this._tokenizer.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {

@@ -12,6 +12,7 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveKeybinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 import { IMacLinuxKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
@@ -21,6 +22,8 @@ async function createKeyboardMapper(isUSStandard: boolean, file: string, mapAltG
 }
 
 suite('keyboardMapper - MAC de_ch', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let mapper: MacLinuxKeyboardMapper;
 
@@ -401,6 +404,8 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 suite('keyboardMapper - MAC en_us', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -514,6 +519,8 @@ suite('keyboardMapper - MAC en_us', () => {
 });
 
 suite('keyboardMapper - LINUX de_ch', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let mapper: MacLinuxKeyboardMapper;
 
@@ -893,6 +900,8 @@ suite('keyboardMapper - LINUX de_ch', () => {
 });
 
 suite('keyboardMapper - LINUX en_us', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let mapper: MacLinuxKeyboardMapper;
 
@@ -1532,6 +1541,8 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 suite('keyboardMapper', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #23706: Linux UK layout: Ctrl + Apostrophe also toggles terminal', () => {
 		const mapper = new MacLinuxKeyboardMapper(false, {
 			'Backquote': {
@@ -1600,7 +1611,7 @@ suite('keyboardMapper', () => {
 		assertNumpadKeyboardEvent(KeyCode.DownArrow, 'Numpad2', 'DownArrow', 'Down', 'down', '[ArrowDown]');
 		assertNumpadKeyboardEvent(KeyCode.PageDown, 'Numpad3', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
 		assertNumpadKeyboardEvent(KeyCode.LeftArrow, 'Numpad4', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');
-		assertNumpadKeyboardEvent(KeyCode.Unknown, 'Numpad5', 'NumPad5', null!, 'numpad5', '[Numpad5]');
+		assertNumpadKeyboardEvent(KeyCode.Unknown, 'Numpad5', 'NumPad5', null, 'numpad5', '[Numpad5]');
 		assertNumpadKeyboardEvent(KeyCode.RightArrow, 'Numpad6', 'RightArrow', 'Right', 'right', '[ArrowRight]');
 		assertNumpadKeyboardEvent(KeyCode.Home, 'Numpad7', 'Home', 'Home', 'home', '[Home]');
 		assertNumpadKeyboardEvent(KeyCode.UpArrow, 'Numpad8', 'UpArrow', 'Up', 'up', '[ArrowUp]');
@@ -1666,6 +1677,8 @@ suite('keyboardMapper', () => {
 
 suite('keyboardMapper - LINUX ru', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -1699,6 +1712,8 @@ suite('keyboardMapper - LINUX ru', () => {
 });
 
 suite('keyboardMapper - LINUX en_uk', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let mapper: MacLinuxKeyboardMapper;
 
@@ -1740,6 +1755,8 @@ suite('keyboardMapper - LINUX en_uk', () => {
 
 suite('keyboardMapper - MAC zh_hant', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -1773,6 +1790,8 @@ suite('keyboardMapper - MAC zh_hant', () => {
 });
 
 suite('keyboardMapper - MAC zh_hant2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let mapper: MacLinuxKeyboardMapper;
 

@@ -186,7 +186,8 @@ registerAction2(class PeekCallHierarchyAction extends EditorAction2 {
 				order: 1000,
 				when: ContextKeyExpr.and(
 					_ctxHasCallHierarchyProvider,
-					PeekContext.notInPeekEditor
+					PeekContext.notInPeekEditor,
+					EditorContextKeys.isInEmbeddedEditor.toNegated(),
 				),
 			},
 			keybinding: {

@@ -159,13 +159,13 @@ Visual Studio-like style based on original C# coloring by Jason Diamond <jason@d
 	color: #a31515;
 }
 
+.vscode-light .hljs-subst,
 .vscode-light .hljs-selector-attr,
 .vscode-light .hljs-selector-pseudo,
 .vscode-light .hljs-meta,
 .vscode-light .hljs-meta-keyword {
 	color: #2b91af;
 }
-
 .vscode-light .hljs-title,
 .vscode-light .hljs-doctag {
 	color: #808080;

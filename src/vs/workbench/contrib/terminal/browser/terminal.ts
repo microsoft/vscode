@@ -6,7 +6,7 @@
 import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
-import { Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
+import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -22,14 +22,16 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -85,15 +87,6 @@ export interface ITerminalInstanceService {
 	didRegisterBackend(remoteAuthority?: string): void;
 }
 
-export interface ITerminalConfigHelper {
-	config: ITerminalConfiguration;
-	panelContainer: HTMLElement | undefined;
-
-	configFontIsMonospace(): boolean;
-	getFont(w: Window): ITerminalFont;
-	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
-}
-
 export const enum Direction {
 	Left = 0,
 	Right = 1,
@@ -113,13 +106,17 @@ export interface IMarkTracker {
 	selectToNextMark(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	clearMarker(): void;
+	clear(): void;
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
-	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
+	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position?: ScrollPosition): void;
+	revealRange(range: IBufferRange): void;
 	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
 	showCommandGuide(command: ITerminalCommand | undefined): void;
+
+	saveScrollState(): void;
+	restoreScrollState(): void;
 }
 
 export interface ITerminalGroup {
@@ -243,7 +240,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
 	readonly detachedInstances: Iterable<IDetachedTerminalInstance>;
-	readonly configHelper: ITerminalConfigHelper;
 	readonly defaultLocation: TerminalLocation;
 
 	readonly isProcessSupportRegistered: boolean;
@@ -262,6 +258,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 
 	// Multiplexed events
+	readonly onAnyInstanceData: Event<{ instance: ITerminalInstance; data: string }>;
 	readonly onAnyInstanceDataInput: Event<ITerminalInstance>;
 	readonly onAnyInstanceIconChange: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	readonly onAnyInstanceMaximumDimensionsChange: Event<ITerminalInstance>;
@@ -336,7 +333,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * instances and removing old instances as needed.
 	 * @param getEvent Maps the instance to the event.
 	 */
-	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): Event<T>;
+	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): DynamicListEventMultiplexer<ITerminalInstance, T>;
 
 	/**
 	 * Creates a capability event listener that listens to capabilities on all instances,
@@ -346,6 +343,28 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
+
+/**
+ * A service that provides convenient access to the terminal configuration and derived values.
+ */
+export interface ITerminalConfigurationService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * A typed and partially validated representation of the terminal configuration.
+	 */
+	readonly config: Readonly<ITerminalConfiguration>;
+
+	/**
+	 * Fires when something within the terminal configuration changes.
+	 */
+	readonly onConfigChanged: Event<void>;
+
+	setPanelContainer(panelContainer: HTMLElement): void;
+	configFontIsMonospace(): boolean;
+	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
+}
+
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
 }
@@ -418,6 +437,12 @@ export interface ICreateTerminalOptions {
 	 * The terminal's location (editor or panel), it's terminal parent (split to the right), or editor group
 	 */
 	location?: ITerminalLocationOptions;
+
+	/**
+	 * This terminal will not wait for contributed profiles to resolve which means it will proceed
+	 * when the workbench is not yet loaded.
+	 */
+	skipContributedProfileCheck?: boolean;
 }
 
 export interface TerminalEditorLocation {
@@ -660,11 +685,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidFocus: Event<ITerminalInstance>;
 	onDidRequestFocus: Event<void>;
 	onDidBlur: Event<ITerminalInstance>;
-	onDidInputData: Event<ITerminalInstance>;
+	onDidInputData: Event<string>;
 	onDidChangeSelection: Event<ITerminalInstance>;
 	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
+	onDidChangeShellType: Event<TerminalShellType>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
@@ -676,6 +702,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * sequences.
 	 */
 	onData: Event<string>;
+	onWillData: Event<string>;
 
 	/**
 	 * Attach a listener to the binary data stream coming from xterm and going to pty
@@ -1212,18 +1239,4 @@ export const enum LinuxDistro {
 
 export const enum TerminalDataTransfers {
 	Terminals = 'Terminals'
-}
-
-export interface ISuggestController {
-	selectPreviousSuggestion(): void;
-	selectPreviousPageSuggestion(): void;
-	selectNextSuggestion(): void;
-	selectNextPageSuggestion(): void;
-	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
-	hideSuggestWidget(): void;
-	/**
-	 * Handle data written to the terminal outside of xterm.js which has no corresponding
-	 * `Terminal.onData` event.
-	 */
-	handleNonXtermData(data: string): void;
 }

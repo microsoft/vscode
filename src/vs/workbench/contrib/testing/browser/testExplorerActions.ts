@@ -9,7 +9,8 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -75,15 +76,15 @@ const enum ActionOrder {
 
 const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
 
-const LABEL_RUN_TESTS = { value: localize('runSelectedTests', 'Run Tests'), original: 'Run Tests' };
-const LABEL_DEBUG_TESTS = { value: localize('debugSelectedTests', 'Debug Tests'), original: 'Debug Tests' };
-const LABEL_COVERAGE_TESTS = { value: localize('coverageSelectedTests', 'Run Tests with Coverage'), original: 'Run Tests withCoverage' };
+const LABEL_RUN_TESTS = localize2('runSelectedTests', "Run Tests");
+const LABEL_DEBUG_TESTS = localize2('debugSelectedTests', "Debug Tests");
+const LABEL_COVERAGE_TESTS = localize2('coverageSelectedTests', "Run Tests with Coverage");
 
 export class HideTestAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.HideTestAction,
-			title: localize('hideTest', 'Hide Test'),
+			title: localize2('hideTest', 'Hide Test'),
 			menu: {
 				id: MenuId.TestItem,
 				group: 'builtin@2',
@@ -105,7 +106,7 @@ export class UnhideTestAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.UnhideTestAction,
-			title: localize('unhideTest', 'Unhide Test'),
+			title: localize2('unhideTest', 'Unhide Test'),
 			menu: {
 				id: MenuId.TestItem,
 				order: ActionOrder.HideTest,
@@ -129,7 +130,7 @@ export class UnhideAllTestsAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.UnhideAllTestsAction,
-			title: localize('unhideAllTests', 'Unhide All Tests'),
+			title: localize2('unhideAllTests', 'Unhide All Tests'),
 		});
 	}
 
@@ -179,7 +180,7 @@ export class DebugAction extends RunVisibleAction {
 	constructor() {
 		super(TestRunProfileBitset.Debug, {
 			id: TestCommandId.DebugAction,
-			title: localize('debug test', 'Debug Test'),
+			title: localize2('debug test', 'Debug Test'),
 			icon: icons.testingDebugIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Debug, TestingContextKeys.hasDebuggableTests.isEqualTo(true)),
 		});
@@ -190,7 +191,7 @@ export class CoverageAction extends RunVisibleAction {
 	constructor() {
 		super(TestRunProfileBitset.Coverage, {
 			id: TestCommandId.RunWithCoverageAction,
-			title: localize('run with cover test', 'Run Test with Coverage'),
+			title: localize2('run with cover test', 'Run Test with Coverage'),
 			icon: icons.testingCoverageIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Coverage, TestingContextKeys.hasCoverableTests.isEqualTo(true)),
 		});
@@ -201,7 +202,7 @@ export class RunUsingProfileAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.RunUsingProfileAction,
-			title: localize('testing.runUsing', 'Execute Using Profile...'),
+			title: localize2('testing.runUsing', 'Execute Using Profile...'),
 			icon: icons.testingDebugIcon,
 			menu: {
 				id: MenuId.TestItem,
@@ -237,7 +238,7 @@ export class RunAction extends RunVisibleAction {
 	constructor() {
 		super(TestRunProfileBitset.Run, {
 			id: TestCommandId.RunAction,
-			title: localize('run test', 'Run Test'),
+			title: localize2('run test', 'Run Test'),
 			icon: icons.testingRunIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Run, TestingContextKeys.hasRunnableTests.isEqualTo(true)),
 		});
@@ -248,7 +249,7 @@ export class SelectDefaultTestProfiles extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.SelectDefaultTestProfiles,
-			title: localize('testing.selectDefaultTestProfiles', 'Select Default Profile'),
+			title: localize2('testing.selectDefaultTestProfiles', 'Select Default Profile'),
 			icon: icons.testingUpdateProfiles,
 			category,
 		});
@@ -273,7 +274,7 @@ export class ContinuousRunTestAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ToggleContinousRunForTest,
-			title: localize('testing.toggleContinuousRunOn', 'Turn on Continuous Run'),
+			title: localize2('testing.toggleContinuousRunOn', 'Turn on Continuous Run'),
 			icon: icons.testingTurnContinuousRunOn,
 			precondition: ContextKeyExpr.or(
 				TestingContextKeys.isContinuousModeOn.isEqualTo(true),
@@ -290,7 +291,6 @@ export class ContinuousRunTestAction extends Action2 {
 
 	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		const crService = accessor.get(ITestingContinuousRunService);
-		const profileService = accessor.get(ITestProfileService);
 		for (const element of elements) {
 			const id = element.test.item.extId;
 			if (crService.isSpecificallyEnabledFor(id)) {
@@ -298,13 +298,7 @@ export class ContinuousRunTestAction extends Action2 {
 				continue;
 			}
 
-			const profiles = profileService.getGroupDefaultProfiles(TestRunProfileBitset.Run)
-				.filter(p => p.supportsContinuousRun && p.controllerId === element.test.controllerId);
-			if (!profiles.length) {
-				continue;
-			}
-
-			crService.start(profiles, id);
+			crService.start(TestRunProfileBitset.Run, id);
 		}
 	}
 }
@@ -313,7 +307,7 @@ export class ContinuousRunUsingProfileTestAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ContinousRunUsingForTest,
-			title: localize('testing.startContinuousRunUsing', 'Start Continous Run Using...'),
+			title: localize2('testing.startContinuousRunUsing', 'Start Continous Run Using...'),
 			icon: icons.testingDebugIcon,
 			menu: [
 				{
@@ -350,7 +344,7 @@ export class ConfigureTestProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ConfigureTestProfilesAction,
-			title: { value: localize('testing.configureProfile', 'Configure Test Profiles'), original: 'Configure Test Profiles' },
+			title: localize2('testing.configureProfile', "Configure Test Profiles"),
 			icon: icons.testingUpdateProfiles,
 			f1: true,
 			category,
@@ -487,7 +481,7 @@ class StartContinuousRunAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.StartContinousRun,
-			title: { value: localize('testing.startContinuous', "Start Continuous Run"), original: 'Enable Continuous Run' },
+			title: localize2('testing.startContinuous', "Start Continuous Run"),
 			category,
 			icon: icons.testingTurnContinuousRunOn,
 			menu: continuousMenus(false),
@@ -536,7 +530,7 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 
 export class GetSelectedProfiles extends Action2 {
 	constructor() {
-		super({ id: TestCommandId.GetSelectedProfiles, title: localize('getSelectedProfiles', 'Get Selected Profiles') });
+		super({ id: TestCommandId.GetSelectedProfiles, title: localize2('getSelectedProfiles', 'Get Selected Profiles') });
 	}
 
 	/**
@@ -562,7 +556,7 @@ export class GetSelectedProfiles extends Action2 {
 
 export class GetExplorerSelection extends ViewAction<TestingExplorerView> {
 	constructor() {
-		super({ id: TestCommandId.GetExplorerSelection, title: localize('getExplorerSelection', 'Get Explorer Selection'), viewId: Testing.ExplorerViewId });
+		super({ id: TestCommandId.GetExplorerSelection, title: localize2('getExplorerSelection', 'Get Explorer Selection'), viewId: Testing.ExplorerViewId });
 	}
 
 	/**
@@ -646,7 +640,7 @@ export class RunAllAction extends RunOrDebugAllTestsAction {
 		super(
 			{
 				id: TestCommandId.RunAllAction,
-				title: localize('runAllTests', 'Run All Tests'),
+				title: localize2('runAllTests', 'Run All Tests'),
 				icon: icons.testingRunAllIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -664,7 +658,7 @@ export class DebugAllAction extends RunOrDebugAllTestsAction {
 		super(
 			{
 				id: TestCommandId.DebugAllAction,
-				title: localize('debugAllTests', 'Debug All Tests'),
+				title: localize2('debugAllTests', 'Debug All Tests'),
 				icon: icons.testingDebugIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -682,7 +676,7 @@ export class CoverageAllAction extends RunOrDebugAllTestsAction {
 		super(
 			{
 				id: TestCommandId.RunAllWithCoverageAction,
-				title: localize('runAllWithCoverage', 'Run All Tests with Coverage'),
+				title: localize2('runAllWithCoverage', 'Run All Tests with Coverage'),
 				icon: icons.testingCoverageIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -988,15 +982,20 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	 * @override
 	 */
 	public async run(accessor: ServicesAccessor) {
+		const codeEditorService = accessor.get(ICodeEditorService);
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
-		const activeControl = editorService.activeTextEditorControl;
-		if (!activeEditorPane || !activeControl) {
+		let editor = codeEditorService.getActiveCodeEditor();
+		if (!activeEditorPane || !editor) {
 			return;
 		}
 
-		const position = activeControl?.getPosition();
-		const model = activeControl?.getModel();
+		if (editor instanceof EmbeddedCodeEditorWidget) {
+			editor = editor.getParentEditor();
+		}
+
+		const position = editor?.getPosition();
+		const model = editor?.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -1060,8 +1059,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				group: this.group,
 				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
-		} else if (isCodeEditor(activeControl)) {
-			MessageController.get(activeControl)?.showMessage(localize('noTestsAtCursor', "No tests found here"), position);
+		} else if (editor) {
+			MessageController.get(editor)?.showMessage(localize('noTestsAtCursor', "No tests found here"), position);
 		}
 	}
 }
@@ -1193,9 +1192,15 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 	 * @override
 	 */
 	public run(accessor: ServicesAccessor) {
-		const control = accessor.get(IEditorService).activeTextEditorControl;
-		const position = control?.getPosition();
-		const model = control?.getModel();
+		let editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+		if (!editor) {
+			return;
+		}
+		if (editor instanceof EmbeddedCodeEditorWidget) {
+			editor = editor.getParentEditor();
+		}
+		const position = editor?.getPosition();
+		const model = editor?.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -1225,8 +1230,8 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 			});
 		}
 
-		if (isCodeEditor(control)) {
-			MessageController.get(control)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
+		if (editor) {
+			MessageController.get(editor)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
 		}
 
 		return undefined;

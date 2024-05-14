@@ -28,13 +28,7 @@ export class MergeEditorCopyContentsToJSON extends Action2 {
 		super({
 			id: 'merge.dev.copyContentsJson',
 			category: MERGE_EDITOR_CATEGORY,
-			title: {
-				value: localize(
-					'merge.dev.copyState',
-					'Copy Merge Editor State as JSON'
-				),
-				original: 'Copy Merge Editor State as JSON',
-			},
+			title: localize2('merge.dev.copyState', "Copy Merge Editor State as JSON"),
 			icon: Codicon.layoutCentered,
 			f1: true,
 			precondition: ctxIsMergeEditor,
@@ -80,13 +74,7 @@ export class MergeEditorSaveContentsToFolder extends Action2 {
 		super({
 			id: 'merge.dev.saveContentsToFolder',
 			category: MERGE_EDITOR_CATEGORY,
-			title: {
-				value: localize(
-					'merge.dev.saveContentsToFolder',
-					'Save Merge Editor State to Folder'
-				),
-				original: 'Save Merge Editor State to Folder',
-			},
+			title: localize2('merge.dev.saveContentsToFolder', "Save Merge Editor State to Folder"),
 			icon: Codicon.layoutCentered,
 			f1: true,
 			precondition: ctxIsMergeEditor,
@@ -149,13 +137,7 @@ export class MergeEditorLoadContentsFromFolder extends Action2 {
 		super({
 			id: 'merge.dev.loadContentsFromFolder',
 			category: MERGE_EDITOR_CATEGORY,
-			title: {
-				value: localize(
-					'merge.dev.loadContentsFromFolder',
-					'Load Merge Editor State from Folder'
-				),
-				original: 'Load Merge Editor State from Folder',
-			},
+			title: localize2('merge.dev.loadContentsFromFolder', "Load Merge Editor State from Folder"),
 			icon: Codicon.layoutCentered,
 			f1: true
 		});

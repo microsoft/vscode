@@ -199,12 +199,12 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 8);
-		assert.strictEqual(pathRes.labelMatch![0].end, 11);
-		assert.strictEqual(pathRes.descriptionMatch!.length, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].start, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].end, 4);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 8);
+		assert.strictEqual(pathRes.labelMatch[0].end, 11);
+		assert.strictEqual(pathRes.descriptionMatch.length, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].start, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].end, 4);
 
 		// No Match
 		const noRes = scoreItem(resource, '987', true, ResourceAccessor);
@@ -232,41 +232,41 @@ suite('Fuzzy Scorer', () => {
 		const res1 = scoreItem(resource, 'xyz some', true, ResourceAccessor);
 		assert.ok(res1.score);
 		assert.strictEqual(res1.labelMatch?.length, 1);
-		assert.strictEqual(res1.labelMatch![0].start, 0);
-		assert.strictEqual(res1.labelMatch![0].end, 4);
+		assert.strictEqual(res1.labelMatch[0].start, 0);
+		assert.strictEqual(res1.labelMatch[0].end, 4);
 		assert.strictEqual(res1.descriptionMatch?.length, 1);
-		assert.strictEqual(res1.descriptionMatch![0].start, 1);
-		assert.strictEqual(res1.descriptionMatch![0].end, 4);
+		assert.strictEqual(res1.descriptionMatch[0].start, 1);
+		assert.strictEqual(res1.descriptionMatch[0].end, 4);
 
 		const res2 = scoreItem(resource, 'some xyz', true, ResourceAccessor);
 		assert.ok(res2.score);
 		assert.strictEqual(res1.score, res2.score);
 		assert.strictEqual(res2.labelMatch?.length, 1);
-		assert.strictEqual(res2.labelMatch![0].start, 0);
-		assert.strictEqual(res2.labelMatch![0].end, 4);
+		assert.strictEqual(res2.labelMatch[0].start, 0);
+		assert.strictEqual(res2.labelMatch[0].end, 4);
 		assert.strictEqual(res2.descriptionMatch?.length, 1);
-		assert.strictEqual(res2.descriptionMatch![0].start, 1);
-		assert.strictEqual(res2.descriptionMatch![0].end, 4);
+		assert.strictEqual(res2.descriptionMatch[0].start, 1);
+		assert.strictEqual(res2.descriptionMatch[0].end, 4);
 
 		const res3 = scoreItem(resource, 'some xyz file file123', true, ResourceAccessor);
 		assert.ok(res3.score);
 		assert.ok(res3.score > res2.score);
 		assert.strictEqual(res3.labelMatch?.length, 1);
-		assert.strictEqual(res3.labelMatch![0].start, 0);
-		assert.strictEqual(res3.labelMatch![0].end, 11);
+		assert.strictEqual(res3.labelMatch[0].start, 0);
+		assert.strictEqual(res3.labelMatch[0].end, 11);
 		assert.strictEqual(res3.descriptionMatch?.length, 1);
-		assert.strictEqual(res3.descriptionMatch![0].start, 1);
-		assert.strictEqual(res3.descriptionMatch![0].end, 4);
+		assert.strictEqual(res3.descriptionMatch[0].start, 1);
+		assert.strictEqual(res3.descriptionMatch[0].end, 4);
 
 		const res4 = scoreItem(resource, 'path z y', true, ResourceAccessor);
 		assert.ok(res4.score);
 		assert.ok(res4.score < res2.score);
 		assert.strictEqual(res4.labelMatch?.length, 0);
 		assert.strictEqual(res4.descriptionMatch?.length, 2);
-		assert.strictEqual(res4.descriptionMatch![0].start, 2);
-		assert.strictEqual(res4.descriptionMatch![0].end, 4);
-		assert.strictEqual(res4.descriptionMatch![1].start, 10);
-		assert.strictEqual(res4.descriptionMatch![1].end, 14);
+		assert.strictEqual(res4.descriptionMatch[0].start, 2);
+		assert.strictEqual(res4.descriptionMatch[0].end, 4);
+		assert.strictEqual(res4.descriptionMatch[1].start, 10);
+		assert.strictEqual(res4.descriptionMatch[1].end, 14);
 	});
 
 	test('scoreItem - multiple with cache yields different results', function () {
@@ -299,12 +299,12 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 0);
-		assert.strictEqual(pathRes.labelMatch![0].end, 7);
-		assert.strictEqual(pathRes.descriptionMatch!.length, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].start, 23);
-		assert.strictEqual(pathRes.descriptionMatch![0].end, 26);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 0);
+		assert.strictEqual(pathRes.labelMatch[0].end, 7);
+		assert.strictEqual(pathRes.descriptionMatch.length, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].start, 23);
+		assert.strictEqual(pathRes.descriptionMatch[0].end, 26);
 	});
 
 	test('scoreItem - avoid match scattering (bug #36119)', function () {
@@ -314,9 +314,9 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 0);
-		assert.strictEqual(pathRes.labelMatch![0].end, 9);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 0);
+		assert.strictEqual(pathRes.labelMatch[0].end, 9);
 	});
 
 	test('scoreItem - prefers more compact matches', function () {
@@ -328,11 +328,11 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(res.score);
 		assert.ok(res.descriptionMatch);
 		assert.ok(!res.labelMatch!.length);
-		assert.strictEqual(res.descriptionMatch!.length, 2);
-		assert.strictEqual(res.descriptionMatch![0].start, 11);
-		assert.strictEqual(res.descriptionMatch![0].end, 12);
-		assert.strictEqual(res.descriptionMatch![1].start, 13);
-		assert.strictEqual(res.descriptionMatch![1].end, 14);
+		assert.strictEqual(res.descriptionMatch.length, 2);
+		assert.strictEqual(res.descriptionMatch[0].start, 11);
+		assert.strictEqual(res.descriptionMatch[0].end, 12);
+		assert.strictEqual(res.descriptionMatch[1].start, 13);
+		assert.strictEqual(res.descriptionMatch[1].end, 14);
 	});
 
 	test('scoreItem - proper target offset', function () {
@@ -1121,7 +1121,7 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(query.values?.[1].normalized, 'World');
 		assert.strictEqual(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
 
-		const restoredQuery = pieceToQuery(query.values!);
+		const restoredQuery = pieceToQuery(query.values);
 		assert.strictEqual(restoredQuery.original, query.original);
 		assert.strictEqual(restoredQuery.values?.length, query.values?.length);
 		assert.strictEqual(restoredQuery.containsPathSeparator, query.containsPathSeparator);

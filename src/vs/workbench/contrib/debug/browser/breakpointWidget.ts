@@ -16,7 +16,7 @@ import 'vs/css!./media/breakpointWidget';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, ServicesAccessor, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -85,10 +85,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private selectBreakpointContainer!: HTMLElement;
 	private input!: IActiveCodeEditor;
 	private selectBreakpointBox!: SelectBox;
+	private selectModeBox?: SelectBox;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';
+	private modeInput?: DebugProtocol.BreakpointMode;
 	private breakpoint: IBreakpoint | undefined;
 	private context: Context;
 	private heightInPx: number | undefined;
@@ -216,6 +218,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.updateContextInput();
 		});
 
+		this.createModesInput(container);
+
 		this.inputContainer = $('.inputContainer');
 		this.createBreakpointInput(dom.append(container, this.inputContainer));
 
@@ -232,32 +236,57 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		setTimeout(() => this.focusInput(), 150);
 	}
 
-	private createTriggerBreakpointInput(container: HTMLElement) {
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint);
-
-		const index = breakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
-		let select = 0;
-		if (index > -1) {
-			select = index + 1;
+	private createModesInput(container: HTMLElement) {
+		const modes = this.debugService.getModel().getBreakpointModes('source');
+		if (modes.length <= 1) {
+			return;
 		}
 
-		Promise.all(breakpoints.map(async (bp): Promise<ISelectOptionItem> => ({
-			text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
-			description: await this.textModelService.createModelReference(bp.uri).then(ref => {
+		const sb = this.selectModeBox = new SelectBox(
+			[
+				{ text: nls.localize('bpMode', 'Mode'), isDisabled: true },
+				...modes.map(mode => ({ text: mode.label, description: mode.description })),
+			],
+			modes.findIndex(m => m.mode === this.breakpoint?.mode) + 1,
+			this.contextViewService,
+			defaultSelectBoxStyles,
+		);
+		this.toDispose.push(sb);
+		this.toDispose.push(sb.onDidSelect(e => {
+			this.modeInput = modes[e.index - 1];
+		}));
+
+		const modeWrapper = $('.select-mode-container');
+		const selectionWrapper = $('.select-box-container');
+		dom.append(modeWrapper, selectionWrapper);
+		sb.render(selectionWrapper);
+		dom.append(container, modeWrapper);
+	}
+
+	private createTriggerBreakpointInput(container: HTMLElement) {
+		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint);
+		const breakpointOptions: ISelectOptionItem[] = [
+			{ text: nls.localize('noTriggerByBreakpoint', 'None'), isDisabled: true },
+			...breakpoints.map(bp => ({
+				text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
+				description: nls.localize('triggerByLoading', 'Loading...')
+			})),
+		];
+
+		const index = breakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
+		for (const [i, bp] of breakpoints.entries()) {
+			this.textModelService.createModelReference(bp.uri).then(ref => {
 				try {
-					return ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
+					breakpointOptions[i + 1].description = ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
 				} finally {
 					ref.dispose();
 				}
-			}, () => undefined),
-		}))).then(breakpoints => {
-			selectBreakpointBox.setOptions([
-				{ text: nls.localize('noTriggerByBreakpoint', 'None') },
-				...breakpoints
-			], select);
-		});
+			}).catch(() => {
+				breakpointOptions[i + 1].description = nls.localize('noBpSource', 'Could not load source.');
+			});
+		}
 
-		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox([{ text: nls.localize('triggerByLoading', 'Loading...'), isDisabled: true }], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
 		selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
@@ -404,10 +433,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (success) {
 			// if there is already a breakpoint on this location - remove it.
 
-			let condition = this.breakpoint && this.breakpoint.condition;
-			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
-			let logMessage = this.breakpoint && this.breakpoint.logMessage;
-			let triggeredBy = this.breakpoint && this.breakpoint.triggeredBy;
+			let condition = this.breakpoint?.condition;
+			let hitCondition = this.breakpoint?.hitCondition;
+			let logMessage = this.breakpoint?.logMessage;
+			let triggeredBy = this.breakpoint?.triggeredBy;
+			let mode = this.breakpoint?.mode;
+			let modeLabel = this.breakpoint?.modeLabel;
 
 			this.rememberInput();
 
@@ -419,6 +450,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			}
 			if (this.logMessageInput || this.context === Context.LOG_MESSAGE) {
 				logMessage = this.logMessageInput;
+			}
+			if (this.selectModeBox) {
+				mode = this.modeInput?.mode;
+				modeLabel = this.modeInput?.label;
 			}
 			if (this.context === Context.TRIGGER_POINT) {
 				// currently, trigger points don't support additional conditions:
@@ -434,7 +469,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					condition,
 					hitCondition,
 					logMessage,
-					triggeredBy
+					triggeredBy,
+					mode,
+					modeLabel,
 				});
 				this.debugService.updateBreakpoints(this.breakpoint.originalUri, data, false).then(undefined, onUnexpectedError);
 			} else {
@@ -447,7 +484,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 						condition,
 						hitCondition,
 						logMessage,
-						triggeredBy
+						triggeredBy,
+						mode,
+						modeLabel,
 					}]);
 				}
 			}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { promiseWithResolvers } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -76,8 +77,7 @@ suite('ParameterHintsModel', () => {
 	}
 
 	test('Provider should get trigger character on type', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = '(';
 
@@ -103,8 +103,7 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Provider should be retriggered if already active', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = '(';
 
@@ -151,8 +150,7 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Provider should not be retriggered if previous help is canceled first', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = '(';
 
@@ -199,8 +197,7 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Provider should get last trigger character when triggered multiple times and only be invoked once', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');
 		disposables.add(new ParameterHintsModel(editor, registry, 5));
@@ -242,8 +239,7 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Provider should be retriggered if already active', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');
 		disposables.add(new ParameterHintsModel(editor, registry, 5));
@@ -351,8 +347,7 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Provider should be retriggered by retrigger character', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = 'a';
 		const retriggerChar = 'b';
@@ -521,8 +516,7 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Retrigger while a pending resolve is still going on should preserve last active signature #96702', async () => {
-		let done: (r?: any) => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');
 		const model = disposables.add(new ParameterHintsModel(editor, registry, 50));

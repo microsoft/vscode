@@ -12,12 +12,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { Dimension } from 'vs/base/browser/dom';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * A text editor using the code editor widget.
@@ -98,8 +97,8 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 		return this.editorControl?.hasTextFocus() || super.hasFocus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
 
 		if (visible) {
 			this.editorControl?.onVisible();

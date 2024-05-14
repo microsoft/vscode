@@ -35,7 +35,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
 	unicodeVersion: '11',
-	wordSeparators: ' ()[]{}\',"`─‘’'
+	wordSeparators: ' ()[]{}\',"`─‘’“”'
 };
 
 class TestLinkManager extends TerminalLinkManager {
@@ -97,6 +97,14 @@ suite('TerminalLinkManager', () => {
 				return undefined;
 			}
 		} as Partial<ITerminalCapabilityStore> as any, instantiationService.createInstance(TerminalLinkResolver)));
+	});
+
+	suite('registerExternalLinkProvider', () => {
+		test('should not leak disposables if the link manager is already disposed', () => {
+			linkManager.externalProvideLinksCb = async () => undefined;
+			linkManager.dispose();
+			linkManager.externalProvideLinksCb = async () => undefined;
+		});
 	});
 
 	suite('getLinks and open recent link', () => {

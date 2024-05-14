@@ -16,6 +16,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./findInput';
 import * as nls from 'vs/nls';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 
 export interface IReplaceInputOptions {
@@ -44,9 +45,10 @@ class PreserveCaseToggle extends Toggle {
 			icon: Codicon.preserveCase,
 			title: NLS_PRESERVE_CASE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
-			inputActiveOptionBackground: opts.inputActiveOptionBackground
+			inputActiveOptionBackground: opts.inputActiveOptionBackground,
 		});
 	}
 }
