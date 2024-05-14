@@ -37,7 +37,6 @@ import { MessageController } from 'vs/editor/contrib/message/browser/messageCont
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 export const MIN_EDITOR_HEIGHT = 5 * 18;
@@ -63,7 +62,6 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILanguageService languageService: ILanguageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
@@ -89,7 +87,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			contextMenuId: MenuId.SimpleEditorContext
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, scopedContextKeyService, themeService, notificationService, accessibilityService, languageService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, scopedContextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(scopedContextKeyService);
 		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(scopedContextKeyService);

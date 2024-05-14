@@ -12,8 +12,6 @@ import { IVirtualModel } from 'vs/editor/common/languages/autoIndent';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
 
 interface ProcessedLineData {
 	processedLine: string;
@@ -33,11 +31,10 @@ export class ProcessedIndentRulesSupport {
 	constructor(
 		model: IVirtualModel,
 		indentRulesSupport: IndentRulesSupport,
-		languageService: ILanguageService,
 		languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._indentRulesSupport = indentRulesSupport;
-		this._indentationLineProcessor = new IndentationLineProcessor(model, languageService.languageIdCodec, languageConfigurationService);
+		this._indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
 	}
 
 	/**
@@ -84,17 +81,14 @@ export class ProcessedIndentRulesSupport {
 export class IndentationContextProcessor {
 
 	private readonly model: ITextModel;
-	private readonly languageIdCodec: ILanguageIdCodec;
 	private readonly indentationLineProcessor: IndentationLineProcessor;
 
 	constructor(
 		model: ITextModel,
-		languageService: ILanguageService,
 		languageConfigurationService: ILanguageConfigurationService
 	) {
 		this.model = model;
-		this.languageIdCodec = languageService.languageIdCodec;
-		this.indentationLineProcessor = new IndentationLineProcessor(model, this.languageIdCodec, languageConfigurationService);
+		this.indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
 	}
 
 	/**
@@ -162,19 +156,20 @@ export class IndentationContextProcessor {
 		}
 
 		// Main code
+		const nullProcessedData: ProcessedLineData = { processedLine: '', processedLineTokens: LineTokens.createEmpty('', scopedLineTokens.languageIdCodec) };
 		const previousLineNumber = range.startLineNumber - 1;
 		const isFirstLine = previousLineNumber === 0;
 		if (isFirstLine) {
-			return { processedLine: '', processedLineTokens: LineTokens.createEmpty('', this.languageIdCodec) };
+			return nullProcessedData;
 		}
 		const canScopeExtendOnPreviousLine = scopedLineTokens.doesScopeStartAtOffsetZero();
 		if (!canScopeExtendOnPreviousLine) {
-			return { processedLine: '', processedLineTokens: LineTokens.createEmpty('', this.languageIdCodec) };
+			return nullProcessedData;
 		}
 		const scopedLineTokensAtEndColumnOfPreviousLine = getScopedLineTokensAtEndColumnOfLine(previousLineNumber);
 		const doesLanguageContinueOnPreviousLine = scopedLineTokens.languageId === scopedLineTokensAtEndColumnOfPreviousLine.languageId;
 		if (!doesLanguageContinueOnPreviousLine) {
-			return { processedLine: '', processedLineTokens: LineTokens.createEmpty('', this.languageIdCodec) };
+			return nullProcessedData;
 		}
 		const previousSlicedLineTokens = getSlicedLineTokensForScopeAtLine(scopedLineTokensAtEndColumnOfPreviousLine, previousLineNumber);
 		const processedPreviousScopedLineData = this.indentationLineProcessor.getProcessedLineAndTokens(previousSlicedLineTokens);
@@ -190,7 +185,6 @@ class IndentationLineProcessor {
 
 	constructor(
 		private readonly model: IVirtualModel,
-		private readonly languageIdCodec: ILanguageIdCodec,
 		private readonly languageConfigurationService: ILanguageConfigurationService
 	) { }
 
@@ -279,7 +273,7 @@ class IndentationLineProcessor {
 			}
 		});
 		const processedTokens = new Uint32Array(processedTokensArray);
-		const processedLineTokens = new LineTokens(processedTokens, processedLine, this.languageIdCodec);
+		const processedLineTokens = new LineTokens(processedTokens, processedLine, tokens.languageIdCodec);
 		return { processedLine, processedLineTokens };
 	}
 }

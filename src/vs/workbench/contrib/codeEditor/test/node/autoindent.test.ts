@@ -146,7 +146,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 						if (trimmedLineContent.length === 0) {
 							continue;
 						}
-						const editOperation = getReindentEditOperations(model, languageService, languageConfigurationService, line, line + 1);
+						const editOperation = getReindentEditOperations(model, languageConfigurationService, line, line + 1);
 						/*
 						NOTE: Uncomment in order to see actual incorrect indentation diff
 						model.applyEdits(editOperation);
@@ -221,7 +221,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		model.tokenization.forceTokenization(1);
 		model.tokenization.forceTokenization(2);
-		const editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
@@ -249,7 +249,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'    ){}',
 		].join('\n');
 		let model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		let editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		let editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		let operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
@@ -266,7 +266,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'){}',
 		].join('\n');
 		model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
@@ -293,7 +293,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			`}`
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		const editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
@@ -341,7 +341,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		model.tokenization.forceTokenization(1);
 		model.tokenization.forceTokenization(2);
-		const editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
@@ -370,7 +370,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'};',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		const editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
 
@@ -389,7 +389,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			`}`,
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		const editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
 
@@ -407,7 +407,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'}',
 		].join('\n');
 		let model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		let editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		let editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 
 		fileContents = [
@@ -416,7 +416,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'}',
 		].join('\n');
 		model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
 
@@ -433,7 +433,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'	n + 1;',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		const editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
 
@@ -448,7 +448,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			' */',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		const editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
 
@@ -464,7 +464,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'}',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
-		const editOperations = getReindentEditOperations(model, languageService, languageConfigurationService, 1, model.getLineCount());
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
 });

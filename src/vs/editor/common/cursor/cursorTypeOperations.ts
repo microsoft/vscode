@@ -40,7 +40,7 @@ export class TypeOperations {
 				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops,
 				autoIndent: config.autoIndent
-			}, config.languageService, config.languageConfigurationService);
+			}, config.languageConfigurationService);
 		}
 		return commands;
 	}
@@ -55,7 +55,7 @@ export class TypeOperations {
 				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops,
 				autoIndent: config.autoIndent
-			}, config.languageService, config.languageConfigurationService);
+			}, config.languageConfigurationService);
 		}
 		return commands;
 	}
@@ -155,7 +155,7 @@ export class TypeOperations {
 		let action: IndentAction | EnterAction | null = null;
 		let indentation: string = '';
 
-		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, lineNumber, false, config.languageService, config.languageConfigurationService);
+		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, lineNumber, false, config.languageConfigurationService);
 		if (expectedIndentAction) {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
@@ -175,7 +175,7 @@ export class TypeOperations {
 			}
 
 			const maxColumn = model.getLineMaxColumn(lastLineNumber);
-			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageService, config.languageConfigurationService);
+			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageConfigurationService);
 			if (expectedEnterAction) {
 				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
 			}
@@ -255,7 +255,7 @@ export class TypeOperations {
 					insertSpaces: config.insertSpaces,
 					useTabStops: config.useTabStops,
 					autoIndent: config.autoIndent
-				}, config.languageService, config.languageConfigurationService);
+				}, config.languageConfigurationService);
 			}
 		}
 		return commands;
@@ -306,7 +306,7 @@ export class TypeOperations {
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
 
-		const r = getEnterAction(config.autoIndent, model, range, config.languageService, config.languageConfigurationService);
+		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special
@@ -348,7 +348,7 @@ export class TypeOperations {
 				normalizeIndentation: (indent) => {
 					return config.normalizeIndentation(indent);
 				}
-			}, config.languageService, config.languageConfigurationService);
+			}, config.languageConfigurationService);
 
 			if (ir) {
 				let oldEndViewColumn = config.visibleColumnFromColumn(model, range.getEndPosition());
@@ -402,7 +402,7 @@ export class TypeOperations {
 			unshiftIndent: (indentation) => {
 				return TypeOperations.unshiftIndent(config, indentation);
 			},
-		}, config.languageService, config.languageConfigurationService);
+		}, config.languageConfigurationService);
 
 		if (actualIndentation === null) {
 			return null;

@@ -8,12 +8,11 @@ import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
 import { ITextModel } from 'vs/editor/common/model';
 
-export function getReindentEditOperations(model: ITextModel, languageService: ILanguageService, languageConfigurationService: ILanguageConfigurationService, startLineNumber: number, endLineNumber: number): ISingleEditOperation[] {
+export function getReindentEditOperations(model: ITextModel, languageConfigurationService: ILanguageConfigurationService, startLineNumber: number, endLineNumber: number): ISingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
 		return [];
@@ -24,7 +23,7 @@ export function getReindentEditOperations(model: ITextModel, languageService: IL
 		return [];
 	}
 
-	const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, indentationRulesSupport, languageService, languageConfigurationService);
+	const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, indentationRulesSupport, languageConfigurationService);
 	endLineNumber = Math.min(endLineNumber, model.getLineCount());
 
 	// Skip `unIndentedLinePattern` lines

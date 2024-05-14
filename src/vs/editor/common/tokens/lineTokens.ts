@@ -7,6 +7,7 @@ import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IViewLineTokens {
+	languageIdCodec: ILanguageIdCodec;
 	equals(other: IViewLineTokens): boolean;
 	getCount(): number;
 	getStandardTokenType(tokenIndex: number): StandardTokenType;
@@ -29,7 +30,8 @@ export class LineTokens implements IViewLineTokens {
 	private readonly _tokens: Uint32Array;
 	private readonly _tokensCount: number;
 	private readonly _text: string;
-	private readonly _languageIdCodec: ILanguageIdCodec;
+
+	public readonly languageIdCodec: ILanguageIdCodec;
 
 	public static defaultTokenMetadata = (
 		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
@@ -51,7 +53,7 @@ export class LineTokens implements IViewLineTokens {
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
-		this._languageIdCodec = decoder;
+		this.languageIdCodec = decoder;
 	}
 
 	public equals(other: IViewLineTokens): boolean {
@@ -101,7 +103,7 @@ export class LineTokens implements IViewLineTokens {
 	public getLanguageId(tokenIndex: number): string {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
 		const languageId = TokenMetadata.getLanguageId(metadata);
-		return this._languageIdCodec.decodeLanguageId(languageId);
+		return this.languageIdCodec.decodeLanguageId(languageId);
 	}
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
@@ -228,7 +230,7 @@ export class LineTokens implements IViewLineTokens {
 			}
 		}
 
-		return new LineTokens(new Uint32Array(newTokens), text, this._languageIdCodec);
+		return new LineTokens(new Uint32Array(newTokens), text, this.languageIdCodec);
 	}
 
 	public getTokenText(tokenIndex: number): string {
@@ -256,12 +258,15 @@ class SliceLineTokens implements IViewLineTokens {
 	private readonly _firstTokenIndex: number;
 	private readonly _tokensCount: number;
 
+	public languageIdCodec: ILanguageIdCodec;
+
 	constructor(source: LineTokens, startOffset: number, endOffset: number, deltaOffset: number) {
 		this._source = source;
 		this._startOffset = startOffset;
 		this._endOffset = endOffset;
 		this._deltaOffset = deltaOffset;
 		this._firstTokenIndex = source.findTokenIndexAtOffset(startOffset);
+		this.languageIdCodec = source.languageIdCodec;
 
 		this._tokensCount = 0;
 		for (let i = this._firstTokenIndex, len = source.getCount(); i < len; i++) {

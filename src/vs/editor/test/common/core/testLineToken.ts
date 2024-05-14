@@ -5,6 +5,7 @@
 
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ColorId, TokenMetadata, ITokenPresentation, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 
 /**
  * A token on a line.
@@ -70,6 +71,10 @@ export class TestLineTokens implements IViewLineTokens {
 
 	constructor(actual: TestLineToken[]) {
 		this._actual = actual;
+	}
+
+	public get languageIdCodec(): ILanguageIdCodec {
+		throw new Error('Not implemented');
 	}
 
 	public equals(other: IViewLineTokens): boolean {

@@ -5,6 +5,7 @@
 
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
 	const tokenCount = context.getCount();
@@ -34,6 +35,7 @@ export function createScopedLineTokens(context: LineTokens, offset: number): Sco
 export class ScopedLineTokens {
 	_scopedLineTokensBrand: void = undefined;
 
+	public readonly languageIdCodec: ILanguageIdCodec;
 	public readonly languageId: string;
 	private readonly _actual: LineTokens;
 	private readonly _firstTokenIndex: number;
@@ -55,6 +57,7 @@ export class ScopedLineTokens {
 		this._lastTokenIndex = lastTokenIndex;
 		this.firstCharOffset = firstCharOffset;
 		this._lastCharOffset = lastCharOffset;
+		this.languageIdCodec = actual.languageIdCodec;
 	}
 
 	public getLineContent(): string {

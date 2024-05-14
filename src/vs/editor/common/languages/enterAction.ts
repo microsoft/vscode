@@ -9,13 +9,11 @@ import { IndentAction, CompleteEnterAction } from 'vs/editor/common/languages/la
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { getIndentationAtPosition, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IndentationContextProcessor } from 'vs/editor/common/languages/supports/indentationLineProcessor';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export function getEnterAction(
 	autoIndent: EditorAutoIndentStrategy,
 	model: ITextModel,
 	range: Range,
-	languageService: ILanguageService,
 	languageConfigurationService: ILanguageConfigurationService
 ): CompleteEnterAction | null {
 	model.tokenization.forceTokenization(range.startLineNumber);
@@ -24,7 +22,7 @@ export function getEnterAction(
 	if (!richEditSupport) {
 		return null;
 	}
-	const indentationContextProcessor = new IndentationContextProcessor(model, languageService, languageConfigurationService);
+	const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
 	const processedContext = indentationContextProcessor.getProcessedContextAroundRange(range);
 	const previousLineText = processedContext.previousLineProcessedData.processedLine;
 	const beforeRangeText = processedContext.beforeRangeProcessedData.processedLine;

@@ -17,7 +17,6 @@ import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export interface IColumnSelectData {
 	isReal: boolean;
@@ -107,7 +106,6 @@ export class CursorConfiguration {
 		languageId: string,
 		modelOptions: TextModelResolvedOptions,
 		configuration: IEditorConfiguration,
-		public readonly languageService: ILanguageService,
 		public readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._languageId = languageId;

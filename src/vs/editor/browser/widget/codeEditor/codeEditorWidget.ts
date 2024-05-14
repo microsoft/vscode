@@ -60,7 +60,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -253,7 +252,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILanguageService private readonly languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
@@ -1647,7 +1645,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
-			this.languageService,
 			this.languageConfigurationService,
 			this._themeService,
 			attachedView,
