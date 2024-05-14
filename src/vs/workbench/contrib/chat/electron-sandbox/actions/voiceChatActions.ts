@@ -116,7 +116,7 @@ class VoiceChatSessionControllerFactory {
 			case 'view': {
 				const chatWidget = await VoiceChatSessionControllerFactory.revealChatView(chatService, viewsService);
 				if (chatWidget) {
-					return VoiceChatSessionControllerFactory.doCreateForChatView(chatWidget);
+					return VoiceChatSessionControllerFactory.doCreateForChatWidget('view', chatWidget);
 				}
 				break;
 			}
@@ -131,13 +131,8 @@ class VoiceChatSessionControllerFactory {
 				break;
 			}
 			case 'quick': {
-				quickChatService.open();
-
-				const quickChat = chatWidgetService.lastFocusedWidget;
-				if (quickChat) {
-					return VoiceChatSessionControllerFactory.doCreateForQuickChat(quickChat, quickChatService);
-				}
-				break;
+				quickChatService.open(); // this will populate focused chat widget in the chat widget service
+				return VoiceChatSessionControllerFactory.create(accessor, 'focused');
 			}
 		}
 
@@ -167,33 +162,28 @@ class VoiceChatSessionControllerFactory {
 		const chatWidget = chatWidgetService.lastFocusedWidget;
 		if (chatWidget?.hasInputFocus()) {
 
-			// Unfortunately there does not seem to be a better way
-			// to figure out if the chat widget is in a part or picker
+			// Figure out the context of the chat widget by asking
+			// layout service for the part that has focus. Unfortunately
+			// there is no better way because the widget does not know
+			// its location.
 
-			if (
+			let context: VoiceChatSessionContext;
+			if (layoutService.hasFocus(Parts.EDITOR_PART)) {
+				context = chatWidget.location === ChatAgentLocation.Panel ? 'editor' : 'inline';
+			} else if (
 				layoutService.hasFocus(Parts.SIDEBAR_PART) ||
 				layoutService.hasFocus(Parts.PANEL_PART) ||
 				layoutService.hasFocus(Parts.AUXILIARYBAR_PART)
 			) {
-				return VoiceChatSessionControllerFactory.doCreateForChatView(chatWidget);
+				context = 'view';
+			} else {
+				context = 'quick';
 			}
 
-			if (layoutService.hasFocus(Parts.EDITOR_PART)) {
-				return VoiceChatSessionControllerFactory.doCreateForChatEditor(chatWidget);
-			}
-
-			return VoiceChatSessionControllerFactory.doCreateForQuickChat(chatWidget, quickChatService);
+			return VoiceChatSessionControllerFactory.doCreateForChatWidget(context, chatWidget);
 		}
 
 		return undefined;
-	}
-
-	private static doCreateForChatView(chatWidget: IChatWidget): IVoiceChatSessionController {
-		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('view', chatWidget);
-	}
-
-	private static doCreateForChatEditor(chatWidget: IChatWidget): IVoiceChatSessionController {
-		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('editor', chatWidget);
 	}
 
 	private static createContextKeyController(contextKeyService: IContextKeyService, context: VoiceChatSessionContext): (state: VoiceChatSessionState) => void {
@@ -218,7 +208,7 @@ class VoiceChatSessionControllerFactory {
 		};
 	}
 
-	private static doCreateForChatViewOrEditor(context: 'view' | 'editor', chatWidget: IChatWidget): IVoiceChatSessionController {
+	private static doCreateForChatWidget(context: VoiceChatSessionContext, chatWidget: IChatWidget): IVoiceChatSessionController {
 		return {
 			context,
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
@@ -230,22 +220,6 @@ class VoiceChatSessionControllerFactory {
 			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
 			clearInputPlaceholder: () => chatWidget.resetInputPlaceholder(),
 			updateState: VoiceChatSessionControllerFactory.createContextKeyController(chatWidget.scopedContextKeyService, context)
-		};
-	}
-
-	private static doCreateForQuickChat(quickChat: IChatWidget, quickChatService: IQuickChatService): IVoiceChatSessionController {
-		const context = 'quick';
-		return {
-			context,
-			onDidAcceptInput: quickChat.onDidAcceptInput,
-			onDidHideInput: quickChatService.onDidClose,
-			focusInput: () => quickChat.focusInput(),
-			acceptInput: () => quickChat.acceptInput(),
-			updateInput: text => quickChat.setInput(text),
-			getInput: () => quickChat.getInput(),
-			setInputPlaceholder: text => quickChat.setInputPlaceholder(text),
-			clearInputPlaceholder: () => quickChat.resetInputPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(quickChat.scopedContextKeyService, context)
 		};
 	}
 
