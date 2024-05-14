@@ -11,13 +11,16 @@ import { Action } from 'vs/base/common/actions';
 import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { assert, assertNever } from 'vs/base/common/assert';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { isUriComponents, URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -26,7 +29,9 @@ import { IModelDecorationOptions, InjectedTextCursorStops, InjectedTextOptions, 
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -35,7 +40,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import * as coverUtils from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
-import { testingCoverageIcon, testingCoverageMissingBranch, testingFilterIcon, testingRerunIcon } from 'vs/workbench/contrib/testing/browser/icons';
+import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { ManagedTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
@@ -538,7 +543,6 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 	private readonly _domNode = dom.h('div.coverage-summary-widget', [
 		dom.h('div', [
 			dom.h('span.bars@bars'),
-			dom.h('span.stat@stat'),
 			dom.h('span.toolbar@toolbar'),
 		]),
 	]);
@@ -548,11 +552,10 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@ITestCoverageService private readonly testCoverageService: ITestCoverageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestService private readonly testService: ITestService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super();
@@ -611,70 +614,11 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		this.bars.setCoverageInfo(coverage);
 
 		if (!coverage) {
-			return this.hide();
+			this.hide();
+		} else {
+			this.setActions();
+			this.show();
 		}
-
-		const displayStat = coverUtils.calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
-		this._domNode.stat.innerText = localize('testing.percentCoverage', '{0} Coverage', coverUtils.displayPercent(displayStat));
-		this.setActions();
-		this.show();
-	}
-
-	private filterTest() {
-		const options = this.current?.perTestData ?? this.current?.isForTest?.parent.perTestData;
-		if (!options) {
-			return;
-		}
-
-		const tests = [...options.values()];
-		const commonPrefix = TestId.getLengthOfCommonPrefix(tests.length, i => tests[i].isForTest!.id);
-		const result = this.current!.fromResult;
-		const previousSelection = this.testCoverageService.filterToTest.get();
-
-		type TItem = { label: string; description?: string; item: FileCoverage | undefined };
-
-		const items: QuickPickInput<TItem>[] = [
-			{ label: coverUtils.labels.allTests, item: undefined },
-			{ type: 'separator' },
-			...tests.map(item => ({ label: coverUtils.getLabelForItem(result, item.isForTest!.id, commonPrefix), description: coverUtils.labels.percentCoverage(item.tpc), item })),
-		];
-
-		// These handle the behavior that reveals the start of coverage when the
-		// user picks from the quickpick. Scroll position is restored if the user
-		// exits without picking an item, or picks "all tets".
-		const scrollTop = this.editor.getScrollTop();
-		const revealScrollCts = new MutableDisposable<CancellationTokenSource>();
-
-		this.quickInputService.pick(items, {
-			activeItem: items.find((item): item is TItem => 'item' in item && item.item === this.current),
-			placeHolder: coverUtils.labels.pickShowCoverage,
-			onDidFocus: (entry) => {
-				if (!entry.item) {
-					revealScrollCts.clear();
-					this.editor.setScrollTop(scrollTop);
-					this.testCoverageService.filterToTest.set(undefined, undefined);
-				} else {
-					const cts = revealScrollCts.value = new CancellationTokenSource();
-					entry.item.details(cts.token).then(
-						details => {
-							const first = details.find(d => d.type === DetailType.Statement);
-							if (!cts.token.isCancellationRequested && first) {
-								this.editor.revealLineNearTop(first.location instanceof Position ? first.location.lineNumber : first.location.startLineNumber);
-							}
-						},
-						() => { /* ignored */ }
-					);
-					this.testCoverageService.filterToTest.set(entry.item.isForTest!.id, undefined);
-				}
-			},
-		}).then(selected => {
-			if (!selected) {
-				this.editor.setScrollTop(scrollTop);
-			}
-
-			revealScrollCts.dispose();
-			this.testCoverageService.filterToTest.set(selected ? selected.item?.isForTest!.id : previousSelection, undefined);
-		});
 	}
 
 	private setActions() {
@@ -689,7 +633,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 			CodeCoverageDecorations.showInline.get()
 				? localize('testing.hideInlineCoverage', 'Hide Inline Coverage')
 				: localize('testing.showInlineCoverage', 'Show Inline Coverage'),
-			testingCoverageIcon,
+			testingCoverageReport,
 			undefined,
 			() => CodeCoverageDecorations.showInline.set(!CodeCoverageDecorations.showInline.get(), undefined),
 		);
@@ -708,14 +652,14 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 				coverUtils.labels.showingFilterFor(testItem.label),
 				testingFilterIcon,
 				undefined,
-				() => this.filterTest(),
+				() => this.commandService.executeCommand(TestCommandId.CoverageFilterToTestInEditor, this.current),
 			));
 		} else if (coverage.perTestData?.size) {
 			this.actionBar.push(new ActionWithIcon('perTestFilter',
-				localize('testing.coverageForTestAvailable', "{0} test(s) in this file", coverage.perTestData.size),
+				localize('testing.coverageForTestAvailable', "{0} test(s) ran code in this file", coverage.perTestData.size),
 				testingFilterIcon,
 				undefined,
-				() => this.filterTest(),
+				() => this.commandService.executeCommand(TestCommandId.CoverageFilterToTestInEditor, this.current),
 			));
 		}
 
@@ -784,13 +728,17 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_INLINE_COMMAND_ID,
-			title: localize2('coverage.toggleInline', "Toggle Inline Coverage"),
+			title: localize2('coverage.toggleInline', "Show Inline Coverage"),
 			category: Categories.Test,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI),
 			},
-			precondition: TestingContextKeys.isTestCoverageOpen,
+			icon: testingCoverageReport,
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.isTestCoverageOpen, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+			]
 		});
 	}
 
@@ -803,18 +751,18 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CoverageToggleToolbar,
-			title: localize2('testing.toggleToolbarTitle', "Toggle Coverage Toolbar"),
+			title: localize2('testing.toggleToolbarTitle', "Test Coverage Toolbar"),
 			metadata: {
 				description: localize2('testing.toggleToolbarDesc', 'Toggle the sticky coverage bar in the editor.')
 			},
 			category: Categories.Test,
 			toggled: {
 				condition: TestingContextKeys.coverageToolbarEnabled,
-				title: localize('cmd.toggle2', "Toggle Coverage Toolbar"),
 			},
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
 				{ id: MenuId.StickyScrollContext, when: TestingContextKeys.isTestCoverageOpen },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.isTestCoverageOpen, group: 'coverage@1' },
 			]
 		});
 	}
@@ -823,6 +771,98 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 		const config = accessor.get(IConfigurationService);
 		const value = getTestingConfiguration(config, TestingConfigKeys.CoverageToolbarEnabled);
 		config.updateValue(TestingConfigKeys.CoverageToolbarEnabled, !value);
+	}
+});
+
+registerAction2(class FilterCoverageToTestInEditor extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageFilterToTestInEditor,
+			title: localize2('testing.filterActionLabel', "Filter Coverage to Test"),
+			category: Categories.Test,
+			icon: Codicon.filter,
+			toggled: {
+				icon: Codicon.filterFilled,
+				condition: TestingContextKeys.isCoverageFilteredToTest,
+			},
+			menu: [
+				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.isTestCoverageOpen, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI): void {
+		const testCoverageService = accessor.get(ITestCoverageService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+		let coverage: FileCoverage | undefined;
+		if (coverageOrUri instanceof FileCoverage) {
+			coverage = coverageOrUri;
+		} else if (isUriComponents(coverageOrUri)) {
+			coverage = testCoverageService.selected.get()?.getUri(URI.from(coverageOrUri));
+		} else {
+			const uri = activeEditor?.getModel()?.uri;
+			coverage = uri && testCoverageService.selected.get()?.getUri(uri);
+		}
+
+		if (!coverage || !(coverage.isForTest || coverage.perTestData?.size)) {
+			return;
+		}
+
+		const options = coverage?.perTestData ?? coverage?.isForTest?.parent.perTestData;
+		if (!options) {
+			return;
+		}
+
+		const tests = [...options.values()];
+		const commonPrefix = TestId.getLengthOfCommonPrefix(tests.length, i => tests[i].isForTest!.id);
+		const result = coverage.fromResult;
+		const previousSelection = testCoverageService.filterToTest.get();
+
+		type TItem = { label: string; description?: string; item: FileCoverage | undefined };
+
+		const items: QuickPickInput<TItem>[] = [
+			{ label: coverUtils.labels.allTests, item: undefined },
+			{ type: 'separator' },
+			...tests.map(item => ({ label: coverUtils.getLabelForItem(result, item.isForTest!.id, commonPrefix), description: coverUtils.labels.percentCoverage(item.tpc), item })),
+		];
+
+		// These handle the behavior that reveals the start of coverage when the
+		// user picks from the quickpick. Scroll position is restored if the user
+		// exits without picking an item, or picks "all tets".
+		const scrollTop = activeEditor?.getScrollTop() || 0;
+		const revealScrollCts = new MutableDisposable<CancellationTokenSource>();
+
+		quickInputService.pick(items, {
+			activeItem: items.find((item): item is TItem => 'item' in item && item.item === coverage),
+			placeHolder: coverUtils.labels.pickShowCoverage,
+			onDidFocus: (entry) => {
+				if (!entry.item) {
+					revealScrollCts.clear();
+					activeEditor?.setScrollTop(scrollTop);
+					testCoverageService.filterToTest.set(undefined, undefined);
+				} else {
+					const cts = revealScrollCts.value = new CancellationTokenSource();
+					entry.item.details(cts.token).then(
+						details => {
+							const first = details.find(d => d.type === DetailType.Statement);
+							if (!cts.token.isCancellationRequested && first) {
+								activeEditor?.revealLineNearTop(first.location instanceof Position ? first.location.lineNumber : first.location.startLineNumber);
+							}
+						},
+						() => { /* ignored */ }
+					);
+					testCoverageService.filterToTest.set(entry.item.isForTest!.id, undefined);
+				}
+			},
+		}).then(selected => {
+			if (!selected) {
+				activeEditor?.setScrollTop(scrollTop);
+			}
+
+			revealScrollCts.dispose();
+			testCoverageService.filterToTest.set(selected ? selected.item?.isForTest!.id : previousSelection, undefined);
+		});
 	}
 });
 

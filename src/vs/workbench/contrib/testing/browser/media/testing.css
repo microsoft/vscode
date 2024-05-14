@@ -363,6 +363,10 @@
 
 /** -- coverage  */
 
+.coverage-view-is-filtered > .pane-header > .actions {
+	display: block !important;
+}
+
 .test-coverage-list-item {
 	display: flex;
 	align-items: center;
