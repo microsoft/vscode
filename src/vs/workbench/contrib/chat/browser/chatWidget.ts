@@ -709,7 +709,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, { implicitVariablesEnabled: false, location: this.location, parserContext: { selectedAgent: this._lastSelectedAgent }, attachedContext: [...this.inputPart.attachedContext.values()] });
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, { location: this.location, parserContext: { selectedAgent: this._lastSelectedAgent }, attachedContext: [...this.inputPart.attachedContext.values()] });
 			this.inputPart.attachedContext.clear();
 
 			if (result) {
