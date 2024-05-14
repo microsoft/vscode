@@ -13,6 +13,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -83,6 +84,7 @@ export class ShiftCommand implements ICommand {
 	constructor(
 		range: Selection,
 		opts: IShiftCommandOpts,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._opts = opts;
@@ -147,7 +149,7 @@ export class ShiftCommand implements ICommand {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
 						if (model.tokenization.isCheapToTokenize(lineNumber - 1)) {
-							const enterAction = getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)), this._languageConfigurationService);
+							const enterAction = getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)), this._languageService, this._languageConfigurationService);
 							if (enterAction) {
 								extraSpaces = previousLineExtraSpaces;
 								if (enterAction.appendText) {

@@ -19,37 +19,43 @@ const enum MoveLinesDirection {
 	Down
 }
 
-function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
-	testMoveLinesUpOrDownCommand(MoveLinesDirection.Down, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
+function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageService?: ILanguageService, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownCommand(MoveLinesDirection.Down, lines, selection, expectedLines, expectedSelection, languageService, languageConfigurationService);
 }
 
-function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
-	testMoveLinesUpOrDownCommand(MoveLinesDirection.Up, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
+function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageService?: ILanguageService, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownCommand(MoveLinesDirection.Up, lines, selection, expectedLines, expectedSelection, languageService, languageConfigurationService);
 }
 
-function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
-	testMoveLinesUpOrDownWithIndentCommand(MoveLinesDirection.Down, languageId, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
+function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageService?: ILanguageService, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownWithIndentCommand(MoveLinesDirection.Down, languageId, lines, selection, expectedLines, expectedSelection, languageService, languageConfigurationService);
 }
 
-function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
-	testMoveLinesUpOrDownWithIndentCommand(MoveLinesDirection.Up, languageId, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
+function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageService?: ILanguageService, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownWithIndentCommand(MoveLinesDirection.Up, languageId, lines, selection, expectedLines, expectedSelection, languageService, languageConfigurationService);
 }
 
-function testMoveLinesUpOrDownCommand(direction: MoveLinesDirection, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService) {
+function testMoveLinesUpOrDownCommand(direction: MoveLinesDirection, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageService?: ILanguageService, languageConfigurationService?: ILanguageConfigurationService) {
 	const disposables = new DisposableStore();
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
+	if (!languageService) {
+		languageService = disposables.add(new LanguageService());
+	}
+	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Advanced, languageService, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 
-function testMoveLinesUpOrDownWithIndentCommand(direction: MoveLinesDirection, languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService) {
+function testMoveLinesUpOrDownWithIndentCommand(direction: MoveLinesDirection, languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageService?: ILanguageService, languageConfigurationService?: ILanguageConfigurationService) {
 	const disposables = new DisposableStore();
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
+	if (!languageService) {
+		languageService = disposables.add(new LanguageService());
+	}
+	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Full, languageService, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 
@@ -333,6 +339,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 				'}'
 			],
 			new Selection(1, 1, 1, 1),
+			languageService,
 			languageConfigurationService
 		);
 
@@ -367,6 +374,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 				'];'
 			],
 			new Selection(2, 5, 2, 5),
+			languageService,
 			languageConfigurationService
 		);
 
@@ -453,6 +461,7 @@ suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 				'}'
 			],
 			new Selection(4, 9, 6, 10),
+			languageService,
 			languageConfigurationService
 		);
 

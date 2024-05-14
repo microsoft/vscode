@@ -11,6 +11,7 @@ import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/m
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 
 export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel) => void): void {
 	const EDITOR_ID = 1;
@@ -18,8 +19,9 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 	const configuration = new TestConfiguration(options);
 	const model = createTextModel(text.join('\n'));
 	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
+	const languageService = new LanguageService();
 	const testLanguageConfigurationService = new TestLanguageConfigurationService();
-	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
+	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, languageService, testLanguageConfigurationService, new TestThemeService(), {
 		setVisibleLines(visibleLines, stabilized) {
 		},
 	});

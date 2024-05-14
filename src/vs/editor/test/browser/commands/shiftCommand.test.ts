@@ -13,6 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
@@ -61,7 +62,7 @@ function testShiftCommand(lines: string[], languageId: string | null, useTabStop
 		insertSpaces: false,
 		useTabStops: useTabStops,
 		autoIndent: EditorAutoIndentStrategy.Full,
-	}, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
+	}, accessor.get(ILanguageService), accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
 }
 
 function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void): void {
@@ -72,7 +73,7 @@ function testUnshiftCommand(lines: string[], languageId: string | null, useTabSt
 		insertSpaces: false,
 		useTabStops: useTabStops,
 		autoIndent: EditorAutoIndentStrategy.Full,
-	}, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
+	}, accessor.get(ILanguageService), accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
 }
 
 function prepareDocBlockCommentLanguage(accessor: ServicesAccessor, disposables: DisposableStore) {
@@ -686,7 +687,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}, accessor.get(ILanguageConfigurationService)),
+			}, accessor.get(ILanguageService), accessor.get(ILanguageConfigurationService)),
 			[
 				'       Written | Numeric',
 				'           one | 1',
@@ -732,7 +733,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}, accessor.get(ILanguageConfigurationService)),
+			}, accessor.get(ILanguageService), accessor.get(ILanguageConfigurationService)),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -778,7 +779,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: false,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}, accessor.get(ILanguageConfigurationService)),
+			}, accessor.get(ILanguageService), accessor.get(ILanguageConfigurationService)),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -824,7 +825,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}, accessor.get(ILanguageConfigurationService)),
+			}, accessor.get(ILanguageService), accessor.get(ILanguageConfigurationService)),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -859,7 +860,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: false,
 				useTabStops: true,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}, accessor.get(ILanguageConfigurationService)),
+			}, accessor.get(ILanguageService), accessor.get(ILanguageConfigurationService)),
 			[
 				'\tHello world!',
 				'another line'
@@ -963,6 +964,7 @@ suite('Editor Commands - ShiftCommand', () => {
 
 		function _assertUnshiftCommand(tabSize: number, indentSize: number, insertSpaces: boolean, text: string[], expected: ISingleEditOperation[]): void {
 			return withEditorModel(text, (model) => {
+				const languageService = new LanguageService();
 				const testLanguageConfigurationService = new TestLanguageConfigurationService();
 				const op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
 					isUnshift: true,
@@ -971,7 +973,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					insertSpaces: insertSpaces,
 					useTabStops: true,
 					autoIndent: EditorAutoIndentStrategy.Full,
-				}, testLanguageConfigurationService);
+				}, languageService, testLanguageConfigurationService);
 				const actual = getEditOperation(model, op);
 				assert.deepStrictEqual(actual, expected);
 				testLanguageConfigurationService.dispose();
@@ -980,6 +982,7 @@ suite('Editor Commands - ShiftCommand', () => {
 
 		function _assertShiftCommand(tabSize: number, indentSize: number, insertSpaces: boolean, text: string[], expected: ISingleEditOperation[]): void {
 			return withEditorModel(text, (model) => {
+				const languageService = new LanguageService();
 				const testLanguageConfigurationService = new TestLanguageConfigurationService();
 				const op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
 					isUnshift: false,
@@ -988,7 +991,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					insertSpaces: insertSpaces,
 					useTabStops: true,
 					autoIndent: EditorAutoIndentStrategy.Full,
-				}, testLanguageConfigurationService);
+				}, languageService, testLanguageConfigurationService);
 				const actual = getEditOperation(model, op);
 				assert.deepStrictEqual(actual, expected);
 				testLanguageConfigurationService.dispose();
