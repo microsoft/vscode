@@ -40,7 +40,7 @@ import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IVoiceChatService, VoiceChatInProgress } from 'vs/workbench/contrib/chat/common/voiceChatService';
+import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from 'vs/workbench/contrib/chat/common/voiceChatService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -59,16 +59,19 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 //#region Speech to Text
 
 type VoiceChatSessionContext = 'view' | 'inline' | 'terminal' | 'quick' | 'editor';
+const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'terminal', 'quick', 'editor'];
 
-const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
-const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<VoiceChatSessionContext | undefined>('voiceChatInProgress', undefined, { type: 'string', description: localize('voiceChatInProgress', "Defined as a location where voice recording from microphone is in progress for voice chat.") });
+const TerminalChatExecute = MenuId.for('terminalChatInput'); // unfortunately, terminal decided to go with their own menu (https://github.com/microsoft/vscode/issues/208789)
 
+// Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT);
-
 const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, TerminalChatContextKeys.requestActive);
 
-const TerminalChatExecute = MenuId.for('terminalChatInput');
+// Scoped Context Keys (set on per-chat-context scoped context key service)
+const SCOPED_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('scopedVoiceChatGettingReady', false, { type: 'boolean', description: localize('scopedVoiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat. This key is only defined scoped, per chat context.") });
+const SCOPED_VOICE_CHAT_IN_PROGRESS = new RawContextKey<VoiceChatSessionContext | undefined>('scopedVoiceChatInProgress', undefined, { type: 'string', description: localize('scopedVoiceChatInProgress', "Defined as a location where voice recording from microphone is in progress for voice chat. This key is only defined scoped, per chat context.") });
+const ScopedVoiceChatInProgress = ContextKeyExpr.or(...VoiceChatSessionContexts.map(context => SCOPED_VOICE_CHAT_IN_PROGRESS.isEqualTo(context)));
 
 enum VoiceChatSessionState {
 	Stopped = 1,
@@ -209,8 +212,8 @@ class VoiceChatSessionControllerFactory {
 	}
 
 	private static createContextKeyController(contextKeyService: IContextKeyService, context: VoiceChatSessionContext): (state: VoiceChatSessionState) => void {
-		const contextVoiceChatGettingReady = CONTEXT_VOICE_CHAT_GETTING_READY.bindTo(contextKeyService);
-		const contextVoiceChatInProgress = CONTEXT_VOICE_CHAT_IN_PROGRESS.bindTo(contextKeyService);
+		const contextVoiceChatGettingReady = SCOPED_VOICE_CHAT_GETTING_READY.bindTo(contextKeyService);
+		const contextVoiceChatInProgress = SCOPED_VOICE_CHAT_IN_PROGRESS.bindTo(contextKeyService);
 
 		return (state: VoiceChatSessionState) => {
 			switch (state) {
@@ -629,7 +632,7 @@ export class StartVoiceChatAction extends Action2 {
 			icon: Codicon.mic,
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
-				CONTEXT_VOICE_CHAT_GETTING_READY.negate(),		// disable when voice chat is getting ready
+				SCOPED_VOICE_CHAT_GETTING_READY.negate(),		// disable when voice chat is getting ready
 				AnyChatRequestInProgress?.negate(),				// disable when any chat request is in progress
 				SpeechToTextInProgress.negate()					// disable when speech to text is in progress
 			),
@@ -637,11 +640,8 @@ export class StartVoiceChatAction extends Action2 {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
-					TextToSpeechInProgress.negate(),						// hide when text to speech is in progress
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.notEqualsTo('view'),		// hide when voice chat is in progress
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.notEqualsTo('quick'),	// 				||
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.notEqualsTo('editor'),	// 				||
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.notEqualsTo('inline'),	// 				||
+					TextToSpeechInProgress.negate(),			// hide when text to speech is in progress
+					ScopedVoiceChatInProgress?.negate(),		// hide when voice chat is in progress
 				),
 				group: 'navigation',
 				order: -1
@@ -649,8 +649,8 @@ export class StartVoiceChatAction extends Action2 {
 				id: TerminalChatExecute,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
-					TextToSpeechInProgress.negate(),						// hide when text to speech is in progress
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.notEqualsTo('terminal'),	// hide when voice chat is in progress
+					TextToSpeechInProgress.negate(),			// hide when text to speech is in progress
+					ScopedVoiceChatInProgress?.negate(),		// hide when voice chat is in progress
 				),
 				group: 'navigation',
 				order: -1
@@ -665,9 +665,6 @@ export class StartVoiceChatAction extends Action2 {
 			// from a toolbar within the chat widget, then make sure
 			// to move focus into the input field so that the controller
 			// is properly retrieved
-			// TODO@bpasero this will actually not work if the button
-			// is clicked from the inline editor while focus is in a
-			// chat input field in a view or picker
 			widget.focusInput();
 		}
 
@@ -690,20 +687,15 @@ export class StopListeningAction extends Action2 {
 				primary: KeyCode.Escape
 			},
 			icon: spinningLoading,
-			precondition: VoiceChatInProgress,
+			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.or(
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('view'),
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('editor'),
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('quick'),
-					CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('inline')
-				),
+				when: ScopedVoiceChatInProgress,
 				group: 'navigation',
 				order: -1
 			}, {
 				id: TerminalChatExecute,
-				when: CONTEXT_VOICE_CHAT_IN_PROGRESS.isEqualTo('terminal'),
+				when: ScopedVoiceChatInProgress,
 				group: 'navigation',
 				order: -1
 			}]
@@ -730,7 +722,7 @@ export class StopListeningAndSubmitAction extends Action2 {
 				when: FocusInChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
-			precondition: VoiceChatInProgress
+			precondition: GlobalVoiceChatInProgress // need global context here because of `f1: true`
 		});
 	}
 
