@@ -77,7 +77,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup (${force}): ${JSON.stringify(this.currentHistoryItemGroup)}`);
 	}
 
-	async provideHistoryItems(_: string, __: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
+	async provideHistoryItems(_: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
 		//TODO@lszomoru - support limit and cursor
 		// if (typeof options.limit === 'number') {
 		// 	throw new Error('Unsupported options.');
@@ -89,11 +89,20 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		// const refParentId = options.limit.id;
 		// const refId = await this.repository.revParse(historyItemGroupId) ?? '';
 
-		const historyItems: SourceControlHistoryItem[] = [];
-		const commits = await this.repository.log({ refNames: ['main', 'origin/main'] });
+		const refNames = new Set(['main', 'origin/main']);
+		if (this.currentHistoryItemGroup?.name) {
+			refNames.add(this.currentHistoryItemGroup.name);
+		}
+		if (this.currentHistoryItemGroup?.base?.name) {
+			refNames.add(this.currentHistoryItemGroup.base.name);
+		}
+
+		const maxEntries = typeof options.limit === 'number' ? options.limit : 32;
+		const commits = await this.repository.log({ refNames: Array.from(refNames), maxEntries });
 
 		await ensureEmojis();
 
+		const historyItems: SourceControlHistoryItem[] = [];
 		historyItems.push(...commits.map(commit => {
 			const newLineIndex = commit.message.indexOf('\n');
 			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;

@@ -957,19 +957,28 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		graphContainer.textContent = '';
 
 		const swimlaneIndex = historyItem.graphSwimlanes.indexOf(historyItem.id);
-		const circleSwimlane = (swimlaneIndex === -1 ? historyItem.graphSwimlanes.length : swimlaneIndex) + 1;
-
-		// Circle
-		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		circle.setAttribute('cx', `${11 * circleSwimlane}`);
-		circle.setAttribute('cy', '11');
-		circle.setAttribute('r', '4');
-		graphContainer.append(circle);
-
-		// Line(s)
 		for (let index = 0; index < historyItem.graphSwimlanes.length; index++) {
+			// Circle
+			if (index === swimlaneIndex) {
+				const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+				circle.setAttribute('cx', `${11 * (index + 1)}`);
+				circle.setAttribute('cy', '11');
+				circle.setAttribute('r', '4');
+				graphContainer.append(circle);
+			}
+
+			// Lines
 			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			path.setAttribute('d', `M${11 * (index + 1)} 0 V22`);
+
+			if (historyItem.graphSwimlanes[index] === historyItem.id && index !== swimlaneIndex) {
+				// Draw /
+				path.setAttribute('d', `M ${11 * ((index - swimlaneIndex) + 1)} 0 A 11 11 0 0 1 11 11`);
+			} else {
+				// Draw |
+				path.setAttribute('d', `M${11 * (index + 1)} 0 V22`);
+			}
+
+			path.style.fill = 'none';
 			path.style.stroke = 'black';
 			path.style.strokeWidth = '1px';
 
@@ -978,8 +987,17 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 		// New swimlane
 		if (swimlaneIndex === -1) {
+			// Circle
+			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			circle.setAttribute('cx', `${11 * (historyItem.graphSwimlanes.length + 1)}`);
+			circle.setAttribute('cy', '11');
+			circle.setAttribute('r', '4');
+			graphContainer.append(circle);
+
+			// Line(s)
 			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path.setAttribute('d', `M${11 * (historyItem.graphSwimlanes.length + 1)} 11 V22`);
+			path.style.fill = 'none';
 			path.style.stroke = 'black';
 			path.style.strokeWidth = '1px';
 
@@ -988,8 +1006,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 		// Container width
 		const containerWidth = swimlaneIndex === -1 ?
-			22 * (historyItem.graphSwimlanes.length + 1) :
-			22 * historyItem.graphSwimlanes.length;
+			11 * (historyItem.graphSwimlanes.length + 2) :
+			11 * (historyItem.graphSwimlanes.length + 1);
 
 		graphContainer.style.width = `${containerWidth}px`;
 	}
@@ -3765,7 +3783,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
 		if (!historyItemsElement) {
-			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 32 }) ?? [];
+			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 10 }) ?? [];
 
 			// All Changes
 			// const { showChangesSummary } = this.getConfiguration();
@@ -3795,7 +3813,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const graphSwimlanes: string[] = [];
 		for (let index = 0; index < historyItemsElement[1].length; index++) {
 			const historyItem = historyItemsElement[1][index];
-			const swimlaneIndex = graphSwimlanes.indexOf(historyItem.id);
+			const swimlaneIndex = graphSwimlanes.findIndex(h => h === historyItem.id);
 
 			if (swimlaneIndex === -1) {
 				// New swimlane
@@ -3806,24 +3824,35 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 					type: 'historyItem'
 				} satisfies SCMHistoryItemTreeElement);
 
+				// Update graph with parent(s)
 				graphSwimlanes.push(...historyItem.parentIds);
-			} else {
-				// Existing swimlane
-				children.push({
-					...historyItem,
-					graphSwimlanes: [...graphSwimlanes],
-					repository: element,
-					type: 'historyItem'
-				} satisfies SCMHistoryItemTreeElement);
 
-				// Update swimlane
-				for (let index = 0; index < historyItem.parentIds.length; index++) {
-					if (index === 0) {
-						graphSwimlanes.splice(swimlaneIndex, 1, historyItem.parentIds[index]);
+				continue;
+			}
+
+			// Update swimlane
+			children.push({
+				...historyItem,
+				graphSwimlanes: [...graphSwimlanes],
+				repository: element,
+				type: 'historyItem'
+			} satisfies SCMHistoryItemTreeElement);
+
+			// Update graph with parent(s)
+			let i = 0;
+			while (i < graphSwimlanes.length) {
+				if (graphSwimlanes[i] === historyItem.id) {
+					if (i === swimlaneIndex) {
+						// Update first occurrence
+						graphSwimlanes.splice(i, 1, historyItem.parentIds[0]);
 					} else {
-						graphSwimlanes.push(historyItem.parentIds[index]);
+						// Delete all other occurrences
+						graphSwimlanes.splice(i, 1);
+						continue;
 					}
 				}
+
+				i++;
 			}
 		}
 
