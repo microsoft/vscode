@@ -20,11 +20,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
+	id: string;
 	name: string;
+	modelDescription?: string;
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
@@ -92,10 +94,10 @@ export interface IChatResponseModel {
 	readonly isCanceled: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
-	readonly vote: InteractiveSessionVoteDirection | undefined;
+	readonly vote: ChatAgentVoteDirection | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
-	setVote(vote: InteractiveSessionVoteDirection): void;
+	setVote(vote: ChatAgentVoteDirection): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 }
 
@@ -214,15 +216,21 @@ export class Response implements IResponse {
 			const responsePosition = this._responseParts.push(progress) - 1;
 			this._updateRepr(quiet);
 
-			if (progress.task) {
-				progress.task?.().then((content) => {
-					// Replace the resolving part's content with the resolved response
-					if (typeof content === 'string') {
-						this._responseParts[responsePosition] = { ...progress, content: new MarkdownString(content) };
-					}
-					this._updateRepr(false);
-				});
-			}
+			const disp = progress.onDidAddProgress(() => {
+				this._updateRepr(false);
+			});
+
+			progress.task?.().then((content) => {
+				// Stop listening for progress updates once the task settles
+				disp.dispose();
+
+				// Replace the resolving part's content with the resolved response
+				if (typeof content === 'string') {
+					this._responseParts[responsePosition] = { ...progress, content: new MarkdownString(content) };
+				}
+				this._updateRepr(false);
+			});
+
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -275,7 +283,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isCanceled;
 	}
 
-	public get vote(): InteractiveSessionVoteDirection | undefined {
+	public get vote(): ChatAgentVoteDirection | undefined {
 		return this._vote;
 	}
 
@@ -343,7 +351,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		public readonly requestId: string,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
-		private _vote?: InteractiveSessionVoteDirection,
+		private _vote?: ChatAgentVoteDirection,
 		private _result?: IChatAgentResult,
 		followups?: ReadonlyArray<IChatFollowup>
 	) {
@@ -409,7 +417,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire(); // Fire so that command followups get rendered on the row
 	}
 
-	setVote(vote: InteractiveSessionVoteDirection): void {
+	setVote(vote: ChatAgentVoteDirection): void {
 		this._vote = vote;
 		this._onDidChange.fire();
 	}
@@ -459,7 +467,7 @@ export interface ISerializableChatRequestData {
 	result?: IChatAgentResult; // Optional for backcompat
 	followups: ReadonlyArray<IChatFollowup> | undefined;
 	isCanceled: boolean | undefined;
-	vote: InteractiveSessionVoteDirection | undefined;
+	vote: ChatAgentVoteDirection | undefined;
 	/** For backward compat: should be optional */
 	usedContext?: IChatUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
@@ -582,7 +590,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get responderUsername(): string {
 		return (this._defaultAgent ?
-			this._defaultAgent.metadata.fullName :
+			this._defaultAgent.fullName :
 			this.initialData?.responderUsername) ?? '';
 	}
 
@@ -686,12 +694,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			? raw :
 			{ variables: [] };
 
-		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>(v => {
+		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>((v): IChatRequestVariableEntry => {
 			if ('values' in v && Array.isArray(v.values)) {
 				return {
+					id: v.id ?? '',
 					name: v.name,
 					value: v.values[0]?.value,
 					range: v.range,
+					modelDescription: v.modelDescription,
 					references: v.references
 				};
 			} else {
@@ -958,7 +968,7 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	public get username(): string {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.fullName ?? '';
+		return this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel)?.fullName ?? '';
 	}
 
 	public get avatarIcon(): ThemeIcon | undefined {

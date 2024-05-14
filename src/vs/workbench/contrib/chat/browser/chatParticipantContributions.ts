@@ -39,7 +39,12 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					type: 'string'
 				},
 				name: {
-					description: localize('chatParticipantName', "User-facing display name for this chat participant. The user will use '@' with this name to invoke the participant."),
+					description: localize('chatParticipantName', "User-facing name for this chat participant. The user will use '@' with this name to invoke the participant."),
+					type: 'string',
+					pattern: '^[\\w0-9_-]+$'
+				},
+				fullName: {
+					markdownDescription: localize('chatParticipantFullName', "The full name of this chat participant, which is shown as the label for responses coming from this participant. If not provided, {0} is used.", '`name`'),
 					type: 'string'
 				},
 				description: {
@@ -216,6 +221,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								sampleRequest: providerDescriptor.sampleRequest,
 							},
 							name: providerDescriptor.name,
+							fullName: providerDescriptor.fullName,
 							isDefault: providerDescriptor.isDefault,
 							defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
 							locations: isNonEmptyArray(providerDescriptor.locations) ?

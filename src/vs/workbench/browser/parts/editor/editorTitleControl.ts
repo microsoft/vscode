@@ -163,6 +163,10 @@ export class EditorTitleControl extends Themable {
 		return this.editorTabsControl.setActive(isActive);
 	}
 
+	setEditorSelections(editors: EditorInput[], selected: boolean): void {
+		this.editorTabsControl.setEditorSelections(editors, selected);
+	}
+
 	updateEditorLabel(editor: EditorInput): void {
 		return this.editorTabsControl.updateEditorLabel(editor);
 	}
