@@ -95,13 +95,7 @@ interface IVoiceChatSessionController {
 
 class VoiceChatSessionControllerFactory {
 
-	static create(accessor: ServicesAccessor, context: 'inline'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'quick'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'view'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'terminal'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'focused'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'terminal' | 'focused'): Promise<IVoiceChatSessionController | undefined>;
-	static async create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'terminal' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
+	static async create(accessor: ServicesAccessor, context: VoiceChatSessionContext | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
@@ -467,7 +461,7 @@ class VoiceChatSessions {
 
 export const VOICE_KEY_HOLD_THRESHOLD = 500;
 
-async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor, target: 'inline' | 'quick' | 'view' | 'focused', context?: IChatExecuteActionContext): Promise<void> {
+async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor, target: VoiceChatSessionContext | 'focused', context?: IChatExecuteActionContext): Promise<void> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const keybindingService = accessor.get(IKeybindingService);
 
@@ -495,7 +489,7 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 
 class VoiceChatWithHoldModeAction extends Action2 {
 
-	constructor(desc: Readonly<IAction2Options>, private readonly target: 'inline' | 'quick' | 'view') {
+	constructor(desc: Readonly<IAction2Options>, private readonly target: VoiceChatSessionContext) {
 		super(desc);
 	}
 
