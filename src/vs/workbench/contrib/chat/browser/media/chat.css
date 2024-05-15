@@ -489,7 +489,7 @@
 }
 
 .interactive-session .chat-attached-context {
-	padding: 8px 0;
+	padding: 0 0 8px 0;
 	border-radius: 6px;
 	display: flex;
 	gap: 4px;
