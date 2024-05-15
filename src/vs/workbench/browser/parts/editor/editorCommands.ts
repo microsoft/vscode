@@ -9,7 +9,7 @@ import { coalesce, distinct } from 'vs/base/common/arrays';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas, matchesScheme } from 'vs/base/common/network';
-import { extname } from 'vs/base/common/resources';
+import { extname, isEqual } from 'vs/base/common/resources';
 import { isNumber, isObject, isString, isUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -31,7 +31,7 @@ import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/br
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
-import { CloseDirection, EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorIdentifier, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { CloseDirection, EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorCommandsContext, isEditorIdentifier, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -656,13 +656,24 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 	}
 }
 
-export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, contexts?: (IEditorCommandsContext | undefined)[]): void {
+export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, contexts?: (IEditorCommandsContext | URI | undefined)[]): void {
 	let newGroup: IEditorGroup | undefined;
 
 	for (const context of contexts ?? [undefined]) {
 		let sourceGroup: IEditorGroup | undefined;
-		if (context && typeof context.groupId === 'number') {
+
+		const isEditorCommand = context && isEditorCommandsContext(context);
+		const isURI = context && URI.isUri(context);
+
+		if (isEditorCommand) {
 			sourceGroup = editorGroupService.getGroup(context.groupId);
+		} else if (isURI) {
+			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				if (isEqual(group.activeEditor?.resource, context)) {
+					sourceGroup = group;
+					break;
+				}
+			}
 		} else {
 			sourceGroup = editorGroupService.activeGroup;
 		}
@@ -678,7 +689,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 
 		// Split editor (if it can be split)
 		let editorToCopy: EditorInput | undefined;
-		if (context && typeof context.editorIndex === 'number') {
+		if (isEditorCommand && typeof context.editorIndex === 'number') {
 			editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
 		} else {
 			editorToCopy = sourceGroup.activeEditor ?? undefined;
@@ -686,7 +697,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 
 		// Copy the editor to the new group, else create an empty group
 		if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
-			sourceGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: context?.preserveFocus });
+			sourceGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: isEditorCommand && context?.preserveFocus });
 		}
 	}
 

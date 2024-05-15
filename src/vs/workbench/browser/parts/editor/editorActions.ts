@@ -61,7 +61,7 @@ abstract class AbstractSplitEditorAction extends Action2 {
 		return preferredSideBySideGroupDirection(configurationService);
 	}
 
-	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+	override async run(accessor: ServicesAccessor, context: (IEditorIdentifier | URI)): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
