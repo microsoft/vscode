@@ -39,7 +39,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IWorkbenchThemeService, IWorkbenchTheme, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -1666,8 +1666,8 @@ function getQuickPickEntries(themes: IWorkbenchTheme[], currentTheme: IWorkbench
 		}
 	}
 	if (showCurrentTheme) {
-		picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "current") });
-		picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
+		picks.push({ type: 'separator', label: localize('current', "current") });
+		picks.push({ label: currentTheme.label, id: currentTheme.id });
 	}
 	return picks;
 }
@@ -2086,7 +2086,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				.then(reference => {
 					const position = reference.object.textEditorModel.getPositionAt(offset);
 					reference.dispose();
-					return <ITextEditorSelection>{
+					return {
 						startLineNumber: position.lineNumber,
 						startColumn: position.column,
 						endLineNumber: position.lineNumber,
@@ -2667,7 +2667,7 @@ export class ReinstallAction extends Action {
 							label: extension.displayName,
 							description: extension.identifier.id,
 							extension,
-						} as (IQuickPickItem & { extension: IExtension });
+						};
 					});
 				return entries;
 			});
