@@ -62,7 +62,9 @@ export class HoverService extends Disposable implements IHoverService {
 		// HACK, remove this check when #189076 is fixed
 		if (!skipLastFocusedUpdate) {
 			if (trapFocus && activeElement) {
-				this._lastFocusedElementBeforeOpen = activeElement as HTMLElement;
+				if (!activeElement.classList.contains('monaco-hover')) {
+					this._lastFocusedElementBeforeOpen = activeElement as HTMLElement;
+				}
 			} else {
 				this._lastFocusedElementBeforeOpen = undefined;
 			}

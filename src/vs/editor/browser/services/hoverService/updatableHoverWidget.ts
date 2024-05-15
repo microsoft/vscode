@@ -42,7 +42,7 @@ export class UpdatableHoverWidget implements IDisposable {
 
 			// show 'Loading' if no hover is up yet
 			if (!this._hoverWidget) {
-				this.show(localize('iconLabel.loading', "Loading..."), focus);
+				this.show(localize('iconLabel.loading', "Loading..."), focus, options);
 			}
 
 			// compute the content
