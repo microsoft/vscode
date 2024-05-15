@@ -17,7 +17,7 @@
 
 .monaco-workbench .inline-chat {
 	color: inherit;
-	padding: 8px;
+	padding: 0 8px 8px 8px;
 	border-radius: 4px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);

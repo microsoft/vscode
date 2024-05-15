@@ -466,7 +466,7 @@
 
 .interactive-session .interactive-input-part.compact {
 	margin: 0;
-	padding: 0;
+	padding: 8px 0 0 0
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
