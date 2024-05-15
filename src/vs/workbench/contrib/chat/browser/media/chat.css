@@ -488,6 +488,10 @@
 	align-items: center;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
 .interactive-session .chat-attached-context {
 	padding: 0 0 8px 0;
 	border-radius: 6px;
