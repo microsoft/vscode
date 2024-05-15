@@ -811,7 +811,7 @@ function registerCloseEditorCommands() {
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
-			const commandsContext = getCommandsContext(resourceOrContext, context);
+			const commandsContext = getCommandsContext(accessor, resourceOrContext, context);
 
 			let group: IEditorGroup | undefined;
 			if (commandsContext && typeof commandsContext.groupId === 'number') {
@@ -876,7 +876,7 @@ function registerCloseEditorCommands() {
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
-			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(accessor, resourceOrContext, context));
 			if (group && editor) {
 				if (group.activeEditor) {
 					group.pinEditor(group.activeEditor);
@@ -968,7 +968,7 @@ function registerCloseEditorCommands() {
 	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, async (accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(accessor, resourceOrContext, context));
 		if (group) {
 			await group.closeAllEditors();
 
@@ -1016,7 +1016,7 @@ function registerSplitEditorInGroupCommands(): void {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(accessor, resourceOrContext, context));
 		if (!editor) {
 			return;
 		}
@@ -1051,7 +1051,7 @@ function registerSplitEditorInGroupCommands(): void {
 	async function joinEditorInGroup(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(accessor, resourceOrContext, context));
 		if (!(editor instanceof SideBySideEditorInput)) {
 			return;
 		}
@@ -1107,7 +1107,7 @@ function registerSplitEditorInGroupCommands(): void {
 		async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
-			const { editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+			const { editor } = resolveCommandsContext(editorGroupService, getCommandsContext(accessor, resourceOrContext, context));
 			if (editor instanceof SideBySideEditorInput) {
 				await joinEditorInGroup(accessor, resourceOrContext, context);
 			} else if (editor) {
@@ -1228,7 +1228,7 @@ function registerOtherEditorCommands(): void {
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
-			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(accessor, resourceOrContext, context));
 			if (group && editor) {
 				return group.pinEditor(editor);
 			}
@@ -1249,7 +1249,7 @@ function registerOtherEditorCommands(): void {
 	function setEditorGroupLock(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext, locked?: boolean): void {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(accessor, resourceOrContext, context));
 		group?.lock(locked ?? !group.isLocked);
 	}
 
@@ -1357,7 +1357,7 @@ function registerOtherEditorCommands(): void {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const quickInputService = accessor.get(IQuickInputService);
 
-			const commandsContext = getCommandsContext(resourceOrContext, context);
+			const commandsContext = getCommandsContext(accessor, resourceOrContext, context);
 			if (commandsContext && typeof commandsContext.groupId === 'number') {
 				const group = editorGroupService.getGroup(commandsContext.groupId);
 				if (group) {
@@ -1374,7 +1374,7 @@ function getEditorsContext(accessor: ServicesAccessor, resourceOrContext?: URI |
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const listService = accessor.get(IListService);
 
-	const editorContext = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), listService, editorGroupService);
+	const editorContext = getMultiSelectedEditorContexts(getCommandsContext(accessor, resourceOrContext, context), listService, editorGroupService);
 
 	const activeGroup = editorGroupService.activeGroup;
 	if (editorContext.length === 0 && activeGroup.activeEditor) {
@@ -1409,17 +1409,20 @@ export function getEditorsFromContext(accessor: ServicesAccessor, resourceOrCont
 	return editorsAndGroup.filter(group => !!group);
 }
 
-export function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
-	if (URI.isUri(resourceOrContext)) {
-		return context;
+export function getCommandsContext(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
+	const isUri = URI.isUri(resourceOrContext);
+
+	const editorCommandsContext = isUri ? context : resourceOrContext;
+	if (editorCommandsContext && typeof editorCommandsContext.groupId === 'number') {
+		return editorCommandsContext;
 	}
 
-	if (resourceOrContext && typeof resourceOrContext.groupId === 'number') {
-		return resourceOrContext;
-	}
-
-	if (context && typeof context.groupId === 'number') {
-		return context;
+	if (isUri) {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const editorGroup = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => isEqual(group.activeEditor?.resource, resourceOrContext));
+		if (editorGroup) {
+			return { groupId: editorGroup.index, editorIndex: editorGroup.getIndexOfEditor(editorGroup.activeEditor!) };
+		}
 	}
 
 	return undefined;
