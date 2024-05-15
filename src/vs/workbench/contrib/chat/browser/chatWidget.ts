@@ -584,6 +584,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._onDidChangeContentHeight.fire();
 		}));
+		this._register(this.inputEditor.onDidChangeModelContent(() => this.parsedChatRequest = undefined));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.parsedChatRequest = undefined));
 		this._register(this.inputPart.onDidChangeAttachedContext(() => {
 			if (this.bodyDimension) {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
