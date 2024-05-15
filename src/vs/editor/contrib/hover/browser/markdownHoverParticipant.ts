@@ -194,6 +194,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	public updateFocusedMarkdownHoverPartVerbosityLevel(action: HoverVerbosityAction) {
 		this._renderedHoverParts?.updateFocusedHoverPartVerbosityLevel(action);
 	}
+
+	public isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action: HoverVerbosityAction): boolean {
+		return this._renderedHoverParts?.isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action) ?? false;
+	}
 }
 
 interface RenderedHoverPart {
@@ -376,6 +380,15 @@ class MarkdownRenderedHoverParts extends Disposable {
 		this._replaceRenderedHoverPartAtIndex(hoverFocusedPartIndex, renderedHoverPart);
 		this._focusOnHoverPartWithIndex(hoverFocusedPartIndex);
 		this._onFinishedRendering();
+	}
+
+	public isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action: HoverVerbosityAction): boolean {
+		const hoverFocusedPartIndex = this._hoverFocusInfo.hoverPartIndex;
+		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(hoverFocusedPartIndex);
+		if (!hoverRenderedPart || !hoverRenderedPart.hoverSource?.supportsVerbosityAction(action)) {
+			return false;
+		}
+		return true;
 	}
 
 	private _replaceRenderedHoverPartAtIndex(index: number, renderedHoverPart: RenderedHoverPart): void {

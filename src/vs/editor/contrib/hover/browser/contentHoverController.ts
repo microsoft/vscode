@@ -355,6 +355,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._markdownHoverParticipant?.updateFocusedMarkdownHoverPartVerbosityLevel(action);
 	}
 
+	public isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action: HoverVerbosityAction): boolean {
+		return this._markdownHoverParticipant?.isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action) ?? false;
+	}
+
 	public getWidgetContent(): string | undefined {
 		const node = this._widget.getDomNode();
 		if (!node.textContent) {
