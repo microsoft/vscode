@@ -193,6 +193,9 @@ import 'vs/workbench/contrib/inlineChat/browser/inlineChat.contribution';
 // Interactive
 import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
 
+// repl
+import 'vs/workbench/contrib/replNotebook/browser/repl.contribution';
+
 // Testing
 import 'vs/workbench/contrib/testing/browser/testing.contribution';
 

@@ -37,6 +37,7 @@ import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebo
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
+export const REPL_EDITOR_ID = 'workbench.editor.repl';
 
 
 export enum CellKind {

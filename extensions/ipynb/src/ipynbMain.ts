@@ -66,6 +66,23 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	} as vscode.NotebookDocumentContentOptions));
 
+	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('repl', serializer, {
+		transientOutputs: false,
+		transientCellMetadata: useCustomPropertyInMetadata() ? {
+			breakpointMargin: true,
+			custom: false,
+			attachments: false
+		} : {
+			breakpointMargin: true,
+			id: false,
+			metadata: false,
+			attachments: false
+		},
+		cellContentMetadata: {
+			attachments: true
+		}
+	} as vscode.NotebookDocumentContentOptions));
+
 	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
 		provideCodeLenses: (document) => {
 			if (
