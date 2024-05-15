@@ -77,9 +77,15 @@ export interface ISCMHistoryItem {
 	readonly labels?: string[];
 }
 
+export interface ISCMHistoryItemGraphNode {
+	readonly id: string;
+	readonly color: string;
+	readonly isRoot: boolean;
+}
+
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
 	readonly repository: ISCMRepository;
-	readonly graphSwimlanes: string[];
+	readonly graphNodes: ISCMHistoryItemGraphNode[];
 	readonly type: 'allChanges' | 'historyItem';
 }
 

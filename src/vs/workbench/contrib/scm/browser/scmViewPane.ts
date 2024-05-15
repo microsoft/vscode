@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -969,12 +969,15 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		graphContainer.textContent = '';
 
 		// TODO@lszomoru - handle curved branches
-		const swimlaneIndex = historyItem.graphSwimlanes.indexOf(historyItem.id);
-		for (let index = 0; index < historyItem.graphSwimlanes.length; index++) {
-			// Line(s)
+		const swimlaneIndex = historyItem.graphNodes
+			.findIndex(n => n.id === historyItem.id);
+
+		for (let index = 0; index < historyItem.graphNodes.length; index++) {
+			const node = historyItem.graphNodes[index];
+			const path = this.createPath(node.color);
+
 			const d: string[] = [];
-			const path = this.createPath();
-			if (historyItem.graphSwimlanes[index] === historyItem.id && index !== swimlaneIndex) {
+			if (node.id === historyItem.id && index !== swimlaneIndex) {
 				// Draw /
 				d.push(`M ${11 * ((index - swimlaneIndex) + 1)} 0`);
 				d.push(`A 11 11 0 0 1 ${11 * ((index - swimlaneIndex))} 11`);
@@ -983,69 +986,36 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 				d.push(`H ${11 * (swimlaneIndex + 1)}`);
 			} else {
 				// Draw |
-				d.push(`M${11 * (index + 1)} 0`);
+				d.push(`M ${11 * (index + 1)} ${node.isRoot ? 11 : 0}`);
 				d.push(`V 22`);
-
-				// Merge commit - draw \
-				if (historyItem.parentIds.length > 1) {
-					d.push(`M${11 * (index + 1)} 11`);
-					d.push(`A 11 11 0 0 1 ${11 * (index + 2)} 22`);
-				}
 			}
 
-			path.setAttribute('d', d.join(' '));
-			graphContainer.append(path);
-		}
-
-		// Circle
-		if (swimlaneIndex !== -1) {
-			const circle = this.createCircle(swimlaneIndex, 4, '#f8f8f8', 'black');
-			graphContainer.append(circle);
-		}
-
-		// New swimlane
-		if (swimlaneIndex === -1) {
-			// Draw |
-			const path = this.createPath();
-
-			const d: string[] = [];
-			d.push(`M${11 * (historyItem.graphSwimlanes.length + 1)} 11`);
-			d.push(`V 22`);
-
-			path.setAttribute('d', d.join(' '));
-			graphContainer.append(path);
-
-			// Merge commit - draw \
+			// Draw \
 			if (historyItem.parentIds.length > 1) {
-				const path = this.createPath();
-
-				const d: string[] = [];
-				d.push(`M${11 * (historyItem.graphSwimlanes.length + 1)} 11`);
-				d.push(`A 11 11 0 0 1 ${11 * (historyItem.graphSwimlanes.length + 2)} 22`);
-
-				path.setAttribute('d', d.join(' '));
-				graphContainer.append(path);
+				d.push(`M ${11 * (index + 1)} 11`);
+				d.push(`A 11 11 0 0 1 ${11 * (index + 2)} 22`);
 			}
 
-			// Draw *
-			if (historyItem.parentIds.length === 1) {
-				const circle = this.createCircle(historyItem.graphSwimlanes.length, 4, '#f8f8f8', 'black');
-				graphContainer.append(circle);
-			} else {
-				const circleOuter = this.createCircle(historyItem.graphSwimlanes.length, 5, '#f8f8f8', 'black');
-				graphContainer.append(circleOuter);
+			path.setAttribute('d', d.join(' '));
+			graphContainer.append(path);
+		}
 
-				const circleInner = this.createCircle(historyItem.graphSwimlanes.length, 3, '#f8f8f8', 'black');
-				graphContainer.append(circleInner);
-			}
+		// Draw *
+		if (historyItem.parentIds.length === 1) {
+			// Commit
+			const circle = this.createCircle(swimlaneIndex, 4, '#f8f8f8', historyItem.graphNodes[swimlaneIndex].color);
+			graphContainer.append(circle);
+		} else {
+			// Merge commit
+			const circleOuter = this.createCircle(swimlaneIndex, 5, '#f8f8f8', historyItem.graphNodes[swimlaneIndex].color);
+			graphContainer.append(circleOuter);
+
+			const circleInner = this.createCircle(swimlaneIndex, 3, '#f8f8f8', historyItem.graphNodes[swimlaneIndex].color);
+			graphContainer.append(circleInner);
 		}
 
 		// Container width
-		const containerWidth = swimlaneIndex === -1
-			? 11 * (historyItem.graphSwimlanes.length + 1 + historyItem.parentIds.length)
-			: 11 * (historyItem.graphSwimlanes.length + historyItem.parentIds.length);
-
-		graphContainer.style.width = `${containerWidth}px`;
+		graphContainer.style.width = `${11 * (historyItem.graphNodes.length + historyItem.parentIds.length)}px`;
 	}
 
 	private createCircle(index: number, radius: number, stroke: string, fill: string): SVGCircleElement {
@@ -1059,10 +1029,10 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		return circle;
 	}
 
-	private createPath(color: string = 'black'): SVGPathElement {
+	private createPath(stroke: string): SVGPathElement {
 		const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 		path.setAttribute('fill', 'none');
-		path.setAttribute('stroke', color);
+		path.setAttribute('stroke', stroke);
 		path.setAttribute('stroke-width', '1px');
 		path.setAttribute('stroke-linecap', 'round');
 
@@ -3866,45 +3836,76 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		// 	} satisfies SCMHistoryItemTreeElement);
 		// }
 
+		let colorIndex = 0;
+		const colors = ['#007ACC', '#BC3FBC', '#BF8803', '#CC6633', '#F14C4C', '#16825D'];
+
+		const getColor = (): string => {
+			const color = colors[colorIndex];
+			colorIndex = colorIndex < colors.length ? colorIndex + 1 : 0;
+
+			return color;
+		};
+
 		// Process each commit and add graph information
-		const graphSwimlanes: string[] = [];
+		const graphNodes: ISCMHistoryItemGraphNode[] = [];
 		for (let index = 0; index < historyItemsElement[1].length; index++) {
 			const historyItem = historyItemsElement[1][index];
-			const swimlaneIndex = graphSwimlanes.findIndex(h => h === historyItem.id);
+			const swimlaneIndex = graphNodes.findIndex(n => n.id === historyItem.id);
 
+			// New swimlane
 			if (swimlaneIndex === -1) {
-				// New swimlane
+				const color = getColor();
+
+				// Add root node
+				graphNodes.push({
+					id: historyItem.id,
+					color,
+					isRoot: true
+				});
+
 				children.push({
 					...historyItem,
-					graphSwimlanes: [...graphSwimlanes],
+					graphNodes: [...graphNodes],
 					repository: element,
 					type: 'historyItem'
 				} satisfies SCMHistoryItemTreeElement);
 
-				// Update graph with parent(s)
-				graphSwimlanes.push(...historyItem.parentIds);
+				// Update graph node with parent(s)
+				graphNodes.splice(graphNodes.length - 1, 1);
+				for (let i = 0; i < historyItem.parentIds.length; i++) {
+					graphNodes.push({
+						id: historyItem.parentIds[i],
+						color: i === 0 ? color : getColor(),
+						isRoot: false
+					});
+				}
 
 				continue;
 			}
 
-			// Update swimlane
+			// Existing swimlane
 			children.push({
 				...historyItem,
-				graphSwimlanes: [...graphSwimlanes],
+				graphNodes: [...graphNodes],
 				repository: element,
 				type: 'historyItem'
 			} satisfies SCMHistoryItemTreeElement);
 
-			// Update graph with parent(s)
+			// Update graph node with parent(s)
 			let i = 0;
-			while (i < graphSwimlanes.length) {
-				if (graphSwimlanes[i] === historyItem.id) {
+			while (i < graphNodes.length) {
+				if (graphNodes[i].id === historyItem.id) {
 					if (i === swimlaneIndex) {
 						// Update first occurrence
-						graphSwimlanes.splice(i, 1, historyItem.parentIds[0]);
+						graphNodes.splice(i, 1, {
+							id: historyItem.parentIds[0],
+							color: graphNodes[i].color,
+							isRoot: false
+						});
 					} else {
+						// TODO@lszomoru - curved lines
 						// Delete all other occurrences
-						graphSwimlanes.splice(i, 1);
+						graphNodes.splice(i, 1);
 						continue;
 					}
 				}
@@ -3914,7 +3915,11 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			// Add remaining parent(s) to the graph
 			for (let i = 1; i < historyItem.parentIds.length; i++) {
-				graphSwimlanes.push(historyItem.parentIds[i]);
+				graphNodes.push({
+					id: historyItem.parentIds[i],
+					color: getColor(),
+					isRoot: false
+				});
 			}
 		}
 
