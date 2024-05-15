@@ -22,7 +22,7 @@ import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extH
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatContentReference, IChatFollowup, IChatUserActionEvent, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentReference, IChatFollowup, IChatUserActionEvent, ChatAgentVoteDirection, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
@@ -152,6 +152,10 @@ class ChatAgentResponseStream {
 				},
 				reference(value, iconPath) {
 					throwIfDone(this.reference);
+
+					if ('variableName' in value) {
+						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					}
 
 					if ('variableName' in value && !value.value) {
 						// The participant used this variable. Does that variable have any references to pull in?
@@ -314,7 +318,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						return { errorDetails: { message: msg }, timings: stream.timings };
 					}
 				}
-				return { errorDetails: result?.errorDetails, timings: stream.timings, metadata: result?.metadata };
+				let errorDetails: IChatResponseErrorDetails | undefined;
+				if (result?.errorDetails) {
+					errorDetails = {
+						...result.errorDetails,
+						responseIsIncomplete: true
+					};
+				}
+				return { errorDetails, timings: stream.timings, metadata: result?.metadata } satisfies IChatAgentResult;
 			}), token);
 		} catch (e) {
 			this._logService.error(e, agent.extension);

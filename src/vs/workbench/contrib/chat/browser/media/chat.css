@@ -53,6 +53,11 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.interactive-item-container .header .detail-container .detail .agentOrSlashCommandDetected A {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
 .interactive-item-container .chat-animated-ellipsis {
 	display: inline-block;
 	width: 11px;
@@ -216,7 +221,7 @@
 
 .interactive-item-container .value {
 	white-space: normal;
-	word-wrap: break-word;
+	overflow-wrap: anywhere;
 }
 
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child {
@@ -338,7 +343,7 @@
 	cursor: text;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 4px;
+	border-radius: 2px;
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
@@ -466,14 +471,36 @@
 
 .interactive-session .interactive-input-part.compact {
 	margin: 0;
-	padding: 6px 0px;
+	padding: 8px 0 0 0
 }
 
-.interactive-session .chat-implicit-context {
-	padding: 8px 8px 13px;
-	margin-bottom: -5px;
-	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
-	border-radius: 6px 6px 0px 0px;
+.interactive-session .chat-attached-context .chat-attached-context-attachment {
+	display: flex;
+	gap: 4px;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
+	cursor: pointer;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
+	display: flex;
+	align-items: center;
+}
+
+.interactive-session .chat-attached-context {
+	padding: 0 0 8px 0;
+	border-radius: 6px;
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment {
+	padding: 2px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 5px;
+	height: 18px;
 }
 
 .interactive-session-followups {

@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { IObservable } from 'vs/base/common/observable';
 import { observableValue } from 'vs/base/common/observableInternal/base';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
@@ -23,7 +24,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatProgressResponseContent, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -472,4 +473,24 @@ export class ChatAgentNameService implements IChatAgentNameService {
 
 export function getFullyQualifiedId(chatAgentData: IChatAgentData): string {
 	return `${chatAgentData.extensionId.value}.${chatAgentData.id}`;
+}
+
+export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
+	const agent = 'name' in raw ?
+		raw :
+		{
+			...(raw as any),
+			name: (raw as any).id,
+		};
+
+	// Fill in required fields that may be missing from old data
+	if (!('extensionPublisherId' in agent)) {
+		agent.extensionPublisherId = agent.extensionPublisher ?? '';
+	}
+
+	if (!('extensionDisplayName' in agent)) {
+		agent.extensionDisplayName = '';
+	}
+
+	return revive(agent);
 }

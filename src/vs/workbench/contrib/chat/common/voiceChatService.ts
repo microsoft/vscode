@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { rtrim } from 'vs/base/common/strings';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -58,6 +60,8 @@ enum PhraseTextType {
 	AGENT_AND_COMMAND = 3
 }
 
+export const VoiceChatInProgress = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "A speech-to-text session is in progress for chat.") });
+
 export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 	readonly _serviceBrand: undefined;
@@ -77,9 +81,13 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 	private static readonly CHAT_AGENT_ALIAS = new Map<string, string>([['vscode', 'code']]);
 
+	private readonly voiceChatInProgress = VoiceChatInProgress.bindTo(this.contextKeyService);
+	private activeVoiceChatSessions = 0;
+
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 	}
@@ -116,13 +124,29 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 	async createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): Promise<IVoiceChatSession> {
 		const disposables = new DisposableStore();
-		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+
+		const onSessionStoppedOrCanceled = (dispose: boolean) => {
+			this.activeVoiceChatSessions--;
+			if (this.activeVoiceChatSessions === 0) {
+				this.voiceChatInProgress.reset();
+			}
+
+			if (dispose) {
+				disposables.dispose();
+			}
+		};
+
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled(true)));
 
 		let detectedAgent = false;
 		let detectedSlashCommand = false;
 
 		const emitter = disposables.add(new Emitter<IVoiceChatTextEvent>());
 		const session = await this.speechService.createSpeechToTextSession(token, 'chat');
+
+		if (token.isCancellationRequested) {
+			onSessionStoppedOrCanceled(true);
+		}
 
 		const phrases = this.createPhrases(options.model);
 		disposables.add(session.onDidChange(e => {
@@ -193,6 +217,15 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 							break;
 						}
 					}
+				case SpeechToTextStatus.Started:
+					this.activeVoiceChatSessions++;
+					this.voiceChatInProgress.set(true);
+					emitter.fire(e);
+					break;
+				case SpeechToTextStatus.Stopped:
+					onSessionStoppedOrCanceled(false);
+					emitter.fire(e);
+					break;
 				default:
 					emitter.fire(e);
 					break;

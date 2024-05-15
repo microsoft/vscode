@@ -78,7 +78,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
-	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
+	get onDidHide() { return this.chatWidget?.onDidHide ?? Event.None; }
 
 	private _terminalAgentName = 'terminal';
 	private _terminalAgentId: string | undefined;

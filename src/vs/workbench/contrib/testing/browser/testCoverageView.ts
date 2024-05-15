@@ -25,7 +25,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -48,11 +47,11 @@ import { testingStatesToIcons, testingWasCovered } from 'vs/workbench/contrib/te
 import { CoverageBarSource, ManagedTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
 import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { onObservableChange } from 'vs/workbench/contrib/testing/common/observableUtils';
-import { ComputedFileCoverage, FileCoverage, TestCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
+import { BypassedFileCoverage, ComputedFileCoverage, FileCoverage, TestCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { CoverageDetails, DetailType, ICoverageCount, IDeclarationCoverage, ITestItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, DetailType, ICoverageCount, IDeclarationCoverage, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const enum CoverageSortOrder {
@@ -95,6 +94,13 @@ export class TestCoverageView extends ViewPane {
 			} else {
 				this.tree.clear();
 			}
+		}));
+
+		this._register(autorun(reader => {
+			this.element.classList.toggle(
+				'coverage-view-is-filtered',
+				!!this.coverageService.filterToTest.read(reader),
+			);
 		}));
 	}
 
@@ -196,16 +202,9 @@ class LoadingDetails {
 	public readonly label = localize('loadingCoverageDetails', "Loading Coverage Details...");
 }
 
-class PerTestCoverageSwitcher {
-	public readonly id = String(fnNodeId++);
-	public readonly label = localize('changePerTestFilter', 'Click to change test filtering');
-
-	constructor(public readonly currentFilter: ITestItem | undefined) { }
-}
-
 /** Type of nodes returned from {@link TestCoverage}. Note: value is *always* defined. */
 type TestCoverageFileNode = IPrefixTreeNode<ComputedFileCoverage | FileCoverage>;
-type CoverageTreeElement = TestCoverageFileNode | DeclarationCoverageNode | LoadingDetails | RevealUncoveredDeclarations | PerTestCoverageSwitcher;
+type CoverageTreeElement = TestCoverageFileNode | DeclarationCoverageNode | LoadingDetails | RevealUncoveredDeclarations;
 
 const isFileCoverage = (c: CoverageTreeElement): c is TestCoverageFileNode => typeof c === 'object' && 'value' in c;
 const isDeclarationCoverage = (c: CoverageTreeElement): c is DeclarationCoverageNode => c instanceof DeclarationCoverageNode;
@@ -234,7 +233,6 @@ class TestCoverageTree extends Disposable {
 				instantiationService.createInstance(FileCoverageRenderer, labels),
 				instantiationService.createInstance(DeclarationCoverageRenderer),
 				instantiationService.createInstance(BasicRenderer),
-				instantiationService.createInstance(PerTestCoverageSwitcherRenderer),
 			],
 			{
 				expandOnlyOnTwistieClick: true,
@@ -321,11 +319,7 @@ class TestCoverageTree extends Disposable {
 			tree = coverage.filterTreeForTest(showOnlyTest);
 		}
 
-		const files: (PerTestCoverageSwitcher | TestCoverageFileNode)[] = [];
-		if (coverage.perTestCoverageIDs.size) {
-			files.push(new PerTestCoverageSwitcher(showOnlyTest ? coverage.result.getTestById(showOnlyTest.toString()) : undefined));
-		}
-
+		const files: TestCoverageFileNode[] = [];
 		for (let node of tree.nodes) {
 			// when showing initial children, only show from the first file or tee
 			while (!(node.value instanceof FileCoverage) && node.children?.size === 1) {
@@ -334,15 +328,7 @@ class TestCoverageTree extends Disposable {
 			files.push(node);
 		}
 
-		const toChild = (value: TestCoverageFileNode | PerTestCoverageSwitcher): ICompressedTreeElement<CoverageTreeElement> => {
-			if (value instanceof PerTestCoverageSwitcher) {
-				return {
-					element: value,
-					incompressible: true,
-					collapsible: false,
-				};
-			}
-
+		const toChild = (value: TestCoverageFileNode): ICompressedTreeElement<CoverageTreeElement> => {
 			const isFile = !value.children?.size;
 			return {
 				element: value,
@@ -410,10 +396,6 @@ class TestCoverageTree extends Disposable {
 
 class TestCoverageTreeListDelegate implements IListVirtualDelegate<CoverageTreeElement> {
 	getHeight(element: CoverageTreeElement): number {
-		if (element instanceof PerTestCoverageSwitcher) {
-			return PerTestCoverageSwitcherRenderer.height;
-		}
-
 		return 22;
 	}
 
@@ -426,9 +408,6 @@ class TestCoverageTreeListDelegate implements IListVirtualDelegate<CoverageTreeE
 		}
 		if (element instanceof LoadingDetails || element instanceof RevealUncoveredDeclarations) {
 			return BasicRenderer.ID;
-		}
-		if (element instanceof PerTestCoverageSwitcher) {
-			return PerTestCoverageSwitcherRenderer.ID;
 		}
 		assertNever(element);
 	}
@@ -524,12 +503,17 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 		const stat = (element instanceof Array ? element[element.length - 1] : element) as TestCoverageFileNode;
 		const file = stat.value!;
 		const name = element instanceof Array ? element.map(e => basenameOrAuthority((e as TestCoverageFileNode).value!.uri)) : basenameOrAuthority(file.uri);
-		templateData.elementsDisposables.add(autorun(reader => {
-			stat.value?.didChange.read(reader);
-			templateData.bars.setCoverageInfo(file);
-		}));
+		if (file instanceof BypassedFileCoverage) {
+			templateData.bars.setCoverageInfo(undefined);
+		} else {
+			templateData.elementsDisposables.add(autorun(reader => {
+				stat.value?.didChange.read(reader);
+				templateData.bars.setCoverageInfo(file);
+			}));
 
-		templateData.bars.setCoverageInfo(file);
+			templateData.bars.setCoverageInfo(file);
+		}
+
 		templateData.label.setResource({ resource: file.uri, name }, {
 			fileKind: stat.children?.size ? FileKind.FOLDER : FileKind.FILE,
 			matches: createMatches(filterData),
@@ -621,59 +605,6 @@ class BasicRenderer implements ICompressibleTreeRenderer<CoverageTreeElement, Fu
 	}
 }
 
-interface PerTestCoverageSwitcherRendererTemplateData {
-	container: HTMLElement;
-	text: HTMLElement;
-	elementDisposables: DisposableStore;
-}
-
-
-class PerTestCoverageSwitcherRenderer implements ICompressibleTreeRenderer<PerTestCoverageSwitcher, FuzzyScore, PerTestCoverageSwitcherRendererTemplateData> {
-	public static readonly ID = 'S';
-	public static readonly height = 28;
-	public readonly templateId = PerTestCoverageSwitcherRenderer.ID;
-
-	constructor(@ICommandService private readonly commandService: ICommandService) { }
-
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<PerTestCoverageSwitcher>, FuzzyScore>, _index: number, data: PerTestCoverageSwitcherRendererTemplateData): void {
-		this.renderInner(node.element.elements[node.element.elements.length - 1], data);
-	}
-
-	renderTemplate(container: HTMLElement): PerTestCoverageSwitcherRendererTemplateData {
-		const el = document.createElement('div');
-		const text = document.createElement('span');
-		el.classList.add('test-coverage-tree-per-test-switcher');
-		el.appendChild(text);
-		container.appendChild(el);
-
-		return {
-			container: el,
-			text,
-			elementDisposables: new DisposableStore(),
-		};
-	}
-
-	renderElement(node: ITreeNode<PerTestCoverageSwitcher, FuzzyScore>, index: number, data: PerTestCoverageSwitcherRendererTemplateData): void {
-		this.renderInner(node.element, data);
-	}
-
-	disposeTemplate(data: PerTestCoverageSwitcherRendererTemplateData): void {
-		data.elementDisposables.dispose();
-		data.container.parentElement?.removeChild(data.container);
-	}
-
-	private renderInner(element: PerTestCoverageSwitcher, { container, text, elementDisposables }: PerTestCoverageSwitcherRendererTemplateData) {
-		elementDisposables.clear();
-		text.innerText = element.currentFilter
-			? coverUtils.labels.showingFilterFor(element.currentFilter.label)
-			: localize('testing.filterCovToTest', 'Show coverage for test...');
-		elementDisposables.add(dom.addStandardDisposableListener(container, 'click', evt => {
-			this.commandService.executeCommand(TestCommandId.CoverageFilterToTest, element.currentFilter?.extId);
-			evt.preventDefault();
-		}));
-	}
-}
-
 class TestCoverageIdentityProvider implements IIdentityProvider<CoverageTreeElement> {
 	public getId(element: CoverageTreeElement) {
 		return isFileCoverage(element)
@@ -687,9 +618,20 @@ registerAction2(class TestCoverageChangePerTestFilterAction extends Action2 {
 		super({
 			id: TestCommandId.CoverageFilterToTest,
 			category: Categories.Test,
-			title: localize2('testing.changeCoverageFilter', 'Filter Coverage by Test...'),
-			precondition: TestingContextKeys.hasPerTestCoverage,
-			f1: true,
+			title: localize2('testing.changeCoverageFilter', 'Filter Coverage by Test'),
+			icon: Codicon.filter,
+			toggled: {
+				icon: Codicon.filterFilled,
+				condition: TestingContextKeys.isCoverageFilteredToTest,
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.hasPerTestCoverage },
+				{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(TestingContextKeys.hasPerTestCoverage, ContextKeyExpr.equals('view', Testing.CoverageViewId)),
+					group: 'navigation',
+				},
+			]
 		});
 	}
 
