@@ -732,6 +732,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.updateTabsScrollbarSizing();
 		}
 
+		// Update editor actions
+		if (oldOptions.alwaysShowEditorActions !== newOptions.alwaysShowEditorActions) {
+			this.updateEditorActionsToolbar();
+		}
+
 		// Update tabs sizing
 		if (
 			oldOptions.tabSizingFixedMinWidth !== newOptions.tabSizingFixedMinWidth ||
