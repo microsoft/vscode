@@ -489,22 +489,18 @@
 }
 
 .interactive-session .chat-attached-context {
-	padding: 8px 8px 13px;
-	margin-right: -3px;
-	margin-top: 4px;
-	margin-bottom: -4px;
-	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
-	border-radius: 6px 6px 0px 0px;
+	padding: 8px 0;
+	border-radius: 6px;
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
-	padding: 3px;
-	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
+	padding: 2px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 5px;
-	height: 20px;
+	height: 18px;
 }
 
 .interactive-session-followups {
