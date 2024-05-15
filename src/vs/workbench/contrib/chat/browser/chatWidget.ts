@@ -585,11 +585,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._onDidChangeContentHeight.fire();
 		}));
-		this._register(this.inputPart.onDidChangeAttachedContext(() => {
-			if (this.bodyDimension) {
-				this.layout(this.bodyDimension.height, this.bodyDimension.width);
-			}
-		}));
 	}
 
 	private onDidStyleChange(): void {
