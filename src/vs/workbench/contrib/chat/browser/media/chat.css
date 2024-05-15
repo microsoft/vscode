@@ -343,7 +343,7 @@
 	cursor: text;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 4px;
+	border-radius: 2px;
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
@@ -471,7 +471,7 @@
 
 .interactive-session .interactive-input-part.compact {
 	margin: 0;
-	padding: 6px 0px;
+	padding: 8px 0 0 0
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
