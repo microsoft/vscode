@@ -5,8 +5,8 @@
 
 import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { ITreeSitterTokenizationService } from 'vs/workbench/services/treeSitter/browser/treeSitterTokenizationFeature';
-import { TreeSitterTokenizationService } from 'vs/workbench/services/treeSitter/browser/treeSitterTokenizationFeatureImpl';
+import { ITreeSitterTokenizationService } from 'vs/editor/browser/services/treeSitter/treeSitterTokenizationFeature';
+import { TreeSitterTokenizationService } from 'vs/editor/browser/services/treeSitter/treeSitterTokenizationFeatureImpl';
 
 /**
  * Makes sure the ITreeSitterTokenizationService is instantiated

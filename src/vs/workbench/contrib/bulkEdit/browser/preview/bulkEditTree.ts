@@ -15,7 +15,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -33,6 +33,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITreeSitterTokenizationService } from 'vs/editor/browser/services/treeSitter/treeSitterTokenizationFeature';
 
 // --- VIEW MODEL
 
@@ -206,7 +207,10 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITreeSitterTokenizationService private readonly _treeSitterService: ITreeSitterTokenizationService
 	) { }
 
 	hasChildren(element: BulkFileOperations | BulkEditElement): boolean {
@@ -243,7 +247,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				textModel = ref.object.textEditorModel;
 				textModelDisposable = ref;
 			} catch {
-				textModel = new TextModel('', PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService, this._configurationService);
+				textModel = new TextModel('', PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService, this._configurationService, this._fileService, this._themeService, this._treeSitterService);
 				textModelDisposable = textModel;
 			}
 

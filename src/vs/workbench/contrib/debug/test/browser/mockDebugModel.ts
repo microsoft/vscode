@@ -8,7 +8,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockDebugStorage } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 const fileService = new TestFileService();

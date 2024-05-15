@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getContext } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
