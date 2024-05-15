@@ -898,7 +898,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 						anchor = this.groupView.activeEditor!;
 					}
 					this.selectEditorsBetween(editor, anchor);
-				} else if (e.ctrlKey) {
+				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
 					if (this.groupView.isSelected(editor)) {
 						this.groupView.unSelectEditor(editor);
 					} else {
@@ -949,8 +949,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (this.originatesFromTabActionBar(e)) {
 				return; // not when clicking on actions
 			}
-
-			if (!e.ctrlKey && !e.shiftKey && this.groupView.selectedEditors.length > 1) {
+			const isCtrlCmd = (e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh);
+			if (!isCtrlCmd && !e.shiftKey && this.groupView.selectedEditors.length > 1) {
 				this.unselectAllEditors();
 			}
 		}));
