@@ -968,6 +968,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 	private renderGraph(graphContainer: SVGElement, historyItem: SCMHistoryItemTreeElement): void {
 		graphContainer.textContent = '';
 
+		let removedNodes = 0;
 		const firstIndex = historyItem.graphNodes
 			.findIndex(node => node.id === historyItem.id);
 		const firstNode = historyItem.graphNodes[firstIndex];
@@ -1011,6 +1012,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 				path.setAttribute('d', d.join(' '));
 				graphContainer.append(path);
+
+				removedNodes++;
 			}
 		}
 
@@ -1020,11 +1023,11 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 			const d: string[] = [];
 
 			// Draw \
-			d.push(`M ${11 * historyItem.graphNodes.length} 11`);
-			d.push(`A 11 11 0 0 1 ${11 * (historyItem.graphNodes.length + 1)} 22`);
+			d.push(`M ${11 * (historyItem.graphNodes.length - removedNodes)} 11`);
+			d.push(`A 11 11 0 0 1 ${11 * ((historyItem.graphNodes.length - removedNodes) + 1)} 22`);
 
 			// Draw -
-			d.push(`M ${11 * historyItem.graphNodes.length} 11`);
+			d.push(`M ${11 * (historyItem.graphNodes.length - removedNodes)} 11`);
 			d.push(`H ${11 * (firstIndex + 1)}`);
 
 			path.setAttribute('d', d.join(' '));
