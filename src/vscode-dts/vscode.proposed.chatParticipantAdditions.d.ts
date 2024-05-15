@@ -132,12 +132,12 @@ declare module 'vscode' {
 		* @param task If provided, a task to run while the progress is displayed. When the Thenable resolves, the progress will be marked complete in the UI, and the progress message will be updated to the resolved string if one is specified.
 		* @returns This stream.
 		*/
-		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): ChatResponseStream;
+		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
-		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
-		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
-		detectedParticipant(participant: string, command?: ChatCommand): ChatResponseStream;
-		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): ChatResponseStream;
+		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
+		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
+		detectedParticipant(participant: string, command?: ChatCommand): void;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
 		/**
 		 * Show an inline message in the chat view asking the user to confirm an action.
@@ -149,7 +149,7 @@ declare module 'vscode' {
 		 * TODO@API should this be MarkdownString?
 		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
-		confirmation(title: string, message: string, data: any): ChatResponseStream;
+		confirmation(title: string, message: string, data: any): void;
 
 		/**
 		 * Push a warning to this stream. Short-hand for
@@ -158,11 +158,11 @@ declare module 'vscode' {
 		 * @param message A warning message
 		 * @returns This stream.
 		 */
-		warning(message: string | MarkdownString): ChatResponseStream;
+		warning(message: string | MarkdownString): void;
 
-		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
-		push(part: ExtendedChatResponsePart): ChatResponseStream;
+		push(part: ExtendedChatResponsePart): void;
 	}
 
 	/**
@@ -298,6 +298,13 @@ declare module 'vscode' {
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
 		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
+	}
+
+	export interface ChatPromptReference {
+		/**
+		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
+		 */
+		readonly name: string;
 	}
 
 	/**

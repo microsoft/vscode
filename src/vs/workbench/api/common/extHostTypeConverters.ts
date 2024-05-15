@@ -2351,10 +2351,13 @@ export namespace ChatResponseFilesPart {
 
 export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
+		// Work around type-narrowing confusion between vscode.Uri and URI
+		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
+
 		return {
 			kind: 'inlineReference',
 			name: part.title,
-			inlineReference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+			inlineReference: isUri(part.value) ? part.value : Location.from(part.value)
 		};
 	}
 
@@ -2566,7 +2569,7 @@ export namespace ChatLocation {
 }
 
 export namespace ChatAgentValueReference {
-	export function to(variable: IChatRequestVariableEntry): vscode.ChatValueReference {
+	export function to(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
 		const value = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
