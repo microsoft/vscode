@@ -990,14 +990,20 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 				d.push(`V 22`);
 			}
 
-			// Draw \
-			if (historyItem.parentIds.length > 1) {
-				d.push(`M ${11 * (index + 1)} 11`);
-				d.push(`A 11 11 0 0 1 ${11 * (index + 2)} 22`);
-			}
-
 			path.setAttribute('d', d.join(' '));
 			graphContainer.append(path);
+
+			// Draw \
+			if (historyItem.parentIds.length > 1) {
+				const path = this.createPath(node.secondaryColor ?? node.color);
+
+				const d: string[] = [];
+				d.push(`M ${11 * (index + 1)} 11`);
+				d.push(`A 11 11 0 0 1 ${11 * (index + 2)} 22`);
+
+				path.setAttribute('d', d.join(' '));
+				graphContainer.append(path);
+			}
 		}
 
 		// Draw *
@@ -3851,15 +3857,16 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		for (let index = 0; index < historyItemsElement[1].length; index++) {
 			const historyItem = historyItemsElement[1][index];
 			const swimlaneIndex = graphNodes.findIndex(n => n.id === historyItem.id);
+			const secondaryColor = historyItem.parentIds.length > 1 ? getColor() : undefined;
 
 			// New swimlane
 			if (swimlaneIndex === -1) {
 				const color = getColor();
-
 				// Add root node
 				graphNodes.push({
 					id: historyItem.id,
 					color,
+					secondaryColor,
 					isRoot: true
 				});
 
@@ -3875,7 +3882,9 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				for (let i = 0; i < historyItem.parentIds.length; i++) {
 					graphNodes.push({
 						id: historyItem.parentIds[i],
-						color: i === 0 ? color : getColor(),
+						color:
+							i === 0 ? color :
+								i === 1 ? secondaryColor! : getColor(),
 						isRoot: false
 					});
 				}
@@ -3884,6 +3893,12 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			}
 
 			// Existing swimlane
+			if (historyItem.parentIds.length > 1) {
+				// Add secondary color to the graph node
+				const node = { ...graphNodes[swimlaneIndex], secondaryColor };
+				graphNodes.splice(swimlaneIndex, 1, node);
+			}
+
 			children.push({
 				...historyItem,
 				graphNodes: [...graphNodes],
@@ -3917,7 +3932,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			for (let i = 1; i < historyItem.parentIds.length; i++) {
 				graphNodes.push({
 					id: historyItem.parentIds[i],
-					color: getColor(),
+					color: i === 1 ? secondaryColor ?? getColor() : getColor(),
 					isRoot: false
 				});
 			}

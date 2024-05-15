@@ -80,6 +80,7 @@ export interface ISCMHistoryItem {
 export interface ISCMHistoryItemGraphNode {
 	readonly id: string;
 	readonly color: string;
+	readonly secondaryColor?: string;
 	readonly isRoot: boolean;
 }
 
