@@ -73,8 +73,6 @@ declare module 'vscode' {
 	 *
 	 * @see {@link LanguageModelAccess.chatRequest}
 	*/
-	// TODO@API add something like `modelResult: Thenable<{ [name: string]: any }>`
-	// TODO@API: add a StopReason-enum that's also used in LanguageModelChat
 	export interface LanguageModelChatResponse {
 
 		/**
