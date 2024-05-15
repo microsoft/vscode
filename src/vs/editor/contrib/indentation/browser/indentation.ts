@@ -11,7 +11,6 @@ import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { EditorAutoIndentStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -26,7 +25,8 @@ import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
 import { getReindentEditOperations } from '../common/indentation';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { getStandardTokenTypeAtPosition } from 'vs/editor/common/tokens/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static readonly ID = 'editor.action.indentationToSpaces';
@@ -418,11 +418,10 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (!model) {
 			return;
 		}
-
-		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
+		if (isStartOrEndInString(model, range)) {
 			return;
 		}
-		if (isOneRangeExtremityInString(model, range)) {
+		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
 		const autoIndent = this.editor.getOption(EditorOption.autoIndent);
@@ -570,35 +569,16 @@ export class AutoIndentOnPaste implements IEditorContribution {
 	}
 }
 
-function isOneRangeExtremityInString(model: ITextModel, range: Range): boolean {
+function isStartOrEndInString(model: ITextModel, range: Range): boolean {
 
 	// Utility function
-	const getStandardTokenTypeAtPosition = (position: Position): StandardTokenType => {
-		const lineNumber = position.lineNumber;
-		const column = position.column;
-		let startLineTokens: LineTokens;
-		let startColumnOfInterest: number;
-		if (model.getLineLength(lineNumber) === column - 1 && lineNumber < model.getLineCount()) {
-			model.tokenization.forceTokenization(lineNumber + 1);
-			startLineTokens = model.tokenization.getLineTokens(lineNumber + 1);
-			startColumnOfInterest = 0;
-		} else {
-			model.tokenization.forceTokenization(lineNumber);
-			startLineTokens = model.tokenization.getLineTokens(lineNumber);
-			startColumnOfInterest = column - 1;
-		}
-		const startTokenIndex = startLineTokens.findTokenIndexAtOffset(startColumnOfInterest);
-		const startTokenType = startLineTokens.getStandardTokenType(startTokenIndex);
-		return startTokenType;
+	const isPositionInString = (position: Position): boolean => {
+		const tokenType = getStandardTokenTypeAtPosition(model, position);
+		return tokenType === StandardTokenType.String;
 	}
 
 	// Main code
-	const startTokenType = getStandardTokenTypeAtPosition(range.getStartPosition());
-	const endToken = getStandardTokenTypeAtPosition(range.getEndPosition());
-	if (startTokenType === StandardTokenType.String || endToken === StandardTokenType.String) {
-		return true;
-	}
-	return false;
+	return isPositionInString(range.getStartPosition()) || isPositionInString(range.getEndPosition());
 }
 
 function getIndentationEditOperations(model: ITextModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {

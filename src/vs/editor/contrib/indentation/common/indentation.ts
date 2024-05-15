@@ -62,7 +62,7 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 	const currentLineText = model.getLineContent(startLineNumber);
 	let adjustedLineContent = currentLineText;
 	const lineStartsWithString = doesLineStartWithString(model, startLineNumber);
-	if (!lineStartsWithString && inheritedIndent !== undefined) {
+	if (!lineStartsWithString && inheritedIndent !== undefined && inheritedIndent !== null) {
 		globalIndent = inheritedIndent;
 		const oldIndentation = strings.getLeadingWhitespace(currentLineText);
 
@@ -130,8 +130,5 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 
 function doesLineStartWithString(model: ITextModel, lineNumber: number): boolean {
 	const lineTokens = model.tokenization.getLineTokens(lineNumber);
-	if (lineTokens.getStandardTokenType(0) === StandardTokenType.String) {
-		return true;
-	}
-	return false;
+	return lineTokens.getStandardTokenType(0) === StandardTokenType.String;
 }
