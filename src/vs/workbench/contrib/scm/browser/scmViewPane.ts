@@ -3856,49 +3856,26 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const graphNodes: ISCMHistoryItemGraphNode[] = [];
 		for (let index = 0; index < historyItemsElement[1].length; index++) {
 			const historyItem = historyItemsElement[1][index];
-			const swimlaneIndex = graphNodes.findIndex(n => n.id === historyItem.id);
+			let swimlaneIndex = graphNodes.findIndex(n => n.id === historyItem.id);
+
+			const color = swimlaneIndex === -1 ? getColor() : graphNodes[swimlaneIndex].color;
 			const secondaryColor = historyItem.parentIds.length > 1 ? getColor() : undefined;
 
 			// New swimlane
 			if (swimlaneIndex === -1) {
-				const color = getColor();
 				// Add root node
-				graphNodes.push({
-					id: historyItem.id,
-					color,
-					secondaryColor,
-					isRoot: true
-				});
+				graphNodes.push({ id: historyItem.id, color, isRoot: true });
 
-				children.push({
-					...historyItem,
-					graphNodes: [...graphNodes],
-					repository: element,
-					type: 'historyItem'
-				} satisfies SCMHistoryItemTreeElement);
-
-				// Update graph node with parent(s)
-				graphNodes.splice(graphNodes.length - 1, 1);
-				for (let i = 0; i < historyItem.parentIds.length; i++) {
-					graphNodes.push({
-						id: historyItem.parentIds[i],
-						color:
-							i === 0 ? color :
-								i === 1 ? secondaryColor! : getColor(),
-						isRoot: false
-					});
-				}
-
-				continue;
+				swimlaneIndex = graphNodes.length - 1;
 			}
 
-			// Existing swimlane
+			// Add secondary color to the node
 			if (historyItem.parentIds.length > 1) {
-				// Add secondary color to the graph node
 				const node = { ...graphNodes[swimlaneIndex], secondaryColor };
 				graphNodes.splice(swimlaneIndex, 1, node);
 			}
 
+			// Add element
 			children.push({
 				...historyItem,
 				graphNodes: [...graphNodes],
@@ -3906,35 +3883,40 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				type: 'historyItem'
 			} satisfies SCMHistoryItemTreeElement);
 
-			// Update graph node with parent(s)
-			let i = 0;
-			while (i < graphNodes.length) {
-				if (graphNodes[i].id === historyItem.id) {
-					if (i === swimlaneIndex) {
-						// Update first occurrence
-						graphNodes.splice(i, 1, {
-							id: historyItem.parentIds[0],
-							color: graphNodes[i].color,
-							isRoot: false
-						});
-					} else {
-						// TODO@lszomoru - curved lines
-						// Delete all other occurrences
-						graphNodes.splice(i, 1);
-						continue;
+			// Insert parent(s) into the graph
+			if (historyItem.parentIds.length !== 0) {
+				// Update graph node with parent(s)
+				// - Update first occurrence
+				// - Delete all other occurrences
+				let i = 0;
+				while (i < graphNodes.length) {
+					if (graphNodes[i].id === historyItem.id) {
+						if (i === swimlaneIndex) {
+							// Update first occurrence
+							graphNodes.splice(i, 1, {
+								id: historyItem.parentIds[0],
+								color,
+								isRoot: false
+							});
+						} else {
+							// TODO@lszomoru - curved lines
+							// Delete all other occurrences
+							graphNodes.splice(i, 1);
+							continue;
+						}
 					}
+
+					i++;
 				}
 
-				i++;
-			}
-
-			// Add remaining parent(s) to the graph
-			for (let i = 1; i < historyItem.parentIds.length; i++) {
-				graphNodes.push({
-					id: historyItem.parentIds[i],
-					color: i === 1 ? secondaryColor ?? getColor() : getColor(),
-					isRoot: false
-				});
+				// Add remaining parent(s) to the graph
+				for (let i = 1; i < historyItem.parentIds.length; i++) {
+					graphNodes.push({
+						id: historyItem.parentIds[i],
+						color: i === 1 ? secondaryColor ?? getColor() : getColor(),
+						isRoot: false
+					});
+				}
 			}
 		}
 
