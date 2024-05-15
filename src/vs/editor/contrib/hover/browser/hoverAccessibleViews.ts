@@ -54,7 +54,7 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		this.options = {
-			language: this._editor?.getModel()?.getLanguageId() ?? 'typescript',
+			language: this._editor.getModel()?.getLanguageId() ?? 'typescript',
 			type: AccessibleViewType.View
 		}
 	}
