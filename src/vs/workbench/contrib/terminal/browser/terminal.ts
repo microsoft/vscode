@@ -640,6 +640,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly isDisposed: boolean;
 
 	/**
+	 * Whether this terminal is visible.
+	 */
+	readonly isVisible: boolean;
+
+	/**
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
 	readonly isRemote: boolean;

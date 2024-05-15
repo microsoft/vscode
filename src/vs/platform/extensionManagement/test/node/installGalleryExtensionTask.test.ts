@@ -107,8 +107,7 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 			userDataProfilesService,
 			extensionsScannerService,
 			extensionsProfileScannerService,
-			logService,
-			NullTelemetryService
+			logService
 		);
 	}
 
@@ -123,6 +122,10 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 	}
 
 	protected override async validateManifest(): Promise<void> { }
+}
+
+class TestExtensionDownloader extends ExtensionsDownloader {
+	protected override async validate(): Promise<void> { }
 }
 
 suite('InstallGalleryExtensionTask Tests', () => {
@@ -234,7 +237,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService(isBoolean(options.isSignatureVerificationEnabled) ? { extensions: { verifySignature: options.isSignatureVerificationEnabled } } : undefined));
 		instantiationService.stub(IExtensionSignatureVerificationService, new TestExtensionSignatureVerificationService(options.verificationResult));
-		return disposables.add(instantiationService.createInstance(ExtensionsDownloader));
+		return disposables.add(instantiationService.createInstance(TestExtensionDownloader));
 	}
 
 	function aGalleryExtension(name: string, properties: Partial<IGalleryExtension> = {}, galleryExtensionProperties: any = {}, assets: Partial<IGalleryExtensionAssets> = {}): IGalleryExtension {

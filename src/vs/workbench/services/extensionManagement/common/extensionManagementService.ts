@@ -448,6 +448,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return result;
 	}
 
+	getInstalledWorkspaceExtensionLocations(): URI[] {
+		return this.workspaceExtensionManagementService.getInstalledWorkspaceExtensionsLocations();
+	}
+
 	async getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]> {
 		return this.workspaceExtensionManagementService.getInstalled(includeInvalid);
 	}
@@ -837,7 +841,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 	}
 
 	private async initialize(): Promise<void> {
-		const existingLocations = this.getWorkspaceExtensionsLocations();
+		const existingLocations = this.getInstalledWorkspaceExtensionsLocations();
 		if (!existingLocations.length) {
 			return;
 		}
@@ -943,7 +947,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		}>('workspaceextension:uninstall');
 	}
 
-	private getWorkspaceExtensionsLocations(): URI[] {
+	getInstalledWorkspaceExtensionsLocations(): URI[] {
 		const locations: URI[] = [];
 		try {
 			const parsed = JSON.parse(this.storageService.get(WorkspaceExtensionsManagementService.WORKSPACE_EXTENSIONS_KEY, StorageScope.WORKSPACE, '[]'));
