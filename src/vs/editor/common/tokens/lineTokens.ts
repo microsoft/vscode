@@ -348,9 +348,10 @@ class SliceLineTokens implements IViewLineTokens {
 	}
 
 	public getTokenText(tokenIndex: number): string {
-		const tokenStartOffset = this._source.getStartOffset(this._firstTokenIndex + tokenIndex);
-		const tokenEndOffset = this._source.getEndOffset(this._firstTokenIndex + tokenIndex);
-		let text = this._source.getTokenText(tokenIndex)
+		const adjustedTokenIndex = this._firstTokenIndex + tokenIndex;
+		const tokenStartOffset = this._source.getStartOffset(adjustedTokenIndex);
+		const tokenEndOffset = this._source.getEndOffset(adjustedTokenIndex);
+		let text = this._source.getTokenText(adjustedTokenIndex);
 		if (tokenStartOffset < this._startOffset) {
 			text = text.substring(this._startOffset - tokenStartOffset);
 		}
@@ -361,9 +362,8 @@ class SliceLineTokens implements IViewLineTokens {
 	}
 
 	public forEach(callback: (tokenIndex: number) => void): void {
-		const tokenCount = this.getCount();
-		const firstTokenIndex = this._firstTokenIndex;
-		const lastTokenIndex = this._firstTokenIndex + tokenCount;
+		const firstTokenIndex = 0;
+		const lastTokenIndex = this.getCount();
 		for (let tokenIndex = firstTokenIndex; tokenIndex < lastTokenIndex; tokenIndex++) {
 			callback(tokenIndex);
 		}
