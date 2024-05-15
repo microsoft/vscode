@@ -44,6 +44,13 @@ declare module 'vscode' {
 		 */
 		readonly version: string;
 
+		readonly maxInputTokens: number;
+
+		readonly maxOutputTokens: number;
+
+		/**
+		 * @deprecated
+		 */
 		tokens: number;
 
 		/**
@@ -56,7 +63,7 @@ declare module 'vscode' {
 
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
-		extensions: string[];
+		extensions?: string[];
 	}
 
 	export namespace chat {

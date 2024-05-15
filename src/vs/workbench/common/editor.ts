@@ -1171,6 +1171,7 @@ export const enum GroupModelChangeKind {
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
 	EDITOR_TRANSIENT,
+	EDITOR_SELECTION,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE
@@ -1207,6 +1208,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;

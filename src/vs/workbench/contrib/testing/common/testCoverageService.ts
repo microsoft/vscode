@@ -80,6 +80,12 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 			reader => !!this.selected.read(reader)?.perTestCoverageIDs.size,
 		));
 
+		this._register(bindContextKey(
+			TestingContextKeys.isCoverageFilteredToTest,
+			contextKeyService,
+			reader => !!this.filterToTest.read(reader),
+		));
+
 		this._register(resultService.onResultsChanged(evt => {
 			if ('completed' in evt) {
 				const coverage = evt.completed.tasks.find(t => t.coverage.get());

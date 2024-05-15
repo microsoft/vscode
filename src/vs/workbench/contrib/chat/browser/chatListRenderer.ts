@@ -68,7 +68,7 @@ import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatTask, IChatWarningMessage, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatTask, IChatWarningMessage, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatTaskRenderData, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -325,7 +325,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
 		if (isResponseVM(element)) {
 			CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
-			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set(element.vote === InteractiveSessionVoteDirection.Up ? 'up' : element.vote === InteractiveSessionVoteDirection.Down ? 'down' : '');
+			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set(element.vote === ChatAgentVoteDirection.Up ? 'up' : element.vote === ChatAgentVoteDirection.Down ? 'down' : '');
 		} else {
 			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set('');
 		}
@@ -456,7 +456,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				: data.kind === 'markdownContent'
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
-						: data.kind === 'progressTask' ? this.renderProgressTask(data, !data.deferred.isSettled, element, templateData)
+						: data.kind === 'progressTask' ? this.renderProgressTask(data, false, element, templateData)
 							: data.kind === 'command' ? this.renderCommandButton(element, data)
 								: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
 									: data.kind === 'warning' ? this.renderNotification('warning', data.content)
