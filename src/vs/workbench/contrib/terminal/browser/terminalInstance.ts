@@ -266,7 +266,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return dom.isAncestorOfActiveElement(this._wrapperElement); }
-	get isVisible(): boolean { return this._isVisible; }
 	get title(): string { return this._title; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
