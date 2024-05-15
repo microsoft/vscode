@@ -166,7 +166,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 	}
 
 	private _getDelay(signal: AccessibilitySignal, modality: AccessibilityModality): number {
-		const delaySettingsKey = signal.delaySettingsKey ?? defaultDelaySettingsKey;
+		const delaySettingsKey = signal.delaySettingsKey ?? 'accessibility.signalOptions.delays.general';
 		const delaySettingsValue: { sound: number; announcement: number } = this._configurationService.getValue(delaySettingsKey);
 		return modality === 'sound' ? delaySettingsValue.sound : delaySettingsValue.announcement;
 	}
@@ -283,6 +283,4 @@ class BreakpointTextProperty implements TextProperty {
 		});
 	}
 }
-
-export const defaultDelaySettingsKey = 'accessibility.signalOptions.delays.general';
 
