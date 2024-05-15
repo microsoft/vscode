@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
+import { format } from 'vs/base/common/strings';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { AccessibleViewType, AccessibleViewProviderId, AdvancedContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
@@ -19,11 +19,11 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 namespace HoverAccessibilityHelpNLS {
-	export const intro = nls.localize('intro', "The hover widget is focused. Press the Tab key to cycle through the hover parts.");
-	export const increaseVerbosity = nls.localize('increaseVerbosity', "- The focused hover part verbosity level can be increased ({0}).");
-	export const increaseVerbosityNoKb = nls.localize('increaseVerbosityNoKb', "- The focused hover part verbosity level can be increased, which is currently not triggerable via keybinding.");
-	export const decreaseVerbosity = nls.localize('decreaseVerbosity', "- The focused hover part verbosity level can be decreased ({0}).");
-	export const decreaseVerbosityNoKb = nls.localize('decreaseVerbosityNoKb', "- The focused hover part verbosity level can be decreased, which is currently not triggerable via keybinding.");
+	export const intro = localize('intro', "The hover widget is focused. Press the Tab key to cycle through the hover parts.");
+	export const increaseVerbosity = localize('increaseVerbosity', "- The focused hover part verbosity level can be increased ({0}).");
+	export const increaseVerbosityNoKb = localize('increaseVerbosityNoKb', "- The focused hover part verbosity level can be increased, which is currently not triggerable via keybinding.");
+	export const decreaseVerbosity = localize('decreaseVerbosity', "- The focused hover part verbosity level can be decreased ({0}).");
+	export const decreaseVerbosityNoKb = localize('decreaseVerbosityNoKb', "- The focused hover part verbosity level can be decreased, which is currently not triggerable via keybinding.");
 }
 
 export class HoverAccessibleView implements IAccessibleViewImplentation {
@@ -62,9 +62,9 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
 		const kb = this._keybindingService.lookupKeybinding(commandId);
 		if (kb) {
-			return strings.format(msg, kb.getAriaLabel());
+			return format(msg, kb.getAriaLabel());
 		}
-		return strings.format(noKbMsg, commandId);
+		return format(noKbMsg, commandId);
 	}
 
 	provideContent(): string {
