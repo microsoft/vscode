@@ -53,6 +53,11 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.interactive-item-container .header .detail-container .detail .agentOrSlashCommandDetected A {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
 .interactive-item-container .chat-animated-ellipsis {
 	display: inline-block;
 	width: 11px;
