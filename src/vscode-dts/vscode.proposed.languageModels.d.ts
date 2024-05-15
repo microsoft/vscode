@@ -145,12 +145,6 @@ declare module 'vscode' {
 		readonly maxInputTokens: number;
 
 		/**
-		 * The maximum number of tokens that a model can generate in a single response.
-		 */
-		// TODO@API leave it out for now
-		readonly maxOutputTokens: number;
-
-		/**
 		 * Make a chat request using a language model.
 		 *
 		 * *Note* that language model use may be subject to access restrictions and user consent. Calling this function
