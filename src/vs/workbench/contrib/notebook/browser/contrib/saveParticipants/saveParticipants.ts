@@ -19,18 +19,19 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { FormattingMode, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { NotebookDefaultFormatter } from 'vs/workbench/contrib/notebook/browser/contrib/format/notebookDefaultFormatter';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -48,7 +49,6 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService private readonly logService: ILogService,
 	) { }
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
@@ -67,7 +67,7 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 		progress.report({ message: localize('notebookFormatSave.formatting', "Formatting") });
 
 		const notebook = workingCopy.model.notebookModel;
-		const formatApplied: boolean = await CodeActionParticipantUtils.checkAndRunFormatCodeAction(notebook, this.textModelService, this.logService, this.instantiationService, this.languageFeaturesService, progress, token);
+		const formatApplied: boolean = await this.instantiationService.invokeFunction(CodeActionParticipantUtils.checkAndRunFormatCodeAction, notebook, progress, token);
 
 		const disposable = new DisposableStore();
 		try {
@@ -322,7 +322,6 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -378,7 +377,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 				const textEditorModel = ref.object.textEditorModel;
 
-				await CodeActionParticipantUtils.applyOnSaveGenericActions(textEditorModel, notebookCodeActionsOnSave, excludedActions, this.logService, this.instantiationService, this.languageFeaturesService, progress, token);
+				await this.instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveGenericCodeActions, textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
 			} catch {
 				this.logService.error('Failed to apply notebook code action on save');
 			} finally {
@@ -414,7 +413,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 					const textEditorModel = ref.object.textEditorModel;
 
-					await CodeActionParticipantUtils.applyOnSaveGenericActions(textEditorModel, editorCodeActionsOnSave, excludedActions, this.logService, this.instantiationService, this.languageFeaturesService, progress, token);
+					await this.instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveGenericCodeActions, textEditorModel, editorCodeActionsOnSave, excludedActions, progress, token);
 				}));
 			} catch {
 				this.logService.error('Failed to apply code action on save');
@@ -437,7 +436,48 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 class CodeActionParticipantUtils {
 
-	static async applyOnSaveGenericActions(model: ITextModel, codeActionsOnSave: readonly HierarchicalKind[], excludes: readonly HierarchicalKind[], logService: ILogService, instantiationService: IInstantiationService, languageFeaturesService: ILanguageFeaturesService, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	static async checkAndRunFormatCodeAction(
+		accessor: ServicesAccessor,
+		notebookModel: NotebookTextModel,
+		progress: IProgress<IProgressStep>,
+		token: CancellationToken): Promise<boolean> {
+
+		const instantiationService: IInstantiationService = accessor.get(IInstantiationService);
+		const textModelService: ITextModelService = accessor.get(ITextModelService);
+		const logService: ILogService = accessor.get(ILogService);
+		const configurationService: IConfigurationService = accessor.get(IConfigurationService);
+
+		const formatDisposable = new DisposableStore();
+		let formatResult: boolean = false;
+		progress.report({ message: localize('notebookSaveParticipants.formatCodeActions', "Running 'Format' code actions") });
+		try {
+			const cell = notebookModel.cells[0];
+			const ref = await textModelService.createModelReference(cell.uri);
+			formatDisposable.add(ref);
+			const textEditorModel = ref.object.textEditorModel;
+
+			const defaultFormatterExtId = configurationService.getValue<string | undefined>(NotebookDefaultFormatter.configName);
+			formatResult = await instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveFormatCodeAction, textEditorModel, new HierarchicalKind('notebook.format'), [], defaultFormatterExtId, progress, token);
+		} catch {
+			logService.error('Failed to apply notebook format action on save');
+		} finally {
+			progress.report({ increment: 100 });
+			formatDisposable.dispose();
+		}
+		return formatResult;
+	}
+
+	static async applyOnSaveGenericCodeActions(
+		accessor: ServicesAccessor,
+		model: ITextModel,
+		codeActionsOnSave: readonly HierarchicalKind[],
+		excludes: readonly HierarchicalKind[],
+		progress: IProgress<IProgressStep>,
+		token: CancellationToken): Promise<void> {
+
+		const instantiationService: IInstantiationService = accessor.get(IInstantiationService);
+		const languageFeaturesService: ILanguageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const logService: ILogService = accessor.get(ILogService);
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
 			private _names = new Set<string>();
@@ -500,15 +540,18 @@ class CodeActionParticipantUtils {
 		}
 	}
 
-	static async applyOnSaveFormatAction(
+	static async applyOnSaveFormatCodeAction(
+		accessor: ServicesAccessor,
 		model: ITextModel,
-		codeActionsOnSave: readonly HierarchicalKind[],
+		formatCodeActionOnSave: HierarchicalKind,
 		excludes: readonly HierarchicalKind[],
-		logService: ILogService,
-		instantiationService: IInstantiationService,
-		languageFeaturesService: ILanguageFeaturesService,
+		extensionId: string | undefined,
 		progress: IProgress<IProgressStep>,
 		token: CancellationToken): Promise<boolean> {
+
+		const instantiationService: IInstantiationService = accessor.get(IInstantiationService);
+		const languageFeaturesService: ILanguageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const logService: ILogService = accessor.get(ILogService);
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
 			private _names = new Set<string>();
@@ -530,79 +573,61 @@ class CodeActionParticipantUtils {
 			}
 		};
 
-		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token);
-			if (token.isCancellationRequested) {
-				actionsToRun.dispose();
+		const providedActions = await CodeActionParticipantUtils.getActionsToRun(model, formatCodeActionOnSave, excludes, languageFeaturesService, getActionProgress, token);
+		// warn the user if there are more than one provided format action, and there is no specified defaultFormatter
+		if (providedActions.validActions.length > 1 && !extensionId) {
+			logService.warn('More than one format code action is provided, the 0th one will be used. A default can be specified via `notebook.defaultFormatter` in your settings.');
+		}
+
+		if (token.isCancellationRequested) {
+			providedActions.dispose();
+			return false;
+		}
+
+		try {
+			const action: CodeActionItem | undefined = extensionId ? providedActions.validActions.find(action => action.provider?.extensionId === extensionId) : providedActions.validActions[0];
+			if (!action) {
 				return false;
 			}
 
-			try {
-				const action = actionsToRun.validActions[0];
-				if (!action) {
-					return false;
-				}
-				const codeActionEdits = action.action.edit?.edits;
-				let breakFlag = false;
-				if (!action.action.kind?.startsWith('notebook')) {
-					for (const edit of codeActionEdits ?? []) {
-						const workspaceTextEdit = edit as IWorkspaceTextEdit;
-						if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
-							continue;
-						} else {
-							// error -> applied to multiple resources
-							breakFlag = true;
-							break;
-						}
+			const codeActionEdits = action.action.edit?.edits;
+			let breakFlag = false;
+			if (!action.action.kind?.startsWith('notebook')) {
+				for (const edit of codeActionEdits ?? []) {
+					const workspaceTextEdit = edit as IWorkspaceTextEdit;
+					if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
+						continue;
+					} else {
+						// error -> applied to multiple resources
+						breakFlag = true;
+						break;
 					}
 				}
-				if (breakFlag) {
-					logService.warn('Failed to apply code action on save, applied to multiple resources.');
-					continue;
-				}
-				progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-				await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
-				if (token.isCancellationRequested) {
-					return false;
-				}
-			} catch {
-				logService.error('Failed to apply notebook format code action on save');
-				return false;
-			} finally {
-				actionsToRun.dispose();
 			}
+			if (breakFlag) {
+				logService.warn('Failed to apply code action on save, applied to multiple resources.');
+			}
+			progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
+			await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
+			if (token.isCancellationRequested) {
+				return false;
+			}
+		} catch {
+			logService.error('Failed to apply notebook format code action on save');
+			return false;
+		} finally {
+			providedActions.dispose();
 		}
 		return true;
 	}
 
+	// @Yoyokrazy this could likely be modified to leverage the extensionID, therefore not getting actions from providers unnecessarily -- future work
 	static getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], languageFeaturesService: ILanguageFeaturesService, progress: IProgress<CodeActionProvider>, token: CancellationToken) {
 		return getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Invoke,
 			triggerAction: CodeActionTriggerSource.OnSave,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
 		}, progress, token);
-	}
-
-	static async checkAndRunFormatCodeAction(notebookModel: NotebookTextModel, textModelService: ITextModelService, logService: ILogService, instantiationService: IInstantiationService, languageFeaturesService: ILanguageFeaturesService, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<boolean> {
-		const formatDisposable = new DisposableStore();
-		let formatResult: boolean = false;
-		progress.report({ message: localize('notebookSaveParticipants.formatCodeActions', "Running 'Format' code actions") });
-		try {
-			const cell = notebookModel.cells[0];
-			const ref = await textModelService.createModelReference(cell.uri);
-			formatDisposable.add(ref);
-
-			const textEditorModel = ref.object.textEditorModel;
-
-			// TODO@Yoyokrazy, need to handle multiple formatters and grabbing the default.
-			formatResult = await this.applyOnSaveFormatAction(textEditorModel, [new HierarchicalKind('notebook.format')], [], logService, instantiationService, languageFeaturesService, progress, token);
-		} catch {
-			logService.error('Failed to apply notebook format action on save');
-		} finally {
-			progress.report({ increment: 100 });
-			formatDisposable.dispose();
-		}
-		return formatResult;
 	}
 
 }

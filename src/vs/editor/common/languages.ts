@@ -834,6 +834,8 @@ export interface CodeActionProvider {
 
 	displayName?: string;
 
+	extensionId?: string;
+
 	/**
 	 * Provide commands for the given document and range.
 	 */
