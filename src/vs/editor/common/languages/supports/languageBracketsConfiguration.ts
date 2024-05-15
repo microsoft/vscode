@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CachedFunction } from 'vs/base/common/cache';
+import { RegExpOptions } from 'vs/base/common/strings';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 import { createBracketOrRegExp } from 'vs/editor/common/languages/supports/richEditBrackets';
 
@@ -93,9 +94,9 @@ export class LanguageBracketsConfiguration {
 		return this.getOpeningBracketInfo(bracketText) || this.getClosingBracketInfo(bracketText);
 	}
 
-	public getBracketRegExp(): RegExp {
+	public getBracketRegExp(options?: RegExpOptions): RegExp {
 		const brackets = Array.from([...this._openingBrackets.keys(), ...this._closingBrackets.keys()]);
-		return createBracketOrRegExp(brackets);
+		return createBracketOrRegExp(brackets, options);
 	}
 }
 

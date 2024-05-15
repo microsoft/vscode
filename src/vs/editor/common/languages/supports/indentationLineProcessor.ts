@@ -220,7 +220,7 @@ class IndentationLineProcessor {
 		// Main code
 		const languageId = tokens.getLanguageId(0);
 		const bracketsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew;
-		const bracketsRegExp = bracketsConfiguration.getBracketRegExp();
+		const bracketsRegExp = bracketsConfiguration.getBracketRegExp({ global: true });
 		const textAndMetadata: { text: string, metadata: number }[] = [];
 
 		let processedLine = '';
