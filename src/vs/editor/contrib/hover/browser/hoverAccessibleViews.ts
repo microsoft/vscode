@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import * as strings from 'vs/base/common/strings';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { AccessibleViewType, AccessibleViewProviderId, AdvancedContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
@@ -15,7 +14,9 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
-import { selectDescriptionForCommand } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 namespace HoverAccessibilityHelpNLS {
 	export const intro = nls.localize('intro', "The hover widget is focused. Press the Tab key to cycle through the hover parts.");
@@ -33,23 +34,25 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 	readonly when = EditorContextKeys.hoverFocused;
 
 	getProvider(accessor: ServicesAccessor): AdvancedContentProvider | undefined {
-		return accessor.get(IInstantiationService).createInstance(HoverAccessibilityHelpProvider);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		let codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+		if (!codeEditor) {
+			return undefined;
+		}
+		return accessor.get(IInstantiationService).createInstance(HoverAccessibilityHelpProvider, codeEditor);
 	}
 }
 
 export class HoverAccessibilityHelpProvider implements IAccessibleViewContentProvider {
 
-	public id = AccessibleViewProviderId.Hover;
-	public verbositySettingKey = 'accessibility.verbosity.hover';
-	public options: IAccessibleViewOptions;
-
-	private _editor: ICodeEditor | null;
+	public readonly options: IAccessibleViewOptions;
+	public readonly id = AccessibleViewProviderId.Hover;
+	public readonly verbositySettingKey = AccessibilityVerbositySettingId.Hover;
 
 	constructor(
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
-		this._editor = this._codeEditorService.getActiveCodeEditor() || this._codeEditorService.getFocusedCodeEditor();
 		this.options = {
 			language: this._editor?.getModel()?.getLanguageId() ?? 'typescript',
 			type: AccessibleViewType.View
@@ -57,17 +60,16 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		return selectDescriptionForCommand(this._keybindingService, commandId, msg, noKbMsg);
+		const kb = this._keybindingService.lookupKeybinding(commandId);
+		if (kb) {
+			return strings.format(msg, kb.getAriaLabel());
+		}
+		return strings.format(noKbMsg, commandId);
 	}
 
 	provideContent(): string {
-
 		const content: string[] = [];
 		content.push(HoverAccessibilityHelpNLS.intro);
-
-		if (!this._editor) {
-			return content.join('\n');
-		}
 		const hoverController = HoverController.get(this._editor);
 		if (!hoverController) {
 			return content.join('\n');
@@ -84,9 +86,6 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 	}
 
 	onClose(): void {
-		if (!this._editor) {
-			return;
-		}
 		HoverController.get(this._editor)?.focus();
 	}
 }
