@@ -86,6 +86,7 @@ interface IVoiceChatSessionController {
 	readonly onDidHideInput: Event<unknown>;
 
 	readonly context: VoiceChatSessionContext;
+	readonly scopedContextKeyService: IContextKeyService;
 
 	updateState(state: VoiceChatSessionState): void;
 
@@ -204,6 +205,7 @@ class VoiceChatSessionControllerFactory {
 	private static doCreateForChatWidget(context: VoiceChatSessionContext, chatWidget: IChatWidget): IVoiceChatSessionController {
 		return {
 			context,
+			scopedContextKeyService: chatWidget.scopedContextKeyService,
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
 			onDidHideInput: chatWidget.onDidHide,
 			focusInput: () => chatWidget.focusInput(),
@@ -220,6 +222,7 @@ class VoiceChatSessionControllerFactory {
 		const context = 'terminal';
 		return {
 			context,
+			scopedContextKeyService: terminalChat.scopedContextKeyService,
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
 			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
@@ -380,7 +383,8 @@ class VoiceChatSessions {
 			return;
 		}
 
-		const response = await this.currentVoiceChatSession.controller.acceptInput();
+		const controller = this.currentVoiceChatSession.controller;
+		const response = await controller.acceptInput();
 		if (!response) {
 			return;
 		}
@@ -389,8 +393,16 @@ class VoiceChatSessions {
 			!this.accessibilityService.isScreenReaderOptimized() && // do not auto synthesize when screen reader is active
 			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
 		) {
-			const controller = this.instantiationService.invokeFunction(accessor => ChatSynthesizerSessionController.create(accessor, response));
-			ChatSynthesizerSessions.getInstance(this.instantiationService).start(controller);
+			let context: IVoiceChatSessionController | 'focused';
+			if (controller.context === 'inline') {
+				// TODO@bpasero this is ugly, but the lightweight inline chat turns into
+				// a different widget as soon as a response comes in, so we fallback to
+				// picking up from the focused chat widget
+				context = 'focused';
+			} else {
+				context = controller;
+			}
+			ChatSynthesizerSessions.getInstance(this.instantiationService).start(this.instantiationService.invokeFunction(accessor => ChatSynthesizerSessionController.create(accessor, context, response)));
 		}
 	}
 }
@@ -680,20 +692,28 @@ interface IChatSynthesizerSessionController {
 
 class ChatSynthesizerSessionController {
 
-	static create(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
+	static create(accessor: ServicesAccessor, context: IVoiceChatSessionController | 'focused', response: IChatResponseModel): IChatSynthesizerSessionController {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
-		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
-		if (chatWidget?.location === ChatAgentLocation.Editor) {
-			// somehow for inline chat, the response session returns the wrong widget
-			// so we need to find the correct one by going through the last focused
-			chatWidget = chatWidgetService.lastFocusedWidget;
+		if (context === 'focused') {
+			let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
+			if (chatWidget?.location === ChatAgentLocation.Editor) {
+				// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
+				// but should find a better way how to get to the chat widget from a response
+				chatWidget = chatWidgetService.lastFocusedWidget;
+			}
+
+			return {
+				onDidHideChat: chatWidget?.onDidHide ?? Event.None,
+				contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
+				response
+			};
 		}
 
 		return {
-			onDidHideChat: chatWidget?.onDidHide ?? Event.None,
-			contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
+			onDidHideChat: context.onDidHideInput,
+			contextKeyService: context.scopedContextKeyService,
 			response
 		};
 	}
@@ -859,7 +879,7 @@ export class ReadChatResponseAloud extends Action2 {
 			return;
 		}
 
-		const controller = ChatSynthesizerSessionController.create(accessor, response.model);
+		const controller = ChatSynthesizerSessionController.create(accessor, 'focused', response.model);
 		ChatSynthesizerSessions.getInstance(instantiationService).start(controller);
 	}
 }
