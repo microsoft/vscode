@@ -5,7 +5,7 @@
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize, localize2 } from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -263,7 +263,13 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		return viewContainer;
 	}
 
+	private hasRegisteredDefaultParticipantView = false;
 	private registerDefaultParticipantView(defaultParticipantDescriptor: IRawChatParticipantContribution): IDisposable {
+		if (this.hasRegisteredDefaultParticipantView) {
+			this.logService.warn(`Tried to register a second default chat participant view for "${defaultParticipantDescriptor.id}"`);
+			return Disposable.None;
+		}
+
 		// Register View
 		const name = defaultParticipantDescriptor.fullName ?? defaultParticipantDescriptor.name;
 		const viewDescriptor: IViewDescriptor[] = [{
@@ -276,9 +282,11 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			canMoveView: true,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane),
 		}];
+		this.hasRegisteredDefaultParticipantView = true;
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
 
 		return toDisposable(() => {
+			this.hasRegisteredDefaultParticipantView = false;
 			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, this._viewContainer);
 		});
 	}
