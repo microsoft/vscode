@@ -969,54 +969,83 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		graphContainer.textContent = '';
 
 		// TODO@lszomoru - handle curved branches
-		const swimlaneIndex = historyItem.graphNodes
-			.findIndex(n => n.id === historyItem.id);
+		const firstIndex = historyItem.graphNodes
+			.findIndex(node => node.id === historyItem.id);
+		const firstNode = historyItem.graphNodes[firstIndex];
 
 		for (let index = 0; index < historyItem.graphNodes.length; index++) {
 			const node = historyItem.graphNodes[index];
-			const path = this.createPath(node.color);
 
-			const d: string[] = [];
-			if (node.id === historyItem.id && index !== swimlaneIndex) {
-				// Draw /
-				d.push(`M ${11 * ((index - swimlaneIndex) + 1)} 0`);
-				d.push(`A 11 11 0 0 1 ${11 * ((index - swimlaneIndex))} 11`);
+			// Not the current commit
+			if (node.id !== historyItem.id) {
+				const d: string[] = [];
+				const path = this.createPath(node.color);
 
-				// Draw -
-				d.push(`H ${11 * (swimlaneIndex + 1)}`);
-			} else {
 				// Draw |
-				d.push(`M ${11 * (index + 1)} ${node.isRoot ? 11 : 0}`);
+				d.push(`M ${11 * (index + 1)} 0`);
 				d.push(`V 22`);
+
+				path.setAttribute('d', d.join(' '));
+				graphContainer.append(path);
+
+				continue;
 			}
 
-			path.setAttribute('d', d.join(' '));
-			graphContainer.append(path);
-
-			// Draw \
-			if (historyItem.parentIds.length > 1) {
-				const path = this.createPath(node.secondaryColor ?? node.color);
-
+			// Base commit
+			if (index !== firstIndex) {
 				const d: string[] = [];
-				d.push(`M ${11 * (index + 1)} 11`);
-				d.push(`A 11 11 0 0 1 ${11 * (index + 2)} 22`);
+				const path = this.createPath(node.color);
+
+				// Draw /
+				d.push(`M ${11 * ((index - firstIndex) + 1)} 0`);
+				d.push(`A 11 11 0 0 1 ${11 * ((index - firstIndex))} 11`);
+
+				// Draw -
+				d.push(`H ${11 * (firstIndex + 1)}`);
 
 				path.setAttribute('d', d.join(' '));
 				graphContainer.append(path);
 			}
 		}
 
+		// Merge commit - draw -\
+		if (historyItem.parentIds.length > 1) {
+			const path = this.createPath(firstNode.secondaryColor ?? firstNode.color);
+			const d: string[] = [];
+
+			// Draw \
+			d.push(`M ${11 * historyItem.graphNodes.length} 11`);
+			d.push(`A 11 11 0 0 1 ${11 * (historyItem.graphNodes.length + 1)} 22`);
+
+			// Draw -
+			d.push(`M ${11 * historyItem.graphNodes.length} 11`);
+			d.push(`H ${11 * (firstIndex + 1)}`);
+
+			path.setAttribute('d', d.join(' '));
+			graphContainer.append(path);
+		}
+
+		const d: string[] = [];
+		const path = this.createPath(firstNode.color);
+
+		// Draw |
+		d.push(`M ${11 * (firstIndex + 1)} ${firstNode.isRoot ? 11 : 0}`);
+		d.push(`V 22`);
+
+		path.setAttribute('d', d.join(' '));
+		graphContainer.append(path);
+
 		// Draw *
 		if (historyItem.parentIds.length === 1) {
 			// Commit
-			const circle = this.createCircle(swimlaneIndex, 4, '#f8f8f8', historyItem.graphNodes[swimlaneIndex].color);
+			const circle = this.createCircle(firstIndex, 4, '#f8f8f8', firstNode.color);
 			graphContainer.append(circle);
 		} else {
 			// Merge commit
-			const circleOuter = this.createCircle(swimlaneIndex, 5, '#f8f8f8', historyItem.graphNodes[swimlaneIndex].color);
+			const circleOuter = this.createCircle(firstIndex, 5, '#f8f8f8', firstNode.color);
 			graphContainer.append(circleOuter);
 
-			const circleInner = this.createCircle(swimlaneIndex, 3, '#f8f8f8', historyItem.graphNodes[swimlaneIndex].color);
+			const circleInner = this.createCircle(firstIndex, 3, '#f8f8f8', firstNode.color);
 			graphContainer.append(circleInner);
 		}
 
@@ -3816,7 +3845,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
 		if (!historyItemsElement) {
-			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 32 }) ?? [];
+			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 200 }) ?? [];
 
 			// All Changes
 			// const { showChangesSummary } = this.getConfiguration();
@@ -3847,7 +3876,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		const getColor = (): string => {
 			const color = colors[colorIndex];
-			colorIndex = colorIndex < colors.length ? colorIndex + 1 : 0;
+			colorIndex = colorIndex < colors.length - 1 ? colorIndex + 1 : 1;
 
 			return color;
 		};
