@@ -27,8 +27,8 @@ export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
 
-	private readonly _onDidHideInput = this._register(new Emitter<void>());
-	readonly onDidHideInput = this._onDidHideInput.event;
+	private readonly _onDidHide = this._register(new Emitter<void>());
+	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _inlineChatWidget: InlineChatWidget;
 	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
@@ -179,7 +179,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.value = '';
 		this._instance.focus();
 		this._setTerminalOffset(undefined);
-		this._onDidHideInput.fire();
+		this._onDidHide.fire();
 	}
 	private _setTerminalOffset(offset: number | undefined) {
 		if (offset === undefined || this._container.classList.contains('hide')) {
