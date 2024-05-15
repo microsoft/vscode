@@ -48,11 +48,7 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleViewContent
 
 	}
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybinding(commandId);
-		if (kb) {
-			return strings.format(msg, kb.getAriaLabel());
-		}
-		return strings.format(noKbMsg, commandId);
+		return selectDescriptionForCommand(this._keybindingService, commandId, msg, noKbMsg);
 	}
 	provideContent(): string {
 		this._element = getActiveElement() as HTMLElement;
@@ -79,4 +75,12 @@ export class CommentsAccessibilityHelp implements IAccessibleViewImplentation {
 	getProvider(accessor: ServicesAccessor) {
 		return accessor.get(IInstantiationService).createInstance(CommentsAccessibilityHelpProvider);
 	}
+}
+
+export function selectDescriptionForCommand(keybindingService: IKeybindingService, commandId: string, msg: string, noKbMsg: string) {
+	const kb = keybindingService.lookupKeybinding(commandId);
+	if (kb) {
+		return strings.format(msg, kb.getAriaLabel());
+	}
+	return strings.format(noKbMsg, commandId);
 }
