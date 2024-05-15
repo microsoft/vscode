@@ -17,12 +17,12 @@ import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { selectDescriptionForCommand } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 
-export namespace HoverAccessibilityHelpNLS {
+namespace HoverAccessibilityHelpNLS {
 	export const intro = nls.localize('intro', "The hover widget is focused. Press the Tab key to cycle through the hover parts.");
-	export const increaseVerbosity = nls.localize('increaseVerbosity', "- The current focused hover part's verbosity level can be increased ({0}).");
-	export const increaseVerbosityNoKb = nls.localize('increaseVerbosityNoKb', "- The current focused hover part's verbosity level can be increased, which is currently not triggerable via keybinding.");
-	export const decreaseVerbosity = nls.localize('decreaseVerbosity', "- The current focused hover part's verbosity level can be decreased ({0}).");
-	export const decreaseVerbosityNoKb = nls.localize('decreaseVerbosityNoKb', "- The current focused hover part's verbosity level can be decreased, which is currently not triggerable via keybinding.");
+	export const increaseVerbosity = nls.localize('increaseVerbosity', "- The focused hover part verbosity level can be increased ({0}).");
+	export const increaseVerbosityNoKb = nls.localize('increaseVerbosityNoKb', "- The focused hover part verbosity level can be increased, which is currently not triggerable via keybinding.");
+	export const decreaseVerbosity = nls.localize('decreaseVerbosity', "- The focused hover part verbosity level can be decreased ({0}).");
+	export const decreaseVerbosityNoKb = nls.localize('decreaseVerbosityNoKb', "- The focused hover part verbosity level can be decreased, which is currently not triggerable via keybinding.");
 }
 
 export class HoverAccessibleView implements IAccessibleViewImplentation {
@@ -66,11 +66,11 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 		content.push(HoverAccessibilityHelpNLS.intro);
 
 		if (!this._editor) {
-			return '';
+			return content.join('\n');
 		}
 		const hoverController = HoverController.get(this._editor);
 		if (!hoverController) {
-			return '';
+			return content.join('\n');
 		}
 		const isFocusOnExpandableMarkdownHover = hoverController.isFocusOnMarkdownHoverWhichSupportsVerbosityAction(HoverVerbosityAction.Increase);
 		if (isFocusOnExpandableMarkdownHover) {
