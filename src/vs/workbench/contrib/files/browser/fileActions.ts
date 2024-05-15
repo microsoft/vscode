@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { extname, basename, isAbsolute } from 'vs/base/common/path';
+import { extname, basename, isAbsolute, IPath } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -696,7 +696,7 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 	}
 }
 
-export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string; severity: Severity } | null {
+export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem, pathLib: IPath): { content: string; severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
@@ -716,7 +716,7 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 		};
 	}
 
-	const names = coalesce(name.split(/[\\/]/));
+	const names = coalesce(name.split(pathLib.sep));
 	const parent = item.parent;
 
 	if (name !== item.name) {
@@ -949,9 +949,10 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	};
 
 	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
+	const pathLib = await pathService.path;
 
 	await explorerService.setEditable(newStat, {
-		validationMessage: value => validateFileName(pathService, newStat, value, os),
+		validationMessage: value => validateFileName(pathService, newStat, value, os, pathLib),
 		onFinish: async (value, success) => {
 			folder.removeChild(newStat);
 			await explorerService.setEditable(newStat, null);
@@ -990,9 +991,10 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 	}
 
 	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
+	const pathLib = await pathService.path;
 
 	await explorerService.setEditable(stat, {
-		validationMessage: value => validateFileName(pathService, stat, value, os),
+		validationMessage: value => validateFileName(pathService, stat, value, os, pathLib),
 		onFinish: async (value, success) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;

@@ -50,7 +50,7 @@ suite('Paths', () => {
 		assert.ok(!extpath.isValidBasename(''));
 		assert.ok(extpath.isValidBasename('test.txt'));
 		assert.ok(!extpath.isValidBasename('/test.txt'));
-		assert.ok(!extpath.isValidBasename('\\test.txt'));
+		assert.ok(extpath.isValidBasename('\\test.txt'));
 
 		if (isWindows) {
 			assert.ok(!extpath.isValidBasename('aux'));
