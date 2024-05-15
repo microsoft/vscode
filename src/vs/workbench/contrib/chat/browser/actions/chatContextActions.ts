@@ -73,7 +73,7 @@ class AttachContextAction extends Action2 {
 			const context: { widget?: IChatWidget } | undefined = args[0];
 
 			const widget = context?.widget ?? widgetService.lastFocusedWidget;
-			widget?.attachContext(...picks.map((p) => ({ name: p.label, value: 'resource' in p && URI.isUri(p.resource) ? p.resource : undefined, id: p.id! })));
+			widget?.attachContext(...picks.map((p) => ({ name: p.label, value: 'resource' in p && URI.isUri(p.resource) ? p.resource : undefined, id: 'resource' in p && URI.isUri(p.resource) ? `${SelectAndInsertFileAction.Name}:${p.resource.toString()}` : '' })));
 		}
 	}
 }

@@ -53,6 +53,11 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.interactive-item-container .header .detail-container .detail .agentOrSlashCommandDetected A {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
 .interactive-item-container .chat-animated-ellipsis {
 	display: inline-block;
 	width: 11px;
@@ -216,7 +221,7 @@
 
 .interactive-item-container .value {
 	white-space: normal;
-	word-wrap: break-word;
+	overflow-wrap: anywhere;
 }
 
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child {
