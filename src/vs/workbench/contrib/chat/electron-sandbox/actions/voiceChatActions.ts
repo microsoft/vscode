@@ -385,7 +385,7 @@ class VoiceChatSessions {
 		}
 
 		if (
-			!this.accessibilityService.isScreenReaderOptimized() && // do not synthesize when screen reader is active
+			!this.accessibilityService.isScreenReaderOptimized() && // do not auto synthesize when screen reader is active
 			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
 		) {
 			const controller = this.instantiationService.invokeFunction(accessor => ChatSynthesizerSessionController.create(accessor, response));
@@ -722,18 +722,18 @@ class ChatSynthesizerSessions {
 		this.stop();
 		VoiceChatSessions.getInstance(this.instantiationService).stop();
 
-		const disposables = new DisposableStore();
-
 		const activeSession = this.activeSession = new CancellationTokenSource();
-		activeSession.token.onCancellationRequested(() => disposables.dispose());
 
-		disposables.add(controller.onDidHideChat(() => this.stop()));
+		const disposables = new DisposableStore();
+		activeSession.token.onCancellationRequested(() => disposables.dispose());
 
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
 
 		if (activeSession.token.isCancellationRequested) {
 			return;
 		}
+
+		disposables.add(controller.onDidHideChat(() => this.stop()));
 
 		const scopedChatToSpeechInProgress = ScopedChatSynthesisInProgress.bindTo(controller.contextKeyService);
 		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.set(false)));
@@ -888,13 +888,13 @@ export class StopReadAloud extends Action2 {
 
 export class StopReadChatItemAloud extends Action2 {
 
-	static readonly ID = 'workbench.action.chat.stopRadChatItemAloud';
+	static readonly ID = 'workbench.action.chat.stopReadChatItemAloud';
 
 	constructor() {
 		super({
 			id: StopReadChatItemAloud.ID,
 			icon: Codicon.mute,
-			title: localize2('workbench.action.chat.stopRadChatItemAloud', "Stop Reading Aloud"),
+			title: localize2('workbench.action.chat.stopReadChatItemAloud', "Stop Reading Aloud"),
 			precondition: ScopedChatSynthesisInProgress,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,

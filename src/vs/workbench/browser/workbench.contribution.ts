@@ -63,7 +63,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.alwaysShowEditorActions': {
 				'type': 'boolean',
-				'markdownDescription': localize('alwaysShowEditorActions', "Controls wheater to always show the editor actions, even when the editor group is not active."),
+				'markdownDescription': localize('alwaysShowEditorActions', "Controls whether to always show the editor actions, even when the editor group is not active."),
 				'default': false
 			},
 			'workbench.editor.wrapTabs': {
