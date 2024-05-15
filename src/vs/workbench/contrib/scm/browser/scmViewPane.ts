@@ -968,7 +968,6 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 	private renderGraph(graphContainer: SVGElement, historyItem: SCMHistoryItemTreeElement): void {
 		graphContainer.textContent = '';
 
-		// TODO@lszomoru - handle curved branches
 		const firstIndex = historyItem.graphNodes
 			.findIndex(node => node.id === historyItem.id);
 		const firstNode = historyItem.graphNodes[firstIndex];
@@ -981,9 +980,16 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 				const d: string[] = [];
 				const path = this.createPath(node.color);
 
-				// Draw |
-				d.push(`M ${11 * (index + 1)} 0`);
-				d.push(`V 22`);
+				if (node.offset === 0) {
+					// Draw |
+					d.push(`M ${11 * (index + 1)} 0`);
+					d.push(`V 22`);
+				} else {
+					// Draw /
+					d.push(`M ${11 * (index + node.offset + 1)} 0`);
+					d.push(`A 11 11 0 0 1 ${11 * (index + 1)} 11`);
+					d.push(`V 22`);
+				}
 
 				path.setAttribute('d', d.join(' '));
 				graphContainer.append(path);
@@ -1050,7 +1056,9 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		}
 
 		// Container width
-		graphContainer.style.width = `${11 * (historyItem.graphNodes.length + historyItem.parentIds.length)}px`;
+		const offset = historyItem.graphNodes
+			.reduce((previous, current) => previous + current.offset, 0);
+		graphContainer.style.width = `${11 * (historyItem.graphNodes.length + historyItem.parentIds.length + offset)}px`;
 	}
 
 	private createCircle(index: number, radius: number, stroke: string, fill: string): SVGCircleElement {
@@ -3845,7 +3853,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
 		if (!historyItemsElement) {
-			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 200 }) ?? [];
+			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 210 }) ?? [];
 
 			// All Changes
 			// const { showChangesSummary } = this.getConfiguration();
@@ -3893,7 +3901,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			// New swimlane
 			if (swimlaneIndex === -1) {
 				// Add root node
-				graphNodes.push({ id: historyItem.id, color, isRoot: true });
+				graphNodes.push({ id: historyItem.id, color, offset: 0, isRoot: true });
 
 				swimlaneIndex = graphNodes.length - 1;
 			}
@@ -3917,7 +3925,9 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				// Update graph node with parent(s)
 				// - Update first occurrence
 				// - Delete all other occurrences
+				// - Reset offset
 				let i = 0;
+				let offset = 0;
 				while (i < graphNodes.length) {
 					if (graphNodes[i].id === historyItem.id) {
 						if (i === swimlaneIndex) {
@@ -3925,15 +3935,23 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 							graphNodes.splice(i, 1, {
 								id: historyItem.parentIds[0],
 								color,
+								offset,
 								isRoot: false
 							});
+							i++;
+
+							continue;
 						} else {
-							// TODO@lszomoru - curved lines
 							// Delete all other occurrences
 							graphNodes.splice(i, 1);
+							offset++;
+
 							continue;
 						}
 					}
+
+					// Reset offset
+					graphNodes[i] = { ...graphNodes[i], offset };
 
 					i++;
 				}
@@ -3943,6 +3961,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 					graphNodes.push({
 						id: historyItem.parentIds[i],
 						color: i === 1 ? secondaryColor ?? getColor() : getColor(),
+						offset: 0,
 						isRoot: false
 					});
 				}

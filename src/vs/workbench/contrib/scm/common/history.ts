@@ -81,6 +81,7 @@ export interface ISCMHistoryItemGraphNode {
 	readonly id: string;
 	readonly color: string;
 	readonly secondaryColor?: string;
+	readonly offset: number;
 	readonly isRoot: boolean;
 }
 
