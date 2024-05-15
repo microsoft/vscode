@@ -14,7 +14,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { ChatTreeItem, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -267,40 +267,6 @@ export function registerChatTitleActions() {
 
 	});
 
-	registerAction2(class RerunAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.rerun',
-				title: localize2('chat.rerun.label', "Rerun Request"),
-				f1: false,
-				category: CHAT_CATEGORY,
-				icon: Codicon.refresh,
-				precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), // TODO@jrieken needs extension adoption
-				menu: {
-					id: rerunMenu,
-					group: 'navigation',
-					order: -1,
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor, ...args: [ChatTreeItem | unknown]) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const chatService = accessor.get(IChatService);
-			const widget = chatWidgetService.lastFocusedWidget;
-			let item = args[0];
-			if (!isResponseVM(item)) {
-				item = widget?.getFocus();
-			}
-			if (!isResponseVM(item) || !widget) {
-				return;
-			}
-			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
-			if (request) {
-				await chatService.resendRequest(request, { noCommandDetection: false, attempt: request.attempt + 1, location: widget.location });
-			}
-		}
-	});
 
 	registerAction2(class RerunWithoutCommandDetectionAction extends Action2 {
 		constructor() {
