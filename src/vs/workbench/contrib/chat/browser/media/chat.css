@@ -343,7 +343,7 @@
 	cursor: text;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 2px;
+	border-radius: 4px;
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
@@ -353,6 +353,7 @@
 
 .interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
 	margin-bottom: 0;
+	border-radius: 2px;
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
