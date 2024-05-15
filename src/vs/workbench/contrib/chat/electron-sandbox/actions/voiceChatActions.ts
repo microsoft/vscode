@@ -204,7 +204,7 @@ class VoiceChatSessionControllerFactory {
 		return {
 			context,
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
-			onDidHideInput: chatWidget.onDidHideInput,
+			onDidHideInput: chatWidget.onDidHide,
 			focusInput: () => chatWidget.focusInput(),
 			acceptInput: () => chatWidget.acceptInput(),
 			updateInput: text => chatWidget.setInput(text),
@@ -220,7 +220,7 @@ class VoiceChatSessionControllerFactory {
 		return {
 			context,
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
-			onDidHideInput: terminalChat.onDidHideInput,
+			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
 			acceptInput: () => terminalChat.acceptInput(),
 			updateInput: text => terminalChat.updateInput(text, false),
@@ -691,7 +691,7 @@ class ChatSynthesizerSessionController {
 		}
 
 		return {
-			onDidHideChat: chatWidget?.onDidHideInput ?? Event.None,
+			onDidHideChat: chatWidget?.onDidHide ?? Event.None,
 			contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
 			response
 		};
