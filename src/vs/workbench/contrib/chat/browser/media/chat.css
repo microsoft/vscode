@@ -216,7 +216,7 @@
 
 .interactive-item-container .value {
 	white-space: normal;
-	word-wrap: break-word;
+	overflow-wrap: anywhere;
 }
 
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child {
