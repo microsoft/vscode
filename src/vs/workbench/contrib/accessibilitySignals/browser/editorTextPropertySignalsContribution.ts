@@ -14,6 +14,7 @@ import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -54,6 +55,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
@@ -164,20 +166,9 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 	}
 
 	private _getDelay(signal: AccessibilitySignal, modality: AccessibilityModality): number {
-		// TODO make these delays configurable!
-		if (signal === AccessibilitySignal.errorAtPosition || signal === AccessibilitySignal.warningAtPosition) {
-			if (modality === 'sound') {
-				return 100;
-			} else {
-				return 1000;
-			}
-		}
-
-		if (modality === 'sound') {
-			return 400;
-		} else {
-			return 3000;
-		}
+		const delaySettingsKey = signal.delaySettingsKey ?? defaultDelaySettingsKey;
+		const delaySettingsValue: { sound: number; announcement: number } = this._configurationService.getValue(delaySettingsKey);
+		return modality === 'sound' ? delaySettingsValue.sound : delaySettingsValue.announcement;
 	}
 }
 
@@ -292,3 +283,6 @@ class BreakpointTextProperty implements TextProperty {
 		});
 	}
 }
+
+export const defaultDelaySettingsKey = 'accessibility.signalOptions.delays.general';
+

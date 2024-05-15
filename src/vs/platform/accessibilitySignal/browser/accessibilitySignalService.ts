@@ -328,6 +328,7 @@ export class AccessibilitySignal {
 		public readonly settingsKey: string,
 		public readonly legacyAnnouncementSettingsKey: string | undefined,
 		public readonly announcementMessage: string | undefined,
+		public readonly delaySettingsKey: string | undefined
 	) { }
 
 	private static _signals = new Set<AccessibilitySignal>();
@@ -344,6 +345,7 @@ export class AccessibilitySignal {
 		settingsKey: string;
 		legacyAnnouncementSettingsKey?: string;
 		announcementMessage?: string;
+		delaySettingsKey?: string;
 	}): AccessibilitySignal {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
 		const signal = new AccessibilitySignal(
@@ -353,6 +355,7 @@ export class AccessibilitySignal {
 			options.settingsKey,
 			options.legacyAnnouncementSettingsKey,
 			options.announcementMessage,
+			options.delaySettingsKey
 		);
 		AccessibilitySignal._signals.add(signal);
 		return signal;
@@ -367,12 +370,14 @@ export class AccessibilitySignal {
 		sound: Sound.error,
 		announcementMessage: localize('accessibility.signals.positionHasError', 'Error'),
 		settingsKey: 'accessibility.signals.positionHasError',
+		delaySettingsKey: 'accessibility.signalOptions.delays.errorAtPosition'
 	});
 	public static readonly warningAtPosition = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.positionHasWarning.name', 'Warning at Position'),
 		sound: Sound.warning,
 		announcementMessage: localize('accessibility.signals.positionHasWarning', 'Warning'),
 		settingsKey: 'accessibility.signals.positionHasWarning',
+		delaySettingsKey: 'accessibility.signalOptions.delays.warningAtPosition'
 	});
 
 	public static readonly errorOnLine = AccessibilitySignal.register({
