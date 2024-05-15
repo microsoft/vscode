@@ -78,6 +78,7 @@ import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedD
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 
 const $ = dom.$;
 
@@ -123,6 +124,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatFollowup>());
 	readonly onDidClickFollowup: Event<IChatFollowup> = this._onDidClickFollowup.event;
+
+	private readonly _onDidClickRerunWithAgentOrCommandDetection = new Emitter<IChatResponseViewModel>();
+	readonly onDidClickRerunWithAgentOrCommandDetection: Event<IChatResponseViewModel> = this._onDidClickRerunWithAgentOrCommandDetection.event;
 
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
@@ -396,19 +400,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private _renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
-		let progressMsg: string = '';
+
+		dom.clearNode(templateData.detail);
+
 		if (element.slashCommand && element.agentOrSlashCommandDetected) {
+			let msg: string = '';
 			const usingMsg = `${chatSubcommandLeader}${element.slashCommand.name}`;
 			if (element.isComplete) {
-				progressMsg = localize('usedAgent', "used {0}", usingMsg);
+				msg = localize('usedAgent', "used {0} [[(rerun without)]]", usingMsg);
 			} else {
-				progressMsg = localize('usingAgent', "using {0}", usingMsg);
+				msg = localize('usingAgent', "using {0}", usingMsg);
 			}
-		} else if (!element.isComplete) {
-			progressMsg = GeneratingPhrase;
-		}
+			dom.reset(templateData.detail, renderFormattedText(msg, {
+				className: 'agentOrSlashCommandDetected',
+				inline: true,
+				actionHandler: {
+					disposables: templateData.elementDisposables,
+					callback: (content) => {
+						this._onDidClickRerunWithAgentOrCommandDetection.fire(element);
+					},
+				}
+			}));
 
-		templateData.detail.textContent = progressMsg;
+		} else if (!element.isComplete) {
+			templateData.detail.textContent = GeneratingPhrase;
+		}
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
