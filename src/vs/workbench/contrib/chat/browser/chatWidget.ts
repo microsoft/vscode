@@ -395,6 +395,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._visible = visible;
 		this.visibleChangeCount++;
 		this.renderer.setVisible(visible);
+		this.input.setVisible(visible);
 
 		if (visible) {
 			this._register(disposableTimeout(() => {
@@ -588,7 +589,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this.bodyDimension) {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
-			this._onDidChangeContentHeight.fire();
 		}));
 	}
 
@@ -710,9 +710,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, { location: this.location, parserContext: { selectedAgent: this._lastSelectedAgent }, attachedContext: [...this.inputPart.attachedContext.values()] });
-			this.inputPart.attachedContext.clear();
 
 			if (result) {
+				this.inputPart.attachedContext.clear();
 				const inputState = this.collectInputState();
 				this.inputPart.acceptInput(isUserQuery ? input : undefined, isUserQuery ? inputState : undefined);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });

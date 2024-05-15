@@ -95,7 +95,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _attachedContext = new Set<IChatRequestVariableEntry>();
 
-	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: new Emitter<boolean>().event });
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
 
 	private inputEditorHeight = 0;
 	private container!: HTMLElement;
@@ -106,6 +107,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly followupsDisposables = this._register(new DisposableStore());
 
 	private attachedContextContainer!: HTMLElement;
+	private readonly attachedContextDisposables = this._register(new DisposableStore());
 
 	private _inputPartHeight: number = 0;
 	get inputPartHeight() {
@@ -180,6 +182,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (typeof inputValue === 'string') {
 			this.setValue(inputValue);
 		}
+	}
+
+	setVisible(visible: boolean): void {
+		this._onDidChangeVisibility.fire(visible);
 	}
 
 	get element(): HTMLElement {
@@ -425,6 +431,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private initAttachedContext(container: HTMLElement) {
 		dom.clearNode(container);
+		this.attachedContextDisposables.clear();
 		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
 		for (const attachment of this.attachedContext) {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
@@ -440,12 +447,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			const clearButton = new Button(widget, { supportIcons: true });
+			this.attachedContextDisposables.add(clearButton);
 			clearButton.icon = Codicon.close;
 			const disp = clearButton.onDidClick(() => {
 				this.attachedContext.delete(attachment);
 				disp.dispose();
 				this._onDidChangeAttachedContext.fire();
 			});
+			this.attachedContextDisposables.add(disp);
 		}
 	}
 
