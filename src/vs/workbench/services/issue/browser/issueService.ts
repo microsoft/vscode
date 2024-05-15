@@ -7,9 +7,10 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { userAgent } from 'vs/base/common/platform';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IIssueMainService, IssueReporterData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -17,6 +18,8 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -33,6 +36,9 @@ export class WebIssueService implements IWorkbenchIssueService {
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService
 	) { }
 
 	//TODO @TylerLeonhardt @Tyriar to implement a process explorer for the web
@@ -49,14 +55,14 @@ export class WebIssueService implements IWorkbenchIssueService {
 				const theme = this.themeService.getColorTheme();
 				const experiments = await this.experimentService.getCurrentExperiments();
 
-				const githubAccessToken = '';
-				// try {
-				// 	const githubSessions = await this.authenticationService.getSessions('github');
-				// 	const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-				// 	githubAccessToken = potentialSessions[0]?.accessToken;
-				// } catch (e) {
-				// 	// Ignore
-				// }
+				let githubAccessToken = '';
+				try {
+					const githubSessions = await this.authenticationService.getSessions('github');
+					const potentialSessions = githubSessions.filter(session => session.scopes.includes('user:email'));
+					githubAccessToken = potentialSessions[0]?.accessToken;
+				} catch (e) {
+					// Ignore
+				}
 
 				// air on the side of caution and have false be the default
 				let isUnsupported = false;
@@ -66,15 +72,61 @@ export class WebIssueService implements IWorkbenchIssueService {
 					// Ignore
 				}
 
+				const extensionData: IssueReporterExtensionData[] = [];
+				try {
+					const extensions = await this.extensionManagementService.getInstalled();
+					const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (options.extensionId && extension.identifier.id === options.extensionId));
+					extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
+						const { manifest } = extension;
+						const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
+						const isTheme = !manifest.main && !manifest.browser && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+						const isBuiltin = extension.type === ExtensionType.System;
+						return {
+							name: manifest.name,
+							publisher: manifest.publisher,
+							version: manifest.version,
+							repositoryUrl: manifest.repository && manifest.repository.url,
+							bugsUrl: manifest.bugs && manifest.bugs.url,
+							displayName: manifest.displayName,
+							id: extension.identifier.id,
+							data: options.data,
+							uri: options.uri,
+							isTheme,
+							isBuiltin,
+							extensionData: 'Extensions data loading',
+						};
+					}));
+				} catch (e) {
+					extensionData.push({
+						name: 'Workbench Issue Service',
+						publisher: 'Unknown',
+						version: '0.0.0',
+						repositoryUrl: undefined,
+						bugsUrl: undefined,
+						extensionData: 'Extensions data loading',
+						displayName: `Extensions not loaded: ${e}`,
+						id: 'workbench.issue',
+						isTheme: false,
+						isBuiltin: true
+					});
+				}
+
 				const issueReporterData: IssueReporterData = Object.assign({
 					styles: getIssueReporterStyles(theme),
 					zoomLevel: getZoomLevel(mainWindow),
-					enabledExtensions: {},
+					enabledExtensions: extensionData,
 					experiments: experiments?.join('\n'),
 					restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 					isUnsupported,
 					githubAccessToken
 				}, options);
+
+
+
+				// if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
+				// 	ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
+				// 	this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
+				// }
 
 				return this.issueMainService.openReporter(issueReporterData);
 			}

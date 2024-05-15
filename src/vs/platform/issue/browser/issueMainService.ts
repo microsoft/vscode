@@ -10,13 +10,17 @@ import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import BaseHtml from 'vs/code/browser/issue/issueReporterPage';
-import { IssueReporter } from 'vs/code/browser/issue/issueReporterService';
+import { IssueWebReporter } from 'vs/code/browser/issue/issueReporterService';
 import 'vs/css!./media/issueReporter';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import product from 'vs/platform/product/common/product';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { AuxiliaryWindow, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 // import { startup } from 'vs/code/browser/issue/issueReporterMain';
 // import { startup } from 'vs/code/browser/issue/issueReporterMain';
 // import { INativeHostService } from 'vs/platform/native/common/native';
@@ -38,7 +42,9 @@ export class IssueMainService implements IIssueMainService {
 
 	// private static readonly DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
-	// private issueReporterWindow: AuxiliaryWindow | null = null;
+	private issueReporterWindow: Window | null = null;
+	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
+	private returnedIssueReporterData: IssueReporterData | undefined;
 	// private issueReporterParentWindow: BrowserWindow | null = null;
 
 	// private processExplorerWindow: BrowserWindow | null = null;
@@ -58,6 +64,9 @@ export class IssueMainService implements IIssueMainService {
 		// private userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		// @IStorageService private readonly storageService: IStorageService,
 		// @IFileService private readonly fileService: IFileService,
 		// @IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
@@ -75,17 +84,28 @@ export class IssueMainService implements IIssueMainService {
 	}
 
 	async openReporter(data: IssueReporterData): Promise<void> {
+		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
+			this.returnedIssueReporterData = data;
+			// ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
+			this.extensionIdentifierSet.delete(new ExtensionIdentifier(data.extensionId));
+		}
+
 		// const theme = this.themeService.getColorTheme();
 		// const experiments = await this.experimentService.getCurrentExperiments();
+		if (this.issueReporterWindow) {
+			this.issueReporterWindow.focus();
+			return;
 
-		const githubAccessToken = '';
-		try {
-			// const githubSessions = await this.authenticationService.getSessions('github');
-			// const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-			// githubAccessToken = potentialSessions[0]?.accessToken;
-		} catch (e) {
-			// Ignore
 		}
+
+		// let githubAccessToken = '';
+		// try {
+		// 	const githubSessions = await this.authenticationService.getSessions('github');
+		// 	const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
+		// 	githubAccessToken = potentialSessions[0]?.accessToken;
+		// } catch (e) {
+		// 	// Ignore
+		// }
 
 		// air on the side of caution and have false be the default
 		const isUnsupported = false;
@@ -95,20 +115,22 @@ export class IssueMainService implements IIssueMainService {
 			// Ignore
 		}
 
-		const issueReporterData: IssueReporterData = Object.assign({
-			// styles: getIssueReporterStyles(theme),
-			zoomLevel: getZoomLevel(mainWindow),
-			enabledExtensions: {},
-			// experiments: experiments?.join('\n'),
-			// restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
-			isUnsupported,
-			githubAccessToken
-		}, data);
+		// const issueReporterData: IssueReporterData = Object.assign({
+		// 	// styles: getIssueReporterStyles(theme),
+		// 	zoomLevel: getZoomLevel(mainWindow),
+		// 	enabledExtensions: data.enabledExtensions,
+		// 	// experiments: experiments?.join('\n'),
+		// 	// restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
+		// 	isUnsupported,
+		// 	githubAccessToken
+		// }, data);
 
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open());
+
+		this.issueReporterWindow = auxiliaryWindow.window;
 
 
 		// Editor Part
@@ -123,7 +145,7 @@ export class IssueMainService implements IIssueMainService {
 			userEnv: {},
 			product: product,
 			disableExtensions: false,
-			data: issueReporterData,
+			data: data,
 			os: {
 				type: '',
 				arch: '',
@@ -136,14 +158,21 @@ export class IssueMainService implements IIssueMainService {
 			await auxiliaryWindow.whenStylesHaveLoaded;
 			// const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 			// auxiliaryWindow.window.document.body.classList.add(platformClass); // used by our fonts
-
 			safeInnerHtml(auxiliaryWindow.window.document.body, BaseHtml());
-			const issueReporter = this.instantiationService.createInstance(IssueReporter, configuration.disableExtensions, configuration.data, configuration.os, configuration.product, auxiliaryWindow.window);
+			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, configuration.disableExtensions, configuration.data, configuration.os, configuration.product, auxiliaryWindow.window);
 			// const issueReporter = new IssueReporter(configuration.disableExtensions, configuration.data, configuration.os, configuration.windowId, configuration.appRoot, {}, configuration.product, auxiliaryWindow.window, this);
 			issueReporter.render();
 		} else {
 			console.error('Failed to open auxiliary window');
 		}
+
+
+		// handle closing issue reporter
+		this.issueReporterWindow?.addEventListener('beforeunload', () => {
+			// Handle window closing here
+			auxiliaryWindow.window.close();
+			this.issueReporterWindow = null;
+		});
 	}
 
 	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
@@ -183,10 +212,38 @@ export class IssueMainService implements IIssueMainService {
 	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
 		throw new Error('Method not implemented.');
 	}
-	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
-		throw new Error('Method not implemented.');
+
+	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+		// const extensionId = arg.extensionId;
+
+		// creates menu from contributed
+		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+
+		// render menu and dispose
+		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+		actions.forEach(async action => {
+			try {
+				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
+					this.extensionIdentifierSet.add(extensionId);
+					await action.run();
+				}
+			} catch (error) {
+				console.error(error);
+			}
+		});
+
+		menu.dispose();
+
+		if (this.returnedIssueReporterData) {
+			const data = this.returnedIssueReporterData;
+			this.returnedIssueReporterData = undefined;
+			return Promise.resolve(data);
+		}
+
+		return undefined;
 	}
-	$closeReporter(): Promise<void> {
-		throw new Error('Method not implemented.');
+
+	async $closeReporter(): Promise<void> {
+		this.issueReporterWindow?.close();
 	}
 }
