@@ -975,7 +975,6 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 		for (let index = 0; index < historyItem.graphNodes.length; index++) {
 			const node = historyItem.graphNodes[index];
-
 			// Not the current commit
 			if (node.id !== historyItem.id) {
 				const d: string[] = [];
@@ -1004,11 +1003,11 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 				const path = this.createPath(node.color);
 
 				// Draw /
-				d.push(`M ${11 * ((index - firstIndex) + 1)} 0`);
-				d.push(`A 11 11 0 0 1 ${11 * ((index - firstIndex))} 11`);
+				d.push(`M ${11 * ((index - firstIndex) + node.offset + 1)} 0`);
+				d.push(`A 11 11 0 0 1 ${11 * ((index - firstIndex) + node.offset)} 11`);
 
 				// Draw -
-				d.push(`H ${11 * (firstIndex + 1)}`);
+				d.push(`H ${11 * (firstIndex + node.offset + 1)}`);
 
 				path.setAttribute('d', d.join(' '));
 				graphContainer.append(path);
