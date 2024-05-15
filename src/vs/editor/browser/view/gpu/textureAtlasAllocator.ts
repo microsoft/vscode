@@ -164,8 +164,11 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
 		const dpr = getActiveWindow().devicePixelRatio;
 
+		// TODO: Include font size as well as DPR in nearestXPixels calculation
+
 		// Round slab glyph dimensions to the nearest x pixels, where x scaled with device pixel ratio
-		const nearestXPixels = Math.max(1, Math.floor(dpr / 0.5));
+		// const nearestXPixels = Math.max(1, Math.floor(dpr / 0.5));
+		const nearestXPixels = Math.max(1, Math.floor(dpr));
 		const desiredSlabSize = {
 			// Nearest square number
 			// TODO: This can probably be optimized
