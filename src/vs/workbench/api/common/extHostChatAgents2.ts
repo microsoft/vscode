@@ -33,7 +33,6 @@ class ChatAgentResponseStream {
 	private _isClosed: boolean = false;
 	private _firstProgress: number | undefined;
 	private _apiObject: vscode.ChatResponseStream | undefined;
-	private progressReporterHandlePool = 0;
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -69,13 +68,13 @@ class ChatAgentResponseStream {
 				}
 			}
 
-			const _report = (progress: IChatProgressDto, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>, progressReporterHandle?: number) => {
+			const _report = (progress: IChatProgressDto, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>) => {
 				// Measure the time to the first progress update with real markdown content
 				if (typeof this._firstProgress === 'undefined' && 'content' in progress) {
 					this._firstProgress = this._stopWatch.elapsed();
 				}
 
-				if (progressReporterHandle !== undefined) {
+				if (task) {
 					const progressReporterPromise = this._proxy.$handleProgressChunk(this._request.requestId, progress);
 					const progressReporter = {
 						report: (p: vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart) => {
@@ -145,7 +144,7 @@ class ChatAgentResponseStream {
 					throwIfDone(this.progress);
 					const part = new extHostTypes.ChatResponseProgressPart2(value, task);
 					const dto = task ? typeConvert.ChatTask.from(part) : typeConvert.ChatResponseProgressPart.from(part);
-					_report(dto, task, that.progressReporterHandlePool++);
+					_report(dto, task);
 					return this;
 				},
 				warning(value) {
