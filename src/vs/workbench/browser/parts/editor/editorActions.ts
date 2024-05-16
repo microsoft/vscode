@@ -61,11 +61,11 @@ abstract class AbstractSplitEditorAction extends Action2 {
 		return preferredSideBySideGroupDirection(configurationService);
 	}
 
-	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		splitEditor(editorGroupService, this.getDirection(configurationService), [context]);
+		splitEditor(editorGroupService, this.getDirection(configurationService), [getCommandsContext(accessor, resourceOrContext, context)]);
 	}
 }
 
@@ -1146,7 +1146,7 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 
-		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(resourceOrContext, context));
+		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(accessor, resourceOrContext, context));
 		editorGroupsService.toggleMaximizeGroup(group);
 	}
 }
