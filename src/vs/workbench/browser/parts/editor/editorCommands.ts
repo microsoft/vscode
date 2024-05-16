@@ -1410,7 +1410,7 @@ export function getEditorsFromContext(accessor: ServicesAccessor, resourceOrCont
 export function getCommandsContext(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
 	const isUri = URI.isUri(resourceOrContext);
 
-	const editorCommandsContext = isUri ? context : resourceOrContext;
+	const editorCommandsContext = isUri ? context : resourceOrContext ? resourceOrContext : context;
 	if (editorCommandsContext && typeof editorCommandsContext.groupId === 'number') {
 		return editorCommandsContext;
 	}
