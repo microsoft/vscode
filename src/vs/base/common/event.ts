@@ -898,9 +898,6 @@ class Stacktrace {
 
 	static create() {
 		const err = new Error();
-		if (Error.captureStackTrace) {
-			Error.captureStackTrace(err, Stacktrace.create);
-		}
 		return new Stacktrace(err.stack ?? '');
 	}
 
