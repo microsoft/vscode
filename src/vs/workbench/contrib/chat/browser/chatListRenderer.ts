@@ -267,6 +267,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const header = dom.append(rowContainer, $('.header'));
 		const user = dom.append(header, $('.user'));
+		user.tabIndex = 0;
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
 		const detailContainer = dom.append(user, $('span.detail-container'));
@@ -299,15 +300,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const agentHover = templateDisposables.add(this.instantiationService.createInstance(ChatAgentHover));
-
-		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), header, () => {
+		const hoverContent = () => {
 			if (isResponseVM(template.currentElement) && template.currentElement.agent) {
 				agentHover.setAgent(template.currentElement.agent.id);
 				return agentHover.domNode;
 			}
 
 			return undefined;
-		}, getChatAgentHoverOptions(() => isResponseVM(template.currentElement) ? template.currentElement.agent : undefined, this.commandService)));
+		};
+		const hoverOptions = getChatAgentHoverOptions(() => isResponseVM(template.currentElement) ? template.currentElement.agent : undefined, this.commandService);
+		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), user, hoverContent, hoverOptions));
+		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), header, hoverContent, hoverOptions));
 
 		const template: IChatListItemTemplate = { avatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService, agentHover };
 		return template;
