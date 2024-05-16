@@ -902,11 +902,10 @@ function registerCloseEditorCommands() {
 
 			for (const { editor, group } of editorsAndGroup) {
 				const untypedEditor = editor.toUntyped();
-
-				// Resolver can only resolve untyped editors
 				if (!untypedEditor) {
-					return;
+					return; // Resolver can only resolve untyped editors
 				}
+
 				untypedEditor.options = { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK };
 				const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
 				if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
@@ -925,7 +924,6 @@ function registerCloseEditorCommands() {
 				});
 
 				// Telemetry
-
 				type WorkbenchEditorReopenClassification = {
 					owner: 'rebornix';
 					comment: 'Identify how a document is reopened';
@@ -1403,7 +1401,7 @@ export function getEditorsFromContext(accessor: ServicesAccessor, resourceOrCont
 		if (!editor || !group) {
 			return undefined;
 		}
-		return { editor: editor, group: group };
+		return { editor, group };
 	});
 
 	return editorsAndGroup.filter(group => !!group);
@@ -1412,7 +1410,7 @@ export function getEditorsFromContext(accessor: ServicesAccessor, resourceOrCont
 export function getCommandsContext(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
 	const isUri = URI.isUri(resourceOrContext);
 
-	const editorCommandsContext = isUri ? context : resourceOrContext;
+	const editorCommandsContext = isUri ? context : resourceOrContext ? resourceOrContext : context;
 	if (editorCommandsContext && typeof editorCommandsContext.groupId === 'number') {
 		return editorCommandsContext;
 	}

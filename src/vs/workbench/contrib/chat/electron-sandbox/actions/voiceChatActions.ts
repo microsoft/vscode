@@ -693,27 +693,45 @@ interface IChatSynthesizerSessionController {
 class ChatSynthesizerSessionController {
 
 	static create(accessor: ServicesAccessor, context: IVoiceChatSessionController | 'focused', response: IChatResponseModel): IChatSynthesizerSessionController {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const contextKeyService = accessor.get(IContextKeyService);
-
 		if (context === 'focused') {
-			let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
-			if (chatWidget?.location === ChatAgentLocation.Editor) {
-				// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
-				// but should find a better way how to get to the chat widget from a response
-				chatWidget = chatWidgetService.lastFocusedWidget;
-			}
-
+			return ChatSynthesizerSessionController.doCreateForFocusedChat(accessor, response);
+		} else {
 			return {
-				onDidHideChat: chatWidget?.onDidHide ?? Event.None,
-				contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
+				onDidHideChat: context.onDidHideInput,
+				contextKeyService: context.scopedContextKeyService,
 				response
 			};
 		}
+	}
+
+	private static doCreateForFocusedChat(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const terminalService = accessor.get(ITerminalService);
+
+		// 1.) probe terminal chat which is not part of chat widget service
+		const activeInstance = terminalService.activeInstance;
+		if (activeInstance) {
+			const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+			if (terminalChat?.hasFocus()) {
+				return {
+					onDidHideChat: terminalChat.onDidHide,
+					contextKeyService: terminalChat.scopedContextKeyService,
+					response
+				};
+			}
+		}
+
+		// 2.) otherwise go via chat widget service
+		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
+		if (chatWidget?.location === ChatAgentLocation.Editor) {
+			// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
+			chatWidget = chatWidgetService.lastFocusedWidget;
+		}
 
 		return {
-			onDidHideChat: context.onDidHideInput,
-			contextKeyService: context.scopedContextKeyService,
+			onDidHideChat: chatWidget?.onDidHide ?? Event.None,
+			contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
 			response
 		};
 	}
