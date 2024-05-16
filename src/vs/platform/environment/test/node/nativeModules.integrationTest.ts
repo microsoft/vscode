@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { importDefault } from 'vs/base/common/importDefault';
 import { isWindows } from 'vs/base/common/platform';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 
@@ -19,7 +20,8 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('native-is-elevated', async () => {
-		const isElevated = await import('native-is-elevated');
+		const isElevatedModule = await import('native-is-elevated');
+		const isElevated = importDefault(isElevatedModule)
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
 		const result = isElevated();

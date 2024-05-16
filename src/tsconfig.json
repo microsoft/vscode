@@ -6,6 +6,8 @@
 		"sourceMap": false,
 		"allowJs": true,
 		"resolveJsonModule": true,
+		"esModuleInterop": false, // TODO enable this when all imports are fixed
+		"allowSyntheticDefaultImports": true, // TODO disable this when all imports are fixed
 		"outDir": "../out/vs",
 		"types": [
 			"mocha",
