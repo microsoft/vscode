@@ -362,10 +362,14 @@ class VariableCompletions extends Disposable {
 					return null;
 				}
 
+				const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
+				const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
+
 				const usedVariables = widget.parsedInput.parts.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
 				const variableItems = Array.from(this.chatVariablesService.getVariables())
 					// This doesn't look at dynamic variables like `file`, where multiple makes sense.
 					.filter(v => !usedVariables.some(usedVar => usedVar.variableName === v.name))
+					.filter(v => !v.isSlow || slowSupported)
 					.map((v): CompletionItem => {
 						const withLeader = `${chatVariableLeader}${v.name}`;
 						return {
