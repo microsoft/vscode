@@ -102,8 +102,6 @@ steps:
 
   - script: |
       set -e
-      # To workaround the issue of yarn not respecting the registry value from .npmrc
-      yarn config set registry "$NPM_REGISTRY"
 
       for i in {1..5}; do # try 5 times
         yarn --cwd build --frozen-lockfile --check-files && break
@@ -127,7 +125,6 @@ steps:
     env:
       npm_config_arch: $(NPM_ARCH)
       VSCODE_ARCH: $(VSCODE_ARCH)
-      NPM_REGISTRY: "$(NPM_REGISTRY)"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
