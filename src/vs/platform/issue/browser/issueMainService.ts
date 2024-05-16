@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 /* eslint-disable local/code-import-patterns */
 /* eslint-disable local/code-layering */
-import { getZoomLevel } from 'vs/base/browser/browser';
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -81,7 +80,7 @@ export class IssueMainService implements IIssueMainService {
 		// @IUserDataSyncLocalStoreService private readonly userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 	) {
 
-		window.addEventListener('message', async (event) => {
+		mainWindow.addEventListener('message', async (event) => {
 			// const extensionId = arg.extensionId;
 
 			if (event.data && event.data.replyChannel === 'vscode:triggerReporterMenu') {
@@ -101,6 +100,12 @@ export class IssueMainService implements IIssueMainService {
 					}
 				}
 
+				if (!this.extensionIdentifierSet.has(event.data.extensionId)) {
+					// send undefined to indicate no action was taken
+					const replyChannel = `vscode:triggerReporterMenuResponse`;
+					mainWindow.postMessage({ replyChannel }, '*');
+				}
+
 				menu.dispose();
 			}
 		});
@@ -115,7 +120,7 @@ export class IssueMainService implements IIssueMainService {
 			// this.issueReporterWindow?.addEventListener('message', (event) => {
 			// 	if (event.data && event.data.replyChannel === replyChannel && event.origin === 'window.location.origin') {
 			const replyChannel = `vscode:triggerReporterMenuResponse`;
-			window.postMessage({ data, replyChannel }, '*');
+			mainWindow.postMessage({ data, replyChannel }, '*');
 			// }
 
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(data.extensionId));
@@ -279,11 +284,11 @@ export class IssueMainService implements IIssueMainService {
 		// const window = this.issueReporterWindow!;
 
 		const replyChannel = `vscode:triggerReporterMenu`;
-		window.postMessage({ replyChannel, extensionId, extensionName }, '*');
+		mainWindow.postMessage({ replyChannel, extensionId, extensionName }, '*');
 
 		const result = await new Promise((resolve, reject) => {
 			const timeout = setTimeout(() => {
-				window.removeEventListener('message', listener);
+				mainWindow.removeEventListener('message', listener);
 				reject(new Error('Timeout exceeded'));
 			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
 
@@ -291,11 +296,11 @@ export class IssueMainService implements IIssueMainService {
 				const replyChannel2 = `vscode:triggerReporterMenuResponse`;
 				if (event.data && event.data.replyChannel === replyChannel2) {
 					clearTimeout(timeout);
-					window.removeEventListener('message', listener);
+					mainWindow.removeEventListener('message', listener);
 					resolve(event.data.data);
 				}
 			};
-			window.addEventListener('message', listener);
+			mainWindow.addEventListener('message', listener);
 		});
 
 		return result as IssueReporterData | undefined;
