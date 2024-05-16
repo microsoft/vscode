@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { BaseIssueReporterService } from 'vs/code/browser/issue/issue';
 import { localize } from 'vs/nls';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
@@ -184,7 +186,35 @@ export class IssueWebReporter extends BaseIssueReporterService {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 					if (selectedExtension) {
-						await this.sendReporterMenu(selectedExtension);
+						const iconElement = document.createElement('span');
+						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+						this.setLoading(iconElement);
+						const openReporterData = await this.sendReporterMenu(selectedExtension);
+						if (openReporterData) {
+							if (this.selectedExtension === selectedExtensionId) {
+								this.removeLoading(iconElement, true);
+								this.data = openReporterData;
+								this.data = openReporterData;
+							} else if (this.selectedExtension !== selectedExtensionId) {
+							}
+						}
+						else {
+							if (!this.loadingExtensionData) {
+								iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+							}
+							this.removeLoading(iconElement);
+							// if not using command, should have no configuration data in fields we care about and check later.
+							this.clearExtensionData();
+
+							// case when previous extension was opened from normal openIssueReporter command
+							selectedExtension.data = undefined;
+							selectedExtension.uri = undefined;
+						}
+						if (this.selectedExtension === selectedExtensionId) {
+							// repopulates the fields with the new data given the selected extension.
+							this.updateExtensionStatus(matches[0]);
+							this.openReporter = false;
+						}
 					} else {
 						this.issueReporterModel.update({ selectedExtension: undefined });
 						this.clearSearchResults();

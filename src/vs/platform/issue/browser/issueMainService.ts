@@ -81,12 +81,43 @@ export class IssueMainService implements IIssueMainService {
 		// @IUserDataSyncLocalStoreService private readonly userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 	) {
 
+		window.addEventListener('message', async (event) => {
+			// const extensionId = arg.extensionId;
+
+			if (event.data && event.data.replyChannel === 'vscode:triggerReporterMenu') {
+				// creates menu from contributed
+				const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+
+				// render menu and dispose
+				const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+				for (const action of actions) {
+					try {
+						if (action.item && 'source' in action.item && action.item.source?.id === event.data.extensionId) {
+							this.extensionIdentifierSet.add(event.data.extensionId);
+							await action.run();
+						}
+					} catch (error) {
+						console.error(error);
+					}
+				}
+
+				menu.dispose();
+			}
+		});
+
 	}
 
 	async openReporter(data: IssueReporterData): Promise<void> {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
 			this.returnedIssueReporterData = data;
-			// ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
+			// Reply to the postMessage
+			// const replyChannel = `vscode:triggerReporterMenu`;
+			// this.issueReporterWindow?.addEventListener('message', (event) => {
+			// 	if (event.data && event.data.replyChannel === replyChannel && event.origin === 'window.location.origin') {
+			const replyChannel = `vscode:triggerReporterMenuResponse`;
+			window.postMessage({ data, replyChannel }, '*');
+			// }
+
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(data.extensionId));
 		}
 
@@ -213,7 +244,7 @@ export class IssueMainService implements IIssueMainService {
 		throw new Error('Method not implemented.');
 	}
 
-	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+	async $sendReporterMenu2(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
 		// const extensionId = arg.extensionId;
 
 		// creates menu from contributed
@@ -241,6 +272,33 @@ export class IssueMainService implements IIssueMainService {
 		}
 
 		return undefined;
+	}
+
+
+	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+		// const window = this.issueReporterWindow!;
+
+		const replyChannel = `vscode:triggerReporterMenu`;
+		window.postMessage({ replyChannel, extensionId, extensionName }, '*');
+
+		const result = await new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				window.removeEventListener('message', listener);
+				reject(new Error('Timeout exceeded'));
+			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
+
+			const listener = (event: MessageEvent) => {
+				const replyChannel2 = `vscode:triggerReporterMenuResponse`;
+				if (event.data && event.data.replyChannel === replyChannel2) {
+					clearTimeout(timeout);
+					window.removeEventListener('message', listener);
+					resolve(event.data.data);
+				}
+			};
+			window.addEventListener('message', listener);
+		});
+
+		return result as IssueReporterData | undefined;
 	}
 
 	async $closeReporter(): Promise<void> {

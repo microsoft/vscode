@@ -48,99 +48,98 @@ export class WebIssueService implements IWorkbenchIssueService {
 
 	async openReporter(options: Partial<IssueReporterData>): Promise<void> {
 		const extensionId = options.extensionId;
-		// If we don't have a extensionId, treat this as a Core issue
-		if (!extensionId) {
-			if (this.productService.reportIssueUrl) {
-				// const uri = this.getIssueUriFromStaticContent(this.productService.reportIssueUrl);
-				const theme = this.themeService.getColorTheme();
-				const experiments = await this.experimentService.getCurrentExperiments();
+		// if (!extensionId) {
+		if (this.productService.reportIssueUrl) {
+			// const uri = this.getIssueUriFromStaticContent(this.productService.reportIssueUrl);
+			const theme = this.themeService.getColorTheme();
+			const experiments = await this.experimentService.getCurrentExperiments();
 
-				let githubAccessToken = '';
-				try {
-					const githubSessions = await this.authenticationService.getSessions('github');
-					const potentialSessions = githubSessions.filter(session => session.scopes.includes('user:email'));
-					githubAccessToken = potentialSessions[0]?.accessToken;
-				} catch (e) {
-					// Ignore
-				}
-
-				// air on the side of caution and have false be the default
-				let isUnsupported = false;
-				try {
-					isUnsupported = !(await this.integrityService.isPure()).isPure;
-				} catch (e) {
-					// Ignore
-				}
-
-				const extensionData: IssueReporterExtensionData[] = [];
-				try {
-					const extensions = await this.extensionManagementService.getInstalled();
-					const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (options.extensionId && extension.identifier.id === options.extensionId));
-					extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
-						const { manifest } = extension;
-						const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
-						const isTheme = !manifest.main && !manifest.browser && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-						const isBuiltin = extension.type === ExtensionType.System;
-						return {
-							name: manifest.name,
-							publisher: manifest.publisher,
-							version: manifest.version,
-							repositoryUrl: manifest.repository && manifest.repository.url,
-							bugsUrl: manifest.bugs && manifest.bugs.url,
-							displayName: manifest.displayName,
-							id: extension.identifier.id,
-							data: options.data,
-							uri: options.uri,
-							isTheme,
-							isBuiltin,
-							extensionData: 'Extensions data loading',
-						};
-					}));
-				} catch (e) {
-					extensionData.push({
-						name: 'Workbench Issue Service',
-						publisher: 'Unknown',
-						version: '0.0.0',
-						repositoryUrl: undefined,
-						bugsUrl: undefined,
-						extensionData: 'Extensions data loading',
-						displayName: `Extensions not loaded: ${e}`,
-						id: 'workbench.issue',
-						isTheme: false,
-						isBuiltin: true
-					});
-				}
-
-				const issueReporterData: IssueReporterData = Object.assign({
-					styles: getIssueReporterStyles(theme),
-					zoomLevel: getZoomLevel(mainWindow),
-					enabledExtensions: extensionData,
-					experiments: experiments?.join('\n'),
-					restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
-					isUnsupported,
-					githubAccessToken
-				}, options);
-
-
-
-				// if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
-				// 	ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
-				// 	this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
-				// }
-
-				return this.issueMainService.openReporter(issueReporterData);
+			let githubAccessToken = '';
+			try {
+				const githubSessions = await this.authenticationService.getSessions('github');
+				const potentialSessions = githubSessions.filter(session => session.scopes.includes('user:email'));
+				githubAccessToken = potentialSessions[0]?.accessToken;
+			} catch (e) {
+				// Ignore
 			}
-			throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
-		}
 
-		const selectedExtension = this.extensionService.extensions.filter(ext => ext.identifier.value === options.extensionId)[0];
-		const extensionGitHubUrl = this.getExtensionGitHubUrl(selectedExtension);
-		if (!extensionGitHubUrl) {
-			throw new Error(`Unable to find issue reporting url for ${extensionId}`);
-		}
+			// air on the side of caution and have false be the default
+			let isUnsupported = false;
+			try {
+				isUnsupported = !(await this.integrityService.isPure()).isPure;
+			} catch (e) {
+				// Ignore
+			}
 
-		const uri = this.getIssueUriFromStaticContent(`${extensionGitHubUrl}/issues/new`, selectedExtension);
-		dom.windowOpenNoOpener(uri);
+			const extensionData: IssueReporterExtensionData[] = [];
+			try {
+				const extensions = await this.extensionManagementService.getInstalled();
+				const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (options.extensionId && extension.identifier.id === options.extensionId));
+				extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
+					const { manifest } = extension;
+					const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
+					const isTheme = !manifest.main && !manifest.browser && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+					const isBuiltin = extension.type === ExtensionType.System;
+					return {
+						name: manifest.name,
+						publisher: manifest.publisher,
+						version: manifest.version,
+						repositoryUrl: manifest.repository && manifest.repository.url,
+						bugsUrl: manifest.bugs && manifest.bugs.url,
+						displayName: manifest.displayName,
+						id: extension.identifier.id,
+						data: options.data,
+						uri: options.uri,
+						isTheme,
+						isBuiltin,
+						extensionData: 'Extensions data loading',
+					};
+				}));
+			} catch (e) {
+				extensionData.push({
+					name: 'Workbench Issue Service',
+					publisher: 'Unknown',
+					version: '0.0.0',
+					repositoryUrl: undefined,
+					bugsUrl: undefined,
+					extensionData: 'Extensions data loading',
+					displayName: `Extensions not loaded: ${e}`,
+					id: 'workbench.issue',
+					isTheme: false,
+					isBuiltin: true
+				});
+			}
+
+			const issueReporterData: IssueReporterData = Object.assign({
+				styles: getIssueReporterStyles(theme),
+				zoomLevel: getZoomLevel(mainWindow),
+				enabledExtensions: extensionData,
+				experiments: experiments?.join('\n'),
+				restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
+				isUnsupported,
+				githubAccessToken
+			}, options);
+
+
+
+			// if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
+			// 	ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
+			// 	this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
+			// }
+
+			return this.issueMainService.openReporter(issueReporterData);
+		}
+		throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
+
+
+		// const selectedExtension = this.extensionService.extensions.filter(ext => ext.identifier.value === options.extensionId)[0];
+		// const extensionGitHubUrl = this.getExtensionGitHubUrl(selectedExtension);
+		// if (!extensionGitHubUrl) {
+		// 	throw new Error(`Unable to find issue reporting url for ${extensionId}`);
+		// }
+
+		// const uri = this.getIssueUriFromStaticContent(`${extensionGitHubUrl}/issues/new`, selectedExtension);
+		// dom.windowOpenNoOpener(uri);
 	}
 
 	private getExtensionGitHubUrl(extension: IExtensionDescription): string {
