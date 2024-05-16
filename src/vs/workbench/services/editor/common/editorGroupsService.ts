@@ -779,7 +779,6 @@ export interface IEditorGroup {
 	 */
 	selectEditor(editor: EditorInput, active?: boolean): Promise<void>;
 
-
 	/**
 	 * Selects the editors in the group. If activeEditor is provided,
 	 * it will be the active editor in the group.

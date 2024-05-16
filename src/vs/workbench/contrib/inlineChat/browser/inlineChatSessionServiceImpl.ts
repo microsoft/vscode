@@ -761,7 +761,7 @@ export class AgentInlineChatProvider implements IInlineChatSessionProvider {
 		readonly agent: IChatAgent,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
-		this.label = agent.name;
+		this.label = agent.fullName ?? agent.name;
 		this.extensionId = agent.extensionId;
 		this.supportIssueReporting = agent.metadata.supportIssueReporting;
 	}

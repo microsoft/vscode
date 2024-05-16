@@ -179,19 +179,15 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
-	stickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
-	}
+	stickEditor(editor: EditorInput): void { }
 
-	unstickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
-	}
+	unstickEditor(editor: EditorInput): void { }
 
 	setActive(isActive: boolean): void {
 		this.redraw();
 	}
 
-	setEditorSelections(editor: EditorInput[], selected: boolean): void { }
+	setEditorSelections(editors: EditorInput[], selected: boolean): void { }
 
 	updateEditorLabel(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
