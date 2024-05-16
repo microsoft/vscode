@@ -122,7 +122,7 @@ import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { NotebookAccessibilityHelp } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityHelp';
 import { NotebookAccessibleView } from 'vs/workbench/contrib/notebook/browser/notebookAccessibleView';
-import { NotebookDefaultFormatter } from 'vs/workbench/contrib/notebook/browser/contrib/format/notebookDefaultFormatter';
+import { DefaultFormatter } from 'vs/workbench/contrib/format/browser/formatActionsMultiple';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -709,7 +709,6 @@ registerWorkbenchContribution2(RegisterSchemasContribution.ID, RegisterSchemasCo
 registerWorkbenchContribution2(NotebookEditorManager.ID, NotebookEditorManager, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NotebookLanguageSelectorScoreRefine.ID, NotebookLanguageSelectorScoreRefine, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SimpleNotebookWorkingCopyEditorHandler.ID, SimpleNotebookWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(NotebookDefaultFormatter.ID, NotebookDefaultFormatter, WorkbenchPhase.AfterRestored);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookVariables, LifecyclePhase.Eventually);
 
 AccessibleViewRegistry.register(new NotebookAccessibleView());
@@ -979,13 +978,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: false
 		},
-		[NotebookDefaultFormatter.configName]: {
+		[NotebookSetting.defaultFormatter]: {
 			description: nls.localize('notebookFormatter.default', "Defines a default notebook formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
 			type: ['string', 'null'],
 			default: null,
-			enum: NotebookDefaultFormatter.extensionIds,
-			enumItemLabels: NotebookDefaultFormatter.extensionItemLabels,
-			markdownEnumDescriptions: NotebookDefaultFormatter.extensionDescriptions
+			enum: DefaultFormatter.extensionIds,
+			enumItemLabels: DefaultFormatter.extensionItemLabels,
+			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		},
 		[NotebookSetting.formatOnSave]: {
 			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),

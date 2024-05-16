@@ -31,7 +31,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
-import { NotebookDefaultFormatter } from 'vs/workbench/contrib/notebook/browser/contrib/format/notebookDefaultFormatter';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -456,7 +455,7 @@ class CodeActionParticipantUtils {
 			formatDisposable.add(ref);
 			const textEditorModel = ref.object.textEditorModel;
 
-			const defaultFormatterExtId = configurationService.getValue<string | undefined>(NotebookDefaultFormatter.configName);
+			const defaultFormatterExtId = configurationService.getValue<string | undefined>(NotebookSetting.defaultFormatter);
 			formatResult = await instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveFormatCodeAction, textEditorModel, new HierarchicalKind('notebook.format'), [], defaultFormatterExtId, progress, token);
 		} catch {
 			logService.error('Failed to apply notebook format action on save');
@@ -487,7 +486,7 @@ class CodeActionParticipantUtils {
 						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
 						"Getting code actions from '{0}' ([configure]({1})).",
 						[...this._names].map(name => `'${name}'`).join(', '),
-						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
+						'command:workbench.action.openSettings?%5B%22notebook.codeActionsOnSave%22%5D'
 					)
 				});
 			}
@@ -561,7 +560,7 @@ class CodeActionParticipantUtils {
 						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
 						"Getting code actions from '{0}' ([configure]({1})).",
 						[...this._names].map(name => `'${name}'`).join(', '),
-						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
+						'command:workbench.action.openSettings?%5B%22notebook.defaultFormatter%22%5D'
 					)
 				});
 			}
@@ -590,23 +589,6 @@ class CodeActionParticipantUtils {
 				return false;
 			}
 
-			const codeActionEdits = action.action.edit?.edits;
-			let breakFlag = false;
-			if (!action.action.kind?.startsWith('notebook')) {
-				for (const edit of codeActionEdits ?? []) {
-					const workspaceTextEdit = edit as IWorkspaceTextEdit;
-					if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
-						continue;
-					} else {
-						// error -> applied to multiple resources
-						breakFlag = true;
-						break;
-					}
-				}
-			}
-			if (breakFlag) {
-				logService.warn('Failed to apply code action on save, applied to multiple resources.');
-			}
 			progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 			await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
 			if (token.isCancellationRequested) {
