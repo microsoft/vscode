@@ -200,24 +200,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return;
 		}
 
-		const hierarchicalKind = new HierarchicalKind(actionKind);
-
-		if (CodeActionKind.RefactorMove.contains(hierarchicalKind)) {
-			// Telemetry for showing code actions here. only log on `showLightbulb`. Logs when code action list is quit out.
-			type ShowCodeActionListEvent = {
-				codeActionListLength: number;
-			};
-
-			type ShowListEventClassification = {
-				codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list when quit out. Can be from any code action menu.' };
-				owner: 'justschen';
-				comment: 'Event used to gain insights into how often the lightbulb only contains one code action, namely the move to code action. ';
-			};
-
-			this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('lightbulbWidget.moveToCodeActions', {
-				codeActionListLength: validActions.length,
-			});
-		}
 
 		this._editor.layoutContentWidget(this);
 	}
