@@ -353,6 +353,7 @@
 
 .interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
 	margin-bottom: 0;
+	border-radius: 2px;
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -471,7 +472,7 @@
 
 .interactive-session .interactive-input-part.compact {
 	margin: 0;
-	padding: 6px 0px;
+	padding: 8px 0 0 0
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
@@ -488,23 +489,23 @@
 	align-items: center;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
 .interactive-session .chat-attached-context {
-	padding: 8px 8px 13px;
-	margin-right: -3px;
-	margin-top: 4px;
-	margin-bottom: -4px;
-	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
-	border-radius: 6px 6px 0px 0px;
+	padding: 0 0 8px 0;
+	border-radius: 6px;
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
-	padding: 3px;
-	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
+	padding: 2px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 5px;
-	height: 20px;
+	height: 18px;
 }
 
 .interactive-session-followups {
@@ -656,7 +657,7 @@
 .interactive-session .chat-used-context {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 2px;
 }
 
 .interactive-response-progress-tree,
@@ -689,11 +690,19 @@
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
+	gap: 4px;
 	width: 100%;
 	border: none;
-	padding: 0;
+	border-radius: 4px;
+	padding: 4px 8px 4px 0;
 	text-align: initial;
 	justify-content: initial;
+}
+
+.interactive-session .chat-used-context-label .monaco-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+
 }
 
 .interactive-session .chat-used-context-label .monaco-text-button:focus {

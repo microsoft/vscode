@@ -10,6 +10,7 @@ let baseHoverDelegate: IHoverDelegate2 = {
 	hideHover: () => undefined,
 	showAndFocusLastHover: () => undefined,
 	setupUpdatableHover: () => null!,
+	triggerUpdatableHover: () => undefined
 };
 
 /**

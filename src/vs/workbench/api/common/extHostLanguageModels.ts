@@ -60,7 +60,7 @@ class LanguageModelResponse {
 		const that = this;
 		this.apiObject = {
 			// result: promise,
-			stream: that._defaultStream.asyncIterable,
+			text: that._defaultStream.asyncIterable,
 			// streams: AsyncIterable<string>[] // FUTURE responses per N
 		};
 	}

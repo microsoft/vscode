@@ -45,7 +45,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { HasSpeechProvider, ISpeechService, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatContextKeys, TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -55,6 +55,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 
 //#region Speech to Text
 
@@ -85,6 +86,7 @@ interface IVoiceChatSessionController {
 	readonly onDidHideInput: Event<unknown>;
 
 	readonly context: VoiceChatSessionContext;
+	readonly scopedContextKeyService: IContextKeyService;
 
 	updateState(state: VoiceChatSessionState): void;
 
@@ -203,6 +205,7 @@ class VoiceChatSessionControllerFactory {
 	private static doCreateForChatWidget(context: VoiceChatSessionContext, chatWidget: IChatWidget): IVoiceChatSessionController {
 		return {
 			context,
+			scopedContextKeyService: chatWidget.scopedContextKeyService,
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
 			onDidHideInput: chatWidget.onDidHide,
 			focusInput: () => chatWidget.focusInput(),
@@ -219,6 +222,7 @@ class VoiceChatSessionControllerFactory {
 		const context = 'terminal';
 		return {
 			context,
+			scopedContextKeyService: terminalChat.scopedContextKeyService,
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
 			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
@@ -379,7 +383,8 @@ class VoiceChatSessions {
 			return;
 		}
 
-		const response = await this.currentVoiceChatSession.controller.acceptInput();
+		const controller = this.currentVoiceChatSession.controller;
+		const response = await controller.acceptInput();
 		if (!response) {
 			return;
 		}
@@ -388,8 +393,16 @@ class VoiceChatSessions {
 			!this.accessibilityService.isScreenReaderOptimized() && // do not auto synthesize when screen reader is active
 			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
 		) {
-			const controller = this.instantiationService.invokeFunction(accessor => ChatSynthesizerSessionController.create(accessor, response));
-			ChatSynthesizerSessions.getInstance(this.instantiationService).start(controller);
+			let context: IVoiceChatSessionController | 'focused';
+			if (controller.context === 'inline') {
+				// TODO@bpasero this is ugly, but the lightweight inline chat turns into
+				// a different widget as soon as a response comes in, so we fallback to
+				// picking up from the focused chat widget
+				context = 'focused';
+			} else {
+				context = controller;
+			}
+			ChatSynthesizerSessions.getInstance(this.instantiationService).start(this.instantiationService.invokeFunction(accessor => ChatSynthesizerSessionController.create(accessor, context, response)));
 		}
 	}
 }
@@ -679,20 +692,28 @@ interface IChatSynthesizerSessionController {
 
 class ChatSynthesizerSessionController {
 
-	static create(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
+	static create(accessor: ServicesAccessor, context: IVoiceChatSessionController | 'focused', response: IChatResponseModel): IChatSynthesizerSessionController {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
-		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
-		if (chatWidget?.location === ChatAgentLocation.Editor) {
-			// somehow for inline chat, the response session returns the wrong widget
-			// so we need to find the correct one by going through the last focused
-			chatWidget = chatWidgetService.lastFocusedWidget;
+		if (context === 'focused') {
+			let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
+			if (chatWidget?.location === ChatAgentLocation.Editor) {
+				// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
+				// but should find a better way how to get to the chat widget from a response
+				chatWidget = chatWidgetService.lastFocusedWidget;
+			}
+
+			return {
+				onDidHideChat: chatWidget?.onDidHide ?? Event.None,
+				contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
+				response
+			};
 		}
 
 		return {
-			onDidHideChat: chatWidget?.onDidHide ?? Event.None,
-			contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
+			onDidHideChat: context.onDidHideInput,
+			contextKeyService: context.scopedContextKeyService,
 			response
 		};
 	}
@@ -749,24 +770,12 @@ class ChatSynthesizerSessions {
 			}
 		}));
 
-		if (controller.response.isComplete) {
-			return this.synthesizeCompletedResponse(session, controller.response);
-		} else {
-			return this.synthesizePendingResponse(session, controller.response, activeSession.token);
-		}
-	}
-
-	private synthesizeCompletedResponse(session: ITextToSpeechSession, response: IChatResponseModel): Promise<void> {
-		return session.synthesize(response.response.asString());
-	}
-
-	private async synthesizePendingResponse(session: ITextToSpeechSession, response: IChatResponseModel, token: CancellationToken): Promise<void> {
-		for await (const chunk of this.nextChatResponseChunk(response, token)) {
-			if (token.isCancellationRequested) {
+		for await (const chunk of this.nextChatResponseChunk(controller.response, activeSession.token)) {
+			if (activeSession.token.isCancellationRequested) {
 				return;
 			}
 
-			await raceCancellation(session.synthesize(chunk), token);
+			await raceCancellation(session.synthesize(chunk), activeSession.token);
 		}
 	}
 
@@ -774,45 +783,72 @@ class ChatSynthesizerSessions {
 		let totalOffset = 0;
 		let complete = false;
 		do {
-			const text = response.response.asString();
-			const { chunks, offset, tail } = this.toChunks(text, totalOffset);
+			const responseLength = response.response.asString().length;
+			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
 			totalOffset = offset;
 			complete = response.isComplete;
 
-			for (const chunk of chunks) {
+			if (chunk) {
 				yield chunk;
-
-				if (token.isCancellationRequested) {
-					return;
-				}
 			}
 
-			if (complete) {
-				yield tail;
-			} else if (text === response.response.asString()) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			if (!complete && responseLength === response.response.asString().length) {
 				await raceCancellation(Event.toPromise(response.onDidChange), token); // wait for the response to change
 			}
 		} while (!token.isCancellationRequested && !complete);
 	}
 
-	private toChunks(text: string, offset: number): { readonly chunks: string[]; readonly offset: number; readonly tail: string } {
-		const chunks: string[] = [];
+	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
+		let chunk: string | undefined = undefined;
 
-		for (let i = offset; i < text.length; i++) {
-			const char = text[i];
-			if (char === '.' || char === '!' || char === '?' || char === ':') {
-				chunks.push(text.substring(offset, i + 1));
-				offset = i + 1;
-			}
+		const text = response.response.asString();
+
+		if (response.isComplete) {
+			chunk = text.substring(offset);
+			offset = text.length + 1;
+		} else {
+			const res = parseNextChatResponseChunk(text, offset);
+			chunk = res.chunk;
+			offset = res.offset;
 		}
 
-		return { chunks, offset, tail: text.substring(offset) };
+		return {
+			chunk: chunk ? renderStringAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
+			offset
+		};
 	}
 
 	stop(): void {
 		this.activeSession?.dispose(true);
 		this.activeSession = undefined;
 	}
+}
+
+const sentenceDelimiter = ['.', '!', '?', ':'];
+const lineDelimiter = '\n';
+const wordDelimiter = ' ';
+
+export function parseNextChatResponseChunk(text: string, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
+	let chunk: string | undefined = undefined;
+
+	for (let i = text.length - 1; i >= offset; i--) { // going from end to start to produce largest chunks
+		const cur = text[i];
+		const next = text[i + 1];
+		if (
+			sentenceDelimiter.includes(cur) && next === wordDelimiter ||	// end of sentence
+			lineDelimiter === cur											// end of line
+		) {
+			chunk = text.substring(offset, i + 1).trim();
+			offset = i + 1;
+			break;
+		}
+	}
+
+	return { chunk, offset };
 }
 
 export class ReadChatResponseAloud extends Action2 {
@@ -843,7 +879,7 @@ export class ReadChatResponseAloud extends Action2 {
 			return;
 		}
 
-		const controller = ChatSynthesizerSessionController.create(accessor, response.model);
+		const controller = ChatSynthesizerSessionController.create(accessor, 'focused', response.model);
 		ChatSynthesizerSessions.getInstance(instantiationService).start(controller);
 	}
 }
