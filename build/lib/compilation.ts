@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as ansiColors from 'ansi-colors';
 import * as es from 'event-stream';
+import * as fancyLog from 'fancy-log';
 import * as fs from 'fs';
 import * as gulp from 'gulp';
+import * as os from 'os';
 import * as path from 'path';
+import { RawSourceMap } from 'source-map';
+import * as File from 'vinyl';
+import { Mangler } from './mangle/index';
 import * as monacodts from './monaco-api';
 import * as nls from './nls';
-import { createReporter } from './reporter';
-import * as util from './util';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as os from 'os';
-import ts = require('typescript');
-import * as File from 'vinyl';
-import * as task from './task';
-import { Mangler } from './mangle/index';
-import { RawSourceMap } from 'source-map';
 import { gulpPostcss } from './postcss';
-import { PassThrough } from 'stream';
+import { createReporter } from './reporter';
+import * as task from './task';
+import * as util from './util';
+import ts = require('typescript');
+// import through = require('through');
 const watch = require('./watch');
 
 
@@ -54,39 +54,54 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		overrideOptions.inlineSourceMap = true;
 	}
 
-	const compilationWithOutput = tsb.create(projectPath, {
-		...overrideOptions, esModuleInterop: true
-	}, {
-		verbose: false,
-		transpileOnly: true,
-		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
-	}, (e) => {
+	// const compilationWithOutput = tsb.create(projectPath, {
+	// 	...overrideOptions, esModuleInterop: true
+	// }, {
+	// 	verbose: false,
+	// 	transpileOnly: true,
+	// 	transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+	// }, (e) => {
 
-		console.log(e)
-		// ignore
-	});
+	// 	console.log(e)
+	// 	// ignore
+	// });
 
 	// TODO add compilation with type checking
-	const compilationWithTypeChecking = tsb.create(projectPath, overrideOptions, {
+	const compilationWithTypeChecking = tsb.create(projectPath, {
+		...overrideOptions,
+		esModuleInterop: true
+	}, {
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
 		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
-	}, err => reporter(err));
+	}, err => {
+		// TODO remove this when all imports are fixed
+		if (typeof err === 'string' && err.endsWith("Type 'typeof assert' has no call signatures.")) {
+			return
+		}
+		console.log({ err })
+		reporter(err)
+	});
 
-	// @ts-ignore
 	const createPassThrough = (token?: any) => {
 		const compilation = compilationWithTypeChecking(token)
 
-		const x = new PassThrough({
-			transform(chunk, _encoding, callback) {
-				compilation.write(chunk,)
-				// console.log({ chunk, })
-				callback()
-			},
+		// console.log(compilation)
+		// compilation.
+		// const x = through(function (this: any, data: any) {
+		// 	compilation.write(data)
+		// 	this.emit('data', data)
+		// })
+		// const x = new PassThrough({
+		// 	transform(chunk, _encoding, callback) {
+		// 		compilation.write(chunk, () => callback())
+		// 		// console.log({ chunk, })
+		// 		// callback()
+		// 	},
 
-			objectMode: true
-		})
-		return x
+		// 	objectMode: true
+		// })
+		return compilation
 	}
 
 
@@ -110,8 +125,8 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 			.pipe(util.$if(isCSS, gulpPostcss([postcssNesting()], err => reporter(String(err)))))
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
-			// .pipe(createPassThrough(token))
-			.pipe(compilationWithOutput(token))
+			.pipe(createPassThrough(token))
+			// .pipe(compilationWithOutput(token))
 			.pipe(noDeclarationsFilter)
 			.pipe(util.$if(build, nls.nls()))
 			.pipe(noDeclarationsFilter.restore)
@@ -126,7 +141,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		return es.duplex(input, output);
 	}
 	pipeline.tsProjectSrc = () => {
-		return compilationWithOutput.src({ base: src });
+		return compilationWithTypeChecking.src({ base: src });
 	};
 	pipeline.projectPath = projectPath;
 	return pipeline;

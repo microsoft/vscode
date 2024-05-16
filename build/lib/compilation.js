@@ -8,23 +8,23 @@ exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = void 0
 exports.transpileTask = transpileTask;
 exports.compileTask = compileTask;
 exports.watchTask = watchTask;
+const ansiColors = require("ansi-colors");
 const es = require("event-stream");
+const fancyLog = require("fancy-log");
 const fs = require("fs");
 const gulp = require("gulp");
+const os = require("os");
 const path = require("path");
+const File = require("vinyl");
+const index_1 = require("./mangle/index");
 const monacodts = require("./monaco-api");
 const nls = require("./nls");
-const reporter_1 = require("./reporter");
-const util = require("./util");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
-const os = require("os");
-const ts = require("typescript");
-const File = require("vinyl");
-const task = require("./task");
-const index_1 = require("./mangle/index");
 const postcss_1 = require("./postcss");
-const stream_1 = require("stream");
+const reporter_1 = require("./reporter");
+const task = require("./task");
+const util = require("./util");
+const ts = require("typescript");
+// import through = require('through');
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
@@ -50,34 +50,49 @@ function createCompile(src, build, emitError, transpileOnly) {
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }
-    const compilationWithOutput = tsb.create(projectPath, {
-        ...overrideOptions, esModuleInterop: true
-    }, {
-        verbose: false,
-        transpileOnly: true,
-        transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
-    }, (e) => {
-        console.log(e);
-        // ignore
-    });
+    // const compilationWithOutput = tsb.create(projectPath, {
+    // 	...overrideOptions, esModuleInterop: true
+    // }, {
+    // 	verbose: false,
+    // 	transpileOnly: true,
+    // 	transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+    // }, (e) => {
+    // 	console.log(e)
+    // 	// ignore
+    // });
     // TODO add compilation with type checking
-    const compilationWithTypeChecking = tsb.create(projectPath, overrideOptions, {
+    const compilationWithTypeChecking = tsb.create(projectPath, {
+        ...overrideOptions,
+        esModuleInterop: true
+    }, {
         verbose: false,
         transpileOnly: Boolean(transpileOnly),
         transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
-    }, err => reporter(err));
-    // @ts-ignore
+    }, err => {
+        // TODO remove this when all imports are fixed
+        if (typeof err === 'string' && err.endsWith("Type 'typeof assert' has no call signatures.")) {
+            return;
+        }
+        console.log({ err });
+        reporter(err);
+    });
     const createPassThrough = (token) => {
         const compilation = compilationWithTypeChecking(token);
-        const x = new stream_1.PassThrough({
-            transform(chunk, _encoding, callback) {
-                compilation.write(chunk);
-                // console.log({ chunk, })
-                callback();
-            },
-            objectMode: true
-        });
-        return x;
+        // console.log(compilation)
+        // compilation.
+        // const x = through(function (this: any, data: any) {
+        // 	compilation.write(data)
+        // 	this.emit('data', data)
+        // })
+        // const x = new PassThrough({
+        // 	transform(chunk, _encoding, callback) {
+        // 		compilation.write(chunk, () => callback())
+        // 		// console.log({ chunk, })
+        // 		// callback()
+        // 	},
+        // 	objectMode: true
+        // })
+        return compilation;
     };
     function pipeline(token) {
         const bom = require('gulp-bom');
@@ -94,8 +109,8 @@ function createCompile(src, build, emitError, transpileOnly) {
             .pipe(util.$if(isCSS, (0, postcss_1.gulpPostcss)([postcssNesting()], err => reporter(String(err)))))
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
-            // .pipe(createPassThrough(token))
-            .pipe(compilationWithOutput(token))
+            .pipe(createPassThrough(token))
+            // .pipe(compilationWithOutput(token))
             .pipe(noDeclarationsFilter)
             .pipe(util.$if(build, nls.nls()))
             .pipe(noDeclarationsFilter.restore)
@@ -109,7 +124,7 @@ function createCompile(src, build, emitError, transpileOnly) {
         return es.duplex(input, output);
     }
     pipeline.tsProjectSrc = () => {
-        return compilationWithOutput.src({ base: src });
+        return compilationWithTypeChecking.src({ base: src });
     };
     pipeline.projectPath = projectPath;
     return pipeline;
