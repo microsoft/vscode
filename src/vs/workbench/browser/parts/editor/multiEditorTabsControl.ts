@@ -1535,7 +1535,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Borders / outline
 		this.redrawTabBorders(tabIndex, tabContainer);
 
-		// Active / dirty state
+		// Selection / active / dirty state
 		this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 	}
 
