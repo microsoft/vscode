@@ -941,6 +941,12 @@ configurationRegistry.registerConfiguration({
 			default: 0,
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.markdownLineHeight]: {
+			markdownDescription: nls.localize('notebook.markdown.lineHeight', "Controls the line height in pixels of markdown cells in notebooks. When set to {0}, {1} will be used", '`0`', '`normal`'),
+			type: 'number',
+			default: 0,
+			tags: ['notebookLayout']
+		},
 		[NotebookSetting.cellEditorOptionsCustomizations]: editorOptionsCustomizationSchema,
 		[NotebookSetting.interactiveWindowCollapseCodeCells]: {
 			markdownDescription: nls.localize('notebook.interactiveWindow.collapseCodeCells', "Controls whether code cells in the interactive window are collapsed by default."),
@@ -1041,9 +1047,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.remoteSaving]: {
-			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks in Remote environment. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
+			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
 			type: 'boolean',
-			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
+			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
+			tags: ['experimental']
 		},
 		[NotebookSetting.scrollToRevealCell]: {
 			markdownDescription: nls.localize('notebook.scrolling.revealNextCellOnExecute.description', "How far to scroll when revealing the next cell upon running {0}.", 'notebook.cell.executeAndSelectBelow'),

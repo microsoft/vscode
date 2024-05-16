@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
-import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, MultipleEditorsSelectedContext, TwoEditorsSelectedContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
@@ -252,6 +252,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
 		const groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
+		const multipleEditorsSelectedContext = MultipleEditorsSelectedContext.bindTo(this.contextKeyService);
+		const twoEditorsSelectedContext = TwoEditorsSelectedContext.bindTo(this.contextKeyService);
 
 		const groupActiveEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.scopedContextKeyService);
 		const groupActiveEditorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.scopedContextKeyService);
@@ -310,6 +312,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					if (e.editor && e.editor === this.model.activeEditor) {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
+					break;
+				case GroupModelChangeKind.EDITOR_SELECTION:
+					multipleEditorsSelectedContext.set(this.model.selectedEditors.length > 1);
+					twoEditorsSelectedContext.set(this.model.selectedEditors.length === 2);
 					break;
 			}
 
@@ -588,6 +594,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			case GroupModelChangeKind.EDITOR_LABEL:
 				this.onDidChangeEditorLabel(e.editor);
 				break;
+			case GroupModelChangeKind.EDITOR_SELECTION:
+				this.onDidChangeEditorSelection(e.editor);
+				break;
 		}
 	}
 
@@ -818,6 +827,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleControl.updateEditorLabel(editor);
 	}
 
+	private onDidChangeEditorSelection(editor: EditorInput): void {
+
+		// Forward to title control
+		this.titleControl.setEditorSelections([editor], this.model.isSelected(editor));
+	}
+
 	private onDidVisibilityChange(visible: boolean): void {
 
 		// Forward to active editor pane
@@ -936,6 +951,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.activeEditor;
 	}
 
+	get selectedEditors(): EditorInput[] {
+		return this.model.selectedEditors;
+	}
+
 	get previewEditor(): EditorInput | null {
 		return this.model.previewEditor;
 	}
@@ -948,12 +967,68 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isSticky(editorOrIndex);
 	}
 
+	isSelected(editor: EditorInput): boolean {
+		return this.model.isSelected(editor);
+	}
+
 	isTransient(editorOrIndex: EditorInput | number): boolean {
 		return this.model.isTransient(editorOrIndex);
 	}
 
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
 		return this.model.isActive(editor);
+	}
+
+	async selectEditor(editor: EditorInput, active?: boolean): Promise<void> {
+		if (active) {
+			await this.doOpenEditor(editor, { activation: EditorActivation.ACTIVATE }, { selected: true });
+		} else {
+			this.model.selectEditor(editor, active);
+		}
+	}
+
+	async selectEditors(editors: EditorInput[], activeEditor?: EditorInput): Promise<void> {
+		for (const editor of editors) {
+			await this.selectEditor(editor, editor === activeEditor);
+		}
+	}
+
+	async unSelectEditor(editor: EditorInput): Promise<void> {
+		await this.unSelectEditors([editor]);
+	}
+
+	async unSelectEditors(editors: EditorInput[]): Promise<void> {
+		// Check if the active editor is unselected
+		const unselectingActiveEditor = !!editors.find(editor => this.model.isActive(editor));
+		if (unselectingActiveEditor) {
+			editors = editors.filter(editor => !this.model.isActive(editor));
+		}
+
+		// Unselect all none active editors
+		for (const editor of editors) {
+			this.model.unselectEditor(editor);
+		}
+
+		// if the active editor is unselected, make another selected editor active
+		if (unselectingActiveEditor) {
+			// do not allow to unselect the active editor if it is the last selected editor
+			if (this.selectedEditors.length === 1) {
+				console.warn('Cannot unselect the last selected editor of a group');
+				return;
+			}
+
+			const activeEditor = this.activeEditor;
+			// Find the next selected editor to make active based on MRU order
+			const recentEditors = this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+			for (let i = 1; i < recentEditors.length; i++) { // First one is the active editor
+				const recentEditor = recentEditors[i];
+				if (this.isSelected(recentEditor)) {
+					await this.doOpenEditor(recentEditor, { activation: EditorActivation.ACTIVATE }, { selected: true });
+					this.model.unselectEditor(activeEditor!);
+					break;
+				}
+			}
+		}
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
@@ -1106,6 +1181,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			pinned,
 			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			transient: !!options?.transient,
+			selected: internalOptions?.selected,
 			active: this.count === 0 || !options || !options.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};

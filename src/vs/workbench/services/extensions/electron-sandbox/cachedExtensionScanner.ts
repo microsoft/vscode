@@ -19,6 +19,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { getErrorMessage } from 'vs/base/common/errors';
 import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class CachedExtensionScanner {
 
@@ -32,6 +33,7 @@ export class CachedExtensionScanner {
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IWorkbenchExtensionManagementService private readonly _extensionManagementService: IWorkbenchExtensionManagementService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
@@ -60,7 +62,7 @@ export class CachedExtensionScanner {
 			const result = await Promise.allSettled([
 				this._extensionsScannerService.scanSystemExtensions({ language, useCache: true, checkControlFile: true }),
 				this._extensionsScannerService.scanUserExtensions({ language, profileLocation: this._userDataProfileService.currentProfile.extensionsResource, useCache: true }),
-				this._extensionManagementService.getInstalledWorkspaceExtensions(false)
+				this._environmentService.remoteAuthority ? [] : this._extensionManagementService.getInstalledWorkspaceExtensions(false)
 			]);
 
 			let scannedSystemExtensions: IScannedExtension[] = [],
