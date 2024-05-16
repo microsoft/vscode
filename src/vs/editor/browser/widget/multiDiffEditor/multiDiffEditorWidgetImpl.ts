@@ -114,9 +114,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	});
 
 	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
-	private readonly _instantiationService = this._parentInstantiationService.createChild(
+	private readonly _instantiationService = this._register(this._parentInstantiationService.createChild(
 		new ServiceCollection([IContextKeyService, this._contextKeyService])
-	);
+	));
 
 	constructor(
 		private readonly _element: HTMLElement,

@@ -56,7 +56,8 @@ export class InlineChatContentWidget implements IContentWidget {
 			new ServiceCollection([
 				IContextKeyService,
 				this._store.add(contextKeyService.createScoped(this._domNode))
-			])
+			]),
+			this._store
 		);
 
 		this._widget = scopedInstaService.createInstance(
