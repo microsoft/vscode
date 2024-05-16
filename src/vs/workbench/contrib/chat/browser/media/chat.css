@@ -657,7 +657,7 @@
 .interactive-session .chat-used-context {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 2px;
 }
 
 .interactive-response-progress-tree,
@@ -690,11 +690,19 @@
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
+	gap: 4px;
 	width: 100%;
 	border: none;
-	padding: 0;
+	border-radius: 4px;
+	padding: 4px 8px 4px 0;
 	text-align: initial;
 	justify-content: initial;
+}
+
+.interactive-session .chat-used-context-label .monaco-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+
 }
 
 .interactive-session .chat-used-context-label .monaco-text-button:focus {
