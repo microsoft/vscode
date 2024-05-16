@@ -18,6 +18,7 @@ export interface IChatVariableData {
 	name: string;
 	description: string;
 	modelDescription?: string;
+	isSlow?: boolean;
 	hidden?: boolean;
 	canTakeArgument?: boolean;
 }
