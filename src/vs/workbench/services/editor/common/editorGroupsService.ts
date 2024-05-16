@@ -774,26 +774,16 @@ export interface IEditorGroup {
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
 
 	/**
-	 * Selects the editor in the group. If active is set to true,
-	 * it will be the active editor in the group.
+	 * Selects the editors in the group.
+	 * If activateEditor is provided, it will become the active editor.
+	 * If activateEditor is not provided or not part of editors, the active editor will remain the same.
 	 */
-	selectEditor(editor: EditorInput, active?: boolean): Promise<void>;
+	selectEditors(editors: EditorInput[], activateEditor?: EditorInput): Promise<void>;
 
 	/**
-	 * Selects the editors in the group. If activeEditor is provided,
-	 * it will be the active editor in the group.
+	 * Unselects the editors in the group.
 	 */
-	selectEditors(editors: EditorInput[], activeEditor?: EditorInput): Promise<void>;
-
-	/**
-	 * Unselects the editor in the group. If the editor is not specified, unselects the active editor.
-	 */
-	unSelectEditor(editor: EditorInput): Promise<void>;
-
-	/**
-	 * Unselects the editors in the group. If the editor is not specified, unselects the active editor.
-	 */
-	unSelectEditors(editors: EditorInput[]): Promise<void>;
+	unselectEditors(editors: EditorInput[]): Promise<void>;
 
 	/**
 	 * Whether the editor is selected in the group.

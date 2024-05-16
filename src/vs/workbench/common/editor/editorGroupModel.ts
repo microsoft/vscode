@@ -25,7 +25,7 @@ export interface IEditorOpenOptions {
 	readonly sticky?: boolean;
 	readonly transient?: boolean;
 	active?: boolean;
-	readonly selected?: boolean;
+	readonly addToSelection?: boolean;
 	readonly index?: number;
 	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 }
@@ -196,7 +196,7 @@ interface IEditorGroupModel extends IReadonlyEditorGroupModel {
 	closeEditor(editor: EditorInput, context?: EditorCloseContext, openNext?: boolean): IEditorCloseResult | undefined;
 	moveEditor(editor: EditorInput, toIndex: number): EditorInput | undefined;
 	setActive(editor: EditorInput | undefined): EditorInput | undefined;
-	selectEditor(editor: EditorInput, active?: boolean): EditorInput | undefined;
+	selectEditor(editor: EditorInput): EditorInput | undefined;
 	unselectEditor(editor: EditorInput): EditorInput | undefined;
 }
 
@@ -416,7 +416,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 			// Handle active
 			if (makeActive) {
-				this.doSetActive(newEditor, targetIndex, options?.selected);
+				this.doSetActive(newEditor, targetIndex, options?.addToSelection);
+			} else if (options?.addToSelection) {
+				this.doSetSelected(newEditor, targetIndex, true);
 			}
 
 			return {
@@ -439,7 +441,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 			// Activate it
 			if (makeActive) {
-				this.doSetActive(existingEditor, existingEditorIndex, options?.selected);
+				this.doSetActive(existingEditor, existingEditorIndex, options?.addToSelection);
+			} else if (options?.addToSelection) {
+				this.doSetSelected(existingEditor, existingEditorIndex, true);
 			}
 
 			// Respect index
@@ -739,7 +743,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return !!this.selected.find(selectedEditor => this.matches(selectedEditor, editor));
 	}
 
-	selectEditor(candidate: EditorInput, active: boolean = false): EditorInput | undefined {
+	selectEditor(candidate: EditorInput): EditorInput | undefined {
 		const res = this.findEditor(candidate);
 		if (!res) {
 			return; // not found
@@ -747,7 +751,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		const [editor, editorIndex] = res;
 
-		this.doSetSelected(editor, editorIndex, true, active);
+		this.doSetSelected(editor, editorIndex, true);
 
 		return editor;
 	}
@@ -782,7 +786,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			}
 
 			if (this.matches(this.active, editor)) {
-				console.warn('Cannot unselect the active editor');
 				return;
 			}
 

@@ -27,12 +27,12 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BORDER_TOP } from 'vs/workbench/common/theme';
-import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, contrastBorder, editorBackground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, $, getActiveDocument } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -57,6 +57,7 @@ import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/c
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { applyDragImage } from 'vs/base/browser/dnd';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -683,7 +684,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions, { forceRevealActiveTab: true });
 	}
 
-	setEditorSelections(editors: EditorInput[], selected: boolean): void {
+	updateEditorSelections(): void {
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 		});
@@ -865,7 +866,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return this.groupView.getIndexOfEditor(editor);
 	}
 
-	private lastSelectedEditor: EditorInput | undefined;
+	private lastCtrlClickSelectedEditor: EditorInput | undefined;
 	private registerTabListeners(tab: HTMLElement, tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
 		const disposables = new DisposableStore();
 
@@ -877,7 +878,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 				}
 
-				return undefined;
+				return;
 			}
 
 			if (this.originatesFromTabActionBar(e)) {
@@ -889,29 +890,27 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (editor) {
 				if (e.shiftKey) {
 					let anchor;
-					if (this.lastSelectedEditor && this.groupView.isSelected(this.lastSelectedEditor)) {
+					if (this.lastCtrlClickSelectedEditor && this.groupView.isSelected(this.lastCtrlClickSelectedEditor)) {
 						// The last selected editor is the anchor
-						anchor = this.lastSelectedEditor;
+						anchor = this.lastCtrlClickSelectedEditor;
 					} else {
 						// The active editor is the anchor
-						this.lastSelectedEditor = this.groupView.activeEditor!;
+						this.lastCtrlClickSelectedEditor = this.groupView.activeEditor!;
 						anchor = this.groupView.activeEditor!;
 					}
 					this.selectEditorsBetween(editor, anchor);
 				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
 					if (this.groupView.isSelected(editor)) {
-						this.groupView.unSelectEditor(editor);
+						this.groupView.unselectEditors([editor]);
 					} else {
-						this.groupView.selectEditor(editor, true);
-						this.lastSelectedEditor = editor;
+						this.groupView.selectEditors([editor], editor);
+						this.lastCtrlClickSelectedEditor = editor;
 					}
 				} else {
 					// Even if focus is preserved make sure to activate the group.
-					this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { selected: this.groupView.isSelected(editor) /* Ensures drag and drop does not remove selection */ });
+					this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { addToSelection: this.groupView.isSelected(editor) /* Ensures drag and drop does not remove selection */ });
 				}
 			}
-
-			return undefined;
 		};
 
 		const showContextMenu = (e: Event) => {
@@ -939,11 +938,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tab.blur();
 
 			if (isMouseEvent(e) && (e.button !== 0 /* middle/right mouse button */ || (isMacintosh && e.ctrlKey /* macOS context menu */))) {
-				if (e.button === 1) {
-					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
-				}
-
-				return undefined;
+				return;
 			}
 
 			if (this.originatesFromTabActionBar(e)) {
@@ -1094,7 +1089,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					e.dataTransfer.effectAllowed = 'copyMove';
 					if (isMultiSelected) {
 						const label = `${editor.getName()} + ${draggedEditors.length - 1}`;
-						setupMultiselectDragLabel(label, e.dataTransfer, tab);
+						applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
 					} else {
 						e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
 					}
@@ -1303,7 +1298,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				break;
 			}
 
-			this.groupView.unSelectEditor(currentEditor);
+			this.groupView.unselectEditors([currentEditor]);
 		}
 
 		// Select editors between anchor and target
@@ -1315,7 +1310,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private unselectAllEditors(): void {
-		this.groupView.unSelectEditors(this.groupView.selectedEditors.filter(editor => !this.groupView.isActive(editor)));
+		this.groupView.unselectEditors(this.groupView.selectedEditors.filter(editor => !this.groupView.isActive(editor)));
 	}
 
 	private computeTabLabels(): void {
@@ -2237,22 +2232,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		this.tabDisposables = dispose(this.tabDisposables);
 	}
-}
-
-function setupMultiselectDragLabel(text: string, dataTransfer: DataTransfer, tab: HTMLElement) {
-	const dragImage = $('.monaco-drag-image');
-	dragImage.textContent = text;
-	const getDragImageContainer = (e: HTMLElement | null) => {
-		while (e && !e.classList.contains('monaco-workbench')) {
-			e = e.parentElement;
-		}
-		return e || getActiveDocument().body;
-	};
-
-	const container = getDragImageContainer(tab);
-	container.appendChild(dragImage);
-	dataTransfer.setDragImage(dragImage, -10, -10);
-	setTimeout(() => container.removeChild(dragImage), 0);
 }
 
 registerThemingParticipant((theme, collector) => {

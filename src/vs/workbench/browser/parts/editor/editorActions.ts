@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, getEditorsFromContext } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, resolveEditorsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -65,7 +65,8 @@ abstract class AbstractSplitEditorAction extends Action2 {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		splitEditor(editorGroupService, this.getDirection(configurationService), [getCommandsContext(accessor, resourceOrContext, context)]);
+		const commandContext = getCommandsContext(accessor, resourceOrContext, context);
+		splitEditor(editorGroupService, this.getDirection(configurationService), commandContext ? [commandContext] : undefined);
 	}
 }
 
@@ -2514,23 +2515,23 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editors = getEditorsFromContext(accessor, resourceOrContext, context);
+		const editorsAndGroups = resolveEditorsContext(getEditorsContext(accessor, resourceOrContext, context));
 
 		// If there is no editor, do not create a new window
-		if (editors.length === 0) {
+		if (editorsAndGroups.length === 0) {
 			return;
 		}
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
-		for (const { editor, group } of editors) {
-			if (group && editor) {
-				if (this.move) {
-					group.moveEditor(editor, auxiliaryEditorPart.activeGroup);
-				} else {
-					group.copyEditor(editor, auxiliaryEditorPart.activeGroup);
-				}
-			}
+		// Only support moving/copying from a single group
+		const sourceGroup = editorsAndGroups[0].group;
+		const editors = editorsAndGroups.filter(({ group }) => group === sourceGroup);
+
+		if (this.move) {
+			await sourceGroup.moveEditors(editors, auxiliaryEditorPart.activeGroup);
+		} else {
+			await sourceGroup.copyEditors(editors, auxiliaryEditorPart.activeGroup);
 		}
 
 		auxiliaryEditorPart.activeGroup.focus();
@@ -2667,3 +2668,7 @@ export class NewEmptyEditorWindowAction extends Action2 {
 		auxiliaryEditorPart.activeGroup.focus();
 	}
 }
+function getEditorsContext(accessor: ServicesAccessor, resourceOrContext: URI | IEditorCommandsContext | undefined, context: IEditorCommandsContext | undefined): { editors: IEditorCommandsContext[]; groups: (IEditorGroup | undefined)[] } {
+	throw new Error('Function not implemented.');
+}
+

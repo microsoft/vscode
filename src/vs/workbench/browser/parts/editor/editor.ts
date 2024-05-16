@@ -337,9 +337,9 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	readonly preserveWindowOrder?: boolean;
 
 	/**
-	 * Whether to add the editor to the selection or not.
+	 * Whether to add the editor to the current selection or not.
 	 */
-	readonly selected?: boolean;
+	readonly addToSelection?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
