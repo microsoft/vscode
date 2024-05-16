@@ -14,7 +14,6 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
@@ -47,7 +46,7 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 
 	public readonly options: IAccessibleViewOptions;
 	public readonly id = AccessibleViewProviderId.Hover;
-	public readonly verbositySettingKey = AccessibilityVerbositySettingId.Hover;
+	public readonly verbositySettingKey = 'accessibility.verbosity.hover';
 
 	constructor(
 		private readonly _editor: ICodeEditor,
