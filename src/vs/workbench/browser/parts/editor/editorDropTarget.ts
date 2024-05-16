@@ -165,7 +165,7 @@ class DropOverlay extends Themable {
 					isCopy = this.isCopyOperation(e);
 				} else if (isDraggingEditor) {
 					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-					if (Array.isArray(data)) {
+					if (Array.isArray(data) && data.length > 0) {
 						isCopy = this.isCopyOperation(e, data[0].identifier);
 					}
 				}
@@ -234,7 +234,7 @@ class DropOverlay extends Themable {
 		// Check for group transfer
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
 				return this.editorGroupService.getGroup(data[0].identifier);
 			}
 		}
@@ -242,7 +242,7 @@ class DropOverlay extends Themable {
 		// Check for editor transfer
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
 				return this.editorGroupService.getGroup(data[0].identifier.groupId);
 			}
 		}
@@ -267,7 +267,7 @@ class DropOverlay extends Themable {
 		// Check for group transfer
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
 				const sourceGroup = this.editorGroupService.getGroup(data[0].identifier);
 				if (sourceGroup) {
 					if (typeof splitDirection !== 'number' && sourceGroup === this.groupView) {
@@ -306,7 +306,7 @@ class DropOverlay extends Themable {
 		// Check for editor transfer
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
 				const draggedEditors = data;
 				const firstDraggedEditor = data[0].identifier;
 
@@ -333,8 +333,8 @@ class DropOverlay extends Themable {
 							{
 								editor: draggedEditor.identifier.editor,
 								options: fillActiveEditorViewState(sourceGroup, draggedEditor.identifier.editor, {
-									pinned: true,										// always pin dropped editor
-									sticky: sourceGroup.isSticky(firstDraggedEditor.editor),	// preserve sticky state
+									pinned: true,											// always pin dropped editor
+									sticky: sourceGroup.isSticky(firstDraggedEditor.editor)	// preserve sticky state
 								})
 							}
 						));
@@ -357,7 +357,7 @@ class DropOverlay extends Themable {
 		// Check for tree items
 		else if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
 			const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
 				const editors: IUntypedEditorInput[] = [];
 				for (const id of data) {
 					const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
