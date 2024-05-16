@@ -732,6 +732,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.updateTabsScrollbarSizing();
 		}
 
+		// Update editor actions
+		if (oldOptions.alwaysShowEditorActions !== newOptions.alwaysShowEditorActions) {
+			this.updateEditorActionsToolbar();
+		}
+
 		// Update tabs sizing
 		if (
 			oldOptions.tabSizingFixedMinWidth !== newOptions.tabSizingFixedMinWidth ||
@@ -893,7 +898,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 						anchor = this.groupView.activeEditor!;
 					}
 					this.selectEditorsBetween(editor, anchor);
-				} else if (e.ctrlKey) {
+				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
 					if (this.groupView.isSelected(editor)) {
 						this.groupView.unSelectEditor(editor);
 					} else {
@@ -944,8 +949,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (this.originatesFromTabActionBar(e)) {
 				return; // not when clicking on actions
 			}
-
-			if (!e.ctrlKey && !e.shiftKey && this.groupView.selectedEditors.length > 1) {
+			const isCtrlCmd = (e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh);
+			if (!isCtrlCmd && !e.shiftKey && this.groupView.selectedEditors.length > 1) {
 				this.unselectAllEditors();
 			}
 		}));
@@ -2269,6 +2274,11 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active,
 			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover  {
 				outline: 1px solid;
+				outline-offset: -5px;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(:hover)  {
+				outline: 1px dotted;
 				outline-offset: -5px;
 			}
 

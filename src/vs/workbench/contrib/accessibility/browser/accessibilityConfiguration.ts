@@ -364,6 +364,20 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
+		'accessibility.signals.terminalCommandSucceeded': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.terminalCommandSucceeded', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.terminalCommandSucceeded.sound', "Plays a sound when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.terminalCommandSucceeded.announcement', "Announces when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+					...announcementFeatureBase
+				},
+			}
+		},
 		'accessibility.signals.terminalQuickFix': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.terminalQuickFix', "Plays a signal - sound (audio cue) and/or announcement (alert) - when terminal Quick Fixes are available."),

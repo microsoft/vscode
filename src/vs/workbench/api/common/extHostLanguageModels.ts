@@ -60,7 +60,7 @@ class LanguageModelResponse {
 		const that = this;
 		this.apiObject = {
 			// result: promise,
-			stream: that._defaultStream.asyncIterable,
+			text: that._defaultStream.asyncIterable,
 			// streams: AsyncIterable<string>[] // FUTURE responses per N
 		};
 	}
@@ -263,7 +263,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					version: data.metadata.version,
 					name: data.metadata.name,
 					maxInputTokens: data.metadata.maxInputTokens,
-					maxOutputTokens: data.metadata.maxOutputTokens,
 					countTokens(text, token) {
 						if (!that._allLanguageModelData.has(identifier)) {
 							throw extHostTypes.LanguageModelError.NotFound(identifier);
