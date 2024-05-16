@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Dimension } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension } from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
@@ -80,6 +80,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}));
 		this._disposables.add(this.widget);
 		this.create();
+
+		this._disposables.add(addDisposableListener(this.domNode, 'click', e => {
+			if (!this.editor.hasWidgetFocus() && !this.widget.hasFocus()) {
+				this.editor.focus();
+			}
+		}, true));
+
 
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {
