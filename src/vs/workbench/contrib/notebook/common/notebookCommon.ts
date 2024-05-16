@@ -254,6 +254,7 @@ export interface ICell {
 }
 
 export interface INotebookTextModel {
+	readonly kernelType: string;
 	readonly viewType: string;
 	metadata: NotebookDocumentMetadata;
 	readonly transientOptions: TransientOptions;

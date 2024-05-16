@@ -102,14 +102,14 @@ suite('NotebookKernelHistoryService', () => {
 
 		const kernelHistoryService = disposables.add(instantiationService.createInstance(NotebookKernelHistoryService));
 
-		let info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
+		let info = kernelHistoryService.getKernels({ uri: u1, kernelType: 'foo' });
 		assert.equal(info.all.length, 0);
 		assert.ok(!info.selected);
 
 		// update priorities for u1 notebook
 		kernelService.updateKernelNotebookAffinity(k2, u1, 2);
 
-		info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
+		info = kernelHistoryService.getKernels({ uri: u1, kernelType: 'foo' });
 		assert.equal(info.all.length, 0);
 		// MRU only auto selects kernel if there is only one
 		assert.deepStrictEqual(info.selected, undefined);
@@ -158,12 +158,12 @@ suite('NotebookKernelHistoryService', () => {
 		});
 
 		const kernelHistoryService = disposables.add(instantiationService.createInstance(NotebookKernelHistoryService));
-		let info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
+		let info = kernelHistoryService.getKernels({ uri: u1, kernelType: 'foo' });
 		assert.equal(info.all.length, 1);
 		assert.deepStrictEqual(info.selected, undefined);
 
 		kernelHistoryService.addMostRecentKernel(k3);
-		info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
+		info = kernelHistoryService.getKernels({ uri: u1, kernelType: 'foo' });
 		assert.deepStrictEqual(info.all, [k3, k2]);
 	});
 });

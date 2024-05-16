@@ -420,7 +420,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		}
 
 		if (model === null) {
-			throw new Error('The Interactive Window model could not be resolved');
+			throw new Error('The Intertive Window model could not be resolved');
 		}
 
 		this._notebookWidget.value?.setParentContextKeyService(this._contextKeyService);
@@ -643,7 +643,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			const languageId = model.getLanguageId();
-			const keybinding = this._keybindingService.lookupKeybinding('interactive.execute', this._contextKeyService)?.getLabel();
+			const keybinding = this._keybindingService.lookupKeybinding('replNotebook.executeInput', this._contextKeyService)?.getLabel();
 			const text = nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding ?? 'ctrl+enter');
 			decorations.push({
 				range: {
