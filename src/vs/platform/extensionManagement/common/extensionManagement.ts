@@ -448,6 +448,7 @@ export const enum ExtensionManagementErrorCode {
 	Rename = 'Rename',
 	IntializeDefaultProfile = 'IntializeDefaultProfile',
 	AddToProfile = 'AddToProfile',
+	InstalledExtensionNotFound = 'InstalledExtensionNotFound',
 	PostInstall = 'PostInstall',
 	CorruptZip = 'CorruptZip',
 	IncompleteZip = 'IncompleteZip',
