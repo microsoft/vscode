@@ -66,12 +66,12 @@ class ReplEditorSerializer implements IEditorSerializer {
 		if (!data) {
 			return undefined;
 		}
-		const { resource, preferredResource, viewType, options } = data;
+		const { resource, viewType } = data;
 		if (!data || !URI.isUri(resource) || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, preferredResource, viewType, options);
+		const input = instantiationService.createInstance(ReplEditorInput, resource);
 		return input;
 	}
 }
