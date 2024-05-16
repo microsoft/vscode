@@ -124,8 +124,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 					ref.object.notebook.onWillDispose(() => {
 						ref.dispose();
 					});
-
-					return { editor: NotebookEditorInput.getOrCreate(this.instantiationService, ref.object.resource, undefined, 'repl'), options };
+					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource!), options };
 				}
 			}
 		);
@@ -161,7 +160,7 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		return this.instantiationService.createInstance(ReplEditorInput, workingCopy.resource, undefined, 'repl', {});
+		return this.instantiationService.createInstance(ReplEditorInput, workingCopy.resource);
 	}
 
 	private async _installHandler(): Promise<void> {
