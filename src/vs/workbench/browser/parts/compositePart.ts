@@ -199,6 +199,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Register to title area update events from the composite
 			disposable.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
+			disposable.add(compositeInstantiationService);
 
 			return composite;
 		}

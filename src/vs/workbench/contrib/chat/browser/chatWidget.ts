@@ -411,7 +411,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createList(listContainer: HTMLElement, options: IChatListItemRendererOptions): void {
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const delegate = scopedInstantiationService.createInstance(ChatListDelegate, this.viewOptions.defaultElementHeight ?? 200);
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
