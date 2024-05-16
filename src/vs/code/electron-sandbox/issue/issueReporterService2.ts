@@ -23,7 +23,7 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/
 const MAX_URL_LENGTH = 7500;
 
 
-export class IssueReporterNew extends BaseIssueReporterService {
+export class IssueReporter2 extends BaseIssueReporterService {
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
@@ -109,7 +109,7 @@ export class IssueReporterNew extends BaseIssueReporterService {
 		mainWindow.document.onkeydown = async (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
-			if (cmdOrCtrlKey && e.keyCode === 13) {
+			if (cmdOrCtrlKey && e.key === "Enter") {
 				this.delayedSubmit.trigger(async () => {
 					if (await this.createIssue()) {
 						this.close();
@@ -118,7 +118,7 @@ export class IssueReporterNew extends BaseIssueReporterService {
 			}
 
 			// Cmd/Ctrl + w closes issue window
-			if (cmdOrCtrlKey && e.keyCode === 87) {
+			if (cmdOrCtrlKey && e.key === "w") {
 				e.stopPropagation();
 				e.preventDefault();
 
@@ -133,19 +133,19 @@ export class IssueReporterNew extends BaseIssueReporterService {
 			}
 
 			// Cmd/Ctrl + zooms in
-			if (cmdOrCtrlKey && e.keyCode === 187) {
+			if (cmdOrCtrlKey && e.key === "+") {
 				zoomIn(mainWindow);
 			}
 
 			// Cmd/Ctrl - zooms out
-			if (cmdOrCtrlKey && e.keyCode === 189) {
+			if (cmdOrCtrlKey && e.key === "-") {
 				zoomOut(mainWindow);
 			}
 
 			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
 			// Manually perform the selection
 			if (isMacintosh) {
-				if (cmdOrCtrlKey && e.keyCode === 65 && e.target) {
+				if (cmdOrCtrlKey && e.key === "a" && e.target) {
 					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
 						(<HTMLInputElement>e.target).select();
 					}

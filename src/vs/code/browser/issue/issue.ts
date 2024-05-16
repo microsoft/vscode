@@ -527,10 +527,10 @@ export class BaseIssueReporterService extends Disposable {
 					}
 				}
 			}).catch(_ => {
-				// Ignore
+				console.warn('Timeout or query limit exceeded');
 			});
 		}).catch(_ => {
-			// Ignore
+			console.warn('Error fetching GitHub issues');
 		});
 	}
 
