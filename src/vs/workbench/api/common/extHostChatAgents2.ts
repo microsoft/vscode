@@ -33,6 +33,7 @@ class ChatAgentResponseStream {
 	private _isClosed: boolean = false;
 	private _firstProgress: number | undefined;
 	private _apiObject: vscode.ChatResponseStream | undefined;
+	private progressReporterHandlePool = 0;
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -68,31 +69,36 @@ class ChatAgentResponseStream {
 				}
 			}
 
-			const _report = (progress: IChatProgressDto, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>) => {
+			const _report = (progress: IChatProgressDto, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>, progressReporterHandle?: number) => {
 				// Measure the time to the first progress update with real markdown content
 				if (typeof this._firstProgress === 'undefined' && 'content' in progress) {
 					this._firstProgress = this._stopWatch.elapsed();
 				}
 
-				this._proxy.$handleProgressChunk(this._request.requestId, progress)
-					.then((handle) => {
-						if (handle) {
-							task?.({
-								report: (p) => {
+				if (progressReporterHandle !== undefined) {
+					const progressReporterPromise = this._proxy.$handleProgressChunk(this._request.requestId, progress);
+					const progressReporter = {
+						report: (p: vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart) => {
+							progressReporterPromise?.then((handle) => {
+								if (handle) {
 									if (extHostTypes.MarkdownString.isMarkdownString(p.value)) {
 										this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatResponseWarningPart.from(<vscode.ChatResponseWarningPart>p), handle);
-										return;
 									} else {
 										this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatResponseReferencePart.from(<vscode.ChatResponseReferencePart>p), handle);
 									}
 								}
-							}).then((res) => {
-								if (typeof handle === 'number') {
-									this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
-								}
 							});
 						}
+					};
+
+					Promise.all([progressReporterPromise, task?.(progressReporter)]).then(([handle, res]) => {
+						if (handle !== undefined && res !== undefined) {
+							this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
+						}
 					});
+				} else {
+					this._proxy.$handleProgressChunk(this._request.requestId, progress);
+				}
 			};
 
 			this._apiObject = {
@@ -139,7 +145,7 @@ class ChatAgentResponseStream {
 					throwIfDone(this.progress);
 					const part = new extHostTypes.ChatResponseProgressPart2(value, task);
 					const dto = task ? typeConvert.ChatTask.from(part) : typeConvert.ChatResponseProgressPart.from(part);
-					_report(dto, task);
+					_report(dto, task, that.progressReporterHandlePool++);
 					return this;
 				},
 				warning(value) {
