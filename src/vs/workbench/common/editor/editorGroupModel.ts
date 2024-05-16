@@ -221,17 +221,18 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private locked = false;
 
-	private selected: EditorInput[] = [];		// editors in selected state, first one is active
+	private selected: EditorInput[] = [];					// editors in selected state, first one is active
+
 	private set active(editor: EditorInput | null) {
 		this.selected = editor ? [editor] : [];
 	}
 	private get active(): EditorInput | null {
-		return this.selected[0] || null;
+		return this.selected[0] ?? null;
 	}
 
-	private preview: EditorInput | null = null; // editor in preview state
-	private sticky = -1; 						// index of first editor in sticky state
-	private readonly transient = new Set<EditorInput>(); // editors in transient state
+	private preview: EditorInput | null = null; 			// editor in preview state
+	private sticky = -1;									// index of first editor in sticky state
+	private readonly transient = new Set<EditorInput>(); 	// editors in transient state
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;
@@ -582,6 +583,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.active = null;
 			}
 		}
+
 		// Remove from selection
 		else if (!isActiveEditor) {
 			const wasSelected = !!this.selected.find(selected => this.matches(selected, editor));
@@ -729,7 +731,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this.editors.filter(editor => this.isSelected(editor));
 	}
 
-	isSelected(editor: number | EditorInput): boolean {
+	isSelected(editor: EditorInput | number): boolean {
 		if (typeof editor === 'number') {
 			editor = this.editors[editor];
 		}
