@@ -24,6 +24,7 @@ const File = require("vinyl");
 const task = require("./task");
 const index_1 = require("./mangle/index");
 const postcss_1 = require("./postcss");
+const stream_1 = require("stream");
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
@@ -39,7 +40,6 @@ function getTypeScriptCompilerOptions(src) {
     options.baseUrl = rootDir;
     options.sourceRoot = util.toFileUri(rootDir);
     options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
-    options.esModuleInterop = true;
     return options;
 }
 function createCompile(src, build, emitError, transpileOnly) {
@@ -50,11 +50,35 @@ function createCompile(src, build, emitError, transpileOnly) {
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }
-    const compilation = tsb.create(projectPath, overrideOptions, {
+    const compilationWithOutput = tsb.create(projectPath, {
+        ...overrideOptions, esModuleInterop: true
+    }, {
+        verbose: false,
+        transpileOnly: true,
+        transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+    }, (e) => {
+        console.log(e);
+        // ignore
+    });
+    // TODO add compilation with type checking
+    const compilationWithTypeChecking = tsb.create(projectPath, overrideOptions, {
         verbose: false,
         transpileOnly: Boolean(transpileOnly),
         transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
     }, err => reporter(err));
+    // @ts-ignore
+    const createPassThrough = (token) => {
+        const compilation = compilationWithTypeChecking(token);
+        const x = new stream_1.PassThrough({
+            transform(chunk, _encoding, callback) {
+                compilation.write(chunk);
+                // console.log({ chunk, })
+                callback();
+            },
+            objectMode: true
+        });
+        return x;
+    };
     function pipeline(token) {
         const bom = require('gulp-bom');
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
@@ -70,7 +94,8 @@ function createCompile(src, build, emitError, transpileOnly) {
             .pipe(util.$if(isCSS, (0, postcss_1.gulpPostcss)([postcssNesting()], err => reporter(String(err)))))
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
-            .pipe(compilation(token))
+            // .pipe(createPassThrough(token))
+            .pipe(compilationWithOutput(token))
             .pipe(noDeclarationsFilter)
             .pipe(util.$if(build, nls.nls()))
             .pipe(noDeclarationsFilter.restore)
@@ -84,7 +109,7 @@ function createCompile(src, build, emitError, transpileOnly) {
         return es.duplex(input, output);
     }
     pipeline.tsProjectSrc = () => {
-        return compilation.src({ base: src });
+        return compilationWithOutput.src({ base: src });
     };
     pipeline.projectPath = projectPath;
     return pipeline;

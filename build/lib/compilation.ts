@@ -20,6 +20,7 @@ import * as task from './task';
 import { Mangler } from './mangle/index';
 import { RawSourceMap } from 'source-map';
 import { gulpPostcss } from './postcss';
+import { PassThrough } from 'stream';
 const watch = require('./watch');
 
 
@@ -39,7 +40,6 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	options.baseUrl = rootDir;
 	options.sourceRoot = util.toFileUri(rootDir);
 	options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
-	options.esModuleInterop = true;
 	return options;
 }
 
@@ -54,11 +54,43 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		overrideOptions.inlineSourceMap = true;
 	}
 
-	const compilation = tsb.create(projectPath, overrideOptions, {
+	const compilationWithOutput = tsb.create(projectPath, {
+		...overrideOptions, esModuleInterop: true
+	}, {
+		verbose: false,
+		transpileOnly: true,
+		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+	}, (e) => {
+
+		console.log(e)
+		// ignore
+	});
+
+	// TODO add compilation with type checking
+	const compilationWithTypeChecking = tsb.create(projectPath, overrideOptions, {
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
 		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
 	}, err => reporter(err));
+
+	// @ts-ignore
+	const createPassThrough = (token?: any) => {
+		const compilation = compilationWithTypeChecking(token)
+
+		const x = new PassThrough({
+			transform(chunk, _encoding, callback) {
+				compilation.write(chunk,)
+				// console.log({ chunk, })
+				callback()
+			},
+
+			objectMode: true
+		})
+		return x
+	}
+
+
+
 
 	function pipeline(token?: util.ICancellationToken) {
 		const bom = require('gulp-bom') as typeof import('gulp-bom');
@@ -78,7 +110,8 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 			.pipe(util.$if(isCSS, gulpPostcss([postcssNesting()], err => reporter(String(err)))))
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
-			.pipe(compilation(token))
+			// .pipe(createPassThrough(token))
+			.pipe(compilationWithOutput(token))
 			.pipe(noDeclarationsFilter)
 			.pipe(util.$if(build, nls.nls()))
 			.pipe(noDeclarationsFilter.restore)
@@ -93,7 +126,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		return es.duplex(input, output);
 	}
 	pipeline.tsProjectSrc = () => {
-		return compilation.src({ base: src });
+		return compilationWithOutput.src({ base: src });
 	};
 	pipeline.projectPath = projectPath;
 	return pipeline;
