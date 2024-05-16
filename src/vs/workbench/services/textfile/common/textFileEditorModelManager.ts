@@ -27,7 +27,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
-	private readonly _onDidCreate = this._register(new Emitter<TextFileEditorModel>());
+	private readonly _onDidCreate = this._register(new Emitter<TextFileEditorModel>({ leakWarningThreshold: 500 /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidCreate = this._onDidCreate.event;
 
 	private readonly _onDidResolve = this._register(new Emitter<ITextFileResolveEvent>());
