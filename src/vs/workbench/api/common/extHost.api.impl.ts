@@ -14,7 +14,7 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { score, targetsNotebooks } from 'vs/editor/common/languageSelector';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
 import { OverviewRulerLane } from 'vs/editor/common/model';
-import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
@@ -1431,9 +1431,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: lm
 		const lm: typeof vscode.lm = {
 			selectChatModels: (selector) => {
+				if (initData.quality === 'stable') {
+					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
+					return Promise.resolve([]);
+				}
 				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
 			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
+				if (initData.quality === 'stable') {
+					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
+					return Event.None(listener, thisArgs, disposables);
+				}
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
 			// --- embeddings
