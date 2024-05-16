@@ -85,6 +85,19 @@ export interface ISCMHistoryItemGraphNode {
 	readonly isRoot: boolean;
 }
 
+export interface ISCMHistoryItemGraphNode2 {
+	readonly id: string;
+	readonly color: number;
+}
+
+export interface ISCMHistoryItemViewModel {
+	readonly repository: ISCMRepository;
+	readonly historyItem: ISCMHistoryItem;
+	readonly inputSwimlanes: ISCMHistoryItemGraphNode2[];
+	readonly outputSwimlanes: ISCMHistoryItemGraphNode2[];
+	readonly type: 'historyItem2';
+}
+
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
 	readonly repository: ISCMRepository;
 	readonly graphNodes: ISCMHistoryItemGraphNode[];

@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemViewModel, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu, isSCMHistoryItemViewModel } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
@@ -108,6 +108,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
+import { renderSCMHistoryItemGraph } from 'vs/workbench/contrib/scm/common/scmHistory';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -120,6 +121,7 @@ type TreeElement =
 	IResourceNode<ISCMResource, ISCMResourceGroup> |
 	SCMHistoryItemGroupTreeElement |
 	SCMHistoryItemTreeElement |
+	ISCMHistoryItemViewModel |
 	SCMHistoryItemChangeTreeElement |
 	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> |
 	SCMViewSeparatorElement;
@@ -859,7 +861,7 @@ class HistoryItemActionRunner extends ActionRunner {
 interface HistoryItemTemplate {
 	// readonly iconContainer: HTMLElement;
 	readonly label: IconLabel;
-	readonly graphContainer: SVGElement;
+	readonly graphContainer: HTMLElement;
 	readonly labelContainer: HTMLElement;
 	// readonly statsContainer: HTMLElement;
 	// readonly statsCustomHover: IUpdatableHover;
@@ -871,7 +873,7 @@ interface HistoryItemTemplate {
 	readonly disposables: IDisposable;
 }
 
-class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTreeElement, LabelFuzzyScore, HistoryItemTemplate> {
+class HistoryItemRenderer implements ICompressibleTreeRenderer<ISCMHistoryItemViewModel, LabelFuzzyScore, HistoryItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'history-item';
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
@@ -888,11 +890,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = append(container, $('.history-item'));
-
-		const graphContainer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-		graphContainer.style.height = '22px';
-		graphContainer.classList.add('graph');
-		element.appendChild(graphContainer);
+		const graphContainer = append(element, $('.graph-container'));
 
 		const iconLabel = new IconLabel(element, { supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true });
 		//const iconContainer = prepend(iconLabel.element, $('.icon-container'));
@@ -916,17 +914,19 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		return { graphContainer, label: iconLabel, labelContainer, elementDisposables: new DisposableStore(), disposables };
 	}
 
-	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
-		const historyItem = node.element;
+	renderElement(node: ITreeNode<ISCMHistoryItemViewModel, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+		const historyItemViewModel = node.element;
+		const historyItem = historyItemViewModel.historyItem;
 
 		// templateData.iconContainer.className = 'icon-container';
 		// if (historyItem.icon && ThemeIcon.isThemeIcon(historyItem.icon)) {
 		// 	templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItem.icon));
 		// }
 
-		this.renderGraph(templateData.graphContainer, historyItem);
+		templateData.graphContainer.textContent = '';
+		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
-		const title = this.getTooltip(historyItem);
+		const title = this.getTooltip(historyItemViewModel);
 		// const [matches, descriptionMatches] = this.processMatches(historyItem, node.filterData);
 		templateData.label.setLabel(historyItem.message, undefined, { title });
 
@@ -961,130 +961,12 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		// this.renderStatistics(node, index, templateData, height);
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemTreeElement>, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMHistoryItemViewModel>, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
 
-	private renderGraph(graphContainer: SVGElement, historyItem: SCMHistoryItemTreeElement): void {
-		graphContainer.textContent = '';
-
-		let removedNodes = 0;
-		const firstIndex = historyItem.graphNodes
-			.findIndex(node => node.id === historyItem.id);
-		const firstNode = historyItem.graphNodes[firstIndex];
-
-		for (let index = 0; index < historyItem.graphNodes.length; index++) {
-			const node = historyItem.graphNodes[index];
-			// Not the current commit
-			if (node.id !== historyItem.id) {
-				const d: string[] = [];
-				const path = this.createPath(node.color);
-
-				if (node.offset === 0) {
-					// Draw |
-					d.push(`M ${11 * (index + 1)} 0`);
-					d.push(`V 22`);
-				} else {
-					// Draw /
-					d.push(`M ${11 * (index + node.offset + 1)} 0`);
-					d.push(`A 11 11 0 0 1 ${11 * (index + 1)} 11`);
-					d.push(`V 22`);
-				}
-
-				path.setAttribute('d', d.join(' '));
-				graphContainer.append(path);
-
-				continue;
-			}
-
-			// Base commit
-			if (index !== firstIndex) {
-				const d: string[] = [];
-				const path = this.createPath(node.color);
-
-				// Draw /
-				d.push(`M ${11 * ((index - firstIndex) + node.offset + 1)} 0`);
-				d.push(`A 11 11 0 0 1 ${11 * ((index - firstIndex) + node.offset)} 11`);
-
-				// Draw -
-				d.push(`H ${11 * (firstIndex + node.offset + 1)}`);
-
-				path.setAttribute('d', d.join(' '));
-				graphContainer.append(path);
-
-				removedNodes++;
-			}
-		}
-
-		// Merge commit - draw -\
-		if (historyItem.parentIds.length > 1) {
-			const path = this.createPath(firstNode.secondaryColor ?? firstNode.color);
-			const d: string[] = [];
-
-			// Draw \
-			d.push(`M ${11 * (historyItem.graphNodes.length - removedNodes)} 11`);
-			d.push(`A 11 11 0 0 1 ${11 * ((historyItem.graphNodes.length - removedNodes) + 1)} 22`);
-
-			// Draw -
-			d.push(`M ${11 * (historyItem.graphNodes.length - removedNodes)} 11`);
-			d.push(`H ${11 * (firstIndex + 1)}`);
-
-			path.setAttribute('d', d.join(' '));
-			graphContainer.append(path);
-		}
-
-		const d: string[] = [];
-		const path = this.createPath(firstNode.color);
-
-		// Draw |
-		d.push(`M ${11 * (firstIndex + 1)} ${firstNode.isRoot ? 11 : 0}`);
-		d.push(`V 22`);
-
-		path.setAttribute('d', d.join(' '));
-		graphContainer.append(path);
-
-		// Draw *
-		if (historyItem.parentIds.length === 1) {
-			// Commit
-			const circle = this.createCircle(firstIndex, 4, '#f8f8f8', firstNode.color);
-			graphContainer.append(circle);
-		} else {
-			// Merge commit
-			const circleOuter = this.createCircle(firstIndex, 5, '#f8f8f8', firstNode.color);
-			graphContainer.append(circleOuter);
-
-			const circleInner = this.createCircle(firstIndex, 3, '#f8f8f8', firstNode.color);
-			graphContainer.append(circleInner);
-		}
-
-		// Container width
-		const offset = historyItem.graphNodes
-			.reduce((previous, current) => previous + current.offset, 0);
-		graphContainer.style.width = `${11 * (historyItem.graphNodes.length + historyItem.parentIds.length + offset)}px`;
-	}
-
-	private createCircle(index: number, radius: number, stroke: string, fill: string): SVGCircleElement {
-		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		circle.setAttribute('cx', `${11 * (index + 1)}`);
-		circle.setAttribute('cy', '11');
-		circle.setAttribute('r', `${radius}`);
-		circle.setAttribute('fill', fill);
-		circle.setAttribute('stroke', stroke);
-
-		return circle;
-	}
-
-	private createPath(stroke: string): SVGPathElement {
-		const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-		path.setAttribute('fill', 'none');
-		path.setAttribute('stroke', stroke);
-		path.setAttribute('stroke-width', '1px');
-		path.setAttribute('stroke-linecap', 'round');
-
-		return path;
-	}
-
-	private getTooltip(historyItem: SCMHistoryItemTreeElement): IUpdatableHoverTooltipMarkdownString {
+	private getTooltip(historyItemViewModel: ISCMHistoryItemViewModel): IUpdatableHoverTooltipMarkdownString {
+		const historyItem = historyItemViewModel.historyItem;
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		if (historyItem.author) {
@@ -1142,7 +1024,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 	// 	templateData.statsContainer.classList.toggle('hidden', historyItem.statistics === undefined);
 	// }
 
-	disposeElement(element: ITreeNode<SCMHistoryItemTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+	disposeElement(element: ITreeNode<ISCMHistoryItemViewModel, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -1298,6 +1180,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return HistoryItemGroupRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return HistoryItemRenderer.TEMPLATE_ID;
+		} else if (isSCMHistoryItemViewModel(element)) {
+			return HistoryItemRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element) || isSCMHistoryItemChangeNode(element)) {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
 		} else if (isSCMViewSeparator(element)) {
@@ -1372,6 +1256,10 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 		if (isSCMHistoryItemTreeElement(one)) {
 			return isSCMHistoryItemTreeElement(other) ? 0 : 1;
+		}
+
+		if (isSCMHistoryItemViewModel(one)) {
+			return isSCMHistoryItemViewModel(other) ? 0 : 1;
 		}
 
 		if (isSCMHistoryItemChangeTreeElement(one) || isSCMHistoryItemChangeNode(one)) {
@@ -1458,6 +1346,11 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			// the author. A match in the message takes precedence over
 			// a match in the author.
 			return [element.message, element.author];
+		} else if (isSCMHistoryItemViewModel(element)) {
+			// For a history item we want to match both the message and
+			// the author. A match in the message takes precedence over
+			// a match in the author.
+			return [element.historyItem.message, element.historyItem.author];
 		} else if (isSCMViewSeparator(element)) {
 			return element.label;
 		} else {
@@ -1507,6 +1400,9 @@ function getSCMResourceId(element: TreeElement): string {
 	} else if (isSCMHistoryItemTreeElement(element)) {
 		const provider = element.repository.provider;
 		return `historyItem:${provider.id}/${element.id}/${element.parentIds.join(',')}`;
+	} else if (isSCMHistoryItemViewModel(element)) {
+		const provider = element.repository.provider;
+		return `historyItem2:${provider.id}/${element.historyItem.id}/${element.historyItem.parentIds.join(',')}`;
 		// } else if (isSCMHistoryItemChangeTreeElement(element)) {
 		// 	const historyItem = element.historyItem;
 		// 	const historyItemGroup = historyItem.historyItemGroup;
@@ -1557,6 +1453,8 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			return element.ariaLabel ?? `${element.label.trim()}${element.description ? `, ${element.description}` : ''}`;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return `${stripIcons(element.message).trim()}${element.author ? `, ${element.author}` : ''}`;
+		} else if (isSCMHistoryItemViewModel(element)) {
+			return `${stripIcons(element.historyItem.message).trim()}${element.historyItem.author ? `, ${element.historyItem.author}` : ''}`;
 		} else if (isSCMHistoryItemChangeTreeElement(element)) {
 			const result = [basename(element.uri)];
 			const path = this.labelService.getUriLabel(dirname(element.uri), { relative: true, noPrefix: true });
@@ -3659,6 +3557,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return true;
 		} else if (isSCMHistoryItemTreeElement(inputOrElement)) {
 			return false;
+		} else if (isSCMHistoryItemViewModel(inputOrElement)) {
+			return false;
 		} else if (isSCMHistoryItemChangeTreeElement(inputOrElement)) {
 			return false;
 		} else if (isSCMViewSeparator(inputOrElement)) {
@@ -3843,7 +3743,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	// 	return children;
 	// }
 
-	private async getHistoryItems(element: ISCMRepository): Promise<SCMHistoryItemTreeElement[]> {
+	private async getHistoryItems(element: ISCMRepository): Promise<ISCMHistoryItemViewModel[]> {
+		const graphController = element.graphController;
 		const historyProvider = element.provider.historyProvider;
 
 		if (!historyProvider?.currentHistoryItemGroup) {
@@ -3855,7 +3756,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
 		if (!historyItemsElement) {
-			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 210 }) ?? [];
+			const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 200 }) ?? [];
 
 			// All Changes
 			// const { showChangesSummary } = this.getConfiguration();
@@ -3870,7 +3771,6 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			});
 		}
 
-		const children: SCMHistoryItemTreeElement[] = [];
 		// if (historyItemsElement[0]) {
 		// 	children.push({
 		// 		...historyItemsElement[0],
@@ -3881,96 +3781,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		// 	} satisfies SCMHistoryItemTreeElement);
 		// }
 
-		let colorIndex = 0;
-		const colors = ['#007ACC', '#BC3FBC', '#BF8803', '#CC6633', '#F14C4C', '#16825D'];
+		graphController.clearHistoryItems();
+		graphController.appendHistoryItems(historyItemsElement[1]);
 
-		const getColor = (): string => {
-			const color = colors[colorIndex];
-			colorIndex = colorIndex < colors.length - 1 ? colorIndex + 1 : 1;
-
-			return color;
-		};
-
-		// Process each commit and add graph information
-		const graphNodes: ISCMHistoryItemGraphNode[] = [];
-		for (let index = 0; index < historyItemsElement[1].length; index++) {
-			const historyItem = historyItemsElement[1][index];
-			let swimlaneIndex = graphNodes.findIndex(n => n.id === historyItem.id);
-
-			const color = swimlaneIndex === -1 ? getColor() : graphNodes[swimlaneIndex].color;
-			const secondaryColor = historyItem.parentIds.length > 1 ? getColor() : undefined;
-
-			// New swimlane
-			if (swimlaneIndex === -1) {
-				// Add root node
-				graphNodes.push({ id: historyItem.id, color, offset: 0, isRoot: true });
-
-				swimlaneIndex = graphNodes.length - 1;
-			}
-
-			// Add secondary color to the node
-			if (historyItem.parentIds.length > 1) {
-				const node = { ...graphNodes[swimlaneIndex], secondaryColor };
-				graphNodes.splice(swimlaneIndex, 1, node);
-			}
-
-			// Add element
-			children.push({
-				...historyItem,
-				graphNodes: [...graphNodes],
-				repository: element,
-				type: 'historyItem'
-			} satisfies SCMHistoryItemTreeElement);
-
-			// Insert parent(s) into the graph
-			if (historyItem.parentIds.length !== 0) {
-				// Update graph node with parent(s)
-				// - Update first occurrence
-				// - Delete all other occurrences
-				// - Reset offset
-				let i = 0;
-				let offset = 0;
-				while (i < graphNodes.length) {
-					if (graphNodes[i].id === historyItem.id) {
-						if (i === swimlaneIndex) {
-							// Update first occurrence
-							graphNodes.splice(i, 1, {
-								id: historyItem.parentIds[0],
-								color,
-								offset,
-								isRoot: false
-							});
-							i++;
-
-							continue;
-						} else {
-							// Delete all other occurrences
-							graphNodes.splice(i, 1);
-							offset++;
-
-							continue;
-						}
-					}
-
-					// Reset offset
-					graphNodes[i] = { ...graphNodes[i], offset };
-
-					i++;
-				}
-
-				// Add remaining parent(s) to the graph
-				for (let i = 1; i < historyItem.parentIds.length; i++) {
-					graphNodes.push({
-						id: historyItem.parentIds[i],
-						color: i === 1 ? secondaryColor ?? getColor() : getColor(),
-						offset: 0,
-						isRoot: false
-					});
-				}
-			}
-		}
-
-		return children;
+		return graphController.historyItems;
 	}
 
 	// private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {
