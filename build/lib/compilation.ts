@@ -39,6 +39,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	options.baseUrl = rootDir;
 	options.sourceRoot = util.toFileUri(rootDir);
 	options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
+	options.esModuleInterop = true;
 	return options;
 }
 
