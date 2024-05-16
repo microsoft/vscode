@@ -9,15 +9,6 @@
 	height: 100%;
 }
 
-.explorer-item-hover {
-	/* -- Must set important as hover overrides the cursor -- */
-	cursor: pointer !important;
-	padding-left: 6px;
-	height: 22px;
-	font-size: 13px !important;
-	user-select: none !important;
-}
-
 .explorer-folders-view .monaco-list-row {
 	padding-left: 4px; /* align top level twistie with `Explorer` title label */
 }
