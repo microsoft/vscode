@@ -100,50 +100,48 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - script: |
+      set -e
+
+      for i in {1..5}; do # try 5 times
+        yarn --cwd build --frozen-lockfile --check-files && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+
+      source ./build/azure-pipelines/linux/setup-env.sh
+
+      for i in {1..5}; do # try 5 times
+        yarn --frozen-lockfile --check-files && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    env:
+      npm_config_arch: $(NPM_ARCH)
+      VSCODE_ARCH: $(VSCODE_ARCH)
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Install dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+
+      EXPECTED_GLIBC_VERSION="2.28" \
+      EXPECTED_GLIBCXX_VERSION="3.4.25" \
+      ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
+
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        # To workaround the issue of yarn not respecting the registry value from .npmrc
-        yarn config set registry "$NPM_REGISTRY"
-
-        for i in {1..5}; do # try 5 times
-          yarn --cwd build --frozen-lockfile --check-files && break
-          if [ $i -eq 3 ]; then
-            echo "Yarn failed too many times" >&2
-            exit 1
-          fi
-          echo "Yarn failed $i, trying again..."
-        done
-
-        source ./build/azure-pipelines/linux/setup-env.sh
-
-        for i in {1..5}; do # try 5 times
-          yarn --frozen-lockfile --check-files && break
-          if [ $i -eq 3 ]; then
-            echo "Yarn failed too many times" >&2
-            exit 1
-          fi
-          echo "Yarn failed $i, trying again..."
-        done
-      env:
-        npm_config_arch: $(NPM_ARCH)
-        VSCODE_ARCH: $(VSCODE_ARCH)
-        NPM_REGISTRY: "$(NPM_REGISTRY)"
-        ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Install dependencies (non-OSS)
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-    - script: |
-        set -e
-
-        EXPECTED_GLIBC_VERSION="2.28" \
-        EXPECTED_GLIBCXX_VERSION="3.4.25" \
-        ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-      displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
-
     - script: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
       displayName: Mixin distro node modules
@@ -154,23 +152,12 @@ steps:
     - script: |
         set -e
 
-        for i in {1..5}; do # try 5 times
-          yarn --frozen-lockfile --check-files && break
-          if [ $i -eq 3 ]; then
-            echo "Yarn failed too many times" >&2
-            exit 1
-          fi
-          echo "Yarn failed $i, trying again..."
-        done
-
         cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
         cd ../.. && ./.github/workflows/check-clean-git-state.sh
       env:
         npm_config_arch: $(NPM_ARCH)
-        ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Install dependencies (OSS)
+      displayName: Rebuild debug version of native modules (OSS)
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |

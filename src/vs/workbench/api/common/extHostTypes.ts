@@ -4361,9 +4361,9 @@ export class ChatResponseFileTreePart {
 }
 
 export class ChatResponseAnchorPart {
-	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	value: vscode.Uri | vscode.Location;
 	title?: string;
-	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+	constructor(value: vscode.Uri | vscode.Location, title?: string) {
 		this.value = value;
 		this.title = title;
 	}
@@ -4425,7 +4425,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly references: vscode.ChatValueReference[],
+		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
 	) { }
 }

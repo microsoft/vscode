@@ -128,7 +128,7 @@ export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewCon
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
-	readonly onDidHideInput: Event<void>;
+	readonly onDidHide: Event<void>;
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
 	readonly location: ChatAgentLocation;

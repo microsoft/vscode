@@ -425,13 +425,11 @@ export class ChatService extends Disposable implements IChatService {
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
-		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
-
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
 
 		this.removeRequest(model.sessionId, request.id);
 
-		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, implicitVariablesEnabled, defaultAgent, location, options);
+		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, options).responseCompletePromise;
 	}
 
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
@@ -456,7 +454,6 @@ export class ChatService extends Disposable implements IChatService {
 
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
-		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
 
 		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
@@ -465,7 +462,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, implicitVariablesEnabled, defaultAgent, location, options),
+			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, defaultAgent, location, options),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
@@ -495,7 +492,7 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
+	private _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -572,6 +569,9 @@ export class ChatService extends Disposable implements IChatService {
 
 					const promptTextResult = getPromptText(request.message);
 					const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
+
+					// TODO- should figure out how to get rid of implicit variables for inline chat
+					const implicitVariablesEnabled = location === ChatAgentLocation.Editor;
 					if (implicitVariablesEnabled) {
 						const implicitVariables = agent.defaultImplicitVariables;
 						if (implicitVariables) {
@@ -595,7 +595,8 @@ export class ChatService extends Disposable implements IChatService {
 						enableCommandDetection,
 						attempt,
 						location,
-						...options
+						acceptedConfirmationData: options?.acceptedConfirmationData,
+						rejectedConfirmationData: options?.rejectedConfirmationData,
 					};
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);

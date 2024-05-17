@@ -52,10 +52,10 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		return undefined;
 	}
 
-	registerVariableResolver(extension: IExtensionDescription, id: string, name: string, userDescription: string, modelDescription: string | undefined, resolver: vscode.ChatVariableResolver): IDisposable {
+	registerVariableResolver(extension: IExtensionDescription, id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver): IDisposable {
 		const handle = ExtHostChatVariables._idPool++;
 		this._resolver.set(handle, { extension, data: { id, name, description: userDescription, modelDescription }, resolver: resolver });
-		this._proxy.$registerVariable(handle, { id, name, description: userDescription, modelDescription });
+		this._proxy.$registerVariable(handle, { id, name, description: userDescription, modelDescription, isSlow });
 
 		return toDisposable(() => {
 			this._resolver.delete(handle);

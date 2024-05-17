@@ -196,6 +196,18 @@ export class NativeWindow extends BaseWindow {
 			}
 		});
 
+		// Shared Process crash reported from main
+		ipcRenderer.on('vscode:reportSharedProcessCrash', (event: unknown, error: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				localize('sharedProcessCrash', "A shared background process terminated unexpectedly. Please restart the application to recover."),
+				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				}]
+			);
+		});
+
 		// Support openFiles event for existing and new files
 		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
