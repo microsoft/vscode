@@ -129,6 +129,6 @@ export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefi
 					}
 				},
 			}
-		],
+		]
 	};
 }
