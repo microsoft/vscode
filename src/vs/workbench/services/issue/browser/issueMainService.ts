@@ -2,14 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* eslint-disable local/code-import-patterns */
-/* eslint-disable local/code-layering */
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import BaseHtml from 'vs/code/browser/issue/issueReporterPage';
-import { IssueWebReporter } from 'vs/code/browser/issue/issueReporterService';
+import BaseHtml from 'vs/workbench/browser/issues/issueReporterPage';
 import 'vs/css!./media/issueReporter';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,8 +15,8 @@ import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import product from 'vs/platform/product/common/product';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { AuxiliaryWindow, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IssueWebReporter } from 'vs/workbench/browser/issues/issueReporterService';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 // import { startup } from 'vs/code/browser/issue/issueReporterMain';
 // import { startup } from 'vs/code/browser/issue/issueReporterMain';
 // import { INativeHostService } from 'vs/platform/native/common/native';
@@ -65,7 +62,6 @@ export class IssueMainService implements IIssueMainService {
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		// @IStorageService private readonly storageService: IStorageService,
 		// @IFileService private readonly fileService: IFileService,
 		// @IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,

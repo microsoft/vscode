@@ -92,7 +92,7 @@ import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser
 import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { WebLanguagePacksService } from 'vs/platform/languagePacks/browser/languagePacks';
-import { IssueMainService } from 'vs/platform/issue/browser/issueMainService';
+import { IssueMainService } from 'vs/workbench/services/issue/browser/issueMainService';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);

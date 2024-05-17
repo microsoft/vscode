@@ -6,7 +6,7 @@
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import BaseHtml from 'vs/code/browser/issue/issueReporterPage';
+import BaseHtml from 'vs/workbench/browser/issues/issueReporterPage';
 import 'vs/css!./media/issueReporter';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
@@ -18,7 +18,7 @@ import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandb
 import { IIssueMainService, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
-import { IssueReporter2 } from 'vs/code/electron-sandbox/issue/issueReporterService2';
+import { IssueReporter2 } from 'vs/workbench/electron-sandbox/issues/issueReporterService2';
 import { mainWindow } from 'vs/base/browser/window';
 
 export function startup(configuration: IssueReporterWindowConfiguration) {

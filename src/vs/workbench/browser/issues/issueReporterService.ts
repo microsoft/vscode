@@ -8,9 +8,9 @@ import { groupBy } from 'vs/base/common/collections';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { BaseIssueReporterService } from 'vs/code/browser/issue/issue';
 import { localize } from 'vs/nls';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
+import { BaseIssueReporterService } from 'vs/workbench/browser/issues/issue';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
