@@ -1074,7 +1074,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				isNewWindowOperation = this.isNewWindowOperation(e);
 
-				const draggedEditors = [];
+				const draggedEditors = []; // TODO review
 				const selectedEditors = this.groupView.selectedEditors;
 				const isMultiSelected = this.groupView.isSelected(editor) && selectedEditors.length > 1;
 				if (isMultiSelected) {
