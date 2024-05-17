@@ -1143,34 +1143,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return false;
 	}
 
-	private readonly globalContextKeys = new Map<RawContextKey<ContextKeyValue>, IContextKey<ContextKeyValue>>();
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
-		// Ensure we only bind to the same context key once globaly
-		if (!this._globalContextKeys.has(contextKey)) {
-			this._globalContextKeys.set(contextKey, contextKey.bindTo(this.contextKeyService));
-		}
-
-		const scopedContextKeyService = group.scopedContextKeyService;
-		const scopedContextKey = contextKey.bindTo(scopedContextKeyService);
-
-		const $this = this;
-		return {
-			get(): T | undefined {
-				return scopedContextKey.get();
-			},
-			set(value: T): void {
-				if ($this.activeGroup === group) {
-					$this._globalContextKeys.get(contextKey)?.set(value);
-				}
-				scopedContextKey.set(value);
-			},
-			reset(): void {
-				if ($this.activeGroup === group) {
-					$this._globalContextKeys.get(contextKey)?.reset();
-				}
-				scopedContextKey.reset();
-			},
-		};
+		return this.editorPartsView.bind(contextKey, group);
 	}
 
 	private doCreateGridControl(): void {

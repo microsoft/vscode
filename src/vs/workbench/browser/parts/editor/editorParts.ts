@@ -20,6 +20,7 @@ import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -48,7 +49,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
@@ -625,6 +627,37 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
 		return this.getPart(container).createEditorDropTarget(container, delegate);
+	}
+
+	private readonly globalContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
+	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
+		// Ensure we only bind to the same context key once globaly
+		if (!this.globalContextKeys.has(contextKey.key)) {
+			this.globalContextKeys.set(contextKey.key, contextKey.bindTo(this.contextKeyService));
+		}
+		const globalContextKey = this.globalContextKeys.get(contextKey.key)!;
+
+		const scopedContextKeyService = group.scopedContextKeyService;
+		const scopedContextKey = contextKey.bindTo(scopedContextKeyService);
+
+		const $this = this;
+		return {
+			get(): T | undefined {
+				return scopedContextKey.get();
+			},
+			set(value: T): void {
+				if ($this.activeGroup === group) {
+					globalContextKey.set(value);
+				}
+				scopedContextKey.set(value);
+			},
+			reset(): void {
+				if ($this.activeGroup === group) {
+					globalContextKey.reset();
+				}
+				scopedContextKey.reset();
+			},
+		};
 	}
 
 	//#endregion
