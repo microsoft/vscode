@@ -47,6 +47,15 @@ export interface IChatViewOpenOptions {
 	 * Whether the query is partial and will await more input from the user.
 	 */
 	isPartialQuery?: boolean;
+	/**
+	 * Any previous chat requests and responses that should be shown in the chat view.
+	 */
+	previousRequests?: IChatViewOpenRequestEntry[];
+}
+
+export interface IChatViewOpenRequestEntry {
+	request: string;
+	response: string;
 }
 
 class OpenChatGlobalAction extends Action2 {
@@ -70,9 +79,15 @@ class OpenChatGlobalAction extends Action2 {
 	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
+		const chatService = accessor.get(IChatService);
 		const chatWidget = await showChatView(accessor.get(IViewsService));
 		if (!chatWidget) {
 			return;
+		}
+		if (opts?.previousRequests?.length && chatWidget.viewModel) {
+			for (const { request, response } of opts.previousRequests) {
+				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+			}
 		}
 		if (opts?.query) {
 			if (opts.isPartialQuery) {
