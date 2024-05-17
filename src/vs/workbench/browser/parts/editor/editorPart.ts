@@ -32,7 +32,7 @@ import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryEditorPartContext } from 'vs/workbench/common/contextkeys';
 import { mainWindow } from 'vs/base/browser/window';
@@ -1141,6 +1141,36 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 
 		return false;
+	}
+
+	private _globalContextKeys = new Map<RawContextKey<ContextKeyValue>, IContextKey<ContextKeyValue>>();
+	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
+		// Ensure we only bind to the same context key once globaly
+		if (!this._globalContextKeys.has(contextKey)) {
+			this._globalContextKeys.set(contextKey, contextKey.bindTo(this.contextKeyService));
+		}
+
+		const scopedContextKeyService = group.scopedContextKeyService;
+		const scopedContextKey = contextKey.bindTo(scopedContextKeyService);
+
+		const $this = this;
+		return {
+			get(): T | undefined {
+				return scopedContextKey.get();
+			},
+			set(value: T): void {
+				if ($this.activeGroup === group) {
+					$this._globalContextKeys.get(contextKey)?.set(value);
+				}
+				scopedContextKey.set(value);
+			},
+			reset(): void {
+				if ($this.activeGroup === group) {
+					$this._globalContextKeys.get(contextKey)?.reset();
+				}
+				scopedContextKey.reset();
+			},
+		};
 	}
 
 	private doCreateGridControl(): void {

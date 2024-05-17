@@ -58,6 +58,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -248,27 +249,29 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private handleGroupContextKeys(): void {
-		const groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorFirstContext = ActiveEditorFirstInGroupContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorLastContext = ActiveEditorLastInGroupContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
-		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
-		const groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
-		const multipleEditorsSelectedContext = MultipleEditorsSelectedContext.bindTo(this.contextKeyService);
-		const twoEditorsSelectedContext = TwoEditorsSelectedContext.bindTo(this.contextKeyService);
+		const editorPart = this.groupsView as EditorPart;
+		const groupActiveEditorDirtyContext = editorPart.bind(ActiveEditorDirtyContext, this);
+		const groupActiveEditorPinnedContext = editorPart.bind(ActiveEditorPinnedContext, this);
+		const groupActiveEditorFirstContext = editorPart.bind(ActiveEditorFirstInGroupContext, this);
+		const groupActiveEditorLastContext = editorPart.bind(ActiveEditorLastInGroupContext, this);
+		const groupActiveEditorStickyContext = editorPart.bind(ActiveEditorStickyContext, this);
+		const groupEditorsCountContext = editorPart.bind(EditorGroupEditorsCountContext, this);
+		const groupLockedContext = editorPart.bind(ActiveEditorGroupLockedContext, this);
 
-		const groupActiveEditorContext = ActiveEditorContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorIsReadonly = ActiveEditorReadonlyContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorCanRevert = ActiveEditorCanRevertContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorCanToggleReadonly = ActiveEditorCanToggleReadonlyContext.bindTo(this.scopedContextKeyService);
-		const groupActiveCompareEditorCanSwap = ActiveCompareEditorCanSwapContext.bindTo(this.scopedContextKeyService);
-		const groupTextCompareEditorVisibleContext = TextCompareEditorVisibleContext.bindTo(this.scopedContextKeyService);
-		const groupTextCompareEditorActiveContext = TextCompareEditorActiveContext.bindTo(this.scopedContextKeyService);
+		const multipleEditorsSelectedContext = MultipleEditorsSelectedContext.bindTo(this.scopedContextKeyService);
+		const twoEditorsSelectedContext = TwoEditorsSelectedContext.bindTo(this.scopedContextKeyService);
 
-		const groupActiveEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.scopedContextKeyService);
-		const sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorContext = editorPart.bind(ActiveEditorContext, this);
+		const groupActiveEditorIsReadonly = editorPart.bind(ActiveEditorReadonlyContext, this);
+		const groupActiveEditorCanRevert = editorPart.bind(ActiveEditorCanRevertContext, this);
+		const groupActiveEditorCanToggleReadonly = editorPart.bind(ActiveEditorCanToggleReadonlyContext, this);
+		const groupActiveCompareEditorCanSwap = editorPart.bind(ActiveCompareEditorCanSwapContext, this);
+		const groupTextCompareEditorVisibleContext = editorPart.bind(TextCompareEditorVisibleContext, this);
+		const groupTextCompareEditorActiveContext = editorPart.bind(TextCompareEditorActiveContext, this);
+
+		const groupActiveEditorAvailableEditorIds = editorPart.bind(ActiveEditorAvailableEditorIdsContext, this);
+		const groupActiveEditorCanSplitInGroupContext = editorPart.bind(ActiveEditorCanSplitInGroupContext, this);
+		const sideBySideEditorContext = editorPart.bind(SideBySideEditorActiveContext, this);
 
 		const activeEditorListener = this._register(new MutableDisposable());
 
