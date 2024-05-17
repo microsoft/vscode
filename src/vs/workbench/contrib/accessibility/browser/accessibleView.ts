@@ -38,7 +38,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
@@ -367,11 +367,15 @@ export class AccessibleView extends Disposable {
 		if (!items) {
 			return;
 		}
-		const result: IQuickPickItem[] | undefined = await this._quickInputService.pick(items);
-		if (result?.[0]) {
-			await this._commandService.executeCommand('workbench.action.openGlobalKeybindings', result[0].id);
-		}
-		return;
+		const quickPick = this._quickInputService.createQuickPick();
+		quickPick.items = items;
+		quickPick.show();
+		quickPick.onDidAccept(async () => {
+			const item = quickPick.selectedItems[0];
+			if (item) {
+				await this._commandService.executeCommand('workbench.action.openGlobalKeybindings', item.id);
+			}
+		});
 	}
 
 	private _convertTokensToSymbols(tokens: marked.TokensList, symbols: IAccessibleViewSymbol[]): void {
