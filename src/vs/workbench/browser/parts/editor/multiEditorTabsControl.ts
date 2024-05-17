@@ -1158,7 +1158,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				const targetGroup = auxiliaryEditorPart.activeGroup;
-				const editors = draggedEditors.map(de => ({ editor: de.identifier.editor, options: {} }));
+				const editors = draggedEditors.map(de => ({ editor: de.identifier.editor }));
 				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, draggedEditors[0].identifier.editor)) {
 					this.groupView.moveEditors(editors, targetGroup);
 				} else {
@@ -2175,6 +2175,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (Array.isArray(data)) {
 
 				// Keep the same order when moving / copying editors within the same group
+				// TODO review
 				for (const de of data) {
 					const editor = de.identifier.editor;
 					const sourceGroup = this.editorPartsView.getGroup(de.identifier.groupId);
