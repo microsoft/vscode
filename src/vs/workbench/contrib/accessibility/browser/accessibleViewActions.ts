@@ -234,7 +234,7 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 			id: AccessibilityCommandId.AccessibilityHelpConfigureKeybindings,
 			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
 			keybinding: {
-				primary: KeyMod.Alt | KeyCode.F7,
+				primary: KeyMod.Alt | KeyCode.KeyK,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			title: localize('editor.action.accessibilityHelpConfigureKeybindings', "Accessibility Help Configure Keybindings")
