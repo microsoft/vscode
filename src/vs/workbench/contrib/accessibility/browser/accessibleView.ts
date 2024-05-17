@@ -644,7 +644,7 @@ export class AccessibleView extends Disposable {
 		if (!lastProvider) {
 			return;
 		}
-		//TODO:@meganrogge add command to open configure keybindings when there are some commands with no keybindings
+
 		const accessibleViewHelpProvider = {
 			id: lastProvider.id,
 			provideContent: () => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
