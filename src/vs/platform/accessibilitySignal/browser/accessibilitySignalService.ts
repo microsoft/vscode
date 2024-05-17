@@ -26,7 +26,7 @@ export interface IAccessibilitySignalService {
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean>;
-
+	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality): number;
 	/**
 	 * Avoid this method and prefer `.playSignal`!
 	 * Only use it when you want to play the sound regardless of enablement, e.g. in the settings quick pick.
@@ -239,6 +239,12 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 
 	public onSoundEnabledChanged(signal: AccessibilitySignal): Event<void> {
 		return this.getEnabledState(signal, false).onDidChange;
+	}
+
+	public getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality): number {
+		const delaySettingsKey = signal.delaySettingsKey ?? 'accessibility.signalOptions.delays.general';
+		const delaySettingsValue: { sound: number; announcement: number } = this.configurationService.getValue(delaySettingsKey);
+		return modality === 'sound' ? delaySettingsValue.sound : delaySettingsValue.announcement;
 	}
 }
 

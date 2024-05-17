@@ -14,7 +14,6 @@ import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -54,8 +53,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super();
 
@@ -106,7 +104,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 
 				for (const modality of ['sound', 'announcement'] as AccessibilityModality[]) {
 					if (this._accessibilitySignalService.getEnabledState(signal, false, modality).value) {
-						const delay = this._getDelay(signal, modality) + (didType.get() ? 1000 : 0);
+						const delay = this._accessibilitySignalService.getDelayMs(signal, modality) + (didType.get() ? 1000 : 0);
 
 						timeouts.add(disposableTimeout(() => {
 							if (source.isPresent(position, mode, undefined)) {
@@ -163,12 +161,6 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 				}));
 			}
 		}));
-	}
-
-	private _getDelay(signal: AccessibilitySignal, modality: AccessibilityModality): number {
-		const delaySettingsKey = signal.delaySettingsKey ?? 'accessibility.signalOptions.delays.general';
-		const delaySettingsValue: { sound: number; announcement: number } = this._configurationService.getValue(delaySettingsKey);
-		return modality === 'sound' ? delaySettingsValue.sound : delaySettingsValue.announcement;
 	}
 }
 
