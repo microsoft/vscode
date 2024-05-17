@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel } from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { userAgent } from 'vs/base/common/platform';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
