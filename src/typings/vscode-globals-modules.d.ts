@@ -19,6 +19,9 @@ declare global {
 		os: typeof import('os');
 		module: typeof import('module');
 		fs: typeof import('fs'),
+		tls: typeof import('tls'),
+		http: typeof import('http'),
+		https: typeof import('https'),
 		vm: typeof import('vm'),
 		['native-watchdog']: typeof import('native-watchdog')
 		perf_hooks: typeof import('perf_hooks');
