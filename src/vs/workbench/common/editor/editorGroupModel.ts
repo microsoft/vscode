@@ -414,7 +414,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			};
 			this._onDidModelChange.fire(event);
 
-			// Handle active
+			// Handle active & selection
 			if (makeActive) {
 				this.doSetActive(newEditor, targetIndex, options?.addToSelection);
 			} else if (options?.addToSelection) {
@@ -439,7 +439,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.doPin(existingEditor, existingEditorIndex);
 			}
 
-			// Activate it
+			// Activate / select it
 			if (makeActive) {
 				this.doSetActive(existingEditor, existingEditorIndex, options?.addToSelection);
 			} else if (options?.addToSelection) {
