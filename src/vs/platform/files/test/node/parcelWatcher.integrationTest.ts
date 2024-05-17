@@ -87,7 +87,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		watcher.onDidError(e => {
 			if (loggingEnabled) {
-				console.log(`[recursive watcher test error] ${e}`);
+				console.log(`[recursive watcher test error] ${e.error}`);
 			}
 		});
 

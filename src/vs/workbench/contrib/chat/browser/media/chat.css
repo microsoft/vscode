@@ -495,7 +495,6 @@
 
 .interactive-session .chat-attached-context {
 	padding: 0 0 8px 0;
-	border-radius: 6px;
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
@@ -504,7 +503,7 @@
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	padding: 2px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 5px;
+	border-radius: 4px;
 	height: 18px;
 }
 

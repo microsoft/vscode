@@ -5,6 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize2 } from 'vs/nls';
@@ -65,7 +66,13 @@ class AttachContextAction extends Action2 {
 
 		const picks = await quickInputService.quickAccess.pick('', {
 			providerOptions: <AnythingQuickAccessProviderRunOptions>{
-				additionPicks: quickPickItems
+				additionPicks: quickPickItems,
+				filter: (item) => {
+					if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
+						return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme);
+					}
+					return true;
+				}
 			}
 		});
 
