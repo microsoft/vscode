@@ -280,6 +280,7 @@ export class Sound {
 
 	public static readonly error = Sound.register({ fileName: 'error.mp3' });
 	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
+	public static readonly success = Sound.register({ fileName: 'success.mp3' });
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
 	public static readonly break = Sound.register({ fileName: 'break.mp3' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
@@ -466,6 +467,13 @@ export class AccessibilitySignal {
 		legacyAnnouncementSettingsKey: 'accessibility.alert.terminalCommandFailed',
 		announcementMessage: localize('accessibility.signals.terminalCommandFailed', 'Command Failed'),
 		settingsKey: 'accessibility.signals.terminalCommandFailed',
+	});
+
+	public static readonly terminalCommandSucceeded = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.terminalCommandSucceeded', 'Terminal Command Succeeded'),
+		sound: Sound.success,
+		announcementMessage: localize('accessibility.signals.terminalCommandSucceeded', 'Command Succeeded'),
+		settingsKey: 'accessibility.signals.terminalCommandSucceeded',
 	});
 
 	public static readonly terminalBell = AccessibilitySignal.register({

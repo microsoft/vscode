@@ -131,20 +131,7 @@ export class TestCoverage {
 					if (chain.length === canonical.length) {
 						node.value = fileData;
 					} else {
-						node.value ??= new ComputedFileCoverage({
-							id: String(incId++),
-							uri: this.treePathToUri(canonical.slice(0, chain.length)),
-							statement: { covered: 0, total: 0 },
-						}, fileData.fromResult);
-
-						for (const kind of ['statement', 'branch', 'declaration'] as const) {
-							const count = fileData[kind];
-							if (count) {
-								const cc = (node.value[kind] ??= { covered: 0, total: 0 });
-								cc.covered += count.covered;
-								cc.total += count.total;
-							}
-						}
+						node.value ??= new BypassedFileCoverage(this.treePathToUri(canonical.slice(0, chain.length)), fileData.fromResult);
 					}
 				});
 			}
@@ -235,6 +222,15 @@ export abstract class AbstractFileCoverage {
  * extension.
  */
 export class ComputedFileCoverage extends AbstractFileCoverage { }
+
+/**
+ * A virtual node that doesn't have any added coverage info.
+ */
+export class BypassedFileCoverage extends ComputedFileCoverage {
+	constructor(uri: URI, result: LiveTestResult) {
+		super({ id: String(incId++), uri, statement: { covered: 0, total: 0 } }, result);
+	}
+}
 
 export class FileCoverage extends AbstractFileCoverage {
 	private _details?: Promise<CoverageDetails[]>;

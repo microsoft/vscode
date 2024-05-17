@@ -15,7 +15,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { showExtensionsWithIdsCommandId } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { verifiedPublisherIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -87,7 +87,8 @@ export class ChatAgentHover extends Disposable {
 
 		this.domNode.classList.toggle('noExtensionName', !!agent.isDynamic);
 
-		this.name.textContent = `@${agent.name}`;
+		const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent);
+		this.name.textContent = isAllowed ? `@${agent.name}` : getFullyQualifiedId(agent);
 		this.extensionName.textContent = agent.extensionDisplayName;
 		this.publisherName.textContent = agent.publisherDisplayName ?? agent.extensionPublisherId;
 
@@ -99,7 +100,6 @@ export class ChatAgentHover extends Disposable {
 		}
 
 		this.description.textContent = description;
-		const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent).get();
 		this.domNode.classList.toggle('allowedName', isAllowed);
 
 		this.domNode.classList.toggle('verifiedPublisher', false);

@@ -41,8 +41,8 @@ suite('ChatVariables', function () {
 
 	test('ChatVariables - resolveVariables', async function () {
 
-		const v1 = service.registerVariable({ name: 'foo', description: 'bar' }, async () => 'farboo');
-		const v2 = service.registerVariable({ name: 'far', description: 'boo' }, async () => 'farboo');
+		const v1 = service.registerVariable({ id: 'id', name: 'foo', description: 'bar' }, async () => 'farboo');
+		const v2 = service.registerVariable({ id: 'id', name: 'far', description: 'boo' }, async () => 'farboo');
 
 		const parser = instantiationService.createInstance(ChatRequestParser);
 
