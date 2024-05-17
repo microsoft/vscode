@@ -2175,7 +2175,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (Array.isArray(data)) {
 
 				// Keep the same order when moving / copying editors within the same group
-				// TODO review
+				// TODO review: this again needs to prevent to work with multiple groups?
 				for (const de of data) {
 					const editor = de.identifier.editor;
 					const sourceGroup = this.editorPartsView.getGroup(de.identifier.groupId);
