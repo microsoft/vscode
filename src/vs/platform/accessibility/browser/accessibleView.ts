@@ -119,7 +119,7 @@ export interface IAccessibleViewService {
 	 */
 	getOpenAriaHint(verbositySettingKey: string): string | null;
 	getCodeBlockContext(): ICodeBlockActionContext | undefined;
-	showKeybindingsQuickPick(): Promise<void>;
+	showKeybindingsQuickPick(): void;
 }
 
 
