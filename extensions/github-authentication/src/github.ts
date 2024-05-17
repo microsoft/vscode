@@ -306,14 +306,15 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this.afterSessionLoad(session);
 
 			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
+			const removed = new Array<vscode.AuthenticationSession>();
 			if (sessionIndex > -1) {
-				sessions.splice(sessionIndex, 1, session);
+				removed.push(...sessions.splice(sessionIndex, 1, session));
 			} else {
 				sessions.push(session);
 			}
 			await this.storeSessions(sessions);
 
-			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
 
 			this._logger.info('Login success!');
 
