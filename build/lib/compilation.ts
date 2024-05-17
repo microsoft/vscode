@@ -22,6 +22,7 @@ import * as util from './util';
 import ts = require('typescript');
 // import through = require('through');
 const watch = require('./watch');
+const ignoredErrors = require('./typescriptEsModuleInteropErrors.json')
 
 
 // --- gulp-tsb: compile and transpile --------------------------------
@@ -41,6 +42,21 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	options.sourceRoot = util.toFileUri(rootDir);
 	options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
 	return options;
+}
+
+const shouldBeIgnored = (error: unknown) => {
+	if (typeof error !== 'string') {
+		return false
+	}
+	for (const ignoredError of ignoredErrors) {
+		if (ignoredError.fileName === '*' && error.endsWith(ignoredError.message)) {
+			return true
+		}
+		if (error.includes(ignoredError.fileName) && error.endsWith(ignoredError.message)) {
+			return true
+		}
+	}
+	return false
 }
 
 function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean | { swc: boolean }) {
@@ -66,6 +82,8 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	// 	// ignore
 	// });
 
+
+
 	// TODO add compilation with type checking
 	const compilationWithTypeChecking = tsb.create(projectPath, {
 		...overrideOptions,
@@ -76,7 +94,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
 	}, err => {
 		// TODO remove this when all imports are fixed
-		if (typeof err === 'string' && err.endsWith("Type 'typeof assert' has no call signatures.")) {
+		if (shouldBeIgnored(err)) {
 			return
 		}
 		console.log({ err })

@@ -26,6 +26,7 @@ const util = require("./util");
 const ts = require("typescript");
 // import through = require('through');
 const watch = require('./watch');
+const ignoredErrors = require('./typescriptEsModuleInteropErrors.json');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
@@ -42,6 +43,20 @@ function getTypeScriptCompilerOptions(src) {
     options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
     return options;
 }
+const shouldBeIgnored = (error) => {
+    if (typeof error !== 'string') {
+        return false;
+    }
+    for (const ignoredError of ignoredErrors) {
+        if (ignoredError.fileName === '*' && error.endsWith(ignoredError.message)) {
+            return true;
+        }
+        if (error.includes(ignoredError.fileName) && error.endsWith(ignoredError.message)) {
+            return true;
+        }
+    }
+    return false;
+};
 function createCompile(src, build, emitError, transpileOnly) {
     const tsb = require('./tsb');
     const sourcemaps = require('gulp-sourcemaps');
@@ -70,7 +85,7 @@ function createCompile(src, build, emitError, transpileOnly) {
         transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
     }, err => {
         // TODO remove this when all imports are fixed
-        if (typeof err === 'string' && err.endsWith("Type 'typeof assert' has no call signatures.")) {
+        if (shouldBeIgnored(err)) {
             return;
         }
         console.log({ err });
