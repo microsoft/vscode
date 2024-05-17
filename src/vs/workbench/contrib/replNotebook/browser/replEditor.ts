@@ -200,7 +200,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	}
 
 	private _setupRunButtonToolbar(runButtonContainer: HTMLElement) {
-		const menu = this._register(this._menuService.createMenu(MenuId.InteractiveInputExecute, this._contextKeyService));
+		const menu = this._register(this._menuService.createMenu(MenuId.ReplInputExecute, this._contextKeyService));
 		this._runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this._contextMenuService, {
 			getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: (action, options) => {

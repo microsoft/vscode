@@ -52,7 +52,7 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class ReplEditorSerializer implements IEditorSerializer {
 	canSerialize(input: EditorInput): boolean {
-		return input instanceof ReplEditorInput;
+		return input instanceof ReplEditorInput && input.viewType === 'repl';
 	}
 	serialize(input: EditorInput): string {
 		assertType(input instanceof ReplEditorInput);
@@ -123,7 +123,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 		editorResolverService.registerEditor(
 			`*.ipynb`,
 			{
-				id: 'repl-notebook',
+				id: 'repl',
 				label: 'repl Editor',
 				priority: RegisteredEditorPriority.option
 			},
@@ -211,7 +211,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const resource = URI.from({ scheme: Schemas.untitled, path: 'repl.ipynb' });
-		const editorInput: IUntypedEditorInput = { resource, options: { override: 'repl-notebook' } };
+		const editorInput: IUntypedEditorInput = { resource, options: { override: 'repl' } };
 
 		const editorService = accessor.get(IEditorService);
 		await editorService.openEditor(editorInput, 1);
@@ -240,8 +240,7 @@ registerAction2(class extends Action2 {
 			}],
 			menu: [
 				{
-					id: MenuId.InteractiveInputExecute,
-					when: REPL_NOTEBOOK_IS_ACTIVE_EDITOR
+					id: MenuId.ReplInputExecute
 				}
 			],
 			icon: icons.executeIcon,
