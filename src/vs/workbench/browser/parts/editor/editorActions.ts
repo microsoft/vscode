@@ -2515,23 +2515,21 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editorsAndGroups = resolveEditorsContext(getEditorsContext(accessor, resourceOrContext, context));
-
-		// If there is no editor, do not create a new window
-		if (editorsAndGroups.length === 0) {
+		const editorsContext = resolveEditorsContext(getEditorsContext(accessor, resourceOrContext, context));
+		if (editorsContext.length === 0) {
 			return;
 		}
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
-		// Only support moving/copying from a single group
-		const sourceGroup = editorsAndGroups[0].group;
-		const editors = editorsAndGroups.filter(({ group }) => group === sourceGroup);
+		// We currently only support moving/copying from a single group
+		const sourceGroup = editorsContext[0].group;
+		const sourceEditors = editorsContext.filter(({ group }) => group === sourceGroup);
 
 		if (this.move) {
-			await sourceGroup.moveEditors(editors, auxiliaryEditorPart.activeGroup);
+			sourceGroup.moveEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
 		} else {
-			await sourceGroup.copyEditors(editors, auxiliaryEditorPart.activeGroup);
+			sourceGroup.copyEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
 		}
 
 		auxiliaryEditorPart.activeGroup.focus();
