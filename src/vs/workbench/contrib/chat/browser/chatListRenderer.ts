@@ -162,7 +162,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IModelService private readonly modelService: IModelService,
 		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatService private readonly chatService: IChatService
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
