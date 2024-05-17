@@ -99,7 +99,6 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	private _menuService: IMenuService;
 	private _contextMenuService: IContextMenuService;
 	private _editorGroupService: IEditorGroupsService;
-	private _notebookExecutionStateService: INotebookExecutionStateService;
 	private _extensionService: IExtensionService;
 	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
@@ -153,7 +152,6 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._menuService = menuService;
 		this._contextMenuService = contextMenuService;
 		this._editorGroupService = editorGroupService;
-		this._notebookExecutionStateService = notebookExecutionStateService;
 		this._extensionService = extensionService;
 
 		this._editorOptions = this._computeEditorOptions();
@@ -162,12 +160,12 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = new NotebookOptions(this.window, configurationService, notebookExecutionStateService, codeEditorService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
+		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputDecoration, this));
-		this._register(this._notebookExecutionStateService.onDidChangeExecution((e) => {
+		this._register(notebookExecutionStateService.onDidChangeExecution((e) => {
 			if (e.type === NotebookExecutionType.cell && isEqual(e.notebook, this._notebookWidget.value?.viewModel?.notebookDocument.uri)) {
 				const cell = this._notebookWidget.value?.getCellByHandle(e.cellHandle);
 				if (cell && e.changed?.state) {
@@ -420,7 +418,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		}
 
 		if (model === null) {
-			throw new Error('The Intertive Window model could not be resolved');
+			throw new Error('The REPL model could not be resolved');
 		}
 
 		this._notebookWidget.value?.setParentContextKeyService(this._contextKeyService);

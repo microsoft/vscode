@@ -229,7 +229,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	}), {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }));
 
 	const model = disposables.add(new NotebookEditorTestModel(notebook));
-	const notebookOptions = disposables.add(new NotebookOptions(mainWindow, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService), false));
+	const notebookOptions = disposables.add(new NotebookOptions(mainWindow, false, undefined, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService)));
 	const baseCellEditorOptions = new class extends mock<IBaseCellEditorOptions>() { };
 	const viewContext = new ViewContext(notebookOptions, disposables.add(new NotebookEventDispatcher()), () => baseCellEditorOptions);
 	const viewModel: NotebookViewModel = disposables.add(instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false }));
@@ -471,7 +471,7 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 	};
 
 	const notebookOptions = !!viewContext ? viewContext.notebookOptions
-		: disposables.add(new NotebookOptions(mainWindow, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService), false));
+		: disposables.add(new NotebookOptions(mainWindow, false, undefined, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService)));
 	const cellList: NotebookCellList = disposables.add(instantiationService.createInstance(
 		NotebookCellList,
 		'NotebookCellList',

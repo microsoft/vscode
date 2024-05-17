@@ -311,7 +311,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
 
-		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.creationOptions?.codeWindow ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, this._readOnly);
+		this._overlayContainer = document.createElement('div');
+		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
+		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+
+		this._notebookOptions = creationOptions.options ??
+			this.instantiationService.createInstance(NotebookOptions, this.creationOptions?.codeWindow ?? mainWindow, this._readOnly, undefined);
 		this._register(this._notebookOptions);
 		const eventDispatcher = this._register(new NotebookEventDispatcher());
 		this._viewContext = new ViewContext(
@@ -322,9 +327,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._onDidChangeCellState.fire(e);
 		}));
 
-		this._overlayContainer = document.createElement('div');
-		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
-		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
 		this._register(_notebookService.onDidChangeOutputRenderers(() => {
 			this._updateOutputRenderers();
