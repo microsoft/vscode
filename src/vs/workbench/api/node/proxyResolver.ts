@@ -77,10 +77,10 @@ export function connectProxyResolver(
 }
 
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
-	const http = globalThis._VSCODE_NODE_MODULES['http']
-	const https = globalThis._VSCODE_NODE_MODULES['https']
-	const net = globalThis._VSCODE_NODE_MODULES['net']
-	const tls = globalThis._VSCODE_NODE_MODULES['tls']
+	const http = globalThis._VSCODE_NODE_MODULES['http'] as typeof import('http')
+	const https = globalThis._VSCODE_NODE_MODULES['https'] as typeof import('https')
+	const net = globalThis._VSCODE_NODE_MODULES['net'] as typeof import('net')
+	const tls = globalThis._VSCODE_NODE_MODULES['tls'] as typeof import('tls')
 	return {
 		http: Object.assign(http, createHttpPatch(params, http, resolveProxy)),
 		https: Object.assign(https, createHttpPatch(params, https, resolveProxy)),
