@@ -371,7 +371,7 @@ export class AccessibleView extends Disposable {
 		this._register(quickPick);
 		quickPick.items = items;
 		quickPick.title = localize('keybindings', 'Configure keybindings');
-		quickPick.placeholder = localize('selectKeybinding', 'Select a commandId to configure a keybinding for it');
+		quickPick.placeholder = localize('selectKeybinding', 'Select a command ID to configure a keybinding for it');
 		quickPick.show();
 		quickPick.onDidAccept(async () => {
 			const item = quickPick.selectedItems[0];
