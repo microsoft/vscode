@@ -64,7 +64,6 @@ export class ReplEditorInput extends NotebookEditorInput {
 			return this.inputModelRef.object.textEditorModel;
 		}
 
-		// return BaseCellViewModel.resolveTextModel
 		const lastCell = notebook.cells[notebook.cells.length - 1];
 		this.inputModelRef = await this._textModelService.createModelReference(lastCell.uri);
 		return this.inputModelRef.object.textEditorModel;
@@ -73,8 +72,9 @@ export class ReplEditorInput extends NotebookEditorInput {
 	override dispose() {
 		if (!this.isDisposing) {
 			this.isDisposing = true;
-			this.editorModelReference?.object.revert({ soft: true });
 			super.dispose();
+			this.editorModelReference?.object.revert({ soft: true });
+			this.inputModelRef?.dispose();
 		}
 	}
 }
