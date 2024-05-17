@@ -34,6 +34,7 @@ import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodej
  */
 (() => {
 	try {
+		const fs = globalThis._VSCODE_NODE_MODULES['fs']
 		gracefulify(fs);
 	} catch (error) {
 		console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
