@@ -5,7 +5,6 @@
 
 import { Event } from 'vs/base/common/event';
 import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
-import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isAbsolute } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
@@ -190,7 +189,7 @@ export abstract class AbstractWatcherClient extends Disposable {
 
 	private requests: IWatchRequest[] | undefined = undefined;
 
-	private restartsPerRequestError = new Map<number /* request hash */, number /* restarts */>();
+	private restartsPerRequestError = new Map<string /* request path */, number /* restarts */>();
 	private restartsPerUnknownError = 0;
 
 	constructor(
@@ -223,22 +222,21 @@ export abstract class AbstractWatcherClient extends Disposable {
 		disposables.add(this.watcher.onDidError(e => this.onError(e.error, e.request)));
 	}
 
-	protected onError(error: string, request?: IUniversalWatchRequest): void {
+	protected onError(error: string, failedRequest?: IUniversalWatchRequest): void {
 
 		// Restart on error (up to N times, if enabled)
 		if (this.options.restartOnError && this.requests?.length) {
 
 			// A request failed
-			if (request) {
-				const requestToFilterHash = this.hashRequest(request);
-				const restartsPerRequestError = this.restartsPerRequestError.get(requestToFilterHash) ?? 0;
+			if (failedRequest) {
+				const restartsPerRequestError = this.restartsPerRequestError.get(failedRequest.path) ?? 0;
 				if (restartsPerRequestError < AbstractWatcherClient.MAX_RESTARTS_PER_REQUEST_ERROR) {
-					this.error(`restarting watcher from error in watch request (retrying request): ${error} (${JSON.stringify(request)})`);
-					this.restartsPerRequestError.set(requestToFilterHash, restartsPerRequestError + 1);
+					this.error(`restarting watcher from error in watch request (retrying request): ${error} (${JSON.stringify(failedRequest)})`);
+					this.restartsPerRequestError.set(failedRequest.path, restartsPerRequestError + 1);
 					this.restart(this.requests);
 				} else {
-					this.error(`restarting watcher from error in watch request (skipping request): ${error} (${JSON.stringify(request)})`);
-					this.restart(this.requests.filter(request => this.hashRequest(request) !== requestToFilterHash));
+					this.error(`restarting watcher from error in watch request (skipping request): ${error} (${JSON.stringify(failedRequest)})`);
+					this.restart(this.requests.filter(request => request.path !== failedRequest.path));
 				}
 			}
 
@@ -258,17 +256,6 @@ export abstract class AbstractWatcherClient extends Disposable {
 		else {
 			this.error(error);
 		}
-	}
-
-	private hashRequest(request: IWatchRequest): number {
-		return hash({
-			correlationId: request.correlationId,
-			path: request.path,
-			recursive: request.recursive,
-			excludes: request.excludes,
-			includes: request.includes,
-			filter: request.filter
-		});
 	}
 
 	private restart(requests: IUniversalWatchRequest[]): void {
