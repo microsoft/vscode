@@ -364,7 +364,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return {
 
 			// Fast picks: help (if included) & editor history
-			picks,
+			picks: options.filter ? picks.filter((p) => options.filter?.(p)) : picks,
 
 			// Slow picks: files and symbols
 			additionalPicks: (async (): Promise<Picks<IAnythingQuickPickItem>> => {
@@ -377,7 +377,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				const additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, token);
+				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, token);
+				if (options.filter) {
+					additionalPicks = additionalPicks.filter((p) => options.filter?.(p));
+				}
 				if (token.isCancellationRequested) {
 					return [];
 				}
