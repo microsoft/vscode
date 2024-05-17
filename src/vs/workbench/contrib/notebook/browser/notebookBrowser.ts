@@ -22,7 +22,7 @@ import { IEditorPane, IEditorPaneWithSelection } from 'vs/workbench/common/edito
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
@@ -878,7 +878,9 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 
 	const input = editorPane.input;
 
-	if (input && isCompositeNotebookEditorInput(input)) {
+	const isInteractiveEditor = input && isCompositeNotebookEditorInput(input);
+
+	if (isInteractiveEditor || editorPane.getId() === REPL_EDITOR_ID) {
 		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined } | undefined)?.notebookEditor;
 	}
 
