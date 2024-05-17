@@ -84,8 +84,19 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 				d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
 				d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * index} ${SWIMLANE_HEIGHT / 2}`);
 
+				// Start walking backwards from the current index and
+				// find the first occurrence in the output swimlanes
+				// array
+				let nodeOutputIndex = -1;
+				for (let j = index - 1; j >= 0; j--) {
+					if (outputSwimlanes[j].id === node.id) {
+						nodeOutputIndex = j;
+						break;
+					}
+				}
+
 				// Draw -
-				d.push(`H ${SWIMLANE_WIDTH * (findLastIndex(outputSwimlanes, node.id) + 1)}`);
+				d.push(`H ${SWIMLANE_WIDTH * (nodeOutputIndex + 1)}`);
 
 				// Draw |
 				d.push(`V ${SWIMLANE_HEIGHT}`);
@@ -116,7 +127,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 
 	// Add remaining parent(s)
 	for (let i = 1; i < historyItem.parentIds.length; i++) {
-		const parentOutputIndex = outputSwimlanes.findIndex(node => node.id === historyItem.parentIds[i]);
+		const parentOutputIndex = findLastIndex(outputSwimlanes, historyItem.parentIds[i]);
 		if (parentOutputIndex === -1) {
 			continue;
 		}
