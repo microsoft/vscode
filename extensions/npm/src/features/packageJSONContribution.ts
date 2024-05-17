@@ -288,13 +288,13 @@ export class PackageJSONContribution implements IJSONContribution {
 			const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
 
-			let env = Object.assign({}, process.env);
 			// corepack npm wrapper would automatically update package.json. disable that behavior.
 			// COREPACK_ENABLE_AUTO_PIN disables the package.json overwrite, and
 			// COREPACK_ENABLE_PROJECT_SPEC makes the npm view command succeed
 			//   even if packageManager specified a package manager other than npm.
-			Object.assign(env, { COREPACK_ENABLE_AUTO_PIN: "0", COREPACK_ENABLE_PROJECT_SPEC: "0" });
-			cp.execFile(npmCommandPath, args, { cwd, env }, (error, stdout) => {
+			const env = { ...process.env, COREPACK_ENABLE_AUTO_PIN: "0", COREPACK_ENABLE_PROJECT_SPEC: "0" };
+			const shell = process.platform === 'win32';
+			cp.execFile(npmCommandPath, args, { cwd, env, shell }, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);
