@@ -1319,7 +1319,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		if (isSCMViewSeparator(one)) {
-			return isSCMResourceGroup(other) ? 1 : -1;
+			return 0;// isSCMResourceGroup(other) ? 1 : -1;
 		}
 
 		if (isSCMHistoryItemGroupTreeElement(one)) {
@@ -1475,19 +1475,19 @@ function getSCMResourceId(element: TreeElement): string {
 	} else if (isSCMHistoryItemViewModel(element)) {
 		const provider = element.repository.provider;
 		return `historyItem2:${provider.id}/${element.historyItem.id}/${element.historyItem.parentIds.join(',')}`;
-		// } else if (isSCMHistoryItemChangeTreeElement(element)) {
-		// 	const historyItem = element.historyItem;
-		// 	const historyItemGroup = historyItem.historyItemGroup;
-		// 	const provider = historyItemGroup.repository.provider;
-		// 	return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.uri.toString()}`;
-		// } else if (isSCMHistoryItemChangeNode(element)) {
-		// 	const historyItem = element.context;
-		// 	const historyItemGroup = historyItem.historyItemGroup;
-		// 	const provider = historyItemGroup.repository.provider;
-		// 	return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
+	} else if (isSCMHistoryItemChangeTreeElement(element)) {
+		const historyItem = element.historyItem;
+		const historyItemGroup = historyItem.historyItemGroup;
+		const provider = historyItemGroup.repository.provider;
+		return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.uri.toString()}`;
+	} else if (isSCMHistoryItemChangeNode(element)) {
+		const historyItem = element.context;
+		const historyItemGroup = historyItem.historyItemGroup;
+		const provider = historyItemGroup.repository.provider;
+		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
 	} else if (isSCMViewSeparator(element)) {
 		const provider = element.repository.provider;
-		return `separator:${provider.id}`;
+		return `separator:${provider.id}/${element.label}`;
 	} else {
 		throw new Error('Invalid tree element');
 	}
