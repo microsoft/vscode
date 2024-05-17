@@ -37,7 +37,6 @@ export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
-	readonly profileLocation: URI;
 	readonly options: InstallExtensionTaskOptions;
 	readonly verificationStatus?: ExtensionVerificationStatus;
 	run(): Promise<ILocalExtension>;
@@ -206,7 +205,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			const key = `${getGalleryExtensionId(manifest.publisher, manifest.name)}-${options.profileLocation.toString()}`;
 			installingExtensionsMap.set(key, { task: installExtensionTask, root });
 			this._onInstallExtension.fire({ identifier: installExtensionTask.identifier, source: extension, profileLocation: options.profileLocation });
-			this.logService.info('Installing extension:', installExtensionTask.identifier.id);
+			this.logService.info('Installing extension:', installExtensionTask.identifier.id, options.profileLocation.toString());
 			// only cache gallery extensions tasks
 			if (!URI.isUri(extension)) {
 				this.installingExtensions.set(getInstallExtensionTaskKey(extension, options.profileLocation), { task: installExtensionTask, waitingTasks: [] });
@@ -227,7 +226,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 				const existingInstallExtensionTask = !URI.isUri(extension) ? this.installingExtensions.get(getInstallExtensionTaskKey(extension, installExtensionTaskOptions.profileLocation)) : undefined;
 				if (existingInstallExtensionTask) {
-					this.logService.info('Extension is already requested to install', existingInstallExtensionTask.task.identifier.id);
+					this.logService.info('Extension is already requested to install', existingInstallExtensionTask.task.identifier.id, installExtensionTaskOptions.profileLocation.toString());
 					alreadyRequestedInstallations.push(existingInstallExtensionTask.task.waitUntilTaskIsFinished());
 				} else {
 					createInstallExtensionTask(manifest, extension, installExtensionTaskOptions, undefined);
@@ -251,14 +250,14 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							if (existingInstallingExtension) {
 								if (this.canWaitForTask(task, existingInstallingExtension.task)) {
 									const identifier = existingInstallingExtension.task.identifier;
-									this.logService.info('Waiting for already requested installing extension', identifier.id, task.identifier.id);
+									this.logService.info('Waiting for already requested installing extension', identifier.id, task.identifier.id, options.profileLocation.toString());
 									existingInstallingExtension.waitingTasks.push(task);
 									// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
 									alreadyRequestedInstallations.push(
 										Event.toPromise(
 											Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
 										).then(results => {
-											this.logService.info('Finished waiting for already requested installing extension', identifier.id, task.identifier.id);
+											this.logService.info('Finished waiting for already requested installing extension', identifier.id, task.identifier.id, options.profileLocation.toString());
 											const result = results.find(result => areSameExtensions(result.identifier, identifier));
 											if (!result?.local) {
 												// Extension failed to install
@@ -304,8 +303,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							source: task.options.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT]
 						});
 					}
-					installExtensionResultsMap.set(key, { error, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.profileLocation, applicationScoped: task.options.isApplicationScoped });
-					this.logService.error('Error while installing the extension', task.identifier.id, getErrorMessage(error));
+					installExtensionResultsMap.set(key, { error, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.options.profileLocation, applicationScoped: task.options.isApplicationScoped });
+					this.logService.error('Error while installing the extension', task.identifier.id, getErrorMessage(error), task.options.profileLocation.toString());
 					throw error;
 				}
 				if (!URI.isUri(task.source)) {
@@ -325,7 +324,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						} catch (error) { /* ignore */ }
 					}
 				}
-				installExtensionResultsMap.set(key, { local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.profileLocation, applicationScoped: local.isApplicationScoped });
+				installExtensionResultsMap.set(key, { local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.options.profileLocation, applicationScoped: local.isApplicationScoped });
 			}));
 
 			if (alreadyRequestedInstallations.length) {
@@ -353,7 +352,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 				return allDepsOrPacks;
 			};
-			const getErrorResult = (task: IInstallExtensionTask) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: task.options.context, profileLocation: task.profileLocation, error });
+			const getErrorResult = (task: IInstallExtensionTask) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: task.options.context, profileLocation: task.options.profileLocation, error });
 
 			const rollbackTasks: IUninstallExtensionTask[] = [];
 			for (const [key, { task, root }] of installingExtensionsMap) {
@@ -363,8 +362,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					installExtensionResultsMap.set(key, getErrorResult(task));
 				}
 				// If the extension is installed by a root task and the root task is failed, then uninstall the extension
-				else if (result.local && root && !installExtensionResultsMap.get(`${root.identifier.id.toLowerCase()}-${task.profileLocation.toString()}`)?.local) {
-					rollbackTasks.push(this.createUninstallExtensionTask(result.local, { versionOnly: true, profileLocation: task.profileLocation }));
+				else if (result.local && root && !installExtensionResultsMap.get(`${root.identifier.id.toLowerCase()}-${task.options.profileLocation.toString()}`)?.local) {
+					rollbackTasks.push(this.createUninstallExtensionTask(result.local, { versionOnly: true, profileLocation: task.options.profileLocation }));
 					installExtensionResultsMap.set(key, getErrorResult(task));
 				}
 			}
@@ -376,9 +375,9 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				if (task.options.donotIncludePackAndDependencies) {
 					continue;
 				}
-				const depsOrPacks = getAllDepsAndPacks(result.local, task.profileLocation, [result.local.identifier.id.toLowerCase()]).slice(1);
-				if (depsOrPacks.some(depOrPack => installingExtensionsMap.has(`${depOrPack.toLowerCase()}-${task.profileLocation.toString()}`) && !installExtensionResultsMap.get(`${depOrPack.toLowerCase()}-${task.profileLocation.toString()}`)?.local)) {
-					rollbackTasks.push(this.createUninstallExtensionTask(result.local, { versionOnly: true, profileLocation: task.profileLocation }));
+				const depsOrPacks = getAllDepsAndPacks(result.local, task.options.profileLocation, [result.local.identifier.id.toLowerCase()]).slice(1);
+				if (depsOrPacks.some(depOrPack => installingExtensionsMap.has(`${depOrPack.toLowerCase()}-${task.options.profileLocation.toString()}`) && !installExtensionResultsMap.get(`${depOrPack.toLowerCase()}-${task.options.profileLocation.toString()}`)?.local)) {
+					rollbackTasks.push(this.createUninstallExtensionTask(result.local, { versionOnly: true, profileLocation: task.options.profileLocation }));
 					installExtensionResultsMap.set(key, getErrorResult(task));
 				}
 			}
@@ -399,14 +398,14 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			// Finally, remove all the tasks from the cache
 			for (const { task } of installingExtensionsMap.values()) {
 				if (task.source && !URI.isUri(task.source)) {
-					this.installingExtensions.delete(getInstallExtensionTaskKey(task.source, task.profileLocation));
+					this.installingExtensions.delete(getInstallExtensionTaskKey(task.source, task.options.profileLocation));
 				}
 			}
 			if (installExtensionResultsMap.size) {
 				const results = [...installExtensionResultsMap.values()];
 				for (const result of results) {
 					if (result.local) {
-						this.logService.info(`Extension installed successfully:`, result.identifier.id);
+						this.logService.info(`Extension installed successfully:`, result.identifier.id, result.profileLocation.toString());
 					}
 				}
 				this._onDidInstallExtensions.fire(results);
