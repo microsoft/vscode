@@ -1025,6 +1025,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	async unselectEditors(editors: EditorInput[]): Promise<void> {
+
 		// Unselect all none active editors
 		let unselectingActiveEditor = false;
 		for (const editor of editors) {
@@ -1037,15 +1038,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// if the active editor is unselected, make another selected editor active
 		if (unselectingActiveEditor) {
-			// do not allow to unselect the active editor if it is the last selected editor
 			if (this.selectedEditors.length === 1) {
-				console.warn('Cannot unselect the last selected editor of a group');
-				return;
+				return; // do not allow to unselect the active editor if it is the last selected editor
 			}
 
-			const activeEditor = this.activeEditor;
 			// Find the next selected editor to make active based on MRU order
 			const recentEditors = this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+			const activeEditor = this.activeEditor;
 			for (let i = 1; i < recentEditors.length; i++) { // First one is the active editor
 				const recentEditor = recentEditors[i];
 				if (this.isSelected(recentEditor)) {
