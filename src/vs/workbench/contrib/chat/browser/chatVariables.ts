@@ -30,7 +30,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	) {
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
+	async resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
 		let resolvedVariables: IChatRequestVariableEntry[] = [];
 		const jobs: Promise<any>[] = [];
 
@@ -55,6 +55,26 @@ export class ChatVariablesService implements IChatVariablesService {
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
 					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data };
+				}
+			});
+
+		attachedContextVariables
+			?.forEach((attachment, i) => {
+				const data = this._resolver.get(attachment.name.toLowerCase());
+				if (data) {
+					const references: IChatContentReference[] = [];
+					const variableProgressCallback = (item: IChatVariableResolverProgress) => {
+						if (item.kind === 'reference') {
+							references.push(item);
+							return;
+						}
+						progress(item);
+					};
+					jobs.push(data.resolver(prompt.text, '', model, variableProgressCallback, token).then(value => {
+						if (value) {
+							resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
+						}
+					}).catch(onUnexpectedExternalError));
 				}
 			});
 

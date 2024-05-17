@@ -6,6 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize, localize2 } from 'vs/nls';
@@ -37,7 +38,7 @@ class AttachContextAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: [
@@ -60,14 +61,20 @@ class AttachContextAction extends Action2 {
 		const chatVariablesService = accessor.get(IChatVariablesService);
 		const widgetService = accessor.get(IChatWidgetService);
 
-		const quickPickItems: QuickPickItem[] = [];
+		const quickPickItems: (QuickPickItem & { name?: string; icon?: ThemeIcon })[] = [];
+		for (const variable of chatVariablesService.getVariables()) {
+			if (variable.fullName) {
+				quickPickItems.push({ label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`, name: variable.name, id: variable.id, icon: variable.icon });
+			}
+		}
+
 		if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
 			quickPickItems.push(SelectAndInsertFileAction.Item, { type: 'separator' });
 		}
 
 		const picks = await quickInputService.quickAccess.pick('', {
 			enabledProviderPrefixes: [AnythingQuickAccessProvider.PREFIX],
-			placeholder: localize('chatContext.searchFiles.placeholder', 'Search files by name'),
+			placeholder: localize('chatContext.attach.placeholder', 'Search attachments'),
 			providerOptions: <AnythingQuickAccessProviderRunOptions>{
 				additionPicks: quickPickItems,
 				includeSymbols: false,
@@ -84,7 +91,14 @@ class AttachContextAction extends Action2 {
 			const context: { widget?: IChatWidget } | undefined = args[0];
 
 			const widget = context?.widget ?? widgetService.lastFocusedWidget;
-			widget?.attachContext(...picks.map((p) => ({ name: p.label, value: 'resource' in p && URI.isUri(p.resource) ? p.resource : undefined, id: 'resource' in p && URI.isUri(p.resource) ? `${SelectAndInsertFileAction.Name}:${p.resource.toString()}` : '' })));
+			widget?.attachContext(...picks.map((p) => ({
+				fullName: p.label,
+				icon: 'icon' in p && ThemeIcon.isThemeIcon(p.icon) ? p.icon : undefined,
+				name: 'name' in p && typeof p.name === 'string' ? p.name : p.label,
+				value: 'resource' in p && URI.isUri(p.resource) ? p.resource : undefined,
+				id: 'id' in p && typeof p.id === 'string' ? p.id :
+					'resource' in p && URI.isUri(p.resource) ? `${SelectAndInsertFileAction.Name}:${p.resource.toString()}` : ''
+			})));
 		}
 	}
 }
