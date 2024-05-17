@@ -15,6 +15,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
  */
 export interface IQuickAccessProviderRunOptions {
 	readonly from?: string;
+	readonly placeholder?: string;
 }
 
 /**
@@ -23,6 +24,7 @@ export interface IQuickAccessProviderRunOptions {
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
 	readonly includeHelp?: boolean;
 	readonly filter?: (item: unknown) => boolean;
+	readonly includeSymbols?: boolean;
 	/**
 	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
 	 * Useful for adding items to the top of the list that might contain actions.
@@ -54,6 +56,17 @@ export interface IQuickAccessOptions {
 	 * quick access.
 	 */
 	readonly providerOptions?: IQuickAccessProviderRunOptions;
+
+	/**
+	 * An array of provider prefixes to enable for this
+	 * particular showing of the quick access.
+	 */
+	readonly enabledProviderPrefixes?: string[];
+
+	/**
+	 * A placeholder to use for this particular showing of the quick access.
+	 */
+	readonly placeholder?: string;
 }
 
 export interface IQuickAccessController {
