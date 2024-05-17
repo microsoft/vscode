@@ -931,7 +931,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabsScrollbar.setScrollPosition({ scrollLeft: tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
-		// Prevent flicker of focus outline on tab until editor got focus
+		// Update selection & prevent flicker of focus outline on tab until editor got focus
 		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, e => {
 			EventHelper.stop(e);
 
@@ -944,6 +944,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (this.originatesFromTabActionBar(e)) {
 				return; // not when clicking on actions
 			}
+
 			const isCtrlCmd = (e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh);
 			if (!isCtrlCmd && !e.shiftKey && this.groupView.selectedEditors.length > 1) {
 				this.unselectAllEditors();
@@ -1599,7 +1600,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 
 		const isActive = this.tabsModel.isActive(editor);
-		const isSelected = this.groupView.isSelected(editor); // TODO, move to model
+		const isSelected = this.groupView.isSelected(editor); // TODO, move to model (whats this?)
 
 		tabContainer.classList.toggle('active', isActive);
 		tabContainer.classList.toggle('selected', isSelected);
