@@ -18,7 +18,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { isActiveElement } from 'vs/base/browser/dom';
-import { isEqual } from 'vs/base/common/resources';
 
 export interface IExplorerService {
 	readonly _serviceBrand: undefined;
@@ -144,9 +143,8 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 	if (selection.length > 1 && URI.isUri(resource)) {
 		// If the resource is part of the tabs selection, return all selected tabs/resources.
 		// It's possible that multiple tabs are selected but the action was applied to a resource that is not part of the selection.
-		const selectedResources = selection.map(editor => EditorResourceAccessor.getOriginalUri(editor)).filter(uri => !!uri);
-		if (selectedResources.some(r => isEqual(r, resource))) {
-			return selectedResources;
+		if (selection.some(e => e.matches({ resource }))) {
+			return selection.map(editor => EditorResourceAccessor.getOriginalUri(editor)).filter(uri => !!uri);
 		}
 	}
 

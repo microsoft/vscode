@@ -1415,7 +1415,7 @@ export function getCommandsContext(accessor: ServicesAccessor, resourceOrContext
 	const isUri = URI.isUri(resourceOrContext);
 
 	const editorCommandsContext = isUri ? context : resourceOrContext ? resourceOrContext : context;
-	if (editorCommandsContext && typeof editorCommandsContext.groupId === 'number') {
+	if (editorCommandsContext) {
 		return editorCommandsContext;
 	}
 

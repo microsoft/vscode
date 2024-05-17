@@ -866,7 +866,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return this.groupView.getIndexOfEditor(editor);
 	}
 
-	private lastCtrlClickSelectedEditor: EditorInput | undefined;
+	private lastSingleSelectSelectedEditor: EditorInput | undefined;
 	private registerTabListeners(tab: HTMLElement, tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
 		const disposables = new DisposableStore();
 
@@ -890,25 +890,25 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (editor) {
 				if (e.shiftKey) {
 					let anchor;
-					if (this.lastCtrlClickSelectedEditor && this.groupView.isSelected(this.lastCtrlClickSelectedEditor)) {
+					if (this.lastSingleSelectSelectedEditor && this.tabsModel.isSelected(this.lastSingleSelectSelectedEditor)) {
 						// The last selected editor is the anchor
-						anchor = this.lastCtrlClickSelectedEditor;
+						anchor = this.lastSingleSelectSelectedEditor;
 					} else {
 						// The active editor is the anchor
-						this.lastCtrlClickSelectedEditor = this.groupView.activeEditor!;
+						this.lastSingleSelectSelectedEditor = this.groupView.activeEditor!;
 						anchor = this.groupView.activeEditor!;
 					}
 					this.selectEditorsBetween(editor, anchor);
 				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
-					if (this.groupView.isSelected(editor)) {
+					if (this.tabsModel.isSelected(editor)) {
 						this.groupView.unselectEditors([editor]);
 					} else {
 						this.groupView.selectEditors([editor], editor);
-						this.lastCtrlClickSelectedEditor = editor;
+						this.lastSingleSelectSelectedEditor = editor;
 					}
 				} else {
 					// Even if focus is preserved make sure to activate the group.
-					this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { addToSelection: this.groupView.isSelected(editor) /* Ensures drag and drop does not remove selection */ });
+					this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { addToSelection: this.tabsModel.isSelected(editor) /* Ensures drag and drop does not remove selection */ });
 				}
 			}
 		};
@@ -1074,22 +1074,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				isNewWindowOperation = this.isNewWindowOperation(e);
-
-				const draggedEditors = []; // TODO review
 				const selectedEditors = this.groupView.selectedEditors;
-				const isMultiSelected = this.groupView.isSelected(editor) && selectedEditors.length > 1;
-				if (isMultiSelected) {
-					draggedEditors.push(...selectedEditors);
-				} else {
-					draggedEditors.push(editor);
-				}
-
-				this.editorTransfer.setData(draggedEditors.map(e => new DraggedEditorIdentifier({ editor: e, groupId: this.groupView.id })), DraggedEditorIdentifier.prototype);
+				this.editorTransfer.setData(selectedEditors.map(e => new DraggedEditorIdentifier({ editor: e, groupId: this.groupView.id })), DraggedEditorIdentifier.prototype);
 
 				if (e.dataTransfer) {
 					e.dataTransfer.effectAllowed = 'copyMove';
-					if (isMultiSelected) {
-						const label = `${editor.getName()} + ${draggedEditors.length - 1}`;
+					if (selectedEditors.length > 1) {
+						const label = `${editor.getName()} + ${selectedEditors.length - 1}`;
 						applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
 					} else {
 						e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
@@ -1188,7 +1179,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private isSupportedDropTransfer(e: DragEvent): boolean {
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
 				const group = data[0];
 				if (group.identifier === this.groupView.id) {
 					return false; // groups cannot be dropped on group it originates from
@@ -1294,8 +1285,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		while (currentIndex >= 0 && currentIndex <= this.groupView.count - 1) {
 			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
 
+			if (!this.tabsModel.isSelected(currentIndex)) {
+				break;
+			}
+
 			const currentEditor = this.groupView.getEditorByIndex(currentIndex);
-			if (!currentEditor || !this.groupView.isSelected(currentEditor)) {
+			if (!currentEditor) {
 				break;
 			}
 
@@ -1600,7 +1595,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 
 		const isActive = this.tabsModel.isActive(editor);
-		const isSelected = this.groupView.isSelected(editor); // TODO, move to model (whats this?)
+		const isSelected = this.tabsModel.isSelected(editor);
 
 		tabContainer.classList.toggle('active', isActive);
 		tabContainer.classList.toggle('selected', isSelected);
@@ -2154,7 +2149,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Check for group transfer
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
 				const sourceGroup = this.editorPartsView.getGroup(data[0].identifier);
 				if (sourceGroup) {
 					const mergeGroupOptions: IMergeGroupOptions = { index: targetEditorIndex };
@@ -2173,19 +2168,21 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Check for editor transfer
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
+				const sourceGroup = data.length ? this.editorPartsView.getGroup(data[0].identifier.groupId) : undefined;
+				const isLocalMove = sourceGroup === this.groupView;
 
 				// Keep the same order when moving / copying editors within the same group
-				// TODO review: this again needs to prevent to work with multiple groups?
 				for (const de of data) {
 					const editor = de.identifier.editor;
-					const sourceGroup = this.editorPartsView.getGroup(de.identifier.groupId);
-					if (!sourceGroup) {
+
+					// Only allow moving/copying from a single group source
+					if (!sourceGroup || sourceGroup.id !== de.identifier.groupId) {
 						continue;
 					}
 
 					const sourceEditorIndex = sourceGroup.getIndexOfEditor(editor);
-					if (sourceGroup === this.groupView && sourceEditorIndex < targetEditorIndex) {
+					if (isLocalMove && sourceEditorIndex < targetEditorIndex) {
 						targetEditorIndex--;
 					}
 
@@ -2206,7 +2203,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Check for tree items
 		else if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
 			const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
-			if (Array.isArray(data)) {
+			if (Array.isArray(data) && data.length > 0) {
 				const editors: IUntypedEditorInput[] = [];
 				for (const id of data) {
 					const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
