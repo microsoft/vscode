@@ -448,7 +448,7 @@ export interface INotebookViewCellsUpdateEvent {
 
 export interface INotebookViewModel {
 	notebookDocument: NotebookTextModel;
-	viewCells: ICellViewModel[];
+	readonly viewCells: ICellViewModel[];
 	layoutInfo: NotebookLayoutInfo | null;
 	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	onDidChangeSelection: Event<string>;

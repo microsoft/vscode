@@ -113,10 +113,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._viewCells;
 	}
 
-	set viewCells(_: ICellViewModel[]) {
-		throw new Error('NotebookViewModel.viewCells is readonly');
-	}
-
 	get length(): number {
 		return this._viewCells.length;
 	}
@@ -337,9 +333,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this._onDidChangeSelection.fire(e);
 		}));
 
-		this._viewCells = this._notebook.cells.map(cell => {
-			return createCellViewModel(this._instantiationService, this, cell, this._viewContext);
-		});
+		for (const cell of this._notebook.cellsForView()) {
+			this._viewCells.push(createCellViewModel(this._instantiationService, this, cell, this._viewContext));
+		}
+
 
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);
