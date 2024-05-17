@@ -912,11 +912,13 @@ function registerCloseEditorCommands() {
 					return;
 				}
 
-				if (!editorReplacements.has(group)) {
-					editorReplacements.set(group, []);
+				let editorReplacementsInGroup = editorReplacements.get(group);
+				if (!editorReplacementsInGroup) {
+					editorReplacementsInGroup = [];
+					editorReplacements.set(group, editorReplacementsInGroup);
 				}
 
-				editorReplacements.get(group)?.push({
+				editorReplacementsInGroup.push({
 					editor: editor,
 					replacement: resolvedEditor.editor,
 					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
@@ -949,7 +951,8 @@ function registerCloseEditorCommands() {
 			}
 
 			// Replace editor with resolved one
-			let group: IEditorGroup | undefined, replacements: IEditorReplacement[] | undefined;
+			let group: IEditorGroup | undefined;
+			let replacements: IEditorReplacement[] | undefined;
 			for ([group, replacements] of editorReplacements) {
 				await group.replaceEditors(replacements);
 			}
@@ -959,7 +962,7 @@ function registerCloseEditorCommands() {
 			}
 
 			// Make sure it becomes active too
-			await group?.openEditor(replacements[0].replacement);
+			await group.openEditor(replacements[0].replacement);
 		}
 	});
 
