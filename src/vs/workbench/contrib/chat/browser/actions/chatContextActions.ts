@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize2 } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
@@ -19,6 +19,7 @@ import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/con
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -65,8 +66,11 @@ class AttachContextAction extends Action2 {
 		}
 
 		const picks = await quickInputService.quickAccess.pick('', {
+			enabledProviderPrefixes: [AnythingQuickAccessProvider.PREFIX],
+			placeholder: localize('chatContext.searchFiles.placeholder', 'Search files by name'),
 			providerOptions: <AnythingQuickAccessProviderRunOptions>{
 				additionPicks: quickPickItems,
+				includeSymbols: false,
 				filter: (item) => {
 					if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
 						return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme);
