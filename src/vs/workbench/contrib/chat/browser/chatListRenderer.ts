@@ -322,7 +322,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					this.hoverService.showHover({ content, target: user, trapFocus: true }, true);
 				}
 			} else if (ev.equals(KeyCode.Escape)) {
-				e.stopImmediatePropagation();
 				this.hoverService.hideHover();
 			}
 		}));
