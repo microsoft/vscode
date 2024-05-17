@@ -362,7 +362,7 @@ export class AccessibleView extends Disposable {
 		return symbols.length ? symbols : undefined;
 	}
 
-	showKeybindingsQuickPick(): void {
+	configureKeybindings(): void {
 		const items = this._currentProvider?.options?.configureKeybindingItems;
 		if (!items) {
 			return;
@@ -772,8 +772,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		}
 		this._accessibleView.show(provider, undefined, undefined, position);
 	}
-	showKeybindingsQuickPick(): void {
-		this._accessibleView?.showKeybindingsQuickPick();
+	configureKeybindings(): void {
+		this._accessibleView?.configureKeybindings();
 	}
 	showLastProvider(id: AccessibleViewProviderId): void {
 		this._accessibleView?.showLastProvider(id);

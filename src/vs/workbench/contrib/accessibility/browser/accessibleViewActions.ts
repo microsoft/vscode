@@ -241,7 +241,7 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IAccessibleViewService).showKeybindingsQuickPick();
+		await accessor.get(IAccessibleViewService).configureKeybindings();
 	}
 }
 registerAction2(AccessibilityHelpConfigureKeybindingsAction);
