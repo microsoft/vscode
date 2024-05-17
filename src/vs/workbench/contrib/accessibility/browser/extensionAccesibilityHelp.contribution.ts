@@ -99,3 +99,4 @@ function resolveExtensionHelpContent(keybindingService: IKeybindingService, cont
 	value.isTrusted = true;
 	return { value, configureKeybindingItems: configureKeybindingItems.length ? configureKeybindingItems : undefined };
 }
+
