@@ -14,7 +14,7 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { score, targetsNotebooks } from 'vs/editor/common/languageSelector';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
 import { OverviewRulerLane } from 'vs/editor/common/model';
-import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
@@ -1411,16 +1411,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
 			},
-			registerChatVariableResolver(id: string, name: string, userDescription: string, modelDescription: string | undefined, resolver: vscode.ChatVariableResolver) {
+			registerChatVariableResolver(id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatVariables.registerVariableResolver(extension, id, name, userDescription, modelDescription, resolver);
+				return extHostChatVariables.registerVariableResolver(extension, id, name, userDescription, modelDescription, isSlow, resolver);
 			},
 			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
 			createChatParticipant(id: string, handler: vscode.ChatExtendedRequestHandler) {
-				checkProposedApiEnabled(extension, 'chatParticipant');
 				return extHostChatAgents2.createChatAgent(extension, id, handler);
 			},
 			createDynamicChatParticipant(id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
@@ -1432,11 +1431,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: lm
 		const lm: typeof vscode.lm = {
 			selectChatModels: (selector) => {
-				checkProposedApiEnabled(extension, 'languageModels');
+				if (initData.quality === 'stable') {
+					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
+					return Promise.resolve([]);
+				}
 				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
 			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
-				checkProposedApiEnabled(extension, 'languageModels');
+				if (initData.quality === 'stable') {
+					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
+					return Event.None(listener, thisArgs, disposables);
+				}
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
 			// --- embeddings

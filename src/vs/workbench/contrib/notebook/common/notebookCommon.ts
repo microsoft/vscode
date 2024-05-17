@@ -941,6 +941,7 @@ export const NotebookSetting = {
 	minimalErrorRendering: 'notebook.output.minimalErrorRendering',
 	formatOnSave: 'notebook.formatOnSave.enabled',
 	insertFinalNewline: 'notebook.insertFinalNewline',
+	defaultFormatter: 'notebook.defaultFormatter',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
 	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',

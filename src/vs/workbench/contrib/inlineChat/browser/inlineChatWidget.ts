@@ -158,7 +158,8 @@ export class InlineChatWidget {
 			new ServiceCollection([
 				IContextKeyService,
 				this.scopedContextKeyService
-			])
+			]),
+			this._store
 		);
 
 		this._chatWidget = scopedInstaService.createInstance(

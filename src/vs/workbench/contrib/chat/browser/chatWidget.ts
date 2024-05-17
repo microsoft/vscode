@@ -96,8 +96,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidAcceptInput = this._register(new Emitter<void>());
 	readonly onDidAcceptInput = this._onDidAcceptInput.event;
 
-	private _onDidHideInput = this._register(new Emitter<void>());
-	readonly onDidHideInput = this._onDidHideInput.event;
+	private _onDidHide = this._register(new Emitter<void>());
+	readonly onDidHide = this._onDidHide.event;
 
 	private _onDidChangeParsedInput = this._register(new Emitter<void>());
 	readonly onDidChangeParsedInput = this._onDidChangeParsedInput.event;
@@ -406,12 +406,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}, 0));
 		} else if (wasVisible) {
-			this._onDidHideInput.fire();
+			this._onDidHide.fire();
 		}
 	}
 
 	private createList(listContainer: HTMLElement, options: IChatListItemRendererOptions): void {
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const delegate = scopedInstantiationService.createInstance(ChatListDelegate, this.viewOptions.defaultElementHeight ?? 200);
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
