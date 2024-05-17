@@ -86,6 +86,7 @@ export interface IEditorTabsControl extends IDisposable {
 	stickEditor(editor: EditorInput): void;
 	unstickEditor(editor: EditorInput): void;
 	setActive(isActive: boolean): void;
+	setEditorSelections(editors: EditorInput[], selected: boolean): void;
 	updateEditorLabel(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
 	layout(dimensions: IEditorTitleControlDimensions): Dimension;
@@ -501,6 +502,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	abstract unstickEditor(editor: EditorInput): void;
 
 	abstract setActive(isActive: boolean): void;
+
+	abstract setEditorSelections(editors: EditorInput[], selected: boolean): void;
 
 	abstract updateEditorLabel(editor: EditorInput): void;
 

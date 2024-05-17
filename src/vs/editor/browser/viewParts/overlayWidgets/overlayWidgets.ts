@@ -165,10 +165,10 @@ export class ViewOverlayWidgets extends ViewPart {
 		const maxRight = (2 * this._verticalScrollbarWidth) + this._minimapWidth;
 		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER || widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
 			if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-				domNode.setTop(0);
-			} else {
 				const widgetHeight = domNode.domNode.clientHeight;
 				domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
+			} else {
+				domNode.setTop(0);
 			}
 
 			if (widgetData.stack !== undefined) {
