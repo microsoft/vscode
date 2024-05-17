@@ -27,9 +27,6 @@ import { Emitter } from 'vs/base/common/event';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
-	private readonly _onContentsChanged = this._register(new Emitter<void>());
-	public readonly onContentsChanged = this._onContentsChanged.event;
-
 	private _currentResult: HoverResult | null = null;
 
 	private readonly _computer: ContentHoverComputer;
@@ -38,6 +35,9 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	// TODO@aiday-mar make array of participants, dispatch between them
 	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
+
+	private readonly _onContentsChanged = this._register(new Emitter<void>());
+	public readonly onContentsChanged = this._onContentsChanged.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -364,12 +364,12 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._markdownHoverParticipant?.updateLastFocusedMarkdownHoverPartVerbosityLevel(action, focus);
 	}
 
-	public lastFocusedMarkdownHoverContent(): string {
-		return this._markdownHoverParticipant?.lastFocusedMarkdownHoverContent() ?? '';
-	}
-
 	public isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action: HoverVerbosityAction): boolean {
 		return this._markdownHoverParticipant?.isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action) ?? false;
+	}
+
+	public lastFocusedMarkdownHoverContent(): string {
+		return this._markdownHoverParticipant?.lastFocusedMarkdownHoverContent() ?? '';
 	}
 
 	public getWidgetContent(): string | undefined {

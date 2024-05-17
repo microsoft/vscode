@@ -195,12 +195,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		this._renderedHoverParts?.updateLastFocusedMarkdownHoverPartVerbosityLevel(action, focus);
 	}
 
-	public lastFocusedMarkdownHoverContent(): string {
-		return this._renderedHoverParts?.lastFocusedMarkdownHoverContent() ?? '';
-	}
-
 	public isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action: HoverVerbosityAction): boolean {
 		return this._renderedHoverParts?.isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action) ?? false;
+	}
+
+	public lastFocusedMarkdownHoverContent(): string {
+		return this._renderedHoverParts?.lastFocusedMarkdownHoverContent() ?? '';
 	}
 }
 

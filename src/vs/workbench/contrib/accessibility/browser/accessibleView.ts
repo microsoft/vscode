@@ -79,6 +79,7 @@ export class AccessibleView extends Disposable {
 	private readonly _toolbar: WorkbenchToolBar;
 
 	private _currentProvider: AccesibleViewContentProvider | undefined;
+	private _currentContainer: HTMLElement | undefined;
 	private _currentContent: string | undefined;
 
 	private _lastProvider: AccesibleViewContentProvider | undefined;
@@ -246,7 +247,8 @@ export class AccessibleView extends Disposable {
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
-				container.classList.add('accessible-view-container');
+				this._currentContainer = container;
+				this._currentContainer.classList.add('accessible-view-container');
 				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
@@ -287,6 +289,21 @@ export class AccessibleView extends Disposable {
 		if (provider instanceof ExtensionContentProvider) {
 			this._storageService.store(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
+	}
+
+	rerender(): void {
+		if (!this._currentProvider || !this._currentContainer) {
+			return;
+		}
+		this._render(this._currentProvider, this._currentContainer, false);
+	}
+
+	isVisible(): boolean {
+		return this._accessibleViewIsShown.get() ?? false;
+	}
+
+	providerId(): string {
+		return this._accessibleViewCurrentProviderId.get() ?? '';
 	}
 
 	previous(): void {
@@ -752,6 +769,15 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	showLastProvider(id: AccessibleViewProviderId): void {
 		this._accessibleView?.showLastProvider(id);
+	}
+	rerender(): void {
+		this._accessibleView?.rerender();
+	}
+	isVisible(): boolean {
+		return this._accessibleView?.isVisible() ?? false;
+	}
+	providerId(): string {
+		return this._accessibleView?.providerId() ?? '';
 	}
 	next(): void {
 		this._accessibleView?.next();

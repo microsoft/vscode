@@ -99,6 +99,9 @@ export interface IAccessibleViewService {
 	show(provider: AccesibleViewContentProvider, position?: IPosition): void;
 	showLastProvider(id: AccessibleViewProviderId): void;
 	showAccessibleViewHelp(): void;
+	rerender(): void;
+	isVisible(): boolean;
+	providerId(): string;
 	next(): void;
 	previous(): void;
 	navigateToCodeBlock(type: 'next' | 'previous'): void;

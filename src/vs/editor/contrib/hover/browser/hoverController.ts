@@ -23,9 +23,7 @@ import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import 'vs/css!./hover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { Emitter } from 'vs/base/common/event';
 
 // sticky hover widget which doesn't disappear on focus out and such
@@ -51,9 +49,11 @@ const enum HoverWidgetType {
 
 export class HoverController extends Disposable implements IEditorContribution {
 
+	// Listeners
 	private readonly _onHoverContentsChanged = this._register(new Emitter<void>());
 	public readonly onHoverContentsChanged = this._onHoverContentsChanged.event;
 
+	// Other fields
 	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _listenersStore = new DisposableStore();
@@ -72,9 +72,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 	) {
 		super();
 		this._reactToEditorMouseMoveRunner = this._register(
@@ -271,9 +271,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private get _isHoverAccessibleViewVisible(): boolean {
-		const isHoverAccessibleViewProviderCurrent = ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Hover);
-		const isHoverAccessibleViewVisibleContextKey = ContextKeyExpr.and(accessibleViewIsShown, isHoverAccessibleViewProviderCurrent);
-		const isHoverAccessibleViewVisible = isHoverAccessibleViewVisibleContextKey?.evaluate(this._contextKeyService.getContext(null)) ?? false;
+		const isAccessibleViewVisible = this._accessibleViewService.isVisible();
+		const isHoverProviderUsed = this._accessibleViewService.providerId() === AccessibleViewProviderId.Hover;
+		const isHoverAccessibleViewVisible = isAccessibleViewVisible && isHoverProviderUsed;
 		return isHoverAccessibleViewVisible;
 	}
 
@@ -395,7 +395,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _getOrCreateContentWidget(): ContentHoverController {
 		if (!this._contentWidget) {
 			this._contentWidget = this._instantiationService.createInstance(ContentHoverController, this._editor);
-			this._contentWidget.onContentsChanged(() => this._onHoverContentsChanged.fire());
+			this._listenersStore.add(this._contentWidget.onContentsChanged(() => this._onHoverContentsChanged.fire()));
 		}
 		return this._contentWidget;
 	}
@@ -430,12 +430,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._getOrCreateContentWidget().updateLastFocusedMarkdownHoverVerbosityLevel(action, focus);
 	}
 
-	public lastFocusedMarkdownHoverContent(): string {
-		return this._getOrCreateContentWidget().lastFocusedMarkdownHoverContent();
-	}
-
 	public isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action: HoverVerbosityAction): boolean {
 		return this._getOrCreateContentWidget().isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action);
+	}
+
+	public lastFocusedMarkdownHoverContent(): string {
+		return this._getOrCreateContentWidget().lastFocusedMarkdownHoverContent();
 	}
 
 	public focus(): void {
@@ -492,6 +492,5 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._listenersStore.dispose();
 		this._glyphWidget?.dispose();
 		this._contentWidget?.dispose();
-		this._onHoverContentsChanged.dispose();
 	}
 }

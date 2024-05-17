@@ -73,14 +73,6 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 		}));
 	}
 
-	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybinding(commandId);
-		if (kb) {
-			return format(msg, kb.getAriaLabel());
-		}
-		return format(noKbMsg, commandId);
-	}
-
 	provideContent(): string {
 		const content: string[] = [];
 		content.push(HoverAccessibilityHelpNLS.intro);
@@ -103,7 +95,7 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 		}
 		this._onHoverContentsChanged?.dispose();
 		this._onHoverContentsChanged = hoverController.onHoverContentsChanged(() => {
-			this._accessibleViewService.show(this);
+			this._accessibleViewService.rerender();
 		});
 		return content.join('\n');
 	}
@@ -111,6 +103,14 @@ export class HoverAccessibilityHelpProvider implements IAccessibleViewContentPro
 	onClose(): void {
 		HoverController.get(this._editor)?.focus();
 		this._onHoverContentsChanged?.dispose();
+	}
+
+	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
+		const kb = this._keybindingService.lookupKeybinding(commandId);
+		if (kb) {
+			return format(msg, kb.getAriaLabel());
+		}
+		return format(noKbMsg, commandId);
 	}
 }
 
