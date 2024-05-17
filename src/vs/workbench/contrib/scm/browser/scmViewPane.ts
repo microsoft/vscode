@@ -3213,17 +3213,17 @@ export class SCMViewPane extends ViewPane {
 			this.scmViewService.focus(e.element.repository);
 			return;
 		} else if (isSCMHistoryItemTreeElement(e.element)) {
-			// this.scmViewService.focus(e.element.historyItemGroup.repository);
+			this.scmViewService.focus(e.element.historyItemGroup.repository);
 			return;
 		} else if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
 				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri), e);
 			}
 
-			// this.scmViewService.focus(e.element.historyItem.historyItemGroup.repository);
+			this.scmViewService.focus(e.element.historyItem.historyItemGroup.repository);
 			return;
 		} else if (isSCMHistoryItemChangeNode(e.element)) {
-			// this.scmViewService.focus(e.element.context.historyItemGroup.repository);
+			this.scmViewService.focus(e.element.context.historyItemGroup.repository);
 			return;
 		}
 	}
