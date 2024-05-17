@@ -96,7 +96,6 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		}));
 
 		this._register(inlineChatWidget.chatWidget.onDidChangeHeight(() => {
-			console.log('chat widget height changed', inlineChatWidget.chatWidget.contentHeight);
 			updateHeight();
 		}));
 
@@ -639,10 +638,12 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._widget.inlineChatWidget.addToHistory(lastInput);
 
 		completeResponseCreated();
+
+		const agentId = this._widget.inlineChatWidget.chatWidget.lastSelectedAgent ? this._widget.inlineChatWidget.chatWidget.lastSelectedAgent.id : this._notebookDefaultAgentId!;
 		const requestProps: IChatAgentRequest = {
 			sessionId: model.sessionId,
 			requestId: this._currentRequest!.id,
-			agentId: this._notebookDefaultAgentId!,
+			agentId: agentId,
 			message: lastInput,
 			variables: {
 				variables: [{
@@ -656,7 +657,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		try {
 			this._ctxHasActiveRequest.set(true);
 
-			const task = this._chatAgentService.invokeAgent(this._notebookDefaultAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model, this._notebookDefaultAgentId!), cancellationToken);
+			const task = this._chatAgentService.invokeAgent(agentId, requestProps, progressCallback, getHistoryEntriesFromModel(model, agentId), cancellationToken);
 			this._widget.inlineChatWidget.updateChatMessage(undefined);
 			this._widget.inlineChatWidget.updateFollowUps(undefined);
 			this._widget.inlineChatWidget.updateProgress(true);
@@ -888,6 +889,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._ctxUserDidEdit.set(false);
 		this._sessionCtor?.cancel();
 		this._sessionCtor = undefined;
+		this._model.clear();
 		this._widget?.dispose();
 		this._widget = undefined;
 		this._widgetDisposableStore.clear();

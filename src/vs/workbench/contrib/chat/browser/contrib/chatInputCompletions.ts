@@ -39,7 +39,7 @@ class SlashCommandCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel || (widget.location !== ChatAgentLocation.Panel && widget.location !== ChatAgentLocation.Notebook) /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -95,7 +95,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['@'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel || (widget.location !== ChatAgentLocation.Panel && widget.location !== ChatAgentLocation.Notebook) /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
