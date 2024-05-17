@@ -5,8 +5,8 @@
 
 import * as http from 'http';
 import * as https from 'https';
-import * as tls from 'tls';
-import * as net from 'net';
+// import * as tls from 'tls';
+// import * as net from 'net';
 
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
@@ -77,6 +77,10 @@ export function connectProxyResolver(
 }
 
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
+	const http = globalThis._VSCODE_NODE_MODULES['http']
+	const https = globalThis._VSCODE_NODE_MODULES['https']
+	const net = globalThis._VSCODE_NODE_MODULES['net']
+	const tls = globalThis._VSCODE_NODE_MODULES['tls']
 	return {
 		http: Object.assign(http, createHttpPatch(params, http, resolveProxy)),
 		https: Object.assign(https, createHttpPatch(params, https, resolveProxy)),
