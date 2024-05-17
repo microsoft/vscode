@@ -147,9 +147,13 @@ export class ChatRequestParser {
 		const variableArg = nextVariableMatch[2] ?? '';
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
+		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const allowSlow = !usedAgent || usedAgent.agent.metadata.supportsSlowVariables;
 
-		if (this.variableService.hasVariable(name)) {
-			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg);
+		// TODO - not really handling duplicate variables names yet
+		const variable = this.variableService.getVariable(name);
+		if (variable && (!variable.isSlow || allowSlow)) {
+			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg, variable.id);
 		}
 
 		return;
@@ -209,7 +213,7 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.data);
+			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data);
 		}
 
 		return;

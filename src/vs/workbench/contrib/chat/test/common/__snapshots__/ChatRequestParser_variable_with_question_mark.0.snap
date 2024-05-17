@@ -27,6 +27,7 @@
       },
       variableName: "selection",
       variableArg: "",
+      variableId: "copilot.selection",
       kind: "var"
     },
     {

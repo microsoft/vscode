@@ -60,7 +60,7 @@ class LanguageModelResponse {
 		const that = this;
 		this.apiObject = {
 			// result: promise,
-			stream: that._defaultStream.asyncIterable,
+			text: that._defaultStream.asyncIterable,
 			// streams: AsyncIterable<string>[] // FUTURE responses per N
 		};
 	}
@@ -159,7 +159,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			name: metadata.name ?? '',
 			family: metadata.family ?? '',
 			version: metadata.version,
-			tokens: metadata.tokens,
+			maxInputTokens: metadata.maxInputTokens ?? metadata.tokens,
+			maxOutputTokens: metadata.maxOutputTokens ?? metadata.tokens,
 			auth,
 			targetExtensions: metadata.extensions
 		});
@@ -261,8 +262,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					family: data.metadata.family,
 					version: data.metadata.version,
 					name: data.metadata.name,
-					contextSize: data.metadata.tokens,
-					computeTokenLength(text, token) {
+					maxInputTokens: data.metadata.maxInputTokens,
+					countTokens(text, token) {
 						if (!that._allLanguageModelData.has(identifier)) {
 							throw extHostTypes.LanguageModelError.NotFound(identifier);
 						}
@@ -281,10 +282,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 
 			result.push(apiObject);
-		}
-
-		if (result.length === 0) {
-			return undefined;
 		}
 
 		return result;
@@ -465,13 +462,22 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			get onDidChange() {
 				return Event.any(_onDidChangeAccess, _onDidAddRemove);
 			},
-			canSendRequest(languageModelId: string): boolean | undefined {
+			canSendRequest(chat: vscode.LanguageModelChat): boolean | undefined {
 
-				const data = that._allLanguageModelData.get(languageModelId);
-				if (!data) {
+				let metadata: ILanguageModelChatMetadata | undefined;
+
+				out: for (const [_, value] of that._allLanguageModelData) {
+					for (const candidate of value.apiObjects.values()) {
+						if (candidate === chat) {
+							metadata = value.metadata;
+							break out;
+						}
+					}
+				}
+				if (!metadata) {
 					return undefined;
 				}
-				if (!that._isUsingAuth(from.identifier, data.metadata)) {
+				if (!that._isUsingAuth(from.identifier, metadata)) {
 					return true;
 				}
 
@@ -479,7 +485,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				if (!list) {
 					return undefined;
 				}
-				return list.has(data.metadata.extension);
+				return list.has(metadata.extension);
 			}
 		};
 	}

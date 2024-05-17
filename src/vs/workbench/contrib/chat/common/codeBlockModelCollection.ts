@@ -64,7 +64,7 @@ export class CodeBlockModelCollection extends Disposable {
 		const entry = this.getOrCreate(sessionId, chat, codeBlockIndex);
 
 		const extractedVulns = extractVulnerabilitiesFromText(content.text);
-		const newText = extractedVulns.newText;
+		const newText = fixCodeText(extractedVulns.newText, content.languageId);
 		this.setVulns(sessionId, chat, codeBlockIndex, extractedVulns.vulnerabilities);
 
 		const textModel = (await entry.model).textEditorModel;
@@ -136,4 +136,14 @@ export class CodeBlockModelCollection extends Disposable {
 			})
 		};
 	}
+}
+
+function fixCodeText(text: string, languageId: string | undefined): string {
+	if (languageId === 'php') {
+		if (!text.trim().startsWith('<')) {
+			return `<?php\n${text}`;
+		}
+	}
+
+	return text;
 }
