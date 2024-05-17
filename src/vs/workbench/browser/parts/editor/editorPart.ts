@@ -1143,7 +1143,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return false;
 	}
 
-	private _globalContextKeys = new Map<RawContextKey<ContextKeyValue>, IContextKey<ContextKeyValue>>();
+	private readonly globalContextKeys = new Map<RawContextKey<ContextKeyValue>, IContextKey<ContextKeyValue>>();
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
 		// Ensure we only bind to the same context key once globaly
 		if (!this._globalContextKeys.has(contextKey)) {
