@@ -39,7 +39,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IWorkbenchThemeService, IWorkbenchTheme, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -63,7 +63,6 @@ import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspac
 import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
@@ -251,7 +250,7 @@ export class ActionWithDropDownAction extends ExtensionAction {
 		private readonly actionsGroups: ExtensionAction[][],
 	) {
 		super(id, label);
-		this.extensionActions = flatten(actionsGroups);
+		this.extensionActions = actionsGroups.flat();
 		this.update();
 		this._register(Event.any(...this.extensionActions.map(a => a.onDidChange))(() => this.update(true)));
 		this.extensionActions.forEach(a => this._register(a));
@@ -1667,8 +1666,8 @@ function getQuickPickEntries(themes: IWorkbenchTheme[], currentTheme: IWorkbench
 		}
 	}
 	if (showCurrentTheme) {
-		picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "current") });
-		picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
+		picks.push({ type: 'separator', label: localize('current', "current") });
+		picks.push({ label: currentTheme.label, id: currentTheme.id });
 	}
 	return picks;
 }
@@ -2087,7 +2086,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				.then(reference => {
 					const position = reference.object.textEditorModel.getPositionAt(offset);
 					reference.dispose();
-					return <ITextEditorSelection>{
+					return {
 						startLineNumber: position.lineNumber,
 						startColumn: position.column,
 						endLineNumber: position.lineNumber,
@@ -2668,7 +2667,7 @@ export class ReinstallAction extends Action {
 							label: extension.displayName,
 							description: extension.identifier.id,
 							extension,
-						} as (IQuickPickItem & { extension: IExtension });
+						};
 					});
 				return entries;
 			});
@@ -2975,7 +2974,8 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 		});
 });
 
-CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWithIds', function (accessor: ServicesAccessor, extensionIds: string[]) {
+export const showExtensionsWithIdsCommandId = 'workbench.extensions.action.showExtensionsWithIds';
+CommandsRegistry.registerCommand(showExtensionsWithIdsCommandId, function (accessor: ServicesAccessor, extensionIds: string[]) {
 	const paneCompositeService = accessor.get(IPaneCompositePartService);
 
 	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)

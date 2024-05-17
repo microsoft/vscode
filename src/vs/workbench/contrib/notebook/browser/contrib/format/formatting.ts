@@ -14,7 +14,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
+import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -78,11 +78,11 @@ registerAction2(class extends Action2 {
 
 				const model = ref.object.textEditorModel;
 
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
+				const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
 					editorWorkerService,
 					languageFeaturesService,
 					model,
-					model.getOptions(),
+					FormattingMode.Explicit,
 					CancellationToken.None
 				);
 
@@ -177,12 +177,11 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 
 				const model = ref.object.textEditorModel;
 
-				// todo: eventually support cancellation. potential leak if cell deleted mid execution
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
+				const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
 					this.editorWorkerService,
 					this.languageFeaturesService,
 					model,
-					model.getOptions(),
+					FormattingMode.Silent,
 					CancellationToken.None
 				);
 

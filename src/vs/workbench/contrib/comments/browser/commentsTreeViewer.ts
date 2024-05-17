@@ -135,7 +135,7 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 	}
 }
 
-class CommentsMenus implements IDisposable {
+export class CommentsMenus implements IDisposable {
 	private contextKeyService: IContextKeyService | undefined;
 
 	constructor(
@@ -320,7 +320,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			commentControlHandle: node.element.controllerHandle,
 			commentThreadHandle: node.element.threadHandle,
 			$mid: MarshalledId.CommentThread
-		} as MarshalledCommentThread;
+		} satisfies MarshalledCommentThread;
 
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';

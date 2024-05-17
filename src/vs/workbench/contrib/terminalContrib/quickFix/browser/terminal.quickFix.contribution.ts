@@ -14,7 +14,7 @@ import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/wor
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
@@ -22,10 +22,14 @@ import { freePort, gitCreatePr, gitPull, gitPushSetUpstream, gitSimilar, gitTwoD
 import { TerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixService';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 
-// Services
+// #region Services
+
 registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);
 
-// Contributions
+// #endregion
+
+// #region Contributions
+
 class TerminalQuickFixContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'quickFix';
 
@@ -70,9 +74,16 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 }
 registerTerminalContribution(TerminalQuickFixContribution.ID, TerminalQuickFixContribution);
 
-// Actions
+// #endregion
+
+// #region Actions
+
+const enum TerminalQuickFixCommandId {
+	ShowQuickFixes = 'workbench.action.terminal.showQuickFixes',
+}
+
 registerActiveInstanceAction({
-	id: TerminalCommandId.ShowQuickFixes,
+	id: TerminalQuickFixCommandId.ShowQuickFixes,
 	title: localize2('workbench.action.terminal.showQuickFixes', 'Show Terminal Quick Fixes'),
 	precondition: TerminalContextKeys.focus,
 	keybinding: {
@@ -81,3 +92,5 @@ registerActiveInstanceAction({
 	},
 	run: (activeInstance) => TerminalQuickFixContribution.get(activeInstance)?.addon?.showMenu()
 });
+
+// #endregion

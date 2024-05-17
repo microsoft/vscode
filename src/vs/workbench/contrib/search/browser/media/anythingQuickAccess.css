@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-entry-action-bar .action-label.dirty-anything::before {
-	content: "\ea76"; /* Close icon flips between black dot and "X" for dirty open editors */
-	font-family: 'codicon';
+	/* Close icon flips between black dot and "X" for dirty open editors */
+	content: var(--vscode-icon-x-content);
+	font-family: var(--vscode-icon-x-font-family);
 }

@@ -85,6 +85,10 @@ export interface ICommandAction {
 	tooltip?: string | ILocalizedString;
 	icon?: Icon;
 	source?: ICommandActionSource;
+	/**
+	 * Precondition controls enablement (for example for a menu item, show
+	 * it in grey or for a command, do not allow to invoke it)
+	 */
 	precondition?: ContextKeyExpression;
 
 	/**

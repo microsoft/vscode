@@ -163,10 +163,10 @@
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.0",
     "request-light": "^0.7.0",
-    "vscode-languageclient": "^10.0.0-next.3"
+    "vscode-languageclient": "^10.0.0-next.5"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "repository": {
     "type": "git",
