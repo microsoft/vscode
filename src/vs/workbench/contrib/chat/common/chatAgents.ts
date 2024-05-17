@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { IObservable } from 'vs/base/common/observable';
 import { observableValue } from 'vs/base/common/observableInternal/base';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
@@ -23,7 +24,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatProgressResponseContent, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -57,6 +58,7 @@ export namespace ChatAgentLocation {
 export interface IChatAgentData {
 	id: string;
 	name: string;
+	fullName?: string;
 	description?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
@@ -100,7 +102,6 @@ export interface IChatAgentMetadata {
 	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
 	isSecondary?: boolean; // Invoked by ctrl/cmd+enter
-	fullName?: string;
 	icon?: URI;
 	iconDark?: URI;
 	themeIcon?: ThemeIcon;
@@ -109,6 +110,7 @@ export interface IChatAgentMetadata {
 	followupPlaceholder?: string;
 	isSticky?: boolean;
 	requester?: IChatRequesterInformation;
+	supportsSlowVariables?: boolean;
 }
 
 
@@ -155,6 +157,7 @@ export interface IChatAgentService {
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getAgent(id: string): IChatAgentData | undefined;
+	getAgentByFullyQualifiedId(id: string): IChatAgentData | undefined;
 	getAgents(): IChatAgentData[];
 	getActivatedAgents(): Array<IChatAgent>;
 	getAgentsByName(name: string): IChatAgentData[];
@@ -186,7 +189,7 @@ export class ChatAgentService implements IChatAgentService {
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		this._hasDefaultAgent = CONTEXT_CHAT_ENABLED.bindTo(this.contextKeyService);
 	}
@@ -282,6 +285,10 @@ export class ChatAgentService implements IChatAgentService {
 		return this._getAgentEntry(id)?.data;
 	}
 
+	getAgentByFullyQualifiedId(id: string): IChatAgentData | undefined {
+		return this._agents.find(a => getFullyQualifiedId(a.data) === id)?.data;
+	}
+
 	/**
 	 * Returns all agent datas that exist- static registered and dynamic ones.
 	 */
@@ -330,6 +337,7 @@ export class MergedChatAgent implements IChatAgent {
 
 	get id(): string { return this.data.id; }
 	get name(): string { return this.data.name ?? ''; }
+	get fullName(): string { return this.data.fullName ?? ''; }
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
@@ -381,7 +389,7 @@ interface IChatParticipantRegistryResponse {
 
 export interface IChatAgentNameService {
 	_serviceBrand: undefined;
-	getAgentNameRestriction(chatAgentData: IChatAgentData): IObservable<boolean>;
+	getAgentNameRestriction(chatAgentData: IChatAgentData): boolean;
 }
 
 export class ChatAgentNameService implements IChatAgentNameService {
@@ -446,8 +454,20 @@ export class ChatAgentNameService implements IChatAgentNameService {
 		this.storageService.store(ChatAgentNameService.StorageKey, JSON.stringify(registry), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	getAgentNameRestriction(chatAgentData: IChatAgentData): IObservable<boolean> {
-		const allowList = this.registry.map<string[] | undefined>(registry => registry[chatAgentData.name.toLowerCase()]);
+	/**
+	 * Returns true if the agent is allowed to use this name
+	 */
+	getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
+		// TODO would like to use observables here but nothing uses it downstream and I'm not sure how to combine these two
+		const nameAllowed = this.checkAgentNameRestriction(chatAgentData.name, chatAgentData).get();
+		const fullNameAllowed = !chatAgentData.fullName || this.checkAgentNameRestriction(chatAgentData.fullName.replace(/\s/g, ''), chatAgentData).get();
+		return nameAllowed && fullNameAllowed;
+	}
+
+	private checkAgentNameRestriction(name: string, chatAgentData: IChatAgentData): IObservable<boolean> {
+		// Registry is a map of name to an array of extension publisher IDs or extension IDs that are allowed to use it.
+		// Look up the list of extensions that are allowed to use this name
+		const allowList = this.registry.map<string[] | undefined>(registry => registry[name.toLowerCase()]);
 		return allowList.map(allowList => {
 			if (!allowList) {
 				return true;
@@ -460,4 +480,28 @@ export class ChatAgentNameService implements IChatAgentNameService {
 	dispose() {
 		this.disposed = true;
 	}
+}
+
+export function getFullyQualifiedId(chatAgentData: IChatAgentData): string {
+	return `${chatAgentData.extensionId.value}.${chatAgentData.id}`;
+}
+
+export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
+	const agent = 'name' in raw ?
+		raw :
+		{
+			...(raw as any),
+			name: (raw as any).id,
+		};
+
+	// Fill in required fields that may be missing from old data
+	if (!('extensionPublisherId' in agent)) {
+		agent.extensionPublisherId = agent.extensionPublisher ?? '';
+	}
+
+	if (!('extensionDisplayName' in agent)) {
+		agent.extensionDisplayName = '';
+	}
+
+	return revive(agent);
 }

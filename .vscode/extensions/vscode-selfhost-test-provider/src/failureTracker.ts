@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
+import { existsSync, mkdirSync, renameSync } from 'fs';
 import { readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import * as vscode from 'vscode';
 
 interface IGitState {
@@ -29,10 +30,29 @@ export class FailureTracker {
 		{ snapshot: vscode.TestResultSnapshot; failing: IGitState }
 	>();
 
-	private readonly logFile = join(this.rootDir, '.build/vscode-test-failures.json');
+	private readonly logFile: string;
 	private logs?: ITrackedRemediation[];
 
-	constructor(private readonly rootDir: string) {
+	constructor(context: vscode.ExtensionContext, private readonly rootDir: string) {
+		this.logFile = join(context.globalStorageUri.fsPath, '.build/vscode-test-failures.json');
+		mkdirSync(dirname(this.logFile), { recursive: true });
+
+		const oldLogFile = join(rootDir, '.build/vscode-test-failures.json');
+		if (existsSync(oldLogFile)) {
+			try {
+				renameSync(oldLogFile, this.logFile);
+			} catch {
+				// ignore
+			}
+		}
+
+		this.disposables.push(
+			vscode.commands.registerCommand('selfhost-test-provider.openFailureLog', async () => {
+				const doc = await vscode.workspace.openTextDocument(this.logFile);
+				await vscode.window.showTextDocument(doc);
+			})
+		);
+
 		this.disposables.push(
 			vscode.tests.onDidChangeTestResults(() => {
 				const last = vscode.tests.testResults[0];
@@ -56,7 +76,12 @@ export class FailureTracker {
 						const prev = this.lastFailed.get(key);
 						if (snapshot.taskStates.some(s => s.state === vscode.TestResultState.Failed)) {
 							// unset the parent to avoid a circular JSON structure:
-							getGitState().then(s => this.lastFailed.set(key, { snapshot: { ...snapshot, parent: undefined }, failing: s }));
+							getGitState().then(s =>
+								this.lastFailed.set(key, {
+									snapshot: { ...snapshot, parent: undefined },
+									failing: s,
+								})
+							);
 						} else if (prev) {
 							this.lastFailed.delete(key);
 							getGitState().then(s => this.append({ ...prev, passing: s }));

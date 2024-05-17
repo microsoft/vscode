@@ -14,7 +14,7 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { score, targetsNotebooks } from 'vs/editor/common/languageSelector';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
 import { OverviewRulerLane } from 'vs/editor/common/model';
-import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
@@ -1377,8 +1377,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: interactive
 		const interactive: typeof vscode.interactive = {
-			// IMPORTANT
-			// this needs to be updated whenever the API proposal changes
+			// TODO Can be deleted after another Insiders
 			_version: 1,
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
@@ -1404,36 +1403,45 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chat
 		const chat: typeof vscode.chat = {
+			// IMPORTANT
+			// this needs to be updated whenever the API proposal changes and breaks backwards compatibility
+			_version: 1,
+
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
 			},
-			registerChatVariableResolver(name: string, description: string, resolver: vscode.ChatVariableResolver) {
+			registerChatVariableResolver(id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatVariables.registerVariableResolver(extension, name, description, resolver);
+				return extHostChatVariables.registerVariableResolver(extension, id, name, userDescription, modelDescription, isSlow, resolver);
 			},
 			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
 			createChatParticipant(id: string, handler: vscode.ChatExtendedRequestHandler) {
-				checkProposedApiEnabled(extension, 'chatParticipant');
 				return extHostChatAgents2.createChatAgent(extension, id, handler);
 			},
-			createDynamicChatParticipant(id: string, name: string, publisherName: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+			createDynamicChatParticipant(id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-				return extHostChatAgents2.createDynamicChatAgent(extension, id, name, publisherName, description, handler);
+				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
 			}
 		};
 
 		// namespace: lm
 		const lm: typeof vscode.lm = {
 			selectChatModels: (selector) => {
-				checkProposedApiEnabled(extension, 'languageModels');
+				if (initData.quality === 'stable') {
+					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
+					return Promise.resolve([]);
+				}
 				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
 			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
-				checkProposedApiEnabled(extension, 'languageModels');
+				if (initData.quality === 'stable') {
+					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
+					return Event.None(listener, thisArgs, disposables);
+				}
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
 			// --- embeddings

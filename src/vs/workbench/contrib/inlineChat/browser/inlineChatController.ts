@@ -122,8 +122,13 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _onWillStartSession = this._store.add(new Emitter<void>());
 	readonly onWillStartSession = this._onWillStartSession.event;
 
-	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
-	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
+	get chatWidget() {
+		if (this._input.value.isVisible) {
+			return this._input.value.chatWidget;
+		} else {
+			return this._zone.value.widget.chatWidget;
+		}
+	}
 
 	private readonly _sessionStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession = this._store.add(new MutableDisposable<StashedSession>());
@@ -1024,22 +1029,8 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.updateStatus(status, { classes: ['warn'] });
 	}
 
-	setPlaceholder(text: string): void {
-		this._forcedPlaceholder = text;
-		this._updatePlaceholder();
-	}
-
-	resetPlaceholder(): void {
-		this._forcedPlaceholder = undefined;
-		this._updatePlaceholder();
-	}
-
-	acceptInput(): void {
-		if (this._input.value.isVisible) {
-			this._input.value.chatWidget.acceptInput();
-		} else {
-			this._zone.value.widget.chatWidget.acceptInput();
-		}
+	acceptInput() {
+		return this.chatWidget.acceptInput();
 	}
 
 	updateInput(text: string, selectAll = true): void {
@@ -1051,12 +1042,6 @@ export class InlineChatController implements IEditorContribution {
 			this._input.value.chatWidget.inputEditor.setSelection(newSelection);
 			this._zone.value.widget.chatWidget.inputEditor.setSelection(newSelection);
 		}
-	}
-
-	getInput(): string {
-		return this._input.value.isVisible
-			? this._input.value.value
-			: this._zone.value.widget.value;
 	}
 
 	cancelCurrentRequest(): void {

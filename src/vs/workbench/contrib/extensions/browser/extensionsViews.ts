@@ -45,7 +45,6 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
@@ -207,7 +206,7 @@ export class ExtensionsListView extends ViewPane {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
-			accessibilityProvider: <IListAccessibilityProvider<IExtension | null>>{
+			accessibilityProvider: {
 				getAriaLabel(extension: IExtension | null): string {
 					return getAriaLabelForExtension(extension);
 				},
