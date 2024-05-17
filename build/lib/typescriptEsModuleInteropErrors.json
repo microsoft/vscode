@@ -58,5 +58,10 @@
 		"fileName": "extensionHostProcess.ts",
 		"message": "has no call signatures.",
 		"comment": "Error due to minimist import"
+	},
+	{
+		"fileName": "paging.test.ts",
+		"message": "Type 'void' is not assignable to type 'Promise<number[]>'.",
+		"comment": "Error due to assert import"
 	}
 ]
