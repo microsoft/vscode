@@ -13,7 +13,7 @@ export interface ISCMHistoryProviderMenus {
 	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 
-	// getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
+	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
 }
 
 export interface ISCMHistoryProvider {
@@ -77,14 +77,6 @@ export interface ISCMHistoryItem {
 	readonly labels?: string[];
 }
 
-export interface ISCMHistoryItemGraphNode {
-	readonly id: string;
-	readonly color: string;
-	readonly secondaryColor?: string;
-	readonly offset: number;
-	readonly isRoot: boolean;
-}
-
 export interface ISCMHistoryItemGraphNode2 {
 	readonly id: string;
 	readonly color: number;
@@ -99,8 +91,7 @@ export interface ISCMHistoryItemViewModel {
 }
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
-	readonly repository: ISCMRepository;
-	readonly graphNodes: ISCMHistoryItemGraphNode[];
+	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
 	readonly type: 'allChanges' | 'historyItem';
 }
 
