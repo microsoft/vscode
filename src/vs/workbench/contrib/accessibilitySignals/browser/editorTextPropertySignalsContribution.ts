@@ -275,4 +275,3 @@ class BreakpointTextProperty implements TextProperty {
 		});
 	}
 }
-
