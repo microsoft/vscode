@@ -123,7 +123,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}));
 		disposables.add(toDisposable(() => this.doUpdateMostRecentActive(part)));
 
-		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
+		disposables.add(part.onDidChangeActiveGroup(group => {
+			this.updateGlobalContextKeys();
+			this._onDidActiveGroupChange.fire(group);
+		}));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
@@ -630,6 +633,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	}
 
 	private readonly globalContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
+	private readonly scopedContextKeys = new Map<IEditorGroupView, Map<string, IContextKey<ContextKeyValue>>>();
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
 		// Ensure we only bind to the same context key once globaly
 		if (!this.globalContextKeys.has(contextKey.key)) {
@@ -637,8 +641,15 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 		const globalContextKey = this.globalContextKeys.get(contextKey.key)!;
 
+		// Create Scoped Context Key for group
 		const scopedContextKeyService = group.scopedContextKeyService;
 		const scopedContextKey = contextKey.bindTo(scopedContextKeyService);
+
+		// Cache the scoped context keys such that they can be retireved when the active editor group changes
+		if (!this.scopedContextKeys.has(group)) {
+			this.scopedContextKeys.set(group, new Map<string, IContextKey<ContextKeyValue>>());
+		}
+		this.scopedContextKeys.get(group)!.set(contextKey.key, scopedContextKey);
 
 		const $this = this;
 		return {
@@ -658,6 +669,22 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 				scopedContextKey.reset();
 			},
 		};
+	}
+
+	private updateGlobalContextKeys(): void {
+		const activeGroupScopedContextKeys = this.scopedContextKeys.get(this.activeGroup);
+		if (!activeGroupScopedContextKeys) {
+			return;
+		}
+
+		for (const [key, globalContextKey] of this.globalContextKeys) {
+			const scopedContextKey = activeGroupScopedContextKeys.get(key);
+			if (scopedContextKey) {
+				globalContextKey.set(scopedContextKey.get());
+			} else {
+				globalContextKey.reset();
+			}
+		}
 	}
 
 	//#endregion
