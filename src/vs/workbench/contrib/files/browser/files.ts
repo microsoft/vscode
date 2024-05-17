@@ -105,7 +105,7 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 	return EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 }
 
-export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {
+export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, editorGroupService: IEditorGroupsService, explorerService: IExplorerService): Array<URI> {
 	const list = listService.lastFocusedList;
 	const element = list?.getHTMLElement();
 	if (element && isActiveElement(element)) {
@@ -134,6 +134,15 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 			if (selection.some(s => s.toString() === mainUriStr)) {
 				return selection;
 			}
+		}
+	}
+
+	const activeGroup = editorGroupService.activeGroup;
+	const selection = activeGroup.selectedEditors;
+	if (selection.length) {
+		const selectedResources = selection.map(editor => EditorResourceAccessor.getOriginalUri(editor)).filter(uri => !!uri) as URI[];
+		if (selectedResources.some(r => r.toString() === resource?.toString())) {
+			return selectedResources;
 		}
 	}
 

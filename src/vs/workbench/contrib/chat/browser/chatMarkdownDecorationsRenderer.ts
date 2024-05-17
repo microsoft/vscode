@@ -40,7 +40,7 @@ export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean, acc
 	const chatAgentNameService = accessor.get(IChatAgentNameService);
 	const chatAgentService = accessor.get(IChatAgentService);
 
-	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent).get();
+	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent);
 	let name = `${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
 	const isDupe = isAllowed && chatAgentService.getAgentsByName(agent.name).length > 1;
 	if (isDupe) {

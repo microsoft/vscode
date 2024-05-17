@@ -63,13 +63,13 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 
 		const tooltip = tooltipPrefix +
 			('tooltip' in followup && followup.tooltip || baseTitle);
-		const button = this._register(new Button(container, { ...this.options, supportIcons: true, title: tooltip }));
+		const button = this._register(new Button(container, { ...this.options, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');
 		} else if (followup.kind === 'command') {
 			button.element.classList.add('interactive-followup-command');
 		}
-		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", followup.title);
+		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", baseTitle);
 		button.label = new MarkdownString(baseTitle);
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));

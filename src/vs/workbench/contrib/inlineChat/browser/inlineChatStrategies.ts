@@ -590,17 +590,17 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('change.0', "Nothing changed.");
 		} else if (remaining === 1) {
 			message = needsReview
-				? localize('review.1', "$(info) Accept or Discard 1 change.")
+				? localize('review.1', "$(info) Accept or discard 1 change")
 				: localize('change.1', "1 change");
 		} else {
 			message = needsReview
-				? localize('review.N', "$(info) Accept or Discard {0} changes.", remaining)
+				? localize('review.N', "$(info) Accept or Discard {0} changes", remaining)
 				: localize('change.N', "{0} changes", total);
 		}
 
 		let title: string | undefined;
 		if (needsReview) {
-			title = localize('review', "Review (accept or discard) all changes before continuing.");
+			title = localize('review', "Review (accept or discard) all changes before continuing");
 		}
 
 		this._zone.widget.updateStatus(message, { title });

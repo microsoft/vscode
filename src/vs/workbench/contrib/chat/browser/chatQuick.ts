@@ -271,7 +271,7 @@ class QuickChat extends Disposable {
 		}));
 	}
 
-	async acceptInput(): Promise<void> {
+	async acceptInput() {
 		return this.widget.acceptInput();
 	}
 

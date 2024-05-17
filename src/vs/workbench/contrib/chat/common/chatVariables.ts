@@ -14,8 +14,11 @@ import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserT
 import { IChatContentReference, IChatProgressMessage } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatVariableData {
+	id: string;
 	name: string;
 	description: string;
+	modelDescription?: string;
+	isSlow?: boolean;
 	hidden?: boolean;
 	canTakeArgument?: boolean;
 }
@@ -49,5 +52,7 @@ export interface IChatVariablesService {
 
 export interface IDynamicVariable {
 	range: IRange;
+	id: string;
+	modelDescription?: string;
 	data: IChatRequestVariableValue;
 }
