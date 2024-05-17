@@ -1,0 +1,62 @@
+[
+	{
+		"fileName": "*",
+		"message": "Type 'typeof assert' has no call signatures.",
+		"comment": "The assert imports need to be changed from `import * as assert from 'assert'` to `import assert from 'assert'`"
+	},
+	{
+		"fileName": "chatService.test.ts",
+		"message": "'response' is possibly 'undefined'.",
+		"comment": "Error due to by assert import"
+	},
+	{
+		"fileName": "chatService.test.ts",
+		"message": "'chatModel2' is possibly 'undefined'.",
+		"comment": "Error due to assert import"
+	},
+	{
+		"fileName": "textEditorService.test.ts",
+		"message": "Property 'modified' does not exist on type 'EditorInput'. Did you mean 'isModified'?",
+		"comment": "Error due to assert import"
+	},
+	{
+		"fileName": "textEditorService.test.ts",
+		"message": "Property 'original' does not exist on type 'EditorInput'.",
+		"comment": "Error due to assert import"
+	},
+	{
+		"fileName": "textEditorService.test.ts",
+		"message": "Property 'primary' does not exist on type 'EditorInput'.",
+		"comment": "Error due to assert import"
+	},
+	{
+		"fileName": "textEditorService.test.ts",
+		"message": "Property 'secondary' does not exist on type 'EditorInput'.",
+		"comment": "Error due to assert import"
+	},
+	{
+		"fileName": "menubar.test.ts",
+		"message": "Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.\n",
+		"comment": "Error due to assert import"
+	},
+	{
+		"fileName": "telemetryService.test.ts",
+		"message": "Type 'typeof sinonTest' has no call signatures.",
+		"comment": "Error due to sinonTest import"
+	},
+	{
+		"fileName": "argv.ts",
+		"message": "has no call signatures.",
+		"comment": "Error due to minimist import"
+	},
+	{
+		"fileName": "argv.ts",
+		"message": "Parameter 'arg' implicitly has an 'any' type.",
+		"comment": "Error due to minimist import"
+	},
+	{
+		"fileName": "extensionHostProcess.ts",
+		"message": "has no call signatures.",
+		"comment": "Error due to minimist import"
+	}
+]
