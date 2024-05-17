@@ -3878,7 +3878,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyItemsMap = historyProviderCacheEntry.historyItems2;
 
 		if (!historyItemsElement) {
-			historyItemsElement = await historyProvider.provideHistoryItems2({ limit: 32 }) ?? [];
+			historyItemsElement = await historyProvider.provideHistoryItems2({ limit: 200 }) ?? [];
 
 			this.historyProviderCache.set(element, {
 				...historyProviderCacheEntry,
