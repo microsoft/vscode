@@ -3873,10 +3873,21 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return [];
 		}
 
-		const historyItems = await historyProvider.provideHistoryItems(historyProvider.currentHistoryItemGroup.id, { limit: 32 }) ?? [];
+		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(element);
+		let historyItemsElement = historyProviderCacheEntry.historyItems2.get(element.id);
+		const historyItemsMap = historyProviderCacheEntry.historyItems2;
+
+		if (!historyItemsElement) {
+			historyItemsElement = await historyProvider.provideHistoryItems2({ limit: 32 }) ?? [];
+
+			this.historyProviderCache.set(element, {
+				...historyProviderCacheEntry,
+				historyItems2: historyItemsMap.set(element.id, historyItemsElement)
+			});
+		}
 
 		graphController.clearHistoryItems();
-		graphController.appendHistoryItems(historyItems);
+		graphController.appendHistoryItems(historyItemsElement);
 
 		return graphController.historyItems;
 	}
@@ -4013,6 +4024,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			incomingHistoryItemGroup: undefined,
 			outgoingHistoryItemGroup: undefined,
 			historyItems: new Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>(),
+			historyItems2: new Map<string, ISCMHistoryItem[]>(),
 			historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
 		};
 	}

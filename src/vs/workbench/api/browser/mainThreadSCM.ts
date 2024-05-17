@@ -173,6 +173,11 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
 	}
 
+	async provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
+		const historyItems = await this.proxy.$provideHistoryItems2(this.handle, options, CancellationToken.None);
+		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
+	}
+
 	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined> {
 		const historyItem = await this.proxy.$provideHistoryItemSummary(this.handle, historyItemId, historyItemParentId, CancellationToken.None);
 		return historyItem ? { ...historyItem, icon: getIconFromIconDto(historyItem.icon) } : undefined;
