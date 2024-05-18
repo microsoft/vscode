@@ -51,17 +51,14 @@ function createCompile(src, build, emitError, transpileOnly) {
         overrideOptions.inlineSourceMap = true;
     }
     // TODO add compilation with type checking
-    const compilationWithTypeChecking = tsb.create(projectPath, {
+    const compilation = tsb.create(projectPath, {
         ...overrideOptions,
         esModuleInterop: true
     }, {
         verbose: false,
         transpileOnly: Boolean(transpileOnly),
         transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
-    }, err => {
-        console.log({ err });
-        reporter(err);
-    });
+    }, err => reporter(err));
     // TODO remove this when all imports are fixed
     const fixAssertImports = es.through(function (data) {
         const newContents = data.contents.toString().replace(`import * as assert from 'assert';`, `import assert from 'assert';`);
@@ -91,7 +88,7 @@ function createCompile(src, build, emitError, transpileOnly) {
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
             .pipe(fixAssertImports)
-            .pipe(compilationWithTypeChecking(token))
+            .pipe(compilation(token))
             .pipe(noDeclarationsFilter)
             .pipe(util.$if(build, nls.nls()))
             .pipe(noDeclarationsFilter.restore)
@@ -105,7 +102,7 @@ function createCompile(src, build, emitError, transpileOnly) {
         return es.duplex(input, output);
     }
     pipeline.tsProjectSrc = () => {
-        return compilationWithTypeChecking.src({ base: src });
+        return compilation.src({ base: src });
     };
     pipeline.projectPath = projectPath;
     return pipeline;
