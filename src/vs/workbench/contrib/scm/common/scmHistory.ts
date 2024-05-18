@@ -11,6 +11,7 @@ import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 const SWIMLANE_HEIGHT = 22;
 const SWIMLANE_WIDTH = 11;
 const CIRCLE_RADIUS = 4;
+const SWIMLANE_CURVE_RADIUS = 5;
 
 const graphColors = ['#007ACC', '#BC3FBC', '#BF8803', '#CC6633', '#F14C4C', '#16825D'];
 
@@ -77,12 +78,15 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 				const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, color);
 				svg.append(path);
 			} else {
-				// Draw /
 				const d: string[] = [];
 				const path = createPath(color);
 
+				// Draw |
 				d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
-				d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * index} ${SWIMLANE_HEIGHT / 2}`);
+				d.push(`V 6`);
+
+				// Draw /
+				d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
 
 				// Start walking backwards from the current index and
 				// find the first occurrence in the output swimlanes
@@ -96,7 +100,10 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 				}
 
 				// Draw -
-				d.push(`H ${SWIMLANE_WIDTH * (nodeOutputIndex + 1)}`);
+				d.push(`H ${(SWIMLANE_WIDTH * (nodeOutputIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
+
+				// Draw /
+				d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (nodeOutputIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
 
 				// Draw |
 				d.push(`V ${SWIMLANE_HEIGHT}`);
