@@ -67,10 +67,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
 		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
-	}, err => {
-		console.log({ err })
-		reporter(err)
-	});
+	}, err => reporter(err));
 
 
 	// TODO remove this when all imports are fixed
