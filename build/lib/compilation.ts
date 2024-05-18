@@ -60,7 +60,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 
 
 	// TODO add compilation with type checking
-	const compilationWithTypeChecking = tsb.create(projectPath, {
+	const compilation = tsb.create(projectPath, {
 		...overrideOptions,
 		esModuleInterop: true
 	}, {
@@ -105,7 +105,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(fixAssertImports)
-			.pipe(compilationWithTypeChecking(token))
+			.pipe(compilation(token))
 			.pipe(noDeclarationsFilter)
 			.pipe(util.$if(build, nls.nls()))
 			.pipe(noDeclarationsFilter.restore)
@@ -120,7 +120,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		return es.duplex(input, output);
 	}
 	pipeline.tsProjectSrc = () => {
-		return compilationWithTypeChecking.src({ base: src });
+		return compilation.src({ base: src });
 	};
 	pipeline.projectPath = projectPath;
 	return pipeline;
