@@ -7,7 +7,7 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { IStickyLineCandidateProvider, StickyLineCandidateProvider } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -89,14 +89,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (
-				e.hasChanged(EditorOption.stickyScroll)
-				|| e.hasChanged(EditorOption.minimap)
-				|| e.hasChanged(EditorOption.lineHeight)
-				|| e.hasChanged(EditorOption.showFoldingControls)
-			) {
-				this._readConfiguration();
-			}
+			this._readConfigurationChange(e);
 		}));
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
 			this._onContextMenu(dom.getWindow(stickyScrollDomNode), event);
@@ -441,6 +434,22 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._showEndForLine = null;
 				this._renderStickyScroll(0);
 			}));
+		}
+	}
+
+	private _readConfigurationChange(event: ConfigurationChangedEvent) {
+		if (
+			event.hasChanged(EditorOption.stickyScroll)
+			|| event.hasChanged(EditorOption.minimap)
+			|| event.hasChanged(EditorOption.lineHeight)
+			|| event.hasChanged(EditorOption.showFoldingControls)
+			|| event.hasChanged(EditorOption.lineNumbers)
+		) {
+			this._readConfiguration();
+		}
+
+		if (event.hasChanged(EditorOption.lineNumbers)) {
+			this._renderStickyScroll(0);
 		}
 	}
 

@@ -37,6 +37,7 @@ export interface SectionHeader {
 	shouldBeInComments: boolean;
 }
 
+
 const trimDashesRegex = /^-+|-+$/g;
 
 /**

@@ -29,7 +29,7 @@
 	},
 	{
 		"c": "cmd",
-		"t": "source.shell meta.statement.shell variable.other.assignment.shell",
+		"t": "source.shell variable.other.assignment.shell",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.shell meta.statement.shell keyword.operator.assignment.shell",
+		"t": "source.shell keyword.operator.assignment.shell",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -57,7 +57,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.shell meta.statement.shell punctuation.definition.array.shell",
+		"t": "source.shell punctuation.definition.array.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.shell meta.statement.shell",
+		"t": "source.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "'",
-		"t": "source.shell meta.statement.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
+		"t": "source.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "ls",
-		"t": "source.shell meta.statement.shell string.quoted.single.shell",
+		"t": "source.shell string.quoted.single.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "'",
-		"t": "source.shell meta.statement.shell string.quoted.single.shell punctuation.definition.string.end.shell",
+		"t": "source.shell string.quoted.single.shell punctuation.definition.string.end.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.shell meta.statement.shell",
+		"t": "source.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": "'",
-		"t": "source.shell meta.statement.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
+		"t": "source.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "-la",
-		"t": "source.shell meta.statement.shell string.quoted.single.shell",
+		"t": "source.shell string.quoted.single.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": "'",
-		"t": "source.shell meta.statement.shell string.quoted.single.shell punctuation.definition.string.end.shell",
+		"t": "source.shell string.quoted.single.shell punctuation.definition.string.end.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.shell meta.statement.shell",
+		"t": "source.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.shell meta.statement.shell punctuation.definition.array.shell",
+		"t": "source.shell punctuation.definition.array.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": "if",
-		"t": "source.shell meta.scope.if-block.shell keyword.control.shell",
+		"t": "source.shell meta.scope.if-block.shell keyword.control.if.shell",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": "((",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.arithmetic.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.arithmetic.double.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -337,16 +337,16 @@
 	},
 	{
 		"c": "@",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell meta.parameter-expansion",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell meta.parameter-expansion keyword.operator.expansion.shell",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -393,7 +393,7 @@
 	},
 	{
 		"c": "))",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.arithmetic.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.arithmetic.double.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -533,16 +533,16 @@
 	},
 	{
 		"c": "@",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command meta.parameter-expansion",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command meta.parameter-expansion keyword.operator.expansion.shell",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_modern": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #5E2CBC",
-			"light_modern": "entity.name.function: #795E26"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -757,16 +757,16 @@
 	},
 	{
 		"c": "@",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.argument.shell string.quoted.double.shell meta.parameter-expansion",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.argument.shell string.quoted.double.shell meta.parameter-expansion keyword.operator.expansion.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_modern": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -813,7 +813,7 @@
 	},
 	{
 		"c": "fi",
-		"t": "source.shell meta.scope.if-block.shell keyword.control.shell",
+		"t": "source.shell meta.scope.if-block.shell keyword.control.fi.shell",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",

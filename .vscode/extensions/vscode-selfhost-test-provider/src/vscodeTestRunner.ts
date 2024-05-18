@@ -1,6 +1,7 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
@@ -23,7 +24,7 @@ const ATTACH_CONFIG_NAME = 'Attach to VS Code';
 const DEBUG_TYPE = 'pwa-chrome';
 
 export abstract class VSCodeTestRunner {
-	constructor(protected readonly repoLocation: vscode.WorkspaceFolder) { }
+	constructor(protected readonly repoLocation: vscode.WorkspaceFolder) {}
 
 	public async run(baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
 		const args = this.prepareArguments(baseArgs, filter);
@@ -302,5 +303,5 @@ export const PlatformTestRunner =
 	process.platform === 'win32'
 		? WindowsTestRunner
 		: process.platform === 'darwin'
-			? DarwinTestRunner
-			: PosixTestRunner;
+		? DarwinTestRunner
+		: PosixTestRunner;

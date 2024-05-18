@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -22,6 +22,7 @@ import { isActiveElement } from 'vs/base/browser/dom';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize, localize2 } from 'vs/nls';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -695,6 +696,44 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.showHover',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
+	when: WorkbenchListFocusContextKey,
+	handler: async (accessor: ServicesAccessor, ...args: any[]) => {
+		const listService = accessor.get(IListService);
+		const lastFocusedList = listService.lastFocusedList;
+		if (!lastFocusedList) {
+			return;
+		}
+
+		// Check if a tree element is focused
+		const focus = lastFocusedList.getFocus();
+		if (!focus || (focus.length === 0)) {
+			return;
+		}
+
+		// As the tree does not know anything about the rendered DOM elements
+		// we have to traverse the dom to find the HTMLElements
+		const treeDOM = lastFocusedList.getHTMLElement();
+		const scrollableElement = treeDOM.querySelector('.monaco-scrollable-element');
+		const listRows = scrollableElement?.querySelector('.monaco-list-rows');
+		const focusedElement = listRows?.querySelector('.focused');
+		if (!focusedElement) {
+			return;
+		}
+
+		// Check if the focused element has a hover, otherwise find the first child with a hover
+		const elementWithHover = focusedElement.matches('[custom-hover="true"]') ? focusedElement : focusedElement.querySelector('[custom-hover="true"]');
+		if (!elementWithHover) {
+			return;
+		}
+
+		accessor.get(IHoverService).triggerUpdatableHover(elementWithHover as HTMLElement);
+	},
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.toggleExpand',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
@@ -805,7 +844,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.find',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchListSupportsFind),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyF,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,
 	secondary: [KeyCode.F3],
 	handler: (accessor) => {
 		const widget = accessor.get(IListService).lastFocusedList;

@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, type IReference } from 'vs/base/common/lifecycle';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -22,6 +22,9 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { NotebookSectionArgs } from 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
+import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 export class NotebookStickyLine extends Disposable {
 	constructor(
@@ -102,6 +105,7 @@ export class NotebookStickyScroll extends Disposable {
 
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
+	private notebookOutlineReference?: IReference<NotebookCellOutlineProvider>;
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -139,9 +143,9 @@ export class NotebookStickyScroll extends Disposable {
 	constructor(
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
-		private readonly notebookOutline: NotebookCellOutlineProvider,
 		private readonly notebookCellList: INotebookCellList,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -187,37 +191,37 @@ export class NotebookStickyScroll extends Disposable {
 				this.init();
 			} else {
 				this._disposables.clear();
-				this.notebookOutline.dispose();
+				this.notebookOutlineReference?.dispose();
 				this.disposeCurrentStickyLines();
 				DOM.clearNode(this.domNode);
 				this.updateDisplay();
 			}
-		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
+		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled && this.notebookOutlineReference?.object) {
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutlineReference?.object?.entries, this.getCurrentStickyHeight()));
 		}
 	}
 
 	private init() {
-		this.notebookOutline.init();
-		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
+		const { object: notebookOutlineReference } = this.notebookOutlineReference = this.instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineProviderFactory).getOrCreate(this.notebookEditor, OutlineTarget.OutlinePane));
+		this._register(this.notebookOutlineReference);
+		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookOutlineReference.entries, this.getCurrentStickyHeight()));
 
-		this._disposables.add(this.notebookOutline.onDidChange(() => {
-			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight());
+		this._disposables.add(notebookOutlineReference.onDidChange(() => {
+			const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookOutlineReference.entries, this.getCurrentStickyHeight());
 			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 				this.updateContent(recompute);
 			}
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
-			this.notebookOutline.init();
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookOutlineReference.entries, this.getCurrentStickyHeight()));
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
 			const d = new Delayer(100);
 			d.trigger(() => {
 				d.dispose();
-				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight());
+				const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookOutlineReference.entries, this.getCurrentStickyHeight());
 				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 					this.updateContent(recompute);
 				}
@@ -365,7 +369,7 @@ export class NotebookStickyScroll extends Disposable {
 	override dispose() {
 		this._disposables.dispose();
 		this.disposeCurrentStickyLines();
-		this.notebookOutline.dispose();
+		this.notebookOutlineReference?.dispose();
 		super.dispose();
 	}
 }

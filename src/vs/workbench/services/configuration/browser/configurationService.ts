@@ -122,17 +122,17 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		this.initRemoteUserConfigurationBarrier = new Barrier();
 		this.completeWorkspaceBarrier = new Barrier();
-		this.defaultConfiguration = this._register(new DefaultConfiguration(configurationCache, environmentService));
+		this.defaultConfiguration = this._register(new DefaultConfiguration(configurationCache, environmentService, logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.configurationCache = configurationCache;
-		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
+		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), new ResourceMap(), ConfigurationModel.createEmptyModel(logService), new ResourceMap<ConfigurationModel>(), this.workspace, logService);
 		this.applicationConfigurationDisposables = this._register(new DisposableStore());
 		this.createApplicationConfiguration();
 		this.localUserConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, { scopes: getLocalUserConfigurationScopes(userDataProfileService.currentProfile, !!remoteAuthority) }, fileService, uriIdentityService, logService));
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		if (remoteAuthority) {
-			const remoteUserConfiguration = this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache, fileService, uriIdentityService, remoteAgentService));
+			const remoteUserConfiguration = this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache, fileService, uriIdentityService, remoteAgentService, logService));
 			this._register(remoteUserConfiguration.onDidInitialize(remoteUserConfigurationModel => {
 				this._register(remoteUserConfiguration.onDidChangeConfiguration(remoteUserConfigurationModel => this.onRemoteUserConfigurationChanged(remoteUserConfigurationModel)));
 				this.onRemoteUserConfigurationChanged(remoteUserConfigurationModel);
@@ -162,7 +162,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (this.userDataProfileService.currentProfile.isDefault || this.userDataProfileService.currentProfile.useDefaultFlags?.settings) {
 			this.applicationConfiguration = null;
 		} else {
-			this.applicationConfiguration = this.applicationConfigurationDisposables.add(this._register(new ApplicationConfiguration(this.userDataProfilesService, this.fileService, this.uriIdentityService)));
+			this.applicationConfiguration = this.applicationConfigurationDisposables.add(this._register(new ApplicationConfiguration(this.userDataProfilesService, this.fileService, this.uriIdentityService, this.logService)));
 			this.applicationConfigurationDisposables.add(this.applicationConfiguration.onDidChangeConfiguration(configurationModel => this.onApplicationConfigurationChanged(configurationModel)));
 		}
 	}
@@ -604,10 +604,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		await this.defaultConfiguration.initialize();
 
 		const initPolicyConfigurationPromise = this.policyConfiguration.initialize();
-		const initApplicationConfigurationPromise = this.applicationConfiguration ? this.applicationConfiguration.initialize() : Promise.resolve(new ConfigurationModel());
+		const initApplicationConfigurationPromise = this.applicationConfiguration ? this.applicationConfiguration.initialize() : Promise.resolve(ConfigurationModel.createEmptyModel(this.logService));
 		const initUserConfiguration = async () => {
 			mark('code/willInitUserConfiguration');
-			const result = await Promise.all([this.localUserConfiguration.initialize(), this.remoteUserConfiguration ? this.remoteUserConfiguration.initialize() : Promise.resolve(new ConfigurationModel())]);
+			const result = await Promise.all([this.localUserConfiguration.initialize(), this.remoteUserConfiguration ? this.remoteUserConfiguration.initialize() : Promise.resolve(ConfigurationModel.createEmptyModel(this.logService))]);
 			if (this.applicationConfiguration) {
 				const applicationConfigurationModel = await initApplicationConfigurationPromise;
 				result[0] = this.localUserConfiguration.reparse({ exclude: applicationConfigurationModel.getValue(APPLY_ALL_PROFILES_SETTING) });
@@ -633,7 +633,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private async reloadApplicationConfiguration(donotTrigger?: boolean): Promise<ConfigurationModel> {
 		if (!this.applicationConfiguration) {
-			return new ConfigurationModel();
+			return ConfigurationModel.createEmptyModel(this.logService);
 		}
 		const model = await this.applicationConfiguration.loadConfiguration();
 		if (!donotTrigger) {
@@ -663,7 +663,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			}
 			return model;
 		}
-		return new ConfigurationModel();
+		return ConfigurationModel.createEmptyModel(this.logService);
 	}
 
 	private async reloadWorkspaceConfiguration(): Promise<void> {
@@ -692,7 +692,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		folderConfigurations.forEach((folderConfiguration, index) => folderConfigurationModels.set(folders[index].uri, folderConfiguration));
 
 		const currentConfiguration = this._configuration;
-		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, applicationConfigurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
+		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, applicationConfigurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, ConfigurationModel.createEmptyModel(this.logService), new ResourceMap<ConfigurationModel>(), this.workspace, this.logService);
 
 		this.initialized = true;
 
@@ -711,7 +711,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			case WorkbenchState.WORKSPACE:
 				return this.workspaceConfiguration.getConfiguration();
 			default:
-				return new ConfigurationModel();
+				return ConfigurationModel.createEmptyModel(this.logService);
 		}
 	}
 
@@ -1108,7 +1108,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			if (target !== ConfigurationTarget.DEFAULT) {
 				this.logService.debug(`Configuration keys changed in ${ConfigurationTargetToString(target)} target`, ...change.keys);
 			}
-			const configurationChangeEvent = new ConfigurationChangeEvent(change, previous, this._configuration, this.workspace);
+			const configurationChangeEvent = new ConfigurationChangeEvent(change, previous, this._configuration, this.workspace, this.logService);
 			configurationChangeEvent.source = target;
 			this._onDidChangeConfiguration.fire(configurationChangeEvent);
 		}

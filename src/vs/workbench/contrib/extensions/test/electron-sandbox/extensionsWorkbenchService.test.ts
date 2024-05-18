@@ -100,7 +100,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			async getInstalled() { return []; },
 			async getInstalledWorkspaceExtensions() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
-			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
+			async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName!;
 				local.publisherId = metadata.publisherId!;
@@ -1740,7 +1740,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUpdateExtensionMetadata: Event.None,
 			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-			updateMetadata: async (local: ILocalExtension, metadata: Partial<Metadata>) => {
+			updateMetadata: async (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName!;
 				local.publisherId = metadata.publisherId!;

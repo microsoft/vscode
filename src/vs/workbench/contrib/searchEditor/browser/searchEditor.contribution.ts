@@ -104,7 +104,7 @@ registerWorkbenchContribution2(SearchEditorContribution.ID, SearchEditorContribu
 //#endregion
 
 //#region Input Serializer
-type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config: SearchConfiguration; name: string; matchRanges: Range[]; backingUri: string };
+type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config?: SearchConfiguration; name: string; matchRanges: Range[]; backingUri?: string };
 
 class SearchEditorInputSerializer implements IEditorSerializer {
 
@@ -118,7 +118,7 @@ class SearchEditorInputSerializer implements IEditorSerializer {
 		}
 
 		if (input.isDisposed()) {
-			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.tryReadConfigSync(), name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } as SerializedSearchEditor);
+			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.tryReadConfigSync(), name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } satisfies SerializedSearchEditor);
 		}
 
 		let modelUri = undefined;
@@ -131,7 +131,7 @@ class SearchEditorInputSerializer implements IEditorSerializer {
 		const matchRanges = dirty ? input.getMatchRanges() : [];
 		const backingUri = input.backingUri;
 
-		return JSON.stringify({ modelUri, dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } as SerializedSearchEditor);
+		return JSON.stringify({ modelUri, dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } satisfies SerializedSearchEditor);
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {

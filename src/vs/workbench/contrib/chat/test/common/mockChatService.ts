@@ -24,10 +24,11 @@ export class MockChatService implements IChatService {
 	getProviderInfos(): IChatProviderInfo[] {
 		throw new Error('Method not implemented.');
 	}
-	startSession(token: CancellationToken): ChatModel | undefined {
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined {
 		throw new Error('Method not implemented.');
 	}
 	getSession(sessionId: string): IChatModel | undefined {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {} as IChatModel;
 	}
 	getOrRestoreSession(sessionId: string): IChatModel | undefined {

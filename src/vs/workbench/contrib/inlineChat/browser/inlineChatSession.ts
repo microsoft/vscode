@@ -32,7 +32,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
@@ -323,6 +323,7 @@ export class ReplyResponse {
 		readonly modelAltVersionId: number,
 		progressEdits: TextEdit[][],
 		readonly requestId: string,
+		readonly chatResponse: IChatResponseModel | undefined,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
@@ -379,11 +380,7 @@ export class ReplyResponse {
 					languageId: langSelection.languageId
 				});
 				this.untitledTextModel = untitledTextModel;
-
-				untitledTextModel.resolve().then(async () => {
-					const model = untitledTextModel.textEditorModel!;
-					model.applyEdits(flatEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-				});
+				untitledTextModel.resolve();
 			}
 		}
 
@@ -452,6 +449,12 @@ export class StashedSession {
 }
 
 // ---
+
+function lineRangeAsRange(lineRange: LineRange, model: ITextModel): Range {
+	return lineRange.isEmpty
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
+}
 
 export class HunkData {
 
@@ -639,8 +642,8 @@ export class HunkData {
 					const textModelNDecorations: string[] = [];
 					const textModel0Decorations: string[] = [];
 
-					textModelNDecorations.push(accessorN.addDecoration(LineRange.asRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
-					textModel0Decorations.push(accessor0.addDecoration(LineRange.asRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
+					textModelNDecorations.push(accessorN.addDecoration(lineRangeAsRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
+					textModel0Decorations.push(accessor0.addDecoration(lineRangeAsRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
 
 					for (const change of hunk.changes) {
 						textModelNDecorations.push(accessorN.addDecoration(change.modifiedRange, HunkData._HUNK_TRACKED_RANGE));

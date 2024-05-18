@@ -30,8 +30,6 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 	readonly watchers = new Set<INodeJSWatcherInstance>();
 
-	private verboseLogging = false;
-
 	constructor(protected readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined) {
 		super();
 	}
@@ -144,8 +142,8 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		return Array.from(mapCorrelationtoRequests.values()).map(requests => Array.from(requests.values())).flat();
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
+	override async setVerboseLogging(enabled: boolean): Promise<void> {
+		super.setVerboseLogging(enabled);
 
 		for (const watcher of this.watchers) {
 			watcher.instance.setVerboseLogging(enabled);
