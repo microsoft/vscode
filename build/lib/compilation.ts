@@ -78,8 +78,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		const newContents = data.contents.toString().replace(`import * as assert from 'assert';`, `import assert from 'assert';`)
 		if (data.path.endsWith('.ts')) {
 			this.queue(new Vinyl({
-				path: data.path,
-				base: data.base,
+				...data,
 				contents: Buffer.from(newContents)
 			}))
 		} else {
