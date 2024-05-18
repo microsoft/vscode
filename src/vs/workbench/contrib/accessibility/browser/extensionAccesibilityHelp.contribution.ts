@@ -5,14 +5,15 @@
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableMap, IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { AccessibleViewType, ExtensionContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IViewsRegistry, Extensions, IViewDescriptor } from 'vs/workbench/common/views';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
@@ -54,9 +55,9 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 			const viewsService = accessor.get(IViewsService);
 			return new ExtensionContentProvider(
 				viewDescriptor.id,
-				{ type: AccessibleViewType.Help },
-				() => helpContent.value,
-				() => viewsService.openView(viewDescriptor.id, true)
+				{ type: AccessibleViewType.Help, configureKeybindingItems: helpContent.configureKeybindingItems },
+				() => helpContent.value.value,
+				() => viewsService.openView(viewDescriptor.id, true),
 			);
 		}
 	}));
@@ -68,27 +69,34 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 	return disposableStore;
 }
 
-function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: MarkdownString): MarkdownString | undefined {
+function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: MarkdownString): { value: MarkdownString; configureKeybindingItems: IPickerQuickAccessItem[] | undefined } | undefined {
 	if (!content) {
 		return;
 	}
+	const configureKeybindingItems: IPickerQuickAccessItem[] = [];
 	let resolvedContent = typeof content === 'string' ? content : content.value;
 	const matches = resolvedContent.matchAll(/\<keybinding:(?<commandId>.*)\>/gm);
 	for (const match of [...matches]) {
 		const commandId = match?.groups?.commandId;
+		let kbLabel;
 		if (match?.length && commandId) {
 			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
-			let kbLabel = keybinding;
-			if (!kbLabel) {
-				const args = URI.parse(`command:workbench.action.openGlobalKeybindings?${encodeURIComponent(JSON.stringify(commandId))}`);
-				kbLabel = ` [Configure a keybinding](${args})`;
+			if (!keybinding) {
+				const configureKb = keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
+				const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command accessibility.openQuickPick.';
+				kbLabel = `, configure a keybinding ` + keybindingToConfigureQuickPick;
+				configureKeybindingItems.push({
+					label: commandId,
+					id: commandId
+				});
 			} else {
 				kbLabel = ' (' + keybinding + ')';
 			}
 			resolvedContent = resolvedContent.replace(match[0], kbLabel);
 		}
 	}
-	const result = new MarkdownString(resolvedContent);
-	result.isTrusted = true;
-	return result;
+	const value = new MarkdownString(resolvedContent);
+	value.isTrusted = true;
+	return { value, configureKeybindingItems: configureKeybindingItems.length ? configureKeybindingItems : undefined };
 }
+

@@ -228,6 +228,24 @@ class AccessibleViewDisableHintAction extends Action2 {
 }
 registerAction2(AccessibleViewDisableHintAction);
 
+class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.AccessibilityHelpConfigureKeybindings,
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.KeyK,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			title: localize('editor.action.accessibilityHelpConfigureKeybindings', "Accessibility Help Configure Keybindings")
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IAccessibleViewService).configureKeybindings();
+	}
+}
+registerAction2(AccessibilityHelpConfigureKeybindingsAction);
+
 class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 	constructor() {
 		super({
@@ -267,3 +285,4 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 	}
 }
 registerAction2(AccessibleViewAcceptInlineCompletionAction);
+
