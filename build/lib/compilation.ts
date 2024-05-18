@@ -19,10 +19,10 @@ import { gulpPostcss } from './postcss';
 import { createReporter } from './reporter';
 import * as task from './task';
 import * as util from './util';
+import * as Vinyl from 'vinyl';
 import ts = require('typescript');
-// import through = require('through');
 const watch = require('./watch');
-const ignoredErrors = require('./typescriptEsModuleInteropErrors.json')
+
 
 
 // --- gulp-tsb: compile and transpile --------------------------------
@@ -44,20 +44,6 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	return options;
 }
 
-const shouldBeIgnored = (error: unknown) => {
-	if (typeof error !== 'string') {
-		return false
-	}
-	for (const ignoredError of ignoredErrors) {
-		if (ignoredError.fileName === '*' && error.endsWith(ignoredError.message)) {
-			return true
-		}
-		if (error.includes(ignoredError.fileName) && error.endsWith(ignoredError.message)) {
-			return true
-		}
-	}
-	return false
-}
 
 function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean | { swc: boolean }) {
 	const tsb = require('./tsb') as typeof import('./tsb');
@@ -70,17 +56,6 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		overrideOptions.inlineSourceMap = true;
 	}
 
-	// const compilationWithOutput = tsb.create(projectPath, {
-	// 	...overrideOptions, esModuleInterop: true
-	// }, {
-	// 	verbose: false,
-	// 	transpileOnly: true,
-	// 	transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
-	// }, (e) => {
-
-	// 	console.log(e)
-	// 	// ignore
-	// });
 
 
 
@@ -93,37 +68,24 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		transpileOnly: Boolean(transpileOnly),
 		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
 	}, err => {
-		// TODO remove this when all imports are fixed
-		if (shouldBeIgnored(err)) {
-			return
-		}
 		console.log({ err })
 		reporter(err)
 	});
 
-	const createPassThrough = (token?: any) => {
-		const compilation = compilationWithTypeChecking(token)
 
-		// console.log(compilation)
-		// compilation.
-		// const x = through(function (this: any, data: any) {
-		// 	compilation.write(data)
-		// 	this.emit('data', data)
-		// })
-		// const x = new PassThrough({
-		// 	transform(chunk, _encoding, callback) {
-		// 		compilation.write(chunk, () => callback())
-		// 		// console.log({ chunk, })
-		// 		// callback()
-		// 	},
-
-		// 	objectMode: true
-		// })
-		return compilation
-	}
-
-
-
+	// TODO remove this when all imports are fixed
+	const fixAssertImports = es.through(function (this: es.ThroughStream, data: Vinyl) {
+		const newContents = data.contents.toString().replace(`import * as assert from 'assert';`, `import assert from 'assert';`)
+		if (data.path.endsWith('.ts')) {
+			this.queue(new Vinyl({
+				path: data.path,
+				base: data.base,
+				contents: Buffer.from(newContents)
+			}))
+		} else {
+			this.queue(data);
+		}
+	})
 
 	function pipeline(token?: util.ICancellationToken) {
 		const bom = require('gulp-bom') as typeof import('gulp-bom');
@@ -143,8 +105,8 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 			.pipe(util.$if(isCSS, gulpPostcss([postcssNesting()], err => reporter(String(err)))))
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
-			.pipe(createPassThrough(token))
-			// .pipe(compilationWithOutput(token))
+			.pipe(fixAssertImports)
+			.pipe(compilationWithTypeChecking(token))
 			.pipe(noDeclarationsFilter)
 			.pipe(util.$if(build, nls.nls()))
 			.pipe(noDeclarationsFilter.restore)
