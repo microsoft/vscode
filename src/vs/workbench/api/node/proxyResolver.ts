@@ -5,8 +5,6 @@
 
 import * as http from 'http';
 import * as https from 'https';
-// import * as tls from 'tls';
-// import * as net from 'net';
 
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
