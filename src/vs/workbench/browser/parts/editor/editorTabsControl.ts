@@ -146,9 +146,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		super(themeService);
 
 		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this.contextMenuContextKeyService],
-		));
+		)));
 
 		this.resourceContext = this._register(scopedInstantiationService.createInstance(ResourceContextKey));
 
