@@ -128,7 +128,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			this._onDidActiveGroupChange.fire(group);
 		}));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
-		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
+		disposables.add(part.onDidRemoveGroup(group => {
+			this.removeGroupScopedContextKeys(group);
+			this._onDidRemoveGroup.fire(group);
+		}));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
@@ -684,6 +687,13 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			} else {
 				globalContextKey.reset();
 			}
+		}
+	}
+
+	private removeGroupScopedContextKeys(group: IEditorGroupView): void {
+		const groupScopedContextKeys = this.scopedContextKeys.get(group);
+		if (groupScopedContextKeys) {
+			this.scopedContextKeys.delete(group);
 		}
 	}
 
