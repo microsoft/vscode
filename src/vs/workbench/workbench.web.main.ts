@@ -136,6 +136,9 @@ import 'vs/workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution';
 // Welcome Dialog
 import 'vs/workbench/contrib/welcomeDialog/browser/welcomeDialog.contribution';
 
+// WebUtils
+import 'vs/workbench/contrib/webUtils/browser/webUtils.web.contribution'
+
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
 
