@@ -6,7 +6,9 @@
 import type { IWebUtilsService } from './webUtils';
 
 export class WebUtilsService implements IWebUtilsService {
-	getPathForFile(): string {
+	declare readonly _serviceBrand: undefined;
+
+	getPathForFile() {
 		return ''
 	}
 }
