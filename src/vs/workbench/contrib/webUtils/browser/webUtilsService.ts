@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export class WebUtilsService {
+import type { IWebUtilsService } from './webUtils';
+
+export class WebUtilsService implements IWebUtilsService {
 	getPathForFile(): string {
 		return ''
 	}

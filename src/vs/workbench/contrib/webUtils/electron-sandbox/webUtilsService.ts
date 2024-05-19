@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals.js';
+import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import type { IWebUtilsService } from '../browser/webUtils';
 
-export class ElectronWebUtilsService {
+export class ElectronWebUtilsService implements IWebUtilsService {
 	getPathForFile(file: File): string {
 		return webUtils.getPathForFile(file);
 	}

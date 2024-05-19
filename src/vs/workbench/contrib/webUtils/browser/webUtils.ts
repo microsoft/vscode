@@ -8,5 +8,5 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IWebUtilsService = createDecorator<IWebUtilsService>('webUtilsService');
 
 export interface IWebUtilsService {
-	readonly getPathForFile: (file: File) => string
+	getPathForFile: (file: File) => string
 }
