@@ -186,3 +186,8 @@ export interface AuthInfo {
 	port: number;
 	realm: string;
 }
+
+
+export interface WebUtils {
+	readonly getPathForFile: (file: File) => string
+}
