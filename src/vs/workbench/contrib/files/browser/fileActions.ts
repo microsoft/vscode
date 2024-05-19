@@ -60,7 +60,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals.js';
+import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
