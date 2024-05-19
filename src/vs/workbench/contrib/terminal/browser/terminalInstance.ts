@@ -92,7 +92,7 @@ import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/termin
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
-import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IWebUtilsService } from 'vs/workbench/contrib/webUtils/browser/webUtils.js';
 
 const enum Constants {
 	/**
@@ -2289,6 +2289,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		private readonly _container: HTMLElement,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IWebUtilsService private readonly _webUtilsService: IWebUtilsService,
 	) {
 		super();
 		this._register(toDisposable(() => this._clearDropOverlay()));
@@ -2373,9 +2374,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && webUtils.getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
+		if (!path && e.dataTransfer.files.length > 0 && this._webUtilsService.getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(webUtils.getPathForFile(e.dataTransfer.files[0]));
+			path = URI.file(this._webUtilsService.getPathForFile(e.dataTransfer.files[0]));
 		}
 
 		if (!path) {
