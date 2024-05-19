@@ -1103,7 +1103,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _initDragAndDrop(container: HTMLElement) {
 		const store = new DisposableStore();
-		// @ts-ignore TODO find out why types are not working
 		const dndController = store.add(this._scopedInstantiationService.createInstance(TerminalInstanceDragAndDropController, container));
 		store.add(dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e)));
 		store.add(dndController.onDropFile(async path => {
