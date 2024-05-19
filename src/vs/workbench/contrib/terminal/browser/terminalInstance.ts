@@ -92,6 +92,7 @@ import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/termin
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
+import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 const enum Constants {
 	/**
@@ -2372,9 +2373,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		if (!path && e.dataTransfer.files.length > 0 && webUtils.getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path);
+			path = URI.file(webUtils.getPathForFile(e.dataTransfer.files[0]));
 		}
 
 		if (!path) {
