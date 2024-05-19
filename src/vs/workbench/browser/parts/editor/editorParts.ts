@@ -636,37 +636,42 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	}
 
 	private readonly globalContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
-	private readonly scopedContextKeys = new Map<IEditorGroupView, Map<string, IContextKey<ContextKeyValue>>>();
+	private readonly scopedContextKeys = new Map<GroupIdentifier, Map<string, IContextKey<ContextKeyValue>>>();
+
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
+
 		// Ensure we only bind to the same context key once globaly
-		if (!this.globalContextKeys.has(contextKey.key)) {
-			this.globalContextKeys.set(contextKey.key, contextKey.bindTo(this.contextKeyService));
+		let globalContextKey = this.globalContextKeys.get(contextKey.key);
+		if (!globalContextKey) {
+			globalContextKey = contextKey.bindTo(this.contextKeyService);
+			this.globalContextKeys.set(contextKey.key, globalContextKey);
 		}
-		const globalContextKey = this.globalContextKeys.get(contextKey.key)!;
 
-		// Create Scoped Context Key for group
-		const scopedContextKeyService = group.scopedContextKeyService;
-		const scopedContextKey = contextKey.bindTo(scopedContextKeyService);
-
-		// Cache the scoped context keys such that they can be retireved when the active editor group changes
-		if (!this.scopedContextKeys.has(group)) {
-			this.scopedContextKeys.set(group, new Map<string, IContextKey<ContextKeyValue>>());
+		// Ensure we only bind to the same context key once per group
+		let groupScopedContextKeys = this.scopedContextKeys.get(group.id);
+		if (!groupScopedContextKeys) {
+			groupScopedContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
+			this.scopedContextKeys.set(group.id, groupScopedContextKeys);
 		}
-		this.scopedContextKeys.get(group)!.set(contextKey.key, scopedContextKey);
+		let scopedContextKey = groupScopedContextKeys.get(contextKey.key);
+		if (!scopedContextKey) {
+			scopedContextKey = contextKey.bindTo(group.scopedContextKeyService);
+			groupScopedContextKeys.set(contextKey.key, scopedContextKey);
+		}
 
-		const $this = this;
+		const that = this;
 		return {
 			get(): T | undefined {
-				return scopedContextKey.get();
+				return scopedContextKey.get() as T | undefined;
 			},
 			set(value: T): void {
-				if ($this.activeGroup === group) {
+				if (that.activeGroup === group) {
 					globalContextKey.set(value);
 				}
 				scopedContextKey.set(value);
 			},
 			reset(): void {
-				if ($this.activeGroup === group) {
+				if (that.activeGroup === group) {
 					globalContextKey.reset();
 				}
 				scopedContextKey.reset();
@@ -675,7 +680,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	}
 
 	private updateGlobalContextKeys(): void {
-		const activeGroupScopedContextKeys = this.scopedContextKeys.get(this.activeGroup);
+		const activeGroupScopedContextKeys = this.scopedContextKeys.get(this.activeGroup.id);
 		if (!activeGroupScopedContextKeys) {
 			return;
 		}
@@ -691,9 +696,9 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	}
 
 	private removeGroupScopedContextKeys(group: IEditorGroupView): void {
-		const groupScopedContextKeys = this.scopedContextKeys.get(group);
+		const groupScopedContextKeys = this.scopedContextKeys.get(group.id);
 		if (groupScopedContextKeys) {
-			this.scopedContextKeys.delete(group);
+			this.scopedContextKeys.delete(group.id);
 		}
 	}
 

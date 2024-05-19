@@ -32,7 +32,7 @@ import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryEditorPartContext } from 'vs/workbench/common/contextkeys';
 import { mainWindow } from 'vs/base/browser/window';
@@ -1141,10 +1141,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 
 		return false;
-	}
-
-	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
-		return this.editorPartsView.bind(contextKey, group);
 	}
 
 	private doCreateGridControl(): void {
