@@ -51,7 +51,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
-import { IWebUtilsService } from 'vs/workbench/contrib/webUtils/browser/webUtils.js';
+import { IWebUtilsService } from 'vs/workbench/contrib/webUtils/browser/webUtils';
 
 const $ = DOM.$;
 
