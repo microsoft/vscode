@@ -60,6 +60,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals.js';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
@@ -1121,7 +1122,18 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 		const message = toPaste.files.length > 1 ?
 			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.files.length) :
 			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste.type === 'paths' ? toPaste.files[0].fsPath : toPaste.files[0].name));
-		const detail = toPaste.files.length > 1 ? getFileNamesMessage(toPaste.files.map(item => toPaste.type === 'paths' ? item.path : (item as File).name)) : undefined;
+		const detail = toPaste.files.length > 1 ? getFileNamesMessage(toPaste.files.map(item => {
+			if (toPaste.type === 'paths' && item instanceof URI) {
+				return item.path
+			}
+			if (toPaste.type === 'paths' && item instanceof File && webUtils.getPathForFile(item)) {
+				return webUtils.getPathForFile(item)
+			}
+			if (item instanceof File) {
+				return item.name
+			}
+			throw new Error('unreachable')
+		})) : undefined;
 		const confirmation = await dialogService.confirm({
 			message,
 			detail,
