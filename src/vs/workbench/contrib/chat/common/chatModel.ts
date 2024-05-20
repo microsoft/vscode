@@ -32,6 +32,7 @@ export interface IChatRequestVariableEntry {
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
+	isDynamic?: boolean;
 }
 
 export interface IChatRequestVariableData {

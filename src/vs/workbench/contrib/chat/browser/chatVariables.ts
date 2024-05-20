@@ -75,6 +75,8 @@ export class ChatVariablesService implements IChatVariablesService {
 							resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
 						}
 					}).catch(onUnexpectedExternalError));
+				} else if (attachment.isDynamic) {
+					resolvedVariables[i] = { id: attachment.id, name: attachment.name, value: attachment.value };
 				}
 			});
 
