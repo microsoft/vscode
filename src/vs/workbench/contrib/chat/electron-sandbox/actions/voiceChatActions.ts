@@ -188,15 +188,15 @@ class VoiceChatSessionControllerFactory {
 			switch (state) {
 				case VoiceChatSessionState.GettingReady:
 					contextVoiceChatGettingReady.set(true);
-					contextVoiceChatInProgress.set(undefined);
+					contextVoiceChatInProgress.reset();
 					break;
 				case VoiceChatSessionState.Started:
-					contextVoiceChatGettingReady.set(false);
+					contextVoiceChatGettingReady.reset();
 					contextVoiceChatInProgress.set(context);
 					break;
 				case VoiceChatSessionState.Stopped:
-					contextVoiceChatGettingReady.set(false);
-					contextVoiceChatInProgress.set(undefined);
+					contextVoiceChatGettingReady.reset();
+					contextVoiceChatInProgress.reset();
 					break;
 			}
 		};
@@ -629,7 +629,8 @@ export class StopListeningAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: AnyScopedVoiceChatInProgress
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
@@ -775,7 +776,7 @@ class ChatSynthesizerSessions {
 		disposables.add(controller.onDidHideChat(() => this.stop()));
 
 		const scopedChatToSpeechInProgress = ScopedChatSynthesisInProgress.bindTo(controller.contextKeyService);
-		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.set(false)));
+		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.reset()));
 
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
@@ -783,7 +784,7 @@ class ChatSynthesizerSessions {
 					scopedChatToSpeechInProgress.set(true);
 					break;
 				case TextToSpeechStatus.Stopped:
-					scopedChatToSpeechInProgress.set(false);
+					scopedChatToSpeechInProgress.reset();
 					break;
 			}
 		}));
@@ -917,6 +918,7 @@ export class StopReadAloud extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape,
+				when: ScopedChatSynthesisInProgress
 			},
 			menu: [
 				{
@@ -1237,7 +1239,7 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 				enable: true
 			}, ProgressLocation.Notification);
 		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
+			InstallingSpeechProvider.bindTo(contextKeyService).reset();
 		}
 	}
 
