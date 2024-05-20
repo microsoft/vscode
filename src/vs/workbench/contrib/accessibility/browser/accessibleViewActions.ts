@@ -66,7 +66,7 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 			menu:
 			{
 				...accessibleViewMenu,
-				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewContainsCodeBlocks),
 			},
 			title: localize('editor.action.accessibleViewNextCodeBlock', "Accessible View: Next Code Block")
 		});
@@ -91,7 +91,7 @@ class AccessibleViewPreviousCodeBlockAction extends Action2 {
 			icon: Codicon.arrowLeft,
 			menu: {
 				...accessibleViewMenu,
-				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewContainsCodeBlocks),
 			},
 			title: localize('editor.action.accessibleViewPreviousCodeBlock', "Accessible View: Previous Code Block")
 		});
