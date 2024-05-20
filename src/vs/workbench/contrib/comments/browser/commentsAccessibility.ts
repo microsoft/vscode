@@ -16,13 +16,13 @@ import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/a
 
 export namespace CommentAccessibilityHelpNLS {
 	export const intro = nls.localize('intro', "The editor contains commentable range(s). Some useful commands include:");
-	export const introWidget = nls.localize('introWidget', "This widget contains a text area, for composition of new comments, and actions, that can be tabbed to once tab moves focus mode has been enabled with the command Toggle Tab Key Moves Focus{0}", `<keybinding:${ToggleTabFocusModeAction.ID}>`);
+	export const tabFocus = nls.localize('introWidget', "This widget contains a text area, for composition of new comments, and actions, that can be tabbed to once tab moves focus mode has been enabled with the command Toggle Tab Key Moves Focus{0}", `<keybinding:${ToggleTabFocusModeAction.ID}>`);
 	export const commentCommands = nls.localize('commentCommands', "Some useful comment commands include:");
 	export const escape = nls.localize('escape', "- Dismiss Comment (Escape)");
 	export const nextRange = nls.localize('next', "- Go to Next Commenting Range{0}", `<keybinding:${CommentCommandId.NextRange}>`);
 	export const previousRange = nls.localize('previous', "- Go to Previous Commenting Range{0}", `<keybinding:${CommentCommandId.PreviousRange}>`);
-	export const nextCommentThreadKb = nls.localize('nextCommentThreadKb', "- Go to Next Comment Thread{0}", `<keybinding:${CommentCommandId.NextThread}>`);
-	export const previousCommentThreadKb = nls.localize('previousCommentThreadKb', "- Go to Previous Comment Thread{0}", `<keybinding:${CommentCommandId.PreviousThread}>`);
+	export const nextCommentThread = nls.localize('nextCommentThreadKb', "- Go to Next Comment Thread{0}", `<keybinding:${CommentCommandId.NextThread}>`);
+	export const previousCommentThread = nls.localize('previousCommentThreadKb', "- Go to Previous Comment Thread{0}", `<keybinding:${CommentCommandId.PreviousThread}>`);
 	export const addComment = nls.localize('addCommentNoKb', "- Add Comment on Current Selection{0}", `<keybinding:${CommentCommandId.Add}>`);
 	export const submitComment = nls.localize('submitComment', "- Submit Comment{0}", `<keybinding:${CommentCommandId.Submit}>`);
 }
@@ -33,7 +33,7 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleViewContent
 	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 	private _element: HTMLElement | undefined;
 	provideContent(): string {
-		return [CommentAccessibilityHelpNLS.introWidget, CommentAccessibilityHelpNLS.commentCommands, CommentAccessibilityHelpNLS.escape, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.previousRange].join('\n');
+		return [CommentAccessibilityHelpNLS.tabFocus, CommentAccessibilityHelpNLS.commentCommands, CommentAccessibilityHelpNLS.escape, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.previousRange].join('\n');
 	}
 	onClose(): void {
 		this._element?.focus();

@@ -8,12 +8,10 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
@@ -87,13 +85,13 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 		}
 
 		if (options.get(EditorOption.stickyScroll).enabled) {
-			content.push(descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb, this._keybindingService));
+			content.push(AccessibilityHelpNLS.stickScroll);
 		}
 
 		if (options.get(EditorOption.tabFocusMode)) {
-			content.push(descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb, this._keybindingService));
+			content.push(AccessibilityHelpNLS.tabFocusModeOnMsg);
 		} else {
-			content.push(descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb, this._keybindingService));
+			content.push(AccessibilityHelpNLS.tabFocusModeOffMsg);
 		}
 		return content.join('\n\n');
 	}
@@ -102,17 +100,14 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 export function getCommentCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, editor: ICodeEditor): string | undefined {
 	const editorContext = contextKeyService.getContext(editor.getDomNode()!);
 	if (editorContext.getValue<boolean>(CommentContextKeys.activeEditorHasCommentingRange.key)) {
-		return [CommentAccessibilityHelpNLS.intro, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.nextCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.previousRange].join('\n');
+		return [CommentAccessibilityHelpNLS.intro, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.nextCommentThread, CommentAccessibilityHelpNLS.previousCommentThread, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.previousRange].join('\n');
 	}
 	return;
 }
 
 export function getChatCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService): string | undefined {
 	if (CONTEXT_CHAT_ENABLED.getValue(contextKeyService)) {
-		const commentCommandInfo: string[] = [];
-		commentCommandInfo.push(descriptionForCommand('workbench.action.quickchat.toggle', AccessibilityHelpNLS.quickChat, AccessibilityHelpNLS.quickChatNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand('inlineChat.start', AccessibilityHelpNLS.startInlineChat, AccessibilityHelpNLS.startInlineChatNoKb, keybindingService));
-		return commentCommandInfo.join('\n');
+		return [AccessibilityHelpNLS.quickChat, AccessibilityHelpNLS.startInlineChat].join('\n');
 	}
 	return;
 }
