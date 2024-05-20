@@ -331,7 +331,7 @@ export class AccessibleView extends Disposable {
 				inBlock = true;
 				startLine = i + 1;
 				languageId = line.substring(3).trim();
-			} else if (inBlock && line.startsWith('```')) {
+			} else if (inBlock && line.endsWith('```')) {
 				inBlock = false;
 				const endLine = i;
 				const code = lines.slice(startLine, endLine).join('\n');
