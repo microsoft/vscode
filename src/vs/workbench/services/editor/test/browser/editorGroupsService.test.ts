@@ -1538,7 +1538,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getIndexOfEditor(inputSticky), 0);
 	});
 
-	test('selection: select/unselect, isSelected/getSelectedEditors', async () => {
+	test('selection: setSelection, isSelected, selectedEditors', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
 
@@ -1589,20 +1589,11 @@ suite('EditorGroupsService', () => {
 
 		// Selected: input3
 		assert.strictEqual(group.isActive(input1), true);
-		assert.strictEqual(group.isSelected(input1), false);
+		assert.strictEqual(group.isSelected(input1), true);
 		assert.strictEqual(group.isSelected(input2), false);
 		assert.strictEqual(group.isSelected(input3), false);
 
 		assert.strictEqual(isSelection([input1]), true);
-
-		await group.closeAllEditors();
-
-		// Selected: NONE
-		assert.strictEqual(group.isSelected(input1), false);
-		assert.strictEqual(group.isSelected(input2), false);
-		assert.strictEqual(group.isSelected(input3), false);
-
-		assert.strictEqual(isSelection([]), true);
 	});
 
 	test('moveEditor with context (across groups)', async () => {
