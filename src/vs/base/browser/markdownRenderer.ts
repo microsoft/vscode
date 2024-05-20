@@ -492,6 +492,7 @@ export function renderStringAsPlaintext(string: IMarkdownString | string) {
 
 /**
  * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
+ * provide @param withCodeBlocks to retain code blocks
  */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlocks?: boolean) {
 	// values that are too long will freeze the UI
@@ -580,8 +581,6 @@ function createRenderer(): marked.Renderer {
 	return renderer;
 }
 const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) => createRenderer());
-
-// Used by the accessible view
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = createRenderer();
 	renderer.code = (code: string): string => {
