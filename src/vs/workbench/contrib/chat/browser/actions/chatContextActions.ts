@@ -13,7 +13,7 @@ import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
@@ -56,10 +56,26 @@ class AttachContextAction extends Action2 {
 		});
 	}
 
+	private _attachContext(widget: IChatWidget, ...picks: IQuickPickItem[]) {
+		widget?.attachContext(...picks.map((p) => ({
+			fullName: p.label,
+			icon: 'icon' in p && ThemeIcon.isThemeIcon(p.icon) ? p.icon : undefined,
+			name: 'name' in p && typeof p.name === 'string' ? p.name : p.label,
+			value: 'resource' in p && URI.isUri(p.resource) ? p.resource : undefined,
+			id: 'id' in p && typeof p.id === 'string' ? p.id :
+				'resource' in p && URI.isUri(p.resource) ? `${SelectAndInsertFileAction.Name}:${p.resource.toString()}` : ''
+		})));
+	}
+
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatVariablesService = accessor.get(IChatVariablesService);
 		const widgetService = accessor.get(IChatWidgetService);
+		const context: { widget?: IChatWidget } | undefined = args[0];
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
 
 		const quickPickItems: (QuickPickItem & { name?: string; icon?: ThemeIcon })[] = [];
 		for (const variable of chatVariablesService.getVariables()) {
@@ -72,10 +88,13 @@ class AttachContextAction extends Action2 {
 			quickPickItems.push(SelectAndInsertFileAction.Item, { type: 'separator' });
 		}
 
-		const picks = await quickInputService.quickAccess.pick('', {
+		quickInputService.quickAccess.show('', {
 			enabledProviderPrefixes: [AnythingQuickAccessProvider.PREFIX],
 			placeholder: localize('chatContext.attach.placeholder', 'Search attachments'),
 			providerOptions: <AnythingQuickAccessProviderRunOptions>{
+				handleAccept: (item: IQuickPickItem) => {
+					this._attachContext(widget, item);
+				},
 				additionPicks: quickPickItems,
 				includeSymbols: false,
 				filter: (item) => {
@@ -87,18 +106,5 @@ class AttachContextAction extends Action2 {
 			}
 		});
 
-		if (picks?.length) {
-			const context: { widget?: IChatWidget } | undefined = args[0];
-
-			const widget = context?.widget ?? widgetService.lastFocusedWidget;
-			widget?.attachContext(...picks.map((p) => ({
-				fullName: p.label,
-				icon: 'icon' in p && ThemeIcon.isThemeIcon(p.icon) ? p.icon : undefined,
-				name: 'name' in p && typeof p.name === 'string' ? p.name : p.label,
-				value: 'resource' in p && URI.isUri(p.resource) ? p.resource : undefined,
-				id: 'id' in p && typeof p.id === 'string' ? p.id :
-					'resource' in p && URI.isUri(p.resource) ? `${SelectAndInsertFileAction.Name}:${p.resource.toString()}` : ''
-			})));
-		}
 	}
 }
