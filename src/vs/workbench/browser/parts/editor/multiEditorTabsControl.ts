@@ -1611,19 +1611,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Set border TOP if theme defined color
-		let color: string | null = null;
+		let tabBorderColorTop: string | null = null;
 		if (allowBorderTop) {
 			if (isActive) {
-				color = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
+				tabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
 			}
 
-			if (color === null && isSelected) {
-				color = this.getColor(TAB_SELECTED_BORDER_TOP);
+			if (tabBorderColorTop === null && isSelected) {
+				tabBorderColorTop = this.getColor(TAB_SELECTED_BORDER_TOP);
 			}
 		}
 
-		tabContainer.classList.toggle('tab-border-top', !!color);
-		tabContainer.style.setProperty('--tab-border-top-color', color ?? '');
+		tabContainer.classList.toggle('tab-border-top', !!tabBorderColorTop);
+		tabContainer.style.setProperty('--tab-border-top-color', tabBorderColorTop ?? '');
 	}
 
 	private doRedrawTabDirty(isGroupActive: boolean, isTabActive: boolean, editor: EditorInput, tabContainer: HTMLElement): boolean {
