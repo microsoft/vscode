@@ -333,9 +333,7 @@ class DropOverlay extends Themable {
 							{
 								editor: draggedEditor.identifier.editor,
 								options: fillActiveEditorViewState(sourceGroup, draggedEditor.identifier.editor, {
-									pinned: true,											// always pin dropped editor
-									// TODO review: this means dragging a combination of sticky and unsticky
-									// tabs, forces all tabs to become sticky.
+									pinned: true,													// always pin dropped editor
 									sticky: sourceGroup.isSticky(draggedEditor.identifier.editor)	// preserve sticky state
 								})
 							}
