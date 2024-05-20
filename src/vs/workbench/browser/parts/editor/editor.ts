@@ -338,6 +338,10 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 
 	/**
 	 * Whether to add the editor to the current selection or not.
+	 * Unless the editor opens inactive, by default the current
+	 * selected will be replaced unless `addToSelection` is set
+	 * to `true`. In that case, the editor will be added to the
+	 * selection, irrespective if it opens active or inactive.
 	 */
 	readonly addToSelection?: boolean;
 }
