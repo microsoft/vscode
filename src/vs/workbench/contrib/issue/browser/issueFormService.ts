@@ -13,73 +13,27 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import product from 'vs/platform/product/common/product';
 import { IssueWebReporter } from 'vs/workbench/browser/issues/issueReporterService';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-// import { startup } from 'vs/code/browser/issue/issueReporterMain';
-// import { startup } from 'vs/code/browser/issue/issueReporterMain';
-// import { INativeHostService } from 'vs/platform/native/common/native';
-
-// const processExplorerWindowState = 'issue.processExplorerWindowState';
-
-// interface IBrowserWindowOptions {
-// 	backgroundColor: string | undefined;
-// 	title: string;
-// 	zoomLevel: number;
-// 	alwaysOnTop: boolean;
-// }
-
-// type IStrictWindowState = Required<Pick<IWindowState, 'x' | 'y' | 'width' | 'height'>>;
-
 export class IssueMainService implements IIssueMainService {
 
 	readonly _serviceBrand: undefined;
 
-	// private static readonly DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
-
 	private issueReporterWindow: Window | null = null;
 	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 	private returnedIssueReporterData: IssueReporterData | undefined;
-	// private issueReporterParentWindow: BrowserWindow | null = null;
 
-	// private processExplorerWindow: BrowserWindow | null = null;
-	// private processExplorerParentWindow: BrowserWindow | null = null;
-
-	// constructor(
-	// 	private userEnv: IProcessEnvironment,
-
-	// 	@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
-	// 	@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-	// 	@ILogService private readonly logService: ILogService
-	// ) {
-	// 	this.issueReporterWindow?.onDidLayout(() => {
-	// 	});
-	// }
 	constructor(
-		// private userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		// @IStorageService private readonly storageService: IStorageService,
-		// @IFileService private readonly fileService: IFileService,
-		// @IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		// @IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		// @IInstantiationService private readonly instantiationService: IInstantiationService,
-		// @IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		// @ITelemetryService private readonly telemetryService: ITelemetryService,
-		// @IStorageService private readonly storageService: IStorageService,
-		// @IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
-		// @IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		// @IUserDataSyncResourceProviderService private readonly userDataSyncResourceProviderService: IUserDataSyncResourceProviderService,
-		// @IUserDataSyncLocalStoreService private readonly userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 	) {
 
 		mainWindow.addEventListener('message', async (event) => {
-			// const extensionId = arg.extensionId;
-
-			if (event.data && event.data.replyChannel === 'vscode:triggerReporterMenu') {
+			if (event.data && event.data.sendChannel === 'vscode:triggerReporterMenu') {
 				// creates menu from contributed
 				const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
 
@@ -111,51 +65,16 @@ export class IssueMainService implements IIssueMainService {
 	async openReporter(data: IssueReporterData): Promise<void> {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
 			this.returnedIssueReporterData = data;
-			// Reply to the postMessage
-			// const replyChannel = `vscode:triggerReporterMenu`;
-			// this.issueReporterWindow?.addEventListener('message', (event) => {
-			// 	if (event.data && event.data.replyChannel === replyChannel && event.origin === 'window.location.origin') {
 			const replyChannel = `vscode:triggerReporterMenuResponse`;
 			mainWindow.postMessage({ data, replyChannel }, '*');
-			// }
-
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(data.extensionId));
 		}
 
-		// const theme = this.themeService.getColorTheme();
-		// const experiments = await this.experimentService.getCurrentExperiments();
 		if (this.issueReporterWindow) {
 			this.issueReporterWindow.focus();
 			return;
 
 		}
-
-		// let githubAccessToken = '';
-		// try {
-		// 	const githubSessions = await this.authenticationService.getSessions('github');
-		// 	const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-		// 	githubAccessToken = potentialSessions[0]?.accessToken;
-		// } catch (e) {
-		// 	// Ignore
-		// }
-
-		// air on the side of caution and have false be the default
-		const isUnsupported = false;
-		try {
-			// isUnsupported = !(await this.integrityService.isPure()).isPure;
-		} catch (e) {
-			// Ignore
-		}
-
-		// const issueReporterData: IssueReporterData = Object.assign({
-		// 	// styles: getIssueReporterStyles(theme),
-		// 	zoomLevel: getZoomLevel(mainWindow),
-		// 	enabledExtensions: data.enabledExtensions,
-		// 	// experiments: experiments?.join('\n'),
-		// 	// restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
-		// 	isUnsupported,
-		// 	githubAccessToken
-		// }, data);
 
 		const disposables = new DisposableStore();
 
@@ -164,44 +83,23 @@ export class IssueMainService implements IIssueMainService {
 
 		this.issueReporterWindow = auxiliaryWindow.window;
 
-
 		// Editor Part
 		const editorPartContainer = document.createElement('div');
 		editorPartContainer.classList.add('part', 'editor');
 		editorPartContainer.setAttribute('role', 'main');
 		editorPartContainer.style.position = 'relative';
 
-		const configuration: IssueReporterWindowConfiguration = {
-			windowId: 0,
-			appRoot: '',
-			userEnv: {},
-			product: product,
-			disableExtensions: false,
-			data: data,
-			os: {
-				type: '',
-				arch: '',
-				release: '',
-			},
-		};
-
 		if (auxiliaryWindow) {
-			// auxiliaryWindow.window.location.href = FileAccess.asBrowserUri(`vs/code/electron-sandbox/issue/issueReporter.html`).toString(true);
 			await auxiliaryWindow.whenStylesHaveLoaded;
-			// const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
-			// auxiliaryWindow.window.document.body.classList.add(platformClass); // used by our fonts
 			safeInnerHtml(auxiliaryWindow.window.document.body, BaseHtml());
-			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, configuration.disableExtensions, configuration.data, configuration.os, configuration.product, auxiliaryWindow.window);
-			// const issueReporter = new IssueReporter(configuration.disableExtensions, configuration.data, configuration.os, configuration.windowId, configuration.appRoot, {}, configuration.product, auxiliaryWindow.window, this);
+			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: '', arch: '', release: '' }, product, auxiliaryWindow.window);
 			issueReporter.render();
 		} else {
 			console.error('Failed to open auxiliary window');
 		}
 
-
 		// handle closing issue reporter
 		this.issueReporterWindow?.addEventListener('beforeunload', () => {
-			// Handle window closing here
 			auxiliaryWindow.window.close();
 			this.issueReporterWindow = null;
 		});
@@ -246,8 +144,6 @@ export class IssueMainService implements IIssueMainService {
 	}
 
 	async $sendReporterMenu2(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
-		// const extensionId = arg.extensionId;
-
 		// creates menu from contributed
 		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
 
@@ -277,10 +173,8 @@ export class IssueMainService implements IIssueMainService {
 
 
 	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
-		// const window = this.issueReporterWindow!;
-
-		const replyChannel = `vscode:triggerReporterMenu`;
-		mainWindow.postMessage({ replyChannel, extensionId, extensionName }, '*');
+		const sendChannel = `vscode:triggerReporterMenu`;
+		mainWindow.postMessage({ sendChannel, extensionId, extensionName }, '*');
 
 		const result = await new Promise((resolve, reject) => {
 			const timeout = setTimeout(() => {
@@ -289,8 +183,8 @@ export class IssueMainService implements IIssueMainService {
 			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
 
 			const listener = (event: MessageEvent) => {
-				const replyChannel2 = `vscode:triggerReporterMenuResponse`;
-				if (event.data && event.data.replyChannel === replyChannel2) {
+				const replyChannel = `vscode:triggerReporterMenuResponse`;
+				if (event.data && event.data.replyChannel === replyChannel) {
 					clearTimeout(timeout);
 					mainWindow.removeEventListener('message', listener);
 					resolve(event.data.data);

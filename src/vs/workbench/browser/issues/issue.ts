@@ -826,7 +826,8 @@ export class BaseIssueReporterService extends Disposable {
 			}),
 			headers: new Headers({
 				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${this.data.githubAccessToken}`
+				'Authorization': `Bearer ${this.data.githubAccessToken}`,
+				'User-Agent': 'request'
 			})
 		};
 

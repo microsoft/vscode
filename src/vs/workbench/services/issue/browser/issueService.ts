@@ -5,12 +5,10 @@
 
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { mainWindow } from 'vs/base/browser/window';
-import { userAgent } from 'vs/base/common/platform';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -19,7 +17,6 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
@@ -28,7 +25,6 @@ export class WebIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -46,17 +42,14 @@ export class WebIssueService implements IWorkbenchIssueService {
 	}
 
 	async openReporter(options: Partial<IssueReporterData>): Promise<void> {
-		const extensionId = options.extensionId;
-		// if (!extensionId) {
 		if (this.productService.reportIssueUrl) {
-			// const uri = this.getIssueUriFromStaticContent(this.productService.reportIssueUrl);
 			const theme = this.themeService.getColorTheme();
 			const experiments = await this.experimentService.getCurrentExperiments();
 
 			let githubAccessToken = '';
 			try {
 				const githubSessions = await this.authenticationService.getSessions('github');
-				const potentialSessions = githubSessions.filter(session => session.scopes.includes('user:email'));
+				const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
 				githubAccessToken = potentialSessions[0]?.accessToken;
 			} catch (e) {
 				// Ignore
@@ -119,60 +112,44 @@ export class WebIssueService implements IWorkbenchIssueService {
 				githubAccessToken
 			}, options);
 
-
-
-			// if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
-			// 	ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
-			// 	this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
-			// }
-
 			return this.issueMainService.openReporter(issueReporterData);
 		}
 		throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
 
-
-		// const selectedExtension = this.extensionService.extensions.filter(ext => ext.identifier.value === options.extensionId)[0];
-		// const extensionGitHubUrl = this.getExtensionGitHubUrl(selectedExtension);
-		// if (!extensionGitHubUrl) {
-		// 	throw new Error(`Unable to find issue reporting url for ${extensionId}`);
-		// }
-
-		// const uri = this.getIssueUriFromStaticContent(`${extensionGitHubUrl}/issues/new`, selectedExtension);
-		// dom.windowOpenNoOpener(uri);
 	}
 
-	private getExtensionGitHubUrl(extension: IExtensionDescription): string {
-		if (extension.isBuiltin && this.productService.reportIssueUrl) {
-			return normalizeGitHubUrl(this.productService.reportIssueUrl);
-		}
+	// 	private getExtensionGitHubUrl(extension: IExtensionDescription): string {
+	// 		if (extension.isBuiltin && this.productService.reportIssueUrl) {
+	// 			return normalizeGitHubUrl(this.productService.reportIssueUrl);
+	// 		}
 
-		let repositoryUrl = '';
+	// 		let repositoryUrl = '';
 
-		const bugsUrl = extension?.bugs?.url;
-		const extensionUrl = extension?.repository?.url;
+	// 		const bugsUrl = extension?.bugs?.url;
+	// 		const extensionUrl = extension?.repository?.url;
 
-		// If given, try to match the extension's bug url
-		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-			repositoryUrl = normalizeGitHubUrl(bugsUrl);
-		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-			repositoryUrl = normalizeGitHubUrl(extensionUrl);
-		}
+	// 		// If given, try to match the extension's bug url
+	// 		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+	// 			repositoryUrl = normalizeGitHubUrl(bugsUrl);
+	// 		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+	// 			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+	// 		}
 
-		return repositoryUrl;
-	}
+	// 		return repositoryUrl;
+	// 	}
 
-	private getIssueUriFromStaticContent(baseUri: string, extension?: IExtensionDescription): string {
-		const issueDescription = `ADD ISSUE DESCRIPTION HERE
+	// 	private getIssueUriFromStaticContent(baseUri: string, extension?: IExtensionDescription): string {
+	// 		const issueDescription = `ADD ISSUE DESCRIPTION HERE
 
-Version: ${this.productService.version}
-Commit: ${this.productService.commit ?? 'unknown'}
-User Agent: ${userAgent ?? 'unknown'}
-Embedder: ${this.productService.embedderIdentifier ?? 'unknown'}
-${extension?.version ? `\nExtension version: ${extension.version}` : ''}
-<!-- generated by web issue reporter -->`;
+	// Version: ${this.productService.version}
+	// Commit: ${this.productService.commit ?? 'unknown'}
+	// User Agent: ${userAgent ?? 'unknown'}
+	// Embedder: ${this.productService.embedderIdentifier ?? 'unknown'}
+	// ${extension?.version ? `\nExtension version: ${extension.version}` : ''}
+	// <!-- generated by web issue reporter -->`;
 
-		return `${baseUri}?body=${encodeURIComponent(issueDescription)}&labels=web`;
-	}
+	// 		return `${baseUri}?body=${encodeURIComponent(issueDescription)}&labels=web`;
+	// 	}
 }
 
 
