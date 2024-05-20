@@ -19,6 +19,7 @@ import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/commo
 import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -201,7 +202,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		public readonly collapseState: NotebookCellCollapseState | undefined,
 		public readonly transientOptions: TransientOptions,
 		private readonly _languageService: ILanguageService,
-		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined
+		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined,
+		private readonly _configurationService: IConfigurationService | undefined = undefined
 	) {
 		super();
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
@@ -222,6 +224,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	private async _doAutoDetectLanguage(): Promise<void> {
 		if (this.hasLanguageSetExplicitly) {
+			return;
+		}
+
+		if (!this._configurationService?.getValue<boolean>('workbench.editor.languageDetection')) {
 			return;
 		}
 
