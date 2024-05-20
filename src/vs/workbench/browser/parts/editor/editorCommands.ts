@@ -950,19 +950,11 @@ function registerCloseEditorCommands() {
 				});
 			}
 
-			// Replace editor with resolved one
-			let group: IEditorGroup | undefined;
-			let replacements: IEditorReplacement[] | undefined;
-			for ([group, replacements] of editorReplacements) {
+			// Replace editor with resolved one and make active
+			for (const [group, replacements] of editorReplacements) {
 				await group.replaceEditors(replacements);
+				await group.openEditor(replacements[0].replacement);
 			}
-
-			if (!group || !replacements) {
-				return;
-			}
-
-			// Make sure it becomes active too
-			await group.openEditor(replacements[0].replacement);
 		}
 	});
 
