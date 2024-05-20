@@ -2522,10 +2522,8 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
-		// We currently only support moving/copying from a single group
-		const sourceGroup = editorsContext[0].group;
+		const sourceGroup = editorsContext[0].group; // only single group supported for move/copy for now
 		const sourceEditors = editorsContext.filter(({ group }) => group === sourceGroup);
-
 		if (this.move) {
 			sourceGroup.moveEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
 		} else {
