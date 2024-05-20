@@ -19,6 +19,7 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 
@@ -77,9 +78,11 @@ class AttachContextAction extends Action2 {
 			return;
 		}
 
+		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
+		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: (QuickPickItem & { name?: string; icon?: ThemeIcon })[] = [];
 		for (const variable of chatVariablesService.getVariables()) {
-			if (variable.fullName) {
+			if (variable.fullName && (!variable.isSlow || slowSupported)) {
 				quickPickItems.push({ label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`, name: variable.name, id: variable.id, icon: variable.icon });
 			}
 		}
