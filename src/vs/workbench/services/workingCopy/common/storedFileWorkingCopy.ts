@@ -1019,7 +1019,14 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Delegate to working copy model save method if any
 					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
-						stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+						const result = await raceCancellation(resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token), saveCancellation.token);
+						if (saveCancellation.token.isCancellationRequested) {
+							return;
+						} else {
+							saveCancellation.dispose();
+						}
+
+						stat = assertIsDefined(result);
 					}
 
 					// Otherwise ask for a snapshot and save via file services
