@@ -100,6 +100,9 @@ steps:
         timeoutInMinutes: 20
 
       - script: ./scripts/test-remote-integration.sh
+        env:
+          # TODO(deepak1556): Remove this once we update to Node.js >= 20.11.x
+          UV_USE_IO_URING: 0
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -164,10 +167,16 @@ steps:
 
       - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         timeoutInMinutes: 20
+        env:
+          # TODO(deepak1556): Remove this once we update to Node.js >= 20.11.x
+          UV_USE_IO_URING: 0
         displayName: Run smoke tests (Browser, Chromium)
 
       - script: yarn smoketest-no-compile --remote --tracing
         timeoutInMinutes: 20
+        env:
+          # TODO(deepak1556): Remove this once we update to Node.js >= 20.11.x
+          UV_USE_IO_URING: 0
         displayName: Run smoke tests (Remote)
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
