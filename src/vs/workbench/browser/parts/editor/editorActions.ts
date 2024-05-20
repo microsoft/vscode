@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, getEditorsFromContext } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -61,11 +61,11 @@ abstract class AbstractSplitEditorAction extends Action2 {
 		return preferredSideBySideGroupDirection(configurationService);
 	}
 
-	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		splitEditor(editorGroupService, this.getDirection(configurationService), context);
+		splitEditor(editorGroupService, this.getDirection(configurationService), [getCommandsContext(accessor, resourceOrContext, context)]);
 	}
 }
 
@@ -1146,7 +1146,7 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 
-		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(resourceOrContext, context));
+		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(accessor, resourceOrContext, context));
 		editorGroupsService.toggleMaximizeGroup(group);
 	}
 }
@@ -1965,7 +1965,7 @@ export class MoveEditorLeftInGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -1984,7 +1984,7 @@ export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2003,7 +2003,7 @@ export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View,
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2022,7 +2022,7 @@ export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2034,7 +2034,7 @@ export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToAboveGroup', 'Move Editor into Group Above'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2046,7 +2046,7 @@ export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToBelowGroup', 'Move Editor into Group Below'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2058,7 +2058,7 @@ export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToLeftGroup', 'Move Editor into Left Group'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2070,7 +2070,7 @@ export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToRightGroup', 'Move Editor into Right Group'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2089,7 +2089,7 @@ export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2108,7 +2108,7 @@ export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2120,7 +2120,7 @@ export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToPreviousGroup', 'Split Editor into Previous Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2132,7 +2132,7 @@ export class SplitEditorToNextGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToNextGroup', 'Split Editor into Next Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2144,7 +2144,7 @@ export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToAboveGroup', 'Split Editor into Group Above'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2156,7 +2156,7 @@ export class SplitEditorToBelowGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToBelowGroup', 'Split Editor into Group Below'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2171,7 +2171,7 @@ export class SplitEditorToLeftGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToLeftGroup', "Split Editor into Left Group"),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2183,7 +2183,7 @@ export class SplitEditorToRightGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToRightGroup', 'Split Editor into Right Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2195,7 +2195,7 @@ export class SplitEditorToFirstGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToFirstGroup', 'Split Editor into First Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2207,7 +2207,7 @@ export class SplitEditorToLastGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToLastGroup', 'Split Editor into Last Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2221,7 +2221,7 @@ export class EditorLayoutSingleAction extends ExecuteCommandAction {
 			title: localize2('editorLayoutSingle', 'Single Column Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}] } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2235,7 +2235,7 @@ export class EditorLayoutTwoColumnsAction extends ExecuteCommandAction {
 			title: localize2('editorLayoutTwoColumns', 'Two Columns Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2249,7 +2249,7 @@ export class EditorLayoutThreeColumnsAction extends ExecuteCommandAction {
 			title: localize2('editorLayoutThreeColumns', 'Three Columns Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2263,7 +2263,7 @@ export class EditorLayoutTwoRowsAction extends ExecuteCommandAction {
 			title: localize2('editorLayoutTwoRows', 'Two Rows Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2277,7 +2277,7 @@ export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
 			title: localize2('editorLayoutThreeRows', 'Three Rows Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2291,7 +2291,7 @@ export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
 			title: localize2('editorLayoutTwoByTwoGrid', 'Grid Editor Layout (2x2)'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }] } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2305,7 +2305,7 @@ export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
 			title: localize2('editorLayoutTwoColumnsBottom', 'Two Columns Bottom Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2319,7 +2319,7 @@ export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
 			title: localize2('editorLayoutTwoRowsRight', 'Two Rows Right Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2514,19 +2514,26 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
+		const editors = getEditorsFromContext(accessor, resourceOrContext, context);
 
-		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
-		if (group && editor) {
-			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-
-			if (this.move) {
-				group.moveEditor(editor, auxiliaryEditorPart.activeGroup);
-			} else {
-				group.copyEditor(editor, auxiliaryEditorPart.activeGroup);
-			}
-
-			auxiliaryEditorPart.activeGroup.focus();
+		// If there is no editor, do not create a new window
+		if (editors.length === 0) {
+			return;
 		}
+
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+
+		for (const { editor, group } of editors) {
+			if (group && editor) {
+				if (this.move) {
+					group.moveEditor(editor, auxiliaryEditorPart.activeGroup);
+				} else {
+					group.copyEditor(editor, auxiliaryEditorPart.activeGroup);
+				}
+			}
+		}
+
+		auxiliaryEditorPart.activeGroup.focus();
 	}
 }
 

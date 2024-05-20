@@ -37,7 +37,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; token: number | undefined }>>();
 
 	constructor(
-		@IEditorGroupsService readonly editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {

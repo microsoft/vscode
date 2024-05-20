@@ -51,7 +51,7 @@ export class FindInput extends Widget {
 	private readonly showCommonFindToggles: boolean;
 	private fixFocusOnOptionClickEnabled = true;
 	private imeSessionInProgress = false;
-	private additionalTogglesDisposables: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
+	private readonly additionalTogglesDisposables: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 
 	protected readonly controls: HTMLDivElement;
 	protected readonly regex?: RegexToggle;

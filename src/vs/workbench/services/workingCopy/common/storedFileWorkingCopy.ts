@@ -27,7 +27,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
@@ -813,7 +813,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Fill in content if we are resolved
 		let content: VSBufferReadableStream | undefined = undefined;
 		if (this.isResolved()) {
-			content = await raceCancellation(this.model.snapshot(token), token);
+			content = await raceCancellation(this.model.snapshot(SnapshotContext.Backup, token), token);
 		}
 
 		return { meta, content };
@@ -1026,7 +1026,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					else {
 
 						// Snapshot working copy model contents
-						const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
+						const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(SnapshotContext.Save, saveCancellation.token), saveCancellation.token);
 
 						// It is possible that a subsequent save is cancelling this
 						// running save. As such we return early when we detect that

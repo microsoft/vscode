@@ -36,7 +36,8 @@
 .codicon-debug-breakpoint-conditional.codicon-debug-stackframe::after,
 .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
 .codicon-debug-breakpoint.codicon-debug-stackframe::after {
-	content: '\eb8a';
+	content: var(--vscode-icon-debug-stackframe-dot-content);
+	font-family: var(--vscode-icon-debug-stackframe-dot-font-family);
 	position: absolute;
 }
 
@@ -52,6 +53,10 @@
 	width: 0.9em;
 	display: inline-flex;
 	vertical-align: middle;
+}
+
+.debug-var-hover-pre {
+	margin: 0;
 }
 
 /* Do not push text with inline decoration when decoration on start of line */

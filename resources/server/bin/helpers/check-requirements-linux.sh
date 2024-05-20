@@ -18,20 +18,10 @@ set -e
 # Provides a way to skip the server requirements check from
 # outside the install flow. A system process can create this
 # file before the server is downloaded and installed.
-#
-# This check is duplicated between code-server-linux.sh and here
-# since remote container calls into this script directly quite early
-# before the usual server startup flow.
 if [ -f "/tmp/vscode-skip-server-requirements-check" ]; then
 	echo "!!! WARNING: Skipping server pre-requisite check !!!"
 	echo "!!! Server stability is not guaranteed. Proceed at your own risk. !!!"
 	exit 0
-fi
-
-# Default to legacy server if the following file is present.
-if [ -f "$HOME/@@SERVER_APPLICATION_NAME@@-use-legacy" ]; then
-    echo "!!! WARNING: Using legacy server due to the presence of $HOME/@@SERVER_APPLICATION_NAME@@-use-legacy !!!"
-    exit 100
 fi
 
 ARCH=$(uname -m)

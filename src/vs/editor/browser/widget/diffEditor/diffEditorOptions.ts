@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, ISettableObservable, derived, observableValue } from 'vs/base/common/observable';
+import { IObservable, ISettableObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { Constants } from 'vs/base/common/uint';
 import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
 import { IDiffEditorBaseOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class DiffEditorOptions {
 	private readonly _options: ISettableObservable<IEditorOptions & Required<IDiffEditorBaseOptions>, { changedOptions: IDiffEditorOptions }>;
@@ -15,8 +16,11 @@ export class DiffEditorOptions {
 
 	private readonly _diffEditorWidth = observableValue<number>(this, 0);
 
+	private readonly _screenReaderMode = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+
 	constructor(
 		options: Readonly<IDiffEditorOptions>,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue(this, optionsCopy);
@@ -28,7 +32,7 @@ export class DiffEditorOptions {
 
 	public readonly renderOverviewRuler = derived(this, reader => this._options.read(reader).renderOverviewRuler);
 	public readonly renderSideBySide = derived(this, reader => this._options.read(reader).renderSideBySide
-		&& !(this._options.read(reader).useInlineViewWhenSpaceIsLimited && this.couldShowInlineViewBecauseOfSize.read(reader))
+		&& !(this._options.read(reader).useInlineViewWhenSpaceIsLimited && this.couldShowInlineViewBecauseOfSize.read(reader) && !this._screenReaderMode.read(reader))
 	);
 	public readonly readOnly = derived(this, reader => this._options.read(reader).readOnly);
 

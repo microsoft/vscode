@@ -25,18 +25,19 @@ import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { InlineValue, InlineValueContext } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -214,10 +215,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private exceptionWidget: ExceptionWidget | undefined;
 	private configurationWidget: FloatingEditorClickWidget | undefined;
-	private altListener = new MutableDisposable();
+	private readonly altListener = new MutableDisposable();
 	private altPressed = false;
 	private oldDecorations = this.editor.createDecorationsCollection();
-	private displayedStore = new DisposableStore();
+	private readonly displayedStore = new DisposableStore();
 	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
 
@@ -641,6 +642,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		return new RunOnceScheduler(
 			() => {
 				this.displayedStore.clear();
+				this.oldDecorations.clear();
 			},
 			100
 		);
@@ -803,9 +805,26 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
 		}
 
-		if (!cts.token.isCancellationRequested) {
-			this.oldDecorations.set(allDecorations);
-			this.displayedStore.add(toDisposable(() => this.oldDecorations.clear()));
+		if (cts.token.isCancellationRequested) {
+			return;
+		}
+
+		// If word wrap is on, application of inline decorations may change the scroll position.
+		// Ensure the cursor maintains its vertical position relative to the viewport when
+		// we apply decorations.
+		let preservePosition: { position: Position; top: number } | undefined;
+		if (this.editor.getOption(EditorOption.wordWrap) !== 'off') {
+			const position = this.editor.getPosition();
+			if (position && this.editor.getVisibleRanges().some(r => r.containsPosition(position))) {
+				preservePosition = { position, top: this.editor.getTopForPosition(position.lineNumber, position.column) };
+			}
+		}
+
+		this.oldDecorations.set(allDecorations);
+
+		if (preservePosition) {
+			const top = this.editor.getTopForPosition(preservePosition.position.lineNumber, preservePosition.position.column);
+			this.editor.setScrollTop(this.editor.getScrollTop() - (preservePosition.top - top), ScrollType.Immediate);
 		}
 	}
 

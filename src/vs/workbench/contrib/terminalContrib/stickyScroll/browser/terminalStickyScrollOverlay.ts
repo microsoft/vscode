@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
+
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -21,13 +20,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { TerminalStickyScrollSettingId } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
@@ -48,17 +47,15 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
 	private _serializeAddon?: SerializeAddonType;
 
-	private _canvasAddon = this._register(new MutableDisposable<CanvasAddonType>());
-	private _pendingCanvasAddon?: CancelablePromise<void>;
-
 	private _element?: HTMLElement;
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
 	private _currentContent?: string;
 	private _contextMenu: IMenu;
 
-	private _refreshListeners = this._register(new MutableDisposable());
+	private readonly _refreshListeners = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
+	private _isRefreshQueued = false;
 	private _rawMaxLineCount: number = 5;
 
 	constructor(
@@ -85,8 +82,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// React to configuration changes
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollMaxLineCount)) {
-				this._rawMaxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
+			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.MaxLineCount)) {
+				this._rawMaxLineCount = configurationService.getValue(TerminalStickyScrollSettingId.MaxLineCount);
 			}
 		}));
 
@@ -114,18 +111,27 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}));
 			this._register(this._xterm.raw.onResize(() => {
 				this._syncOptions();
-				this._throttledRefresh();
+				this._refresh();
 			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
+				if (this._store.isDisposed) {
+					return;
+				}
 				this._serializeAddon = this._register(new SerializeAddon());
 				this._xterm.raw.loadAddon(this._serializeAddon);
 				// Trigger a render as the serialize addon is required to render
 				this._refresh();
 			});
-
-			this._syncGpuAccelerationState();
 		});
+	}
+
+	lockHide() {
+		this._element?.classList.add('lock-hide');
+	}
+
+	unlockHide() {
+		this._element?.classList.remove('lock-hide');
 	}
 
 	private _setState(state: OverlayState) {
@@ -168,44 +174,19 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _setVisible(isVisible: boolean) {
 		if (isVisible) {
 			this._ensureElement();
-			// The GPU acceleration state may be changes at any time and there is no event to listen
-			// to currently.
-			this._syncGpuAccelerationState();
 		}
 		this._element?.classList.toggle(CssClasses.Visible, isVisible);
 	}
 
-	/**
-	 * The entry point to refresh sticky scroll. This is synchronous and will call into the method
-	 * that actually refreshes using either debouncing or throttling depending on the situation.
-	 *
-	 * The goal is that if the command has changed to update immediately (with throttling) and if
-	 * the command is the same then update with debouncing as it's less likely updates will show up.
-	 * This approach also helps with:
-	 *
-	 * - Cursor move only updates such as moving horizontally in pagers which without this may show
-	 *   the sticky scroll before hiding it again almost immediately due to everything not being
-	 *   parsed yet.
-	 * - Improving performance due to deferring less important updates via debouncing.
-	 * - Less flickering when scrolling, while still updating immediately when the command changes.
-	 */
 	private _refresh(): void {
-		if (!this._xterm.raw.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
+		if (this._isRefreshQueued) {
 			return;
 		}
-		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
-		if (command && this._currentStickyCommand !== command) {
-			this._throttledRefresh();
-		} else {
-			// If it's the same command, do not throttle as the sticky scroll overlay height may
-			// need to be adjusted. This would cause a flicker if throttled.
+		this._isRefreshQueued = true;
+		queueMicrotask(() => {
 			this._refreshNow();
-		}
-	}
-
-	@throttle(0)
-	private _throttledRefresh(): void {
-		this._refreshNow();
+			this._isRefreshQueued = false;
+		});
 	}
 
 	private _refreshNow(): void {
@@ -432,41 +413,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		this._stickyScrollOverlay.resize(this._xterm.raw.cols, this._stickyScrollOverlay.rows);
 		this._stickyScrollOverlay.options = this._getOptions();
-		this._syncGpuAccelerationState();
-	}
-
-	private _syncGpuAccelerationState() {
-		if (!this._stickyScrollOverlay) {
-			return;
-		}
-		const overlay = this._stickyScrollOverlay;
-
-		// The Webgl renderer isn't used here as there are a limited number of webgl contexts
-		// available within a given page. This is a single row that isn't rendered too often so the
-		// performance isn't as important
-		if (this._xterm.isGpuAccelerated) {
-			if (!this._canvasAddon.value && !this._pendingCanvasAddon) {
-				this._pendingCanvasAddon = createCancelablePromise(async token => {
-					const CanvasAddon = await this._getCanvasAddonConstructor();
-					if (!token.isCancellationRequested && !this._store.isDisposed) {
-						this._canvasAddon.value = new CanvasAddon();
-						if (this._canvasAddon.value) { // The MutableDisposable could be disposed
-							overlay.loadAddon(this._canvasAddon.value);
-						}
-					}
-					this._pendingCanvasAddon = undefined;
-				});
-			}
-		} else {
-			this._canvasAddon.clear();
-			this._pendingCanvasAddon?.cancel();
-			this._pendingCanvasAddon = undefined;
-		}
 	}
 
 	private _getOptions(): ITerminalOptions {
 		const o = this._xterm.raw.options;
 		return {
+			allowTransparency: true,
 			cursorInactiveStyle: 'none',
 			scrollback: 0,
 			logLevel: 'off',
@@ -496,12 +448,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
-	}
-
-	@memoize
-	private async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
-		const m = await importAMDNodeModule<typeof import('@xterm/addon-canvas')>('@xterm/addon-canvas', 'lib/xterm-addon-canvas.js');
-		return m.CanvasAddon;
 	}
 
 	@memoize

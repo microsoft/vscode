@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { distinct, firstOrDefault, flatten, insert } from 'vs/base/common/arrays';
+import { distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -78,9 +78,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}));
 
 		// When extensions have registered we no longer need the cache
-		this.extensionService.onDidRegisterExtensions(() => {
+		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			this.cache = undefined;
-		});
+		}));
 	}
 
 	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> | [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
@@ -339,7 +339,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	 * Returns all editors as an array. Possible to contain duplicates
 	 */
 	private get _registeredEditors(): RegisteredEditors {
-		return flatten(Array.from(this._flattenedEditors.values()));
+		return Array.from(this._flattenedEditors.values()).flat();
 	}
 
 	updateUserAssociations(globPattern: string, editorID: string): void {

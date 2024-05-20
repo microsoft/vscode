@@ -222,7 +222,7 @@ export class ContextView extends Disposable {
 
 		// Show static box
 		DOM.clearNode(this.view);
-		this.view.className = 'context-view';
+		this.view.className = 'context-view monaco-component';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
 		this.view.style.zIndex = `${2575 + (delegate.layer ?? 0)}`;

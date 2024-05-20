@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { equalsIfDefined, itemEquals } from 'vs/base/common/equals';
 import { matchesSubString } from 'vs/base/common/filters';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ITransaction, derived, disposableObservableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ITransaction, derivedOpts, disposableObservableValue, transaction } from 'vs/base/common/observable';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
+import { TextLength } from 'vs/editor/common/core/textLength';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 export class InlineCompletionsSource extends Disposable {
@@ -149,18 +151,11 @@ class UpdateRequest {
 
 	public satisfies(other: UpdateRequest): boolean {
 		return this.position.equals(other.position)
-			&& equals(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, (v1, v2) => v1.equals(v2))
+			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, itemEquals())
 			&& (other.context.triggerKind === InlineCompletionTriggerKind.Automatic
 				|| this.context.triggerKind === InlineCompletionTriggerKind.Explicit)
 			&& this.versionId === other.versionId;
 	}
-}
-
-function equals<T>(v1: T | undefined, v2: T | undefined, equals: (v1: T, v2: T) => boolean): boolean {
-	if (!v1 || !v2) {
-		return v1 === v2;
-	}
-	return equals(v1, v2);
 }
 
 class UpdateOperation implements IDisposable {
@@ -183,26 +178,13 @@ export class UpToDateInlineCompletions implements IDisposable {
 	private _refCount = 1;
 	private readonly _prependedInlineCompletionItems: InlineCompletionItem[] = [];
 
-	private _rangeVersionIdValue = 0;
-	private readonly _rangeVersionId = derived(this, reader => {
-		this.versionId.read(reader);
-		let changed = false;
-		for (const i of this._inlineCompletions) {
-			changed = changed || i._updateRange(this.textModel);
-		}
-		if (changed) {
-			this._rangeVersionIdValue++;
-		}
-		return this._rangeVersionIdValue;
-	});
-
 	constructor(
 		private readonly inlineCompletionProviderResult: InlineCompletionProviderResult,
 		public readonly request: UpdateRequest,
-		private readonly textModel: ITextModel,
-		private readonly versionId: IObservable<number>,
+		private readonly _textModel: ITextModel,
+		private readonly _versionId: IObservable<number>,
 	) {
-		const ids = textModel.deltaDecorations([], inlineCompletionProviderResult.completions.map(i => ({
+		const ids = _textModel.deltaDecorations([], inlineCompletionProviderResult.completions.map(i => ({
 			range: i.range,
 			options: {
 				description: 'inline-completion-tracking-range'
@@ -210,7 +192,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 		})));
 
 		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
-			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._rangeVersionId)
+			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId)
 		);
 	}
 
@@ -224,9 +206,9 @@ export class UpToDateInlineCompletions implements IDisposable {
 		if (this._refCount === 0) {
 			setTimeout(() => {
 				// To fix https://github.com/microsoft/vscode/issues/188348
-				if (!this.textModel.isDisposed()) {
+				if (!this._textModel.isDisposed()) {
 					// This is just cleanup. It's ok if it happens with a delay.
-					this.textModel.deltaDecorations(this._inlineCompletions.map(i => i.decorationId), []);
+					this._textModel.deltaDecorations(this._inlineCompletions.map(i => i.decorationId), []);
 				}
 			}, 0);
 			this.inlineCompletionProviderResult.dispose();
@@ -241,13 +223,13 @@ export class UpToDateInlineCompletions implements IDisposable {
 			inlineCompletion.source.addRef();
 		}
 
-		const id = this.textModel.deltaDecorations([], [{
+		const id = this._textModel.deltaDecorations([], [{
 			range,
 			options: {
 				description: 'inline-completion-tracking-range'
 			},
 		}])[0];
-		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this._rangeVersionId, range));
+		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this._textModel, this._versionId));
 		this._prependedInlineCompletionItems.push(inlineCompletion);
 	}
 }
@@ -258,36 +240,38 @@ export class InlineCompletionWithUpdatedRange {
 		this.inlineCompletion.insertText,
 		this.inlineCompletion.range.getStartPosition().toString()
 	]);
-	private _updatedRange: Range;
-	private _isValid = true;
 
 	public get forwardStable() {
 		return this.inlineCompletion.source.inlineCompletions.enableForwardStability ?? false;
 	}
 
+	private readonly _updatedRange = derivedOpts<Range | null>({ owner: this, equalsFn: Range.equalsRange }, reader => {
+		this._modelVersion.read(reader);
+		return this._textModel.getDecorationRange(this.decorationId);
+	});
+
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
 		public readonly decorationId: string,
-		private readonly rangeVersion: IObservable<number>,
-		initialRange?: Range,
+		private readonly _textModel: ITextModel,
+		private readonly _modelVersion: IObservable<number>,
 	) {
-		this._updatedRange = initialRange ?? inlineCompletion.range;
 	}
 
 	public toInlineCompletion(reader: IReader | undefined): InlineCompletionItem {
-		return this.inlineCompletion.withRange(this._getUpdatedRange(reader));
+		return this.inlineCompletion.withRange(this._updatedRange.read(reader) ?? emptyRange);
 	}
 
 	public toSingleTextEdit(reader: IReader | undefined): SingleTextEdit {
-		return new SingleTextEdit(this._getUpdatedRange(reader), this.inlineCompletion.insertText);
+		return new SingleTextEdit(this._updatedRange.read(reader) ?? emptyRange, this.inlineCompletion.insertText);
 	}
 
 	public isVisible(model: ITextModel, cursorPosition: Position, reader: IReader | undefined): boolean {
 		const minimizedReplacement = singleTextRemoveCommonPrefix(this._toFilterTextReplacement(reader), model);
-
+		const updatedRange = this._updatedRange.read(reader);
 		if (
-			!this._isValid
-			|| !this.inlineCompletion.range.getStartPosition().equals(this._getUpdatedRange(reader).getStartPosition())
+			!updatedRange
+			|| !this.inlineCompletion.range.getStartPosition().equals(updatedRange.getStartPosition())
 			|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
 		) {
 			return false;
@@ -323,45 +307,17 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	public canBeReused(model: ITextModel, position: Position): boolean {
-		const result = this._isValid
-			&& this._getUpdatedRange(undefined).containsPosition(position)
+		const updatedRange = this._updatedRange.read(undefined);
+		const result = !!updatedRange
+			&& updatedRange.containsPosition(position)
 			&& this.isVisible(model, position, undefined)
-			&& !this._isSmallerThanOriginal(undefined);
+			&& TextLength.ofRange(updatedRange).isGreaterThanOrEqualTo(TextLength.ofRange(this.inlineCompletion.range));
 		return result;
 	}
 
 	private _toFilterTextReplacement(reader: IReader | undefined): SingleTextEdit {
-		return new SingleTextEdit(this._getUpdatedRange(reader), this.inlineCompletion.filterText);
-	}
-
-	private _isSmallerThanOriginal(reader: IReader | undefined): boolean {
-		return length(this._getUpdatedRange(reader)).isBefore(length(this.inlineCompletion.range));
-	}
-
-	private _getUpdatedRange(reader: IReader | undefined): Range {
-		this.rangeVersion.read(reader); // This makes sure all the ranges are updated.
-		return this._updatedRange;
-	}
-
-	public _updateRange(textModel: ITextModel): boolean {
-		const range = textModel.getDecorationRange(this.decorationId);
-		if (!range) {
-			// A setValue call might flush all decorations.
-			this._isValid = false;
-			return true;
-		}
-		if (!this._updatedRange.equalsRange(range)) {
-			this._updatedRange = range;
-			return true;
-		}
-		return false;
+		return new SingleTextEdit(this._updatedRange.read(reader) ?? emptyRange, this.inlineCompletion.filterText);
 	}
 }
 
-function length(range: Range): Position {
-	if (range.startLineNumber === range.endLineNumber) {
-		return new Position(1, 1 + range.endColumn - range.startColumn);
-	} else {
-		return new Position(1 + range.endLineNumber - range.startLineNumber, range.endColumn);
-	}
-}
+const emptyRange = new Range(1, 1, 1, 1);

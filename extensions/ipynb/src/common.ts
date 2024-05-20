@@ -60,8 +60,12 @@ export interface CellMetadata {
 	 * Stores cell metadata.
 	 */
 	metadata?: Partial<nbformat.ICellMetadata> & { vscode?: { languageId?: string } };
+	/**
+	 * The code cell's prompt number. Will be null if the cell has not been run.
+	 */
+	execution_count?: number;
 }
 
 export function useCustomPropertyInMetadata() {
-	return !workspace.getConfiguration('jupyter', undefined).get<boolean>('experimental.dropCustomMetadata', false);
+	return !workspace.getConfiguration('jupyter', undefined).get<boolean>('experimental.dropCustomMetadata', true);
 }

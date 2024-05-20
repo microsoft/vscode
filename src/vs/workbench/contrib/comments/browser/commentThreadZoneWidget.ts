@@ -211,8 +211,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				return;
 			}
 		}
+		const rangeToReveal = this._commentThread.range
+			? new Range(this._commentThread.range.startLineNumber, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + 1, 1)
+			: new Range(1, 1, 1, 1);
 
-		this.editor.revealRangeInCenter(this._commentThread.range ?? new Range(1, 1, 1, 1));
+		this.editor.revealRangeInCenter(rangeToReveal);
 		if (focus === CommentWidgetFocus.Widget) {
 			this._commentThreadWidget.focus();
 		} else if (focus === CommentWidgetFocus.Editor) {
@@ -325,7 +328,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.bindCommentThreadListeners();
 		}
 
-		this._commentThreadWidget.updateCommentThread(commentThread);
+		await this._commentThreadWidget.updateCommentThread(commentThread);
 
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range?.endLineNumber ?? 1;
@@ -353,13 +356,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.layout(widthInPixel);
 	}
 
-	display(range: IRange | undefined) {
+	async display(range: IRange | undefined, shouldReveal: boolean) {
 		if (range) {
 			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
 			this._commentGlyph.setThreadState(this._commentThread.state);
 		}
 
-		this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
+		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight), shouldReveal);
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));
@@ -368,7 +371,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		// If this is a new comment thread awaiting user input then we need to reveal it.
-		if (this._commentThread.canReply && this._commentThread.isTemplate && (!this._commentThread.comments || (this._commentThread.comments.length === 0))) {
+		if (shouldReveal) {
 			this.reveal();
 		}
 
@@ -458,10 +461,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber && this._viewZone.afterLineNumber !== 0) {
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;
-			}
-
-			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this._commentThreadWidget.focusCommentEditor();
 			}
 
 			const capture = StableEditorScrollState.capture(this.editor);

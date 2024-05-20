@@ -120,6 +120,7 @@ import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME
 import { Lazy } from 'vs/base/common/lazy';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
+import { normalizeNFC } from 'vs/base/common/normalization';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -435,6 +436,8 @@ export class CodeApplication extends Disposable {
 		let macOpenFileURIs: IWindowOpenable[] = [];
 		let runningTimeout: NodeJS.Timeout | undefined = undefined;
 		app.on('open-file', (event, path) => {
+			path = normalizeNFC(path); // macOS only: normalize paths to NFC form
+
 			this.logService.trace('app#open-file: ', path);
 			event.preventDefault();
 
@@ -517,7 +520,7 @@ export class CodeApplication extends Disposable {
 		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
 
 		validatedIpcMain.handle('vscode:notifyZoomLevel', async (event, zoomLevel: number | undefined) => {
-			const window = this.windowsMainService?.getWindowById(event.sender.id);
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 			if (window) {
 				window.notifyZoomLevel(zoomLevel);
 			}
@@ -986,6 +989,8 @@ export class CodeApplication extends Disposable {
 	private setupSharedProcess(machineId: string, sqmId: string): { sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
 		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, sqmId));
 
+		this._register(sharedProcess.onDidCrash(() => this.windowsMainService?.sendToFocused('vscode:reportSharedProcessCrash')));
+
 		const sharedProcessClient = (async () => {
 			this.logService.trace('Main->SharedProcess#connect');
 
@@ -1149,14 +1154,14 @@ export class CodeApplication extends Disposable {
 		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Policies (main & shared process)
-		const policyChannel = new PolicyChannel(accessor.get(IPolicyService));
+		const policyChannel = disposables.add(new PolicyChannel(accessor.get(IPolicyService)));
 		mainProcessElectronServer.registerChannel('policy', policyChannel);
 		sharedProcessClient.then(client => client.registerChannel('policy', policyChannel));
 
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
-		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService);
+		const fileSystemProviderChannel = disposables.add(new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService));
 		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
@@ -1212,12 +1217,12 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('webview', webviewChannel);
 
 		// Storage (main & shared process)
-		const storageChannel = this._register(new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
+		const storageChannel = disposables.add((new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService))));
 		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
 		// Profile Storage Changes Listener (shared process)
-		const profileStorageListener = this._register(new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService));
+		const profileStorageListener = disposables.add((new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService)));
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// Terminal
@@ -1336,7 +1341,11 @@ export class CodeApplication extends Disposable {
 				return windowsMainService.open({
 					context: OpenContext.DOCK,
 					cli: args,
-					urisToOpen: macOpenFiles.map(path => (hasWorkspaceFileExtension(path) ? { workspaceUri: URI.file(path) } : { fileUri: URI.file(path) })),
+					urisToOpen: macOpenFiles.map(path => {
+						path = normalizeNFC(path); // macOS only: normalize paths to NFC form
+
+						return (hasWorkspaceFileExtension(path) ? { workspaceUri: URI.file(path) } : { fileUri: URI.file(path) });
+					}),
 					noRecentEntry,
 					waitMarkerFileURI,
 					initialStartup: true,
@@ -1349,7 +1358,7 @@ export class CodeApplication extends Disposable {
 		return windowsMainService.open({
 			context,
 			cli: args,
-			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
+			forceNewWindow: args['new-window'],
 			diffMode: args.diff,
 			mergeMode: args.merge,
 			noRecentEntry,

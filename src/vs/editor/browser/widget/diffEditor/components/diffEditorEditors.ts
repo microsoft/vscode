@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReader, autorunHandleChanges, derived, derivedOpts, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { obsCodeEditor } from 'vs/editor/browser/observableUtilities';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
@@ -29,15 +30,15 @@ export class DiffEditorEditors extends Disposable {
 	public readonly modifiedScrollTop = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
 	public readonly modifiedScrollHeight = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
 
-	public readonly modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => /** @description modified.model */ this.modified.getModel());
+	public readonly modifiedModel = obsCodeEditor(this.modified).model;
 
 	public readonly modifiedSelections = observableFromEvent(this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
-	public readonly modifiedCursor = derivedOpts({ owner: this, equalityComparer: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
+	public readonly modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
 
 	public readonly originalCursor = observableFromEvent(this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
 
-	public readonly isOriginalFocused = observableFromEvent(Event.any(this.original.onDidFocusEditorWidget, this.original.onDidBlurEditorWidget), () => this.original.hasWidgetFocus());
-	public readonly isModifiedFocused = observableFromEvent(Event.any(this.modified.onDidFocusEditorWidget, this.modified.onDidBlurEditorWidget), () => this.modified.hasWidgetFocus());
+	public readonly isOriginalFocused = obsCodeEditor(this.original).isFocused;
+	public readonly isModifiedFocused = obsCodeEditor(this.modified).isFocused;
 
 	public readonly isFocused = derived(this, reader => this.isOriginalFocused.read(reader) || this.isModifiedFocused.read(reader));
 
@@ -55,7 +56,7 @@ export class DiffEditorEditors extends Disposable {
 		this._argCodeEditorWidgetOptions = null as any;
 
 		this._register(autorunHandleChanges({
-			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),
+			createEmptyChangeSummary: (): IDiffEditorConstructionOptions => ({}),
 			handleChange: (ctx, changeSummary) => {
 				if (ctx.didChange(_options.editorOptions)) {
 					Object.assign(changeSummary, ctx.change.changedOptions);

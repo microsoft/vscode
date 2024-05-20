@@ -597,7 +597,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebook.cell.output.selectAll', "Select All"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.KeyA,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), NOTEBOOK_OUTPUT_FOCUSED),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED),
 					weight: NOTEBOOK_OUTPUT_WEBVIEW_ACTION_WEIGHT
 				}
 			});
@@ -615,7 +615,11 @@ registerAction2(class extends NotebookCellAction {
 			if (!cell || !cell.outputIsFocused || !editor.hasWebviewFocus()) {
 				return true;
 			}
-			editor.selectOutputContent(cell);
+			if (cell.inputInOutputIsFocused) {
+				editor.selectInputContents(cell);
+			} else {
+				editor.selectOutputContent(cell);
+			}
 			return true;
 		});
 

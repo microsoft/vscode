@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize, localize2 } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
 import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
@@ -31,15 +34,16 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.send,
 				keybinding: {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
-					weight: KeybindingWeight.EditorCore + 7,
+					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyCode.Enter
 				},
 				menu: {
 					id: MENU_CELL_CHAT_INPUT,
-					group: 'main',
+					group: 'navigation',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.negate()
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -64,7 +68,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -105,7 +110,8 @@ registerAction2(class extends NotebookAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -134,7 +140,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -164,7 +171,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -183,10 +191,11 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.debugStop,
 				menu: {
 					id: MENU_CELL_CHAT_INPUT,
-					group: 'main',
+					group: 'navigation',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -204,9 +213,10 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.close,
 				menu: {
 					id: MENU_CELL_CHAT_WIDGET,
-					group: 'main',
+					group: 'navigation',
 					order: 2
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -253,7 +263,8 @@ registerAction2(class extends NotebookAction {
 						order: 0,
 						when: CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.OnlyMessages),
 					}
-				]
+				],
+				f1: false
 			});
 	}
 
@@ -278,7 +289,8 @@ registerAction2(class extends NotebookAction {
 					id: MENU_CELL_CHAT_WIDGET_STATUS,
 					group: 'main',
 					order: 1
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -287,69 +299,33 @@ registerAction2(class extends NotebookAction {
 	}
 });
 
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super({
-			id: 'notebook.cell.feedbackHelpful',
-			title: localize('feedback.helpful', 'Helpful'),
-			icon: Codicon.thumbsup,
-			menu: {
-				id: MENU_CELL_CHAT_WIDGET_FEEDBACK,
-				group: 'inline',
-				order: 1,
-				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
-		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Helpful);
-	}
-});
-
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super({
-			id: 'notebook.cell.feedbackUnhelpful',
-			title: localize('feedback.unhelpful', 'Unhelpful'),
-			icon: Codicon.thumbsdown,
-			menu: {
-				id: MENU_CELL_CHAT_WIDGET_FEEDBACK,
-				group: 'inline',
-				order: 2,
-				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
-		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Unhelpful);
-	}
-});
-
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super({
-			id: 'notebook.cell.reportIssueForBug',
-			title: localize('feedback.reportIssueForBug', 'Report Issue'),
-			icon: Codicon.report,
-			menu: {
-				id: MENU_CELL_CHAT_WIDGET_FEEDBACK,
-				group: 'inline',
-				order: 3,
-				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
-		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Bug);
-	}
-});
-
 interface IInsertCellWithChatArgs extends INotebookActionContext {
 	input?: string;
 	autoSend?: boolean;
+	source?: string;
+}
+
+async function startChat(accessor: ServicesAccessor, context: INotebookActionContext, index: number, input?: string, autoSend?: boolean, source?: string) {
+	const configurationService = accessor.get(IConfigurationService);
+	const commandService = accessor.get(ICommandService);
+
+	if (configurationService.getValue<boolean>(NotebookSetting.cellChat)) {
+		context.notebookEditor.focusContainer();
+		NotebookChatController.get(context.notebookEditor)?.run(index, input, autoSend);
+	} else if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate)) {
+		const activeCell = context.notebookEditor.getActiveCell();
+		const targetCell = activeCell?.getTextLength() === 0 && source !== 'insertToolbar' ? activeCell : (await insertNewCell(accessor, context, CellKind.Code, 'below', true));
+
+		if (targetCell) {
+			targetCell.enableAutoLanguageDetection();
+			await context.notebookEditor.revealFirstLineIfOutsideViewport(targetCell);
+			const codeEditor = context.notebookEditor.codeEditors.find(ce => ce[0] === targetCell)?.[1];
+			if (codeEditor) {
+				codeEditor.focus();
+				commandService.executeCommand('inlineChat.start');
+			}
+		}
+	}
 }
 
 registerAction2(class extends NotebookAction {
@@ -386,6 +362,21 @@ registerAction2(class extends NotebookAction {
 					]
 				},
 				f1: false,
+				keybinding: {
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+						ContextKeyExpr.not(InputFocusedContextKey),
+						CTX_INLINE_CHAT_HAS_PROVIDER,
+						ContextKeyExpr.or(
+							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
+							ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
+						)
+					),
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+					secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
+				},
 				menu: [
 					{
 						id: MenuId.NotebookCellBetween,
@@ -394,7 +385,10 @@ registerAction2(class extends NotebookAction {
 						when: ContextKeyExpr.and(
 							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 							CTX_INLINE_CHAT_HAS_PROVIDER,
-							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+							ContextKeyExpr.or(
+								ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
+								ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
+							)
 						)
 					}
 				]
@@ -443,8 +437,7 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: IInsertCellWithChatArgs) {
 		const index = Math.max(0, context.cell ? context.notebookEditor.getCellIndex(context.cell) + 1 : 0);
-		context.notebookEditor.focusContainer();
-		NotebookChatController.get(context.notebookEditor)?.run(index, context.input, context.autoSend);
+		await startChat(accessor, context, index, context.input, context.autoSend, context.source);
 	}
 });
 
@@ -467,7 +460,10 @@ registerAction2(class extends NotebookAction {
 						when: ContextKeyExpr.and(
 							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 							CTX_INLINE_CHAT_HAS_PROVIDER,
-							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+							ContextKeyExpr.or(
+								ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
+								ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
+							)
 						)
 					},
 				]
@@ -475,8 +471,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
-		context.notebookEditor.focusContainer();
-		NotebookChatController.get(context.notebookEditor)?.run(0, '', false);
+		await startChat(accessor, context, 0, '', false);
 	}
 });
 
@@ -494,7 +489,10 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
 		CTX_INLINE_CHAT_HAS_PROVIDER,
-		ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
+			ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
+		)
 	)
 });
 
@@ -523,6 +521,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -546,6 +545,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -569,6 +569,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -588,7 +589,8 @@ registerAction2(class extends NotebookAction {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
 					weight: KeybindingWeight.EditorCore + 10,
 					primary: KeyCode.UpArrow,
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -608,7 +610,8 @@ registerAction2(class extends NotebookAction {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
 					weight: KeybindingWeight.EditorCore + 10,
 					primary: KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -634,7 +637,8 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_CELL_GENERATED_BY_CHAT,
 						ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
 					)
-				}
+				},
+				f1: false
 			});
 	}
 

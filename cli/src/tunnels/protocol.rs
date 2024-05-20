@@ -47,6 +47,8 @@ pub struct HttpHeadersParams {
 #[derive(Deserialize, Debug)]
 pub struct ForwardParams {
 	pub port: u16,
+	#[serde(default)]
+	pub public: bool,
 }
 
 #[derive(Deserialize, Debug)]

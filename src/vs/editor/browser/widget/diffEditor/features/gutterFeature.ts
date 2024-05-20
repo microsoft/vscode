@@ -7,18 +7,23 @@ import { EventType, addDisposableListener, h } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { derivedDisposable, derivedWithSetter } from 'vs/base/common/observableInternal/derived';
+import { URI } from 'vs/base/common/uri';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
+import { DiffEditorSash, SashLayout } from 'vs/editor/browser/widget/diffEditor/components/diffEditorSash';
+import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { appendRemoveOnDispose, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
+import { appendRemoveOnDispose, applyStyle, prependRemoveOnDispose } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from 'vs/editor/browser/widget/diffEditor/utils/editorGutter';
 import { ActionRunnerWithContext } from 'vs/editor/browser/widget/multiDiffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
+import { TextEdit } from 'vs/editor/common/core/textEdit';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { TextModelText } from 'vs/editor/common/model/textModelText';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
@@ -34,28 +39,47 @@ export class DiffEditorGutter extends Disposable {
 	private readonly _menu = this._register(this._menuService.createMenu(MenuId.DiffEditorHunkToolbar, this._contextKeyService));
 	private readonly _actions = observableFromEvent(this._menu.onDidChange, () => this._menu.getActions());
 	private readonly _hasActions = this._actions.map(a => a.length > 0);
+	private readonly _showSash = derived(this, reader => this._options.renderSideBySide.read(reader) && this._hasActions.read(reader));
 
 	public readonly width = derived(this, reader => this._hasActions.read(reader) ? width : 0);
 
-	private readonly elements = h('div.gutter@gutter', { style: { position: 'absolute', height: '100%', width: width + 'px', zIndex: '0' } }, []);
+	private readonly elements = h('div.gutter@gutter', { style: { position: 'absolute', height: '100%', width: width + 'px' } }, []);
 
 	constructor(
 		diffEditorRoot: HTMLDivElement,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _editors: DiffEditorEditors,
+		private readonly _options: DiffEditorOptions,
+		private readonly _sashLayout: SashLayout,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
 	) {
 		super();
 
-		this._register(appendRemoveOnDispose(diffEditorRoot, this.elements.root));
+		this._register(prependRemoveOnDispose(diffEditorRoot, this.elements.root));
 
 		this._register(addDisposableListener(this.elements.root, 'click', () => {
 			this._editors.modified.focus();
 		}));
 
 		this._register(applyStyle(this.elements.root, { display: this._hasActions.map(a => a ? 'block' : 'none') }));
+
+		derivedDisposable(this, reader => {
+			const showSash = this._showSash.read(reader);
+			return !showSash ? undefined : new DiffEditorSash(
+				diffEditorRoot,
+				this._sashLayout.dimensions,
+				this._options.enableSplitViewResizing,
+				this._boundarySashes,
+				derivedWithSetter(
+					this, reader => this._sashLayout.sashLeft.read(reader) - width,
+					(v, tx) => this._sashLayout.sashLeft.set(v + width, tx)
+				),
+				() => this._sashLayout.resetSash(),
+			);
+		}).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(new EditorGutter<DiffGutterItem>(this._editors.modified, this.elements.root, {
 			getIntersectingGutterItems: (range, reader) => {
@@ -69,16 +93,26 @@ export class DiffEditorGutter extends Disposable {
 				const selection = this._selectedDiffs.read(reader);
 				if (selection.length > 0) {
 					const m = DetailedLineRangeMapping.fromRangeMappings(selection.flatMap(s => s.rangeMappings));
-					return [new DiffGutterItem(m, true, MenuId.DiffEditorSelectionToolbar, undefined)];
+					return [
+						new DiffGutterItem(
+							m,
+							true,
+							MenuId.DiffEditorSelectionToolbar,
+							undefined,
+							model.model.original.uri,
+							model.model.modified.uri,
+						)];
 				}
 
 				const currentDiff = this._currentDiff.read(reader);
 
 				return diffs.mappings.map(m => new DiffGutterItem(
-					m.lineRangeMapping,
+					m.lineRangeMapping.withInnerChangesFromLineRanges(),
 					m.lineRangeMapping === currentDiff?.lineRangeMapping,
 					MenuId.DiffEditorHunkToolbar,
 					undefined,
+					model.model.original.uri,
+					model.model.modified.uri,
 				));
 			},
 			createView: (item, target) => {
@@ -87,7 +121,7 @@ export class DiffEditorGutter extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.elements.gutter, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-			if (!this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
+			if (this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
 				this._editors.modified.delegateScrollFromMouseWheelEvent(e);
 			}
 		}, { passive: false }));
@@ -95,8 +129,11 @@ export class DiffEditorGutter extends Disposable {
 
 	public computeStagedValue(mapping: DetailedLineRangeMapping): string {
 		const c = mapping.innerChanges ?? [];
-		const edit = new TextEdit(c.map(c => new SingleTextEdit(c.originalRange, this._editors.modifiedModel.get()!.getValueInRange(c.modifiedRange))));
-		const value = edit.apply(new TextModelText(this._editors.original.getModel()!));
+		const modified = new TextModelText(this._editors.modifiedModel.get()!);
+		const original = new TextModelText(this._editors.original.getModel()!);
+
+		const edit = new TextEdit(c.map(c => c.toTextEdit(modified)));
+		const value = edit.apply(original);
 		return value;
 	}
 
@@ -149,6 +186,8 @@ class DiffGutterItem implements IGutterItemInfo {
 		public readonly showAlways: boolean,
 		public readonly menuId: MenuId,
 		public readonly rangeOverride: LineRange | undefined,
+		public readonly originalUri: URI,
+		public readonly modifiedUri: URI,
 	) {
 	}
 	get id(): string { return this.mapping.modified.toString(); }
@@ -174,8 +213,6 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-
-		//const r = new ObservableElementSizeObserver
 
 		const hoverDelegate = this._register(instantiationService.createInstance(
 			WorkbenchHoverDelegate,
@@ -208,10 +245,13 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				overflowBehavior: { maxItems: this._isSmall.read(reader) ? 1 : 3 },
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				actionRunner: new ActionRunnerWithContext(() => {
-					const mapping = this._item.get().mapping;
+					const item = this._item.get();
+					const mapping = item.mapping;
 					return {
 						mapping,
 						originalWithModifiedChanges: gutter.computeStagedValue(mapping),
+						originalUri: item.originalUri,
+						modifiedUri: item.modifiedUri,
 					} satisfies DiffEditorSelectionHunkToolbarContext;
 				}),
 				menuOptions: {
@@ -273,4 +313,7 @@ export interface DiffEditorSelectionHunkToolbarContext {
 	 * The original text with the selected modified changes applied.
 	*/
 	originalWithModifiedChanges: string;
+
+	modifiedUri: URI;
+	originalUri: URI;
 }

@@ -19,6 +19,7 @@ import { Promises, timeout } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
 export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
 
@@ -45,7 +46,7 @@ export class TestStoredFileWorkingCopyModel extends Disposable implements IStore
 		this.throwOnSnapshot = true;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+	async snapshot(context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
 		if (this.throwOnSnapshot) {
 			throw new Error('Fail');
 		}

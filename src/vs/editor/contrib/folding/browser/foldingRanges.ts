@@ -246,7 +246,7 @@ export class FoldingRegions {
 	}
 
 	public toFoldRange(index: number): FoldRange {
-		return <FoldRange>{
+		return {
 			startLineNumber: this._startIndexes[index] & MAX_LINE_NUMBER,
 			endLineNumber: this._endIndexes[index] & MAX_LINE_NUMBER,
 			type: this._types ? this._types[index] : undefined,

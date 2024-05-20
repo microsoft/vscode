@@ -436,12 +436,12 @@ export interface ISearchConfigurationProperties {
 		colors: boolean;
 		badges: boolean;
 	};
+	quickAccess: {
+		preserveInput: boolean;
+	};
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
-		quickAccess: {
-			preserveInput: boolean;
-		};
 	};
 }
 

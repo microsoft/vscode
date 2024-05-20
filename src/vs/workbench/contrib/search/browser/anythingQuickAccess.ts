@@ -55,6 +55,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -162,6 +164,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IQuickChatService private readonly quickChatService: IQuickChatService,
+		@ILogService private readonly logService: ILogService,
+		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -315,12 +319,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		disposables: DisposableStore,
 		token: CancellationToken
 	): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> {
+		const configuration = { ...this.configuration, includeSymbols: options.includeSymbols ?? this.configuration.includeSymbols };
 		const query = prepareQuery(filter);
 
 		// Return early if we have editor symbol picks. We support this by:
 		// - having a previously active global pick (e.g. a file)
 		// - the user typing `@` to start the local symbol query
-		if (options.enableEditorSymbolSearch) {
+		if (options.enableEditorSymbolSearch && options.includeSymbols) {
 			const editorSymbolPicks = this.getEditorSymbolPicks(query, disposables, token);
 			if (editorSymbolPicks) {
 				return editorSymbolPicks;
@@ -344,7 +349,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 		if (this.pickState.isQuickNavigating) {
 			if (picks.length > 0) {
-				picks.push({ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") } as IQuickPickSeparator);
+				picks.push({ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") } satisfies IQuickPickSeparator);
 			}
 			picks = historyEditorPicks;
 		} else {
@@ -352,7 +357,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				picks.push(...this.getHelpPicks(query, token, options));
 			}
 			if (historyEditorPicks.length !== 0) {
-				picks.push({ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") } as IQuickPickSeparator);
+				picks.push({ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") } satisfies IQuickPickSeparator);
 				picks.push(...historyEditorPicks);
 			}
 		}
@@ -360,7 +365,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return {
 
 			// Fast picks: help (if included) & editor history
-			picks,
+			picks: options.filter ? picks.filter((p) => options.filter?.(p)) : picks,
 
 			// Slow picks: files and symbols
 			additionalPicks: (async (): Promise<Picks<IAnythingQuickPickItem>> => {
@@ -373,13 +378,16 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				const additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, token);
+				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, configuration.includeSymbols, token);
+				if (options.filter) {
+					additionalPicks = additionalPicks.filter((p) => options.filter?.(p));
+				}
 				if (token.isCancellationRequested) {
 					return [];
 				}
 
 				return additionalPicks.length > 0 ? [
-					{ type: 'separator', label: this.configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
+					{ type: 'separator', label: configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
 					...additionalPicks
 				] : [];
 			})(),
@@ -389,12 +397,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, includeSymbols: boolean, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 
 		// Resolve file and symbol picks (if enabled)
 		const [filePicks, symbolPicks] = await Promise.all([
 			this.getFilePicks(query, excludes, token),
-			this.getWorkspaceSymbolPicks(query, token)
+			this.getWorkspaceSymbolPicks(query, includeSymbols, token)
 		]);
 
 		if (token.isCancellationRequested) {
@@ -644,6 +652,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private doGetFileSearchResults(filePattern: string, token: CancellationToken): Promise<ISearchComplete> {
+		const start = Date.now();
 		return this.searchService.fileSearch(
 			this.fileQueryBuilder.file(
 				this.contextService.getWorkspace().folders,
@@ -652,7 +661,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					cacheKey: this.pickState.fileQueryCache?.cacheKey,
 					maxResults: AnythingQuickAccessProvider.MAX_RESULTS
 				})
-			), token);
+			), token).finally(() => {
+				this.logService.trace(`QuickAccess fileSearch ${Date.now() - start}ms`);
+			});
 	}
 
 	private getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number }): IFileQueryBuilderOptions {
@@ -799,11 +810,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private workspaceSymbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
 
-	private async getWorkspaceSymbolPicks(query: IPreparedQuery, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
-		const configuration = this.configuration;
+	private async getWorkspaceSymbolPicks(query: IPreparedQuery, includeSymbols: boolean, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		if (
 			!query.normalized ||	// we need a value for search for
-			!configuration.includeSymbols ||		// we need to enable symbols in search
+			!includeSymbols ||		// we need to enable symbols in search
 			this.pickState.lastRange				// a range is an indicator for just searching for files
 		) {
 			return [];
@@ -947,8 +957,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			icon = resourceOrEditor.getIcon();
 		} else {
 			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
-			label = basenameOrAuthority(resource);
-			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
+			const customLabel = this.customEditorLabelService.getName(resource);
+			label = customLabel || basenameOrAuthority(resource);
+			description = this.labelService.getUriLabel(!!customLabel ? resource : dirname(resource), { relative: true });
 			isDirty = this.workingCopyService.isDirty(resource) && !this.filesConfigurationService.hasShortAutoSaveDelay(resource);
 			extraClasses = [];
 		}

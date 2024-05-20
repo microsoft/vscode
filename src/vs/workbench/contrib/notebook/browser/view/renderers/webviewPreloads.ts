@@ -70,6 +70,7 @@ export interface RenderOptions {
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
 	readonly linkifyFilePaths: boolean;
+	readonly minimalError: boolean;
 }
 
 interface PreloadContext {
@@ -194,11 +195,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 
-		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
-			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true });
+		const id = lastFocusedOutput?.id;
+		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
-				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false });
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
 			}, { once: true });
 		}
 	};
@@ -270,6 +272,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
+
+	const blurOutput = () => {
+		const selection = window.getSelection();
+		if (!selection) {
+			return;
+		}
+		selection.removeAllRanges();
+	};
+
 	const selectOutputContents = (cellOrOutputId: string) => {
 		const selection = window.getSelection();
 		if (!selection) {
@@ -286,10 +297,28 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	};
 
+	const selectInputContents = (cellOrOutputId: string) => {
+		const cellOutputContainer = window.document.getElementById(cellOrOutputId);
+		if (!cellOutputContainer) {
+			return;
+		}
+		const activeElement = window.document.activeElement;
+		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+			(activeElement as HTMLInputElement).select();
+		}
+	};
+
 	const onPageUpDownSelectionHandler = (e: KeyboardEvent) => {
 		if (!lastFocusedOutput?.id || !e.shiftKey) {
 			return;
 		}
+
+		// If we're pressing `Shift+Up/Down` then we want to select a line at a time.
+		if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+			e.stopPropagation(); // We don't want the notebook to handle this, default behavior is what we need.
+			return;
+		}
+
 		// We want to handle just `Shift + PageUp/PageDown` & `Shift + Cmd + ArrowUp/ArrowDown` (for mac)
 		if (!(e.code === 'PageUp' || e.code === 'PageDown') && !(e.metaKey && (e.code === 'ArrowDown' || e.code === 'ArrowUp'))) {
 			return;
@@ -297,6 +326,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		const outputContainer = window.document.getElementById(lastFocusedOutput.id);
 		const selection = window.getSelection();
 		if (!outputContainer || !selection?.anchorNode) {
+			return;
+		}
+		const activeElement = window.document.activeElement;
+		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+			// Leave for default behavior.
 			return;
 		}
 
@@ -316,6 +350,22 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 		selection.removeAllRanges();
 		selection.addRange(range);
+	};
+
+	const disableNativeSelectAll = (e: KeyboardEvent) => {
+		if (!lastFocusedOutput?.id) {
+			return;
+		}
+		const activeElement = window.document.activeElement;
+		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+			// The input element will handle this.
+			return;
+		}
+
+		if ((e.key === 'a' && e.ctrlKey) || (e.metaKey && e.key === 'a')) {
+			e.preventDefault(); // We will handle selection in editor code.
+			return;
+		}
 	};
 
 	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
@@ -343,6 +393,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	window.document.body.addEventListener('focusin', checkOutputInputFocus);
 	window.document.body.addEventListener('focusout', handleOutputFocusOut);
 	window.document.body.addEventListener('keydown', onPageUpDownSelectionHandler);
+	window.document.body.addEventListener('keydown', disableNativeSelectAll);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;
@@ -521,24 +572,55 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
+	let previousDelta: number | undefined;
 	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
 	let scrolledElement: Element | undefined;
-	function flagRecentlyScrolled(node: Element) {
+	let lastTimeScrolled: number | undefined;
+	function flagRecentlyScrolled(node: Element, deltaY?: number) {
 		scrolledElement = node;
-		node.setAttribute('recentlyScrolled', 'true');
-		clearTimeout(scrollTimeout);
-		scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+		if (deltaY === undefined) {
+			lastTimeScrolled = Date.now();
+			previousDelta = undefined;
+			node.setAttribute('recentlyScrolled', 'true');
+			clearTimeout(scrollTimeout);
+			scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+			return true;
+		}
+
+		if (node.hasAttribute('recentlyScrolled')) {
+			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 400) {
+				// it has been a while since we actually scrolled
+				// if scroll velocity increases significantly, it's likely a new scroll event
+				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 8) {
+					clearTimeout(scrollTimeout);
+					scrolledElement?.removeAttribute('recentlyScrolled');
+					return false;
+				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 8) {
+					clearTimeout(scrollTimeout);
+					scrolledElement?.removeAttribute('recentlyScrolled');
+					return false;
+				}
+
+				// the tail end of a smooth scrolling event (from a trackpad) can go on for a while
+				// so keep swallowing it, but we can shorten the timeout since the events occur rapidly
+				clearTimeout(scrollTimeout);
+				scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 50);
+			} else {
+				clearTimeout(scrollTimeout);
+				scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+			}
+
+			previousDelta = deltaY;
+			return true;
+		}
+
+		return false;
 	}
 
 	function eventTargetShouldHandleScroll(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
 			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('markup') || node.classList.contains('output_container')) {
 				return false;
-			}
-
-			if (node.hasAttribute('recentlyScrolled') && scrolledElement === node) {
-				flagRecentlyScrolled(node);
-				return true;
 			}
 
 			// scroll up
@@ -563,6 +645,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				flagRecentlyScrolled(node);
+				return true;
+			}
+
+			if (flagRecentlyScrolled(node, event.deltaY)) {
 				return true;
 			}
 		}
@@ -598,13 +684,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (cellOutputContainer.contains(window.document.activeElement)) {
 				return;
 			}
-
+			const id = cellOutputContainer.id;
 			let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
 			if (!focusableElement) {
 				focusableElement = cellOutputContainer;
 				focusableElement.tabIndex = -1;
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
+			} else {
+				const inputFocused = focusableElement.tagName === 'INPUT' || focusableElement.tagName === 'TEXTAREA';
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
+			lastFocusedOutput = cellOutputContainer;
+			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', { id: cellOutputContainer.id });
 			focusableElement.focus();
 		}
 	}
@@ -614,7 +706,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		element.id = `focus-sink-${cellId}`;
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
-			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
+			postNotebookMessage<webviewMessages.IFocusEditorMessage>('focus-editor', {
 				cellId: cellId,
 				focusNext
 			});
@@ -1484,7 +1576,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
 			return;
 		}
 
@@ -1657,8 +1749,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'focus-output':
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
+			case 'blur-output':
+				blurOutput();
+				break;
 			case 'select-output-contents':
 				selectOutputContents(event.data.cellOrOutputId);
+				break;
+			case 'select-input-contents':
+				selectInputContents(event.data.cellOrOutputId);
 				break;
 			case 'decorations': {
 				let outputContainer = window.document.getElementById(event.data.cellId);
@@ -1814,6 +1912,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get outputScrolling() { return currentRenderOptions.outputScrolling; },
 					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
 					get linkifyFilePaths() { return currentRenderOptions.linkifyFilePaths; },
+					get minimalError() { return currentRenderOptions.minimalError; },
 				},
 				get onDidChangeSettings() { return settingChange.event; }
 			};
@@ -2621,7 +2720,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			outputElement/** outputNode */.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 
 			if (!!data.executionId && !!data.rendererId) {
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
+				let outputSize: number | undefined = undefined;
+				let mimeType: string | undefined = undefined;
+				if (data.content.type === 1 /* extension */) {
+					outputSize = data.content.output.valueBytes.length;
+					mimeType = data.content.output.mime;
+				}
+
+				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+					cellId: data.cellId,
+					executionId: data.executionId,
+					duration: Date.now() - startTime,
+					rendererId: data.rendererId,
+					outputSize,
+					mimeType
+				});
 			}
 		}
 

@@ -26,10 +26,7 @@ suite('NotebookCellList', () => {
 	setup(() => {
 		testDisposables = new DisposableStore();
 		instantiationService = setupInstantiationService(testDisposables);
-		config = new TestConfigurationService({
-			[NotebookSetting.anchorToFocusedCell]: 'auto'
-		});
-
+		config = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, config);
 	});
 

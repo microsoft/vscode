@@ -508,7 +508,7 @@ function setTelemetry(extension: IGalleryExtension, index: number, querySource?:
 
 function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], queryContext?: IStringDictionary<any>): IGalleryExtension {
 	const latestVersion = galleryExtension.versions[0];
-	const assets = <IGalleryExtensionAssets>{
+	const assets: IGalleryExtensionAssets = {
 		manifest: getVersionAsset(version, AssetType.Manifest),
 		readme: getVersionAsset(version, AssetType.Details),
 		changelog: getVersionAsset(version, AssetType.Changelog),
@@ -521,6 +521,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 	};
 
 	return {
+		type: 'gallery',
 		identifier: {
 			id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
 			uuid: galleryExtension.extensionId
@@ -798,7 +799,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			return extensions;
 		};
 
-		return { firstPage: extensions, total, pageSize: query.pageSize, getPage } as IPager<IGalleryExtension>;
+		return { firstPage: extensions, total, pageSize: query.pageSize, getPage };
 	}
 
 	private async queryGalleryExtensions(query: Query, criteria: IExtensionCriteria, token: CancellationToken): Promise<{ extensions: IGalleryExtension[]; total: number }> {
@@ -1028,16 +1029,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		this.logService.trace('ExtensionGalleryService#download', extension.identifier.id);
 		const data = getGalleryExtensionTelemetryData(extension);
 		const startTime = new Date().getTime();
-		/* __GDPR__
-			"galleryService:downloadVSIX" : {
-				"owner": "sandy081",
-				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"${include}": [
-					"${GalleryExtensionTelemetryData}"
-				]
-			}
-		*/
-		const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', { ...data, duration });
 
 		const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
 		const downloadAsset = operationParam ? {
@@ -1047,8 +1038,29 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const headers: IHeaders | undefined = extension.queryContext?.[ACTIVITY_HEADER_NAME] ? { [ACTIVITY_HEADER_NAME]: extension.queryContext[ACTIVITY_HEADER_NAME] } : undefined;
 		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, headers ? { headers } : undefined);
-		await this.fileService.writeFile(location, context.stream);
-		log(new Date().getTime() - startTime);
+
+		try {
+			await this.fileService.writeFile(location, context.stream);
+		} catch (error) {
+			try {
+				await this.fileService.del(location);
+			} catch (e) {
+				/* ignore */
+				this.logService.warn(`Error while deleting the file ${location.toString()}`, getErrorMessage(e));
+			}
+			throw new ExtensionGalleryError(getErrorMessage(error), ExtensionGalleryErrorCode.DownloadFailedWriting);
+		}
+
+		/* __GDPR__
+			"galleryService:downloadVSIX" : {
+				"owner": "sandy081",
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
+		this.telemetryService.publicLog('galleryService:downloadVSIX', { ...data, duration: new Date().getTime() - startTime });
 	}
 
 	async downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void> {
@@ -1059,7 +1071,18 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		this.logService.trace('ExtensionGalleryService#downloadSignatureArchive', extension.identifier.id);
 
 		const context = await this.getAsset(extension.identifier.id, extension.assets.signature, AssetType.Signature);
-		await this.fileService.writeFile(location, context.stream);
+		try {
+			await this.fileService.writeFile(location, context.stream);
+		} catch (error) {
+			try {
+				await this.fileService.del(location);
+			} catch (e) {
+				/* ignore */
+				this.logService.warn(`Error while deleting the file ${location.toString()}`, getErrorMessage(e));
+			}
+			throw new ExtensionGalleryError(getErrorMessage(error), ExtensionGalleryErrorCode.DownloadFailedWriting);
+		}
+
 	}
 
 	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {

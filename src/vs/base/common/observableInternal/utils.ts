@@ -10,6 +10,7 @@ import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, 
 import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
 import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { IValueWithChangeEvent } from '../event';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -136,7 +137,8 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 			return this.value!;
 		} else {
 			// no cache, as there are no subscribers to keep it updated
-			return this._getValue(undefined);
+			const value = this._getValue(undefined);
+			return value;
 		}
 	}
 }
@@ -404,28 +406,33 @@ export class KeepAliveObserver implements IObserver {
 	}
 }
 
-export function derivedObservableWithCache<T>(computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
+export function derivedObservableWithCache<T>(owner: Owner, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
 	let lastValue: T | undefined = undefined;
-	const observable = derived(reader => {
+	const observable = derived(owner, reader => {
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
 	});
 	return observable;
 }
 
-export function derivedObservableWithWritableCache<T>(owner: object, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> & { clearCache(transaction: ITransaction): void } {
+export function derivedObservableWithWritableCache<T>(owner: object, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T>
+	& { clearCache(transaction: ITransaction): void; setCache(newValue: T | undefined, tx: ITransaction | undefined): void } {
 	let lastValue: T | undefined = undefined;
-	const counter = observableValue('derivedObservableWithWritableCache.counter', 0);
+	const onChange = observableSignal('derivedObservableWithWritableCache');
 	const observable = derived(owner, reader => {
-		counter.read(reader);
+		onChange.read(reader);
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
 	});
 	return Object.assign(observable, {
-		clearCache: (transaction: ITransaction) => {
+		clearCache: (tx: ITransaction) => {
 			lastValue = undefined;
-			counter.set(counter.get() + 1, transaction);
+			onChange.trigger(tx);
 		},
+		setCache: (newValue: T | undefined, tx: ITransaction | undefined) => {
+			lastValue = newValue;
+			onChange.trigger(tx);
+		}
 	});
 }
 
@@ -493,4 +500,24 @@ class ArrayMap<TIn, TOut, TKey> implements IDisposable {
 	public getItems(): TOut[] {
 		return this._items;
 	}
+}
+
+export class ValueWithChangeEventFromObservable<T> implements IValueWithChangeEvent<T> {
+	constructor(public readonly observable: IObservable<T>) {
+	}
+
+	get onDidChange(): Event<void> {
+		return Event.fromObservableLight(this.observable);
+	}
+
+	get value(): T {
+		return this.observable.get();
+	}
+}
+
+export function observableFromValueWithChangeEvent<T>(_owner: Owner, value: IValueWithChangeEvent<T>): IObservable<T> {
+	if (value instanceof ValueWithChangeEventFromObservable) {
+		return value.observable;
+	}
+	return observableFromEvent(value.onDidChange, () => value.value);
 }

@@ -6,7 +6,9 @@
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
@@ -33,19 +35,20 @@ suite('ChatVariables', function () {
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IChatVariablesService, service);
 		instantiationService.stub(IChatService, new MockChatService());
-		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 	});
 
 	test('ChatVariables - resolveVariables', async function () {
 
-		const v1 = service.registerVariable({ name: 'foo', description: 'bar' }, async () => ([{ level: 'full', value: 'farboo' }]));
-		const v2 = service.registerVariable({ name: 'far', description: 'boo' }, async () => ([{ level: 'full', value: 'farboo' }]));
+		const v1 = service.registerVariable({ id: 'id', name: 'foo', description: 'bar' }, async () => 'farboo');
+		const v2 = service.registerVariable({ id: 'id', name: 'far', description: 'boo' }, async () => 'farboo');
 
 		const parser = instantiationService.createInstance(ChatRequestParser);
 
 		const resolveVariables = async (text: string) => {
 			const result = parser.parseChatRequest('1', text);
-			return await service.resolveVariables(result, null!, () => { }, CancellationToken.None);
+			return await service.resolveVariables(result, undefined, null!, () => { }, CancellationToken.None);
 		};
 
 		{

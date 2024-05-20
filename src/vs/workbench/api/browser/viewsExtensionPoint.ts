@@ -37,6 +37,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesRegistryExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -104,6 +105,8 @@ interface IUserFriendlyViewDescriptor {
 	group?: string;
 	remoteName?: string | string[];
 	virtualWorkspace?: string;
+
+	accessibilityHelpContent?: string;
 }
 
 enum InitialVisibility {
@@ -167,6 +170,10 @@ const viewDescriptor: IJSONSchema = {
 		initialSize: {
 			type: 'number',
 			description: localize('vscode.extension.contributs.view.size', "The initial size of the view. The size will behave like the css 'flex' property, and will set the initial size when the view is first shown. In the side bar, this is the height of the view. This value is only respected when the same extension owns both the view and the view container."),
+		},
+		accessibilityHelpContent: {
+			type: 'string',
+			markdownDescription: localize('vscode.extension.contributes.view.accessibilityHelpContent', "When the accessibility help dialog is invoked in this view, this content will be presented to the user as a markdown string. Keybindings will be resolved when provided in the format of <keybinding:commandId>. If there is no keybinding, that will be indicated and this command will be included in a quickpick for easy configuration.")
 		}
 	}
 };
@@ -285,6 +292,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		this.handleAndRegisterCustomViewContainers();
 		this.handleAndRegisterCustomViews();
 
+		// Abstract tree has it's own implementation of triggering custom hover
+		// TreeView uses it's own implementation due to setting focus inside the (markdown)
 		let showTreeHoverCancellation = new CancellationTokenSource();
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: 'workbench.action.showTreeHover',
@@ -325,7 +334,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					}
 				}, true);
 			},
-			weight: KeybindingWeight.WorkbenchContrib,
+			weight: KeybindingWeight.WorkbenchContrib + 1,
 			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 			when: ContextKeyExpr.and(RawCustomTreeViewContextKey, WorkbenchListFocusContextKey)
 		});
@@ -538,6 +547,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						}
 					}
 
+					let accessibilityHelpContent;
+					if (isProposedApiEnabled(extension.description, 'contribAccessibilityHelpContent') && item.accessibilityHelpContent) {
+						accessibilityHelpContent = new MarkdownString(item.accessibilityHelpContent);
+					}
+
 					const viewDescriptor: ICustomViewDescriptor = {
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
@@ -558,7 +572,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						virtualWorkspace: item.virtualWorkspace,
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
 						workspace: viewContainer?.id === REMOTE ? true : undefined,
-						weight
+						weight,
+						accessibilityHelpContent
 					};
 
 

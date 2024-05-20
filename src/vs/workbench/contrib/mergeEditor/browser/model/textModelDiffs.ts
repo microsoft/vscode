@@ -10,7 +10,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { LineRangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { ReentrancyBarrier } from '../../../../../base/common/controlFlow';
 import { IMergeDiffComputer } from './diffComputer';
 import { autorun, IObservable, IReader, ITransaction, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
@@ -24,7 +24,7 @@ export class TextModelDiffs extends Disposable {
 	private _isDisposed = false;
 
 	public get isApplyingChange() {
-		return this._barrier.isActive;
+		return this._barrier.isOccupied;
 	}
 
 	constructor(
@@ -44,14 +44,14 @@ export class TextModelDiffs extends Disposable {
 
 		this._register(
 			baseTextModel.onDidChangeContent(
-				this._barrier.makeExclusive(() => {
+				this._barrier.makeExclusiveOrSkip(() => {
 					recomputeSignal.trigger(undefined);
 				})
 			)
 		);
 		this._register(
 			textModel.onDidChangeContent(
-				this._barrier.makeExclusive(() => {
+				this._barrier.makeExclusiveOrSkip(() => {
 					recomputeSignal.trigger(undefined);
 				})
 			)

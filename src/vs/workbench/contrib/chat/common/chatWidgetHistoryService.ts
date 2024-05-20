@@ -7,6 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
+import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 
 export interface IChatHistoryEntry {
 	text: string;
@@ -20,8 +21,8 @@ export interface IChatWidgetHistoryService {
 	readonly onDidClearHistory: Event<void>;
 
 	clearHistory(): void;
-	getHistory(providerId: string): IChatHistoryEntry[];
-	saveHistory(providerId: string, history: IChatHistoryEntry[]): void;
+	getHistory(): IChatHistoryEntry[];
+	saveHistory(history: IChatHistoryEntry[]): void;
 }
 
 interface IChatHistory {
@@ -50,15 +51,15 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 		this.viewState = loadedState;
 	}
 
-	getHistory(providerId: string): IChatHistoryEntry[] {
-		return this.viewState.history?.[providerId] ?? [];
+	getHistory(): IChatHistoryEntry[] {
+		return this.viewState.history?.[CHAT_PROVIDER_ID] ?? [];
 	}
 
-	saveHistory(providerId: string, history: IChatHistoryEntry[]): void {
+	saveHistory(history: IChatHistoryEntry[]): void {
 		if (!this.viewState.history) {
 			this.viewState.history = {};
 		}
-		this.viewState.history[providerId] = history;
+		this.viewState.history[CHAT_PROVIDER_ID] = history;
 		this.memento.saveMemento();
 	}
 

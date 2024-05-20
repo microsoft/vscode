@@ -330,7 +330,9 @@ import { activate } from '../notebookModelStoreSync';
 				cellChanges: [
 					{
 						cell,
-						document: undefined,
+						document: {
+							languageId: 'javascript'
+						} as any,
 						metadata: undefined,
 						outputs: undefined,
 						executionSummary: undefined
@@ -465,7 +467,9 @@ import { activate } from '../notebookModelStoreSync';
 				cellChanges: [
 					{
 						cell,
-						document: undefined,
+						document: {
+							languageId: 'javascript'
+						} as any,
 						metadata: undefined,
 						outputs: undefined,
 						executionSummary: undefined
@@ -540,7 +544,9 @@ import { activate } from '../notebookModelStoreSync';
 				cellChanges: [
 					{
 						cell,
-						document: undefined,
+						document: {
+							languageId: 'powershell'
+						} as any,
 						metadata: undefined,
 						outputs: undefined,
 						executionSummary: undefined

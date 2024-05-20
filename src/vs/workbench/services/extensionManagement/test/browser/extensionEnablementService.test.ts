@@ -135,6 +135,7 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProductService, TestProductService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
 			id: 'local',
 			label: 'local',

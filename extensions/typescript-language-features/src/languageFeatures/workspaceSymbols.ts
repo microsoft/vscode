@@ -12,6 +12,7 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import * as PConst from '../tsServer/protocol/protocol.const';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { coalesce } from '../utils/arrays';
 
 function getSymbolKind(item: Proto.NavtoItem): vscode.SymbolKind {
 	switch (item.kind) {
@@ -64,9 +65,7 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			return [];
 		}
 
-		return response.body
-			.filter(item => item.containerName || item.kind !== 'alias')
-			.map(item => this.toSymbolInformation(item));
+		return coalesce(response.body.map(item => this.toSymbolInformation(item)));
 	}
 
 	private get searchAllOpenProjects() {
@@ -89,13 +88,22 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		return this.client.toOpenTsFilePath(document);
 	}
 
-	private toSymbolInformation(item: Proto.NavtoItem) {
+	private toSymbolInformation(item: Proto.NavtoItem): vscode.SymbolInformation | undefined {
+		if (item.kind === 'alias' && !item.containerName) {
+			return;
+		}
+
+		const uri = this.client.toResource(item.file);
+		if (uri.scheme === fileSchemes.chatCodeBlock) {
+			return;
+		}
+
 		const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
 		const info = new vscode.SymbolInformation(
 			label,
 			getSymbolKind(item),
 			item.containerName || '',
-			typeConverters.Location.fromTextSpan(this.client.toResource(item.file), item));
+			typeConverters.Location.fromTextSpan(uri, item));
 		const kindModifiers = item.kindModifiers ? parseKindModifier(item.kindModifiers) : undefined;
 		if (kindModifiers?.has(PConst.KindModifiers.deprecated)) {
 			info.tags = [vscode.SymbolTag.Deprecated];

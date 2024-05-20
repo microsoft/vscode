@@ -6,8 +6,11 @@
 import * as assert from 'assert';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { NullCommandService } from 'vs/platform/commands/test/common/nullCommandService';
+import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
@@ -28,7 +31,7 @@ suite('Debug - Base Debug View', () => {
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});
 
@@ -44,38 +47,37 @@ suite('Debug - Base Debug View', () => {
 
 	test('render expression value', () => {
 		let container = $('.container');
-		renderExpressionValue('render \n me', container, { showHover: true });
+		renderExpressionValue('render \n me', container, {}, NullHoverService);
 		assert.strictEqual(container.className, 'value');
-		assert.strictEqual(container.title, 'render \n me');
 		assert.strictEqual(container.textContent, 'render \n me');
 
 		const expression = new Expression('console');
 		expression.value = 'Object';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true });
+		renderExpressionValue(expression, container, { colorize: true }, NullHoverService);
 		assert.strictEqual(container.className, 'value unavailable error');
 
 		expression.available = true;
 		expression.value = '"string value"';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, linkDetector });
+		renderExpressionValue(expression, container, { colorize: true, linkDetector }, NullHoverService);
 		assert.strictEqual(container.className, 'value string');
 		assert.strictEqual(container.textContent, '"string value"');
 
 		expression.type = 'boolean';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true });
+		renderExpressionValue(expression, container, { colorize: true }, NullHoverService);
 		assert.strictEqual(container.className, 'value boolean');
 		assert.strictEqual(container.textContent, expression.value);
 
 		expression.value = 'this is a long string';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, maxValueLength: 4, linkDetector });
+		renderExpressionValue(expression, container, { colorize: true, maxValueLength: 4, linkDetector }, NullHoverService);
 		assert.strictEqual(container.textContent, 'this...');
 
 		expression.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, linkDetector });
+		renderExpressionValue(expression, container, { colorize: true, linkDetector }, NullHoverService);
 		assert.ok(container.querySelector('a'));
 		assert.strictEqual(container.querySelector('a')!.textContent, expression.value);
 	});
@@ -92,17 +94,17 @@ suite('Debug - Base Debug View', () => {
 		let value = $('.');
 		const label = new HighlightedLabel(name);
 		const lazyButton = $('.');
-		renderVariable(variable, { expression, name, value, label, lazyButton }, false, []);
+		const store = disposables.add(new DisposableStore());
+		renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, []);
 
 		assert.strictEqual(label.element.textContent, 'foo');
 		assert.strictEqual(value.textContent, '');
-		assert.strictEqual(value.title, '');
 
 		variable.value = 'hey';
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
+		renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(value.textContent, 'hey');
 		assert.strictEqual(label.element.textContent, 'foo:');
 
@@ -110,7 +112,7 @@ suite('Debug - Base Debug View', () => {
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
+		renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.ok(value.querySelector('a'));
 		assert.strictEqual(value.querySelector('a')!.textContent, variable.value);
 
@@ -118,7 +120,7 @@ suite('Debug - Base Debug View', () => {
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
+		renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(name.className, 'virtual');
 		assert.strictEqual(label.element.textContent, 'console:');
 		assert.strictEqual(value.className, 'value number');

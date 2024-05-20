@@ -7,7 +7,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/
 import { isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize, localize2 } from 'vs/nls';
-import { Action2, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -92,7 +92,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const getProfilesTitle = () => {
 			return localize('profiles', "Profiles ({0})", this.userDataProfileService.currentProfile.name);
 		};
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			get title() {
 				return getProfilesTitle();
 			},
@@ -100,7 +100,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			group: '2_configuration',
 			order: 1,
 		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
+		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 			get title() {
 				return getProfilesTitle();
 			},
@@ -513,7 +513,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			owner: 'sandy081';
 			comment: 'Report profile information of the current workspace';
 			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A UUID given to a workspace to identify it.' };
-			defaultProfile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the profile of the workspace is default or not.' };
+			defaultProfile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the profile of the workspace is default or not.' };
 		};
 		type WorkspaceProfileInfoEvent = {
 			workspaceId: string | undefined;

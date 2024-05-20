@@ -257,7 +257,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		super.dispose();
 	}
 
-	getInspectPort(): number | undefined {
+	getInspectPort(): undefined {
 		return undefined;
 	}
 

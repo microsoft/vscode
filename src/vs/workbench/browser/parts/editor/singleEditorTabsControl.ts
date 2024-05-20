@@ -179,17 +179,15 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
-	stickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
-	}
+	stickEditor(editor: EditorInput): void { }
 
-	unstickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
-	}
+	unstickEditor(editor: EditorInput): void { }
 
 	setActive(isActive: boolean): void {
 		this.redraw();
 	}
+
+	setEditorSelections(editors: EditorInput[], selected: boolean): void { }
 
 	updateEditorLabel(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
@@ -353,7 +351,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// Inactive: only show "Close, "Unlock" and secondary actions
 		else {
 			return {
-				primary: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
+				primary: this.groupsView.partOptions.alwaysShowEditorActions ? editorActions.primary : editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
 				secondary: editorActions.secondary
 			};
 		}

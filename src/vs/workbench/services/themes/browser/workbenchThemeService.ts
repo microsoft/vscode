@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -44,9 +44,6 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { mainWindow } from 'vs/base/browser/window';
 
 // implementation
-
-const PERSISTED_OS_COLOR_SCHEME = 'osColorScheme';
-const PERSISTED_OS_COLOR_SCHEME_SCOPE = StorageScope.APPLICATION; // the OS scheme depends on settings in the OS
 
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 
@@ -100,8 +97,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	private readonly productIconThemeWatcher: ThemeFileWatcher;
 	private readonly productIconThemeSequencer: Sequencer;
 
-	private themeSettingIdBeforeSchemeSwitch: string | undefined;
-
 	private hasDefaultUpdated: boolean = false;
 
 	constructor(
@@ -120,7 +115,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	) {
 		super();
 		this.container = layoutService.mainContainer;
-		this.settings = new ThemeConfiguration(configurationService);
+		this.settings = new ThemeConfiguration(configurationService, hostColorService);
 
 		this.colorThemeRegistry = this._register(new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme));
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
@@ -153,13 +148,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			themeData = undefined;
 		}
 
-		// the preferred color scheme (high contrast, light, dark) has changed since the last start
-		const preferredColorScheme = this.getPreferredColorScheme();
 		const defaultColorMap = colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_LIGHT ? COLOR_THEME_LIGHT_INITIAL_COLORS : colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_DARK ? COLOR_THEME_DARK_INITIAL_COLORS : undefined;
 
-		if (preferredColorScheme && themeData?.type !== preferredColorScheme && this.storageService.get(PERSISTED_OS_COLOR_SCHEME, PERSISTED_OS_COLOR_SCHEME_SCOPE) !== preferredColorScheme) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(preferredColorScheme, undefined);
-		}
 		if (!themeData) {
 			const initialColorTheme = environmentService.options?.initialColorTheme;
 			if (initialColorTheme) {
@@ -212,15 +202,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				const matchedColorTheme = devThemes.find(theme => theme.type === this.currentColorTheme.type);
 				return this.setColorTheme(matchedColorTheme ? matchedColorTheme.id : devThemes[0].id, undefined);
 			}
-
-			const preferredColorScheme = this.getPreferredColorScheme();
-			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, PERSISTED_OS_COLOR_SCHEME_SCOPE);
-			if (preferredColorScheme !== prevScheme) {
-				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, PERSISTED_OS_COLOR_SCHEME_SCOPE, StorageTarget.USER);
-				if (preferredColorScheme && this.currentColorTheme.type !== preferredColorScheme) {
-					return this.applyPreferredColorTheme(preferredColorScheme);
-				}
-			}
 			let theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, undefined);
 			if (!theme) {
 				// If the current theme is not available, first make sure setting sync is complete
@@ -266,31 +247,16 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	private installConfigurationListener() {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			let lazyPreferredColorScheme: ColorScheme | undefined | null = null;
-			const getPreferredColorScheme = () => {
-				if (lazyPreferredColorScheme === null) {
-					lazyPreferredColorScheme = this.getPreferredColorScheme();
-				}
-				return lazyPreferredColorScheme;
-			};
-
-			if (e.affectsConfiguration(ThemeSettings.COLOR_THEME)) {
+			if (e.affectsConfiguration(ThemeSettings.COLOR_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_DARK_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_LIGHT_THEME)
+				|| e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)
+				|| e.affectsConfiguration(ThemeSettings.DETECT_HC)
+				|| e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME)
+			) {
 				this.restoreColorTheme();
-			}
-			if (e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME) || e.affectsConfiguration(ThemeSettings.DETECT_HC)) {
-				this.handlePreferredSchemeUpdated();
-			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME) && getPreferredColorScheme() === ColorScheme.DARK) {
-				this.applyPreferredColorTheme(ColorScheme.DARK);
-			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME) && getPreferredColorScheme() === ColorScheme.LIGHT) {
-				this.applyPreferredColorTheme(ColorScheme.LIGHT);
-			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_DARK_THEME) && getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST_DARK) {
-				this.applyPreferredColorTheme(ColorScheme.HIGH_CONTRAST_DARK);
-			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_LIGHT_THEME) && getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST_LIGHT) {
-				this.applyPreferredColorTheme(ColorScheme.HIGH_CONTRAST_LIGHT);
 			}
 			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
 				this.restoreFileIconTheme();
@@ -392,59 +358,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
-		this._register(this.hostColorService.onDidChangeColorScheme(() => this.handlePreferredSchemeUpdated()));
-	}
-
-	private async handlePreferredSchemeUpdated() {
-		const scheme = this.getPreferredColorScheme();
-		const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, PERSISTED_OS_COLOR_SCHEME_SCOPE);
-		if (scheme !== prevScheme) {
-			this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, PERSISTED_OS_COLOR_SCHEME_SCOPE, StorageTarget.MACHINE);
-			if (scheme) {
-				if (!prevScheme) {
-					// remember the theme before scheme switching
-					this.themeSettingIdBeforeSchemeSwitch = this.settings.colorTheme;
-				}
-				return this.applyPreferredColorTheme(scheme);
-			} else if (prevScheme && this.themeSettingIdBeforeSchemeSwitch) {
-				// reapply the theme before scheme switching
-				const theme = this.colorThemeRegistry.findThemeBySettingsId(this.themeSettingIdBeforeSchemeSwitch, undefined);
-				if (theme) {
-					this.setColorTheme(theme.id, 'auto');
-				}
-			}
-		}
-		return undefined;
-	}
-
-	private getPreferredColorScheme(): ColorScheme | undefined {
-		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
-			return this.hostColorService.dark ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT;
-		}
-		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
-			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
-		}
-		return undefined;
-	}
-
-	private async applyPreferredColorTheme(type: ColorScheme): Promise<IWorkbenchColorTheme | null> {
-		let settingId: ThemeSettings;
-		switch (type) {
-			case ColorScheme.LIGHT: settingId = ThemeSettings.PREFERRED_LIGHT_THEME; break;
-			case ColorScheme.HIGH_CONTRAST_DARK: settingId = ThemeSettings.PREFERRED_HC_DARK_THEME; break;
-			case ColorScheme.HIGH_CONTRAST_LIGHT: settingId = ThemeSettings.PREFERRED_HC_LIGHT_THEME; break;
-			default:
-				settingId = ThemeSettings.PREFERRED_DARK_THEME;
-		}
-		const themeSettingId = this.configurationService.getValue(settingId);
-		if (themeSettingId && typeof themeSettingId === 'string') {
-			const theme = this.colorThemeRegistry.findThemeBySettingsId(themeSettingId, undefined);
-			if (theme) {
-				const configurationTarget = this.settings.findAutoConfigurationTarget(settingId);
-				return this.setColorTheme(theme.id, configurationTarget);
-			}
-		}
-		return null;
+		this._register(this.hostColorService.onDidChangeColorScheme(() => this.restoreColorTheme()));
 	}
 
 	public hasUpdatedDefaultThemes(): boolean {
@@ -457,6 +371,10 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	public async getColorThemes(): Promise<IWorkbenchColorTheme[]> {
 		return this.colorThemeRegistry.getThemes();
+	}
+
+	public getPreferredColorScheme(): ColorScheme | undefined {
+		return this.settings.getPreferredColorScheme();
 	}
 
 	public async getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]> {
@@ -612,7 +530,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					comment: 'An event is fired when an color theme extension is first used as it provides the currently shown color theme.';
 					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
 					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension name.' };
-					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the extension is a built-in extension.' };
+					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension is a built-in extension.' };
 					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension publisher id.' };
 					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the theme that triggered the first extension use.' };
 				};

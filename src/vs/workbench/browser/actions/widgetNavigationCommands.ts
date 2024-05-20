@@ -10,6 +10,8 @@ import { WorkbenchListFocusContextKey, WorkbenchListScrollAtBottomContextKey, Wo
 import { Event } from 'vs/base/common/event';
 import { combinedDisposable, toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /** INavigableContainer represents a logical container composed of widgets that can
 	be navigated back and forth with key shortcuts */
@@ -25,6 +27,7 @@ interface INavigableContainer {
 	 * focused, and blurred if all parts being blurred.
 	 */
 	readonly focusNotifiers: readonly IFocusNotifier[];
+	readonly name?: string; // for debugging
 	focusPreviousWidget(): void;
 	focusNextWidget(): void;
 }
@@ -34,16 +37,18 @@ interface IFocusNotifier {
 	readonly onDidBlur: Event<any>;
 }
 
-function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFocus: boolean) => void): IDisposable {
+function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFocus: boolean) => void, onPartFocusChange?: (index: number, state: string) => void): IDisposable {
 	const focusedIndices = new Set<number>();
 	return combinedDisposable(...group.map((events, index) => combinedDisposable(
 		events.onDidFocus(() => {
+			onPartFocusChange?.(index, 'focus');
 			if (!focusedIndices.size) {
 				handler(true);
 			}
 			focusedIndices.add(index);
 		}),
 		events.onDidBlur(() => {
+			onPartFocusChange?.(index, 'blur');
 			focusedIndices.delete(index);
 			if (!focusedIndices.size) {
 				handler(false);
@@ -65,7 +70,10 @@ class NavigableContainerManager implements IDisposable {
 	private focused: IContextKey<boolean>;
 
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILogService private logService: ILogService,
+		@IConfigurationService private configurationService: IConfigurationService) {
 		this.focused = NavigableContainerFocusedContextKey.bindTo(contextKeyService);
 		NavigableContainerManager.INSTANCE = this;
 	}
@@ -76,25 +84,43 @@ class NavigableContainerManager implements IDisposable {
 		NavigableContainerManager.INSTANCE = undefined;
 	}
 
+	private get debugEnabled(): boolean {
+		return this.configurationService.getValue('workbench.navigibleContainer.enableDebug');
+	}
+
+	private log(msg: string, ...args: any[]): void {
+		if (this.debugEnabled) {
+			this.logService.debug(msg, ...args);
+		}
+	}
+
 	static register(container: INavigableContainer): IDisposable {
 		const instance = this.INSTANCE;
 		if (!instance) {
 			return Disposable.None;
 		}
 		instance.containers.add(container);
+		instance.log('NavigableContainerManager.register', container.name);
 
 		return combinedDisposable(
 			handleFocusEventsGroup(container.focusNotifiers, (isFocus) => {
 				if (isFocus) {
+					instance.log('NavigableContainerManager.focus', container.name);
 					instance.focused.set(true);
 					instance.lastContainer = container;
-				} else if (instance.lastContainer === container) {
-					instance.focused.set(false);
-					instance.lastContainer = undefined;
+				} else {
+					instance.log('NavigableContainerManager.blur', container.name, instance.lastContainer?.name);
+					if (instance.lastContainer === container) {
+						instance.focused.set(false);
+						instance.lastContainer = undefined;
+					}
 				}
+			}, (index: number, event: string) => {
+				instance.log('NavigableContainerManager.partFocusChange', container.name, index, event);
 			}),
 			toDisposable(() => {
 				instance.containers.delete(container);
+				instance.log('NavigableContainerManager.unregister', container.name, instance.lastContainer?.name);
 				if (instance.lastContainer === container) {
 					instance.focused.set(false);
 					instance.lastContainer = undefined;
