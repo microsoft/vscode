@@ -658,46 +658,53 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 
 export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, contexts?: (IEditorCommandsContext | URI)[]): void {
 	let newGroup: IEditorGroup | undefined;
+	let sourceGroup: IEditorGroup | undefined;
 
 	for (const context of contexts ?? [undefined]) {
-		let sourceGroup: IEditorGroup | undefined;
+		let currentGroup: IEditorGroup | undefined;
 
 		const isEditorCommand = context && isEditorCommandsContext(context);
 		const isURI = context && URI.isUri(context);
 
 		if (isEditorCommand) {
-			sourceGroup = editorGroupService.getGroup(context.groupId);
+			currentGroup = editorGroupService.getGroup(context.groupId);
 		} else if (isURI) {
 			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 				if (isEqual(group.activeEditor?.resource, context)) {
-					sourceGroup = group;
+					currentGroup = group;
 					break;
 				}
 			}
 		} else {
-			sourceGroup = editorGroupService.activeGroup;
+			currentGroup = editorGroupService.activeGroup;
+		}
+
+		if (!currentGroup) {
+			return;
 		}
 
 		if (!sourceGroup) {
-			return;
+			sourceGroup = currentGroup;
+		} else if (sourceGroup !== currentGroup) {
+			return; // Only support splitting from the same group
 		}
 
 		// Add group
 		if (!newGroup) {
-			newGroup = editorGroupService.addGroup(sourceGroup, direction);
+			newGroup = editorGroupService.addGroup(currentGroup, direction);
 		}
 
 		// Split editor (if it can be split)
 		let editorToCopy: EditorInput | undefined;
 		if (isEditorCommand && typeof context.editorIndex === 'number') {
-			editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
+			editorToCopy = currentGroup.getEditorByIndex(context.editorIndex);
 		} else {
-			editorToCopy = sourceGroup.activeEditor ?? undefined;
+			editorToCopy = currentGroup.activeEditor ?? undefined;
 		}
 
 		// Copy the editor to the new group, else create an empty group
 		if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
-			sourceGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: isEditorCommand && context?.preserveFocus });
+			currentGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: isEditorCommand && context?.preserveFocus });
 		}
 	}
 

@@ -870,7 +870,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private registerTabListeners(tab: HTMLElement, tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
 		const disposables = new DisposableStore();
 
-		const handleClickOrTouch = (e: MouseEvent | GestureEvent, preserveFocus: boolean): void => {
+		const handleClickOrTouch = async (e: MouseEvent | GestureEvent, preserveFocus: boolean): Promise<void> => {
 			tab.blur(); // prevent flicker of focus outline on tab until editor got focus
 
 			if (isMouseEvent(e) && (e.button !== 0 /* middle/right mouse button */ || (isMacintosh && e.ctrlKey /* macOS context menu */))) {
@@ -898,17 +898,18 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 						this.lastSingleSelectSelectedEditor = this.groupView.activeEditor!;
 						anchor = this.groupView.activeEditor!;
 					}
-					this.selectEditorsBetween(editor, anchor);
+					await this.selectEditorsBetween(editor, anchor);
 				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
 					if (this.tabsModel.isSelected(editor)) {
-						this.groupView.unselectEditors([editor]);
+						await this.groupView.unselectEditors([editor]);
 					} else {
-						this.groupView.selectEditors([editor], editor);
+						await this.groupView.selectEditors([editor], editor);
 						this.lastSingleSelectSelectedEditor = editor;
 					}
 				} else {
 					// Even if focus is preserved make sure to activate the group.
-					this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { addToSelection: this.tabsModel.isSelected(editor) /* Ensures drag and drop does not remove selection */ });
+					// Add to selection on key down such that drag and drop can operate over the selection. Selection is remove on key up.
+					await this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { addToSelection: this.tabsModel.isSelected(editor) });
 				}
 			}
 		};
@@ -932,7 +933,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}));
 
 		// Update selection & prevent flicker of focus outline on tab until editor got focus
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, e => {
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, async e => {
 			EventHelper.stop(e);
 
 			tab.blur();
@@ -947,7 +948,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			const isCtrlCmd = (e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh);
 			if (!isCtrlCmd && !e.shiftKey && this.groupView.selectedEditors.length > 1) {
-				this.unselectAllEditors();
+				await this.unselectAllEditors();
 			}
 		}));
 
@@ -1269,7 +1270,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return { leftElement: tabBefore as HTMLElement, rightElement: tabAfter as HTMLElement };
 	}
 
-	private selectEditorsBetween(target: EditorInput, anchor: EditorInput): void {
+	private async selectEditorsBetween(target: EditorInput, anchor: EditorInput): Promise<void> {
 		const editorIndex = this.groupView.getIndexOfEditor(target);
 		if (editorIndex === -1) {
 			throw new BugIndicatingError();
@@ -1294,7 +1295,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				break;
 			}
 
-			this.groupView.unselectEditors([currentEditor]);
+			await this.groupView.unselectEditors([currentEditor]);
 		}
 
 		// Select editors between anchor and target
@@ -1302,11 +1303,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
 
 		const selectedEditors = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
-		this.groupView.selectEditors(selectedEditors, target);
+		await this.groupView.selectEditors(selectedEditors, target);
 	}
 
-	private unselectAllEditors(): void {
-		this.groupView.unselectEditors(this.groupView.selectedEditors.filter(editor => !this.groupView.isActive(editor)));
+	private async unselectAllEditors(): Promise<void> {
+		await this.groupView.unselectEditors(this.groupView.selectedEditors.filter(editor => !this.groupView.isActive(editor)));
 	}
 
 	private computeTabLabels(): void {
