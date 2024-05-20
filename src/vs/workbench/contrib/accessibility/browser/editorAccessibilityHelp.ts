@@ -17,7 +17,6 @@ import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browse
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
-import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
@@ -103,14 +102,7 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 export function getCommentCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, editor: ICodeEditor): string | undefined {
 	const editorContext = contextKeyService.getContext(editor.getDomNode()!);
 	if (editorContext.getValue<boolean>(CommentContextKeys.activeEditorHasCommentingRange.key)) {
-		const commentCommandInfo: string[] = [];
-		commentCommandInfo.push(CommentAccessibilityHelpNLS.intro);
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.Add, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.NextThread, CommentAccessibilityHelpNLS.nextCommentThreadKb, CommentAccessibilityHelpNLS.nextCommentThreadNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.PreviousThread, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.NextRange, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.PreviousRange, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb, keybindingService));
-		return commentCommandInfo.join('\n');
+		return [CommentAccessibilityHelpNLS.intro, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.nextCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.previousRange].join('\n');
 	}
 	return;
 }
