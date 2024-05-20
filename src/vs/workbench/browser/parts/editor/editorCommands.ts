@@ -1372,7 +1372,7 @@ function registerOtherEditorCommands(): void {
 }
 
 type EditorsContext = { editors: IEditorCommandsContext[]; groups: Array<IEditorGroup | undefined> };
-function getEditorsContext(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): EditorsContext {
+export function getEditorsContext(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): EditorsContext {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const listService = accessor.get(IListService);
 
