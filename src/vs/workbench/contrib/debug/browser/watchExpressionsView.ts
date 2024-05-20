@@ -86,13 +86,14 @@ export class WatchExpressionsView extends ViewPane {
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-watch');
 		const treeContainer = renderViewTree(container);
+		const watchDisplayType: boolean = this.configurationService.getValue('variableDisplayType.watchView');
 
-		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
+		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer, watchDisplayType);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
 			[
 				expressionsRenderer,
-				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
+				this.instantiationService.createInstance(VariablesRenderer, linkDetector, watchDisplayType),
 				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
 			],
 			this.instantiationService.createInstance(WatchExpressionsDataSource), {
@@ -274,11 +275,12 @@ class WatchExpressionsDataSource extends AbstractExpressionDataSource<IDebugServ
 }
 
 
-class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
+export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
 	static readonly ID = 'watchexpression';
 
 	constructor(
+		private readonly watchDisplayType: boolean,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
@@ -297,12 +299,22 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		const text = typeof expression.value === 'string' ? `${expression.name}:` : expression.name;
+		let text: string;
+		if (this.watchDisplayType && expression.type) {
+			text = typeof expression.value === 'string' ? `${expression.name}: ${expression.type} =` : expression.name;
+		} else {
+			text = typeof expression.value === 'string' ? `${expression.name} =` : expression.name;
+		}
+
 		let title: string;
 		if (expression.type) {
-			title = expression.type === expression.value ?
-				expression.type :
-				`${expression.type}: ${expression.value}`;
+			if (this.watchDisplayType) {
+				title = `${expression.name}`;
+			} else {
+				title = expression.type === expression.value ?
+					expression.type :
+					`${expression.type}`;
+			}
 		} else {
 			title = expression.value;
 		}

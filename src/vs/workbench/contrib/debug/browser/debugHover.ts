@@ -132,7 +132,7 @@ export class DebugHoverWidget implements IContentWidget {
 		const dataSource = this.instantiationService.createInstance(DebugHoverDataSource);
 		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [
-			this.instantiationService.createInstance(VariablesRenderer, linkeDetector),
+			this.instantiationService.createInstance(VariablesRenderer, linkeDetector, false),
 			this.instantiationService.createInstance(VisualizedVariableRenderer, linkeDetector),
 		],
 			dataSource, {

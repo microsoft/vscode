@@ -130,13 +130,18 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 	}
 }
 
-export function renderVariable(store: DisposableStore, commandService: ICommandService, hoverService: IHoverService, variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
+export function renderVariable(store: DisposableStore, commandService: ICommandService, hoverService: IHoverService, variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector, displayType?: boolean): void {
 	if (variable.available) {
 		let text = variable.name;
 		if (variable.value && typeof variable.name === 'string') {
-			text += ':';
+			if (variable.type && displayType) {
+				text += ': ' + variable.type + ' =';
+			} else {
+				text += ' =';
+			}
 		}
-		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
+
+		data.label.set(text, highlights, variable.type && !displayType ? variable.type : variable.name);
 		data.name.classList.toggle('virtual', variable.presentationHint?.kind === 'virtual');
 		data.name.classList.toggle('internal', variable.presentationHint?.visibility === 'internal');
 	} else if (variable.value && typeof variable.name === 'string' && variable.name) {
