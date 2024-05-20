@@ -18690,6 +18690,7 @@ declare module 'vscode' {
 		/**
 		 * Push a markdown part to this stream. Short-hand for
 		 * `push(new ChatResponseMarkdownPart(value))`.
+		 * Note: Only the first 100,000 characters per call will be rendered.
 		 *
 		 * @see {@link ChatResponseStream.push}
 		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
@@ -18770,6 +18771,7 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new ChatResponseMarkdownPart.
+		 * Note: Only the first 100,000 characters per ChatResponseMarkdownPart will be rendered.
 		 *
 		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
 		 */
