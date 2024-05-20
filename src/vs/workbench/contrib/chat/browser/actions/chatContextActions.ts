@@ -62,6 +62,12 @@ class AttachContextAction extends Action2 {
 		const chatVariablesService = accessor.get(IChatVariablesService);
 		const widgetService = accessor.get(IChatWidgetService);
 
+		const context: { widget?: IChatWidget } | undefined = args[0];
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
 		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
 		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: (QuickPickItem & { name?: string; icon?: ThemeIcon })[] = [];
@@ -91,9 +97,6 @@ class AttachContextAction extends Action2 {
 		});
 
 		if (picks?.length) {
-			const context: { widget?: IChatWidget } | undefined = args[0];
-
-			const widget = context?.widget ?? widgetService.lastFocusedWidget;
 			widget?.attachContext(...picks.map((p) => ({
 				fullName: p.label,
 				icon: 'icon' in p && ThemeIcon.isThemeIcon(p.icon) ? p.icon : undefined,
