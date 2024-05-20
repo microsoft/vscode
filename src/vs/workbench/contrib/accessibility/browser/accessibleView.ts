@@ -232,7 +232,7 @@ export class AccessibleView extends Disposable {
 		this.setPosition(new Position(codeBlock.startLine, 1), true);
 	}
 
-	showLastProvider(id: string): void {
+	showLastProvider(id: AccessibleViewProviderId): void {
 		if (!this._lastProvider || this._lastProvider.options.id !== id) {
 			return;
 		}
