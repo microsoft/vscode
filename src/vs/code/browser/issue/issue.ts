@@ -835,10 +835,6 @@ export class BaseIssueReporterService extends Disposable {
 			return false;
 		}
 		const result = await response.json();
-		// if (this.nativeHostService) {
-		// 	await this.nativeHostService.openExternal(result.html_url);
-		// }
-
 		this.window.open(result.html_url, '_blank');
 
 		this.close();
@@ -853,10 +849,6 @@ export class BaseIssueReporterService extends Disposable {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
-				// if (this.nativeHostService) {
-				// 	await this.nativeHostService.openExternal(url);
-				// }
-
 				return true;
 			}
 		}

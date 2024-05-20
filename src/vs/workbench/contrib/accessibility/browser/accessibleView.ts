@@ -38,7 +38,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
@@ -96,7 +96,8 @@ export class AccessibleView extends Disposable {
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -359,6 +360,27 @@ export class AccessibleView extends Disposable {
 		}
 		this._convertTokensToSymbols(markdownTokens, symbols);
 		return symbols.length ? symbols : undefined;
+	}
+
+	configureKeybindings(): void {
+		const items = this._currentProvider?.options?.configureKeybindingItems;
+		if (!items) {
+			return;
+		}
+		const quickPick: IQuickPick<IQuickPickItem> = this._quickInputService.createQuickPick();
+		this._register(quickPick);
+		quickPick.items = items;
+		quickPick.title = localize('keybindings', 'Configure keybindings');
+		quickPick.placeholder = localize('selectKeybinding', 'Select a command ID to configure a keybinding for it');
+		quickPick.show();
+		quickPick.onDidAccept(async () => {
+			const item = quickPick.selectedItems[0];
+			if (item) {
+				await this._commandService.executeCommand('workbench.action.openGlobalKeybindings', item.id);
+			}
+			quickPick.dispose();
+		});
+		quickPick.onDidHide(() => quickPick.dispose());
 	}
 
 	private _convertTokensToSymbols(tokens: marked.TokensList, symbols: IAccessibleViewSymbol[]): void {
@@ -749,6 +771,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
 		this._accessibleView.show(provider, undefined, undefined, position);
+	}
+	configureKeybindings(): void {
+		this._accessibleView?.configureKeybindings();
 	}
 	showLastProvider(id: AccessibleViewProviderId): void {
 		this._accessibleView?.showLastProvider(id);

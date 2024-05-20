@@ -18,6 +18,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerifier, verifyObject } from 'vs/base/common/verifier';
 import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { ContextKeyValue, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -187,6 +188,8 @@ export interface IEditorPartsView {
 	readonly count: number;
 
 	createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart>;
+
+	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T>;
 }
 
 /**

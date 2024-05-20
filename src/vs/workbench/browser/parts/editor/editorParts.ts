@@ -20,6 +20,7 @@ import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -48,7 +49,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
@@ -121,9 +123,15 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}));
 		disposables.add(toDisposable(() => this.doUpdateMostRecentActive(part)));
 
-		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
+		disposables.add(part.onDidChangeActiveGroup(group => {
+			this.updateGlobalContextKeys();
+			this._onDidActiveGroupChange.fire(group);
+		}));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
-		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
+		disposables.add(part.onDidRemoveGroup(group => {
+			this.removeGroupScopedContextKeys(group);
+			this._onDidRemoveGroup.fire(group);
+		}));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
@@ -625,6 +633,73 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
 		return this.getPart(container).createEditorDropTarget(container, delegate);
+	}
+
+	private readonly globalContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
+	private readonly scopedContextKeys = new Map<GroupIdentifier, Map<string, IContextKey<ContextKeyValue>>>();
+
+	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
+
+		// Ensure we only bind to the same context key once globaly
+		let globalContextKey = this.globalContextKeys.get(contextKey.key);
+		if (!globalContextKey) {
+			globalContextKey = contextKey.bindTo(this.contextKeyService);
+			this.globalContextKeys.set(contextKey.key, globalContextKey);
+		}
+
+		// Ensure we only bind to the same context key once per group
+		let groupScopedContextKeys = this.scopedContextKeys.get(group.id);
+		if (!groupScopedContextKeys) {
+			groupScopedContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
+			this.scopedContextKeys.set(group.id, groupScopedContextKeys);
+		}
+		let scopedContextKey = groupScopedContextKeys.get(contextKey.key);
+		if (!scopedContextKey) {
+			scopedContextKey = contextKey.bindTo(group.scopedContextKeyService);
+			groupScopedContextKeys.set(contextKey.key, scopedContextKey);
+		}
+
+		const that = this;
+		return {
+			get(): T | undefined {
+				return scopedContextKey.get() as T | undefined;
+			},
+			set(value: T): void {
+				if (that.activeGroup === group) {
+					globalContextKey.set(value);
+				}
+				scopedContextKey.set(value);
+			},
+			reset(): void {
+				if (that.activeGroup === group) {
+					globalContextKey.reset();
+				}
+				scopedContextKey.reset();
+			},
+		};
+	}
+
+	private updateGlobalContextKeys(): void {
+		const activeGroupScopedContextKeys = this.scopedContextKeys.get(this.activeGroup.id);
+		if (!activeGroupScopedContextKeys) {
+			return;
+		}
+
+		for (const [key, globalContextKey] of this.globalContextKeys) {
+			const scopedContextKey = activeGroupScopedContextKeys.get(key);
+			if (scopedContextKey) {
+				globalContextKey.set(scopedContextKey.get());
+			} else {
+				globalContextKey.reset();
+			}
+		}
+	}
+
+	private removeGroupScopedContextKeys(group: IEditorGroupView): void {
+		const groupScopedContextKeys = this.scopedContextKeys.get(group.id);
+		if (groupScopedContextKeys) {
+			this.scopedContextKeys.delete(group.id);
+		}
 	}
 
 	//#endregion

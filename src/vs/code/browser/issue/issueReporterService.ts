@@ -76,7 +76,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
 			e.stopPropagation();
-			if ((e as KeyboardEvent).key === "Enter" || (e as KeyboardEvent).key === " ") {
+			if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
 				this.issueMainService.$reloadWithExtensionsDisabled();
 			}
 		});
@@ -84,7 +84,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		this.window.document.onkeydown = async (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
-			if (cmdOrCtrlKey && e.key === "Enter") {
+			if (cmdOrCtrlKey && e.key === 'Enter') {
 				this.delayedSubmit.trigger(async () => {
 					if (await this.createIssue()) {
 						this.close();
@@ -93,7 +93,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 			}
 
 			// Cmd/Ctrl + w closes issue window
-			if (cmdOrCtrlKey && e.key === "w") {
+			if (cmdOrCtrlKey && e.key === 'w') {
 				e.stopPropagation();
 				e.preventDefault();
 
@@ -107,20 +107,10 @@ export class IssueWebReporter extends BaseIssueReporterService {
 				}
 			}
 
-			// Cmd/Ctrl + zooms in
-			if (cmdOrCtrlKey && e.key === "+") {
-				// zoomIn(this.window);
-			}
-
-			// Cmd/Ctrl - zooms out
-			if (cmdOrCtrlKey && e.key === "-") {
-				// zoomOut(this.window);
-			}
-
 			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
 			// Manually perform the selection
 			if (isMacintosh) {
-				if (cmdOrCtrlKey && e.key === "a" && e.target) {
+				if (cmdOrCtrlKey && e.key === 'a' && e.target) {
 					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
 						(<HTMLInputElement>e.target).select();
 					}

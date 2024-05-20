@@ -79,6 +79,8 @@ import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../commo
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const $ = dom.$;
 
@@ -267,6 +269,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const header = dom.append(rowContainer, $('.header'));
 		const user = dom.append(header, $('.user'));
+		user.tabIndex = 0;
+		user.role = 'toolbar';
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
 		const detailContainer = dom.append(user, $('span.detail-container'));
@@ -299,16 +303,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const agentHover = templateDisposables.add(this.instantiationService.createInstance(ChatAgentHover));
-
-		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), header, () => {
+		const hoverContent = () => {
 			if (isResponseVM(template.currentElement) && template.currentElement.agent) {
 				agentHover.setAgent(template.currentElement.agent.id);
 				return agentHover.domNode;
 			}
 
 			return undefined;
-		}, getChatAgentHoverOptions(() => isResponseVM(template.currentElement) ? template.currentElement.agent : undefined, this.commandService)));
-
+		};
+		const hoverOptions = getChatAgentHoverOptions(() => isResponseVM(template.currentElement) ? template.currentElement.agent : undefined, this.commandService);
+		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), user, hoverContent, hoverOptions));
+		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), header, hoverContent, hoverOptions));
+		templateDisposables.add(dom.addDisposableListener(user, dom.EventType.KEY_DOWN, e => {
+			const ev = new StandardKeyboardEvent(e);
+			if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+				const content = hoverContent();
+				if (content) {
+					this.hoverService.showHover({ content, target: user, trapFocus: true }, true);
+				}
+			} else if (ev.equals(KeyCode.Escape)) {
+				this.hoverService.hideHover();
+			}
+		}));
 		const template: IChatListItemTemplate = { avatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService, agentHover };
 		return template;
 	}
