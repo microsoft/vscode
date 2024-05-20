@@ -11,7 +11,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { IRectangle } from 'vs/platform/window/common/window';
@@ -491,6 +491,8 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
+export type ContextKeyHandler<T extends ContextKeyValue> = (contextKey: IContextKey<T>, activeEditor: EditorInput | null) => void;
+
 /**
  * The main service to interact with editor groups across all opened editor parts.
  */
@@ -561,6 +563,15 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Deletes a working set.
 	 */
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void;
+
+	/**
+	 * Registers a context key handler which scopes the provided context key to all groups and the global part.
+	 *
+	 * @param rawContextKey the raw context key to register
+	 * @param handler the handler to invoke when the active editor changes for a group or the global part
+	 * @returns a disposable to unregister the handler
+	 */
+	registerContextKeyHandler<T extends ContextKeyValue>(rawContextKey: RawContextKey<T>, handler: ContextKeyHandler<ContextKeyValue>): { run: () => void; dispose: () => void };
 }
 
 export const enum OpenEditorContext {
