@@ -602,6 +602,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.classList.toggle('locked', this.isLocked);
 		}
 
+		if (e.kind === GroupModelChangeKind.EDITOR_SELECTION) {
+			this.onDidChangeEditorSelection();
+		}
+
 		if (!e.editor) {
 			return;
 		}
@@ -628,9 +632,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				break;
 			case GroupModelChangeKind.EDITOR_LABEL:
 				this.onDidChangeEditorLabel(e.editor);
-				break;
-			case GroupModelChangeKind.EDITOR_SELECTION:
-				this.onDidChangeEditorSelection(e.editor);
 				break;
 		}
 	}
@@ -862,7 +863,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleControl.updateEditorLabel(editor);
 	}
 
-	private onDidChangeEditorSelection(editor: EditorInput): void {
+	private onDidChangeEditorSelection(): void {
 
 		// Forward to title control
 		this.titleControl.updateEditorSelections();
@@ -944,6 +945,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('active', isActive);
 		this.element.classList.toggle('inactive', !isActive);
 
+		// Unselect editors if group is no longer active
+		if (!isActive) {
+			this.unselectEditors(this.selectedEditors.filter(editor => !this.model.isActive(editor)));
+		}
+
 		// Update title control
 		this.titleControl.setActive(isActive);
 
@@ -1015,45 +1021,39 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	async selectEditors(editors: EditorInput[], activeEditor?: EditorInput): Promise<void> {
-		for (const editor of editors) {
-			if (editor === activeEditor) {
-				await this.doOpenEditor(editor, { activation: EditorActivation.ACTIVATE }, { addToSelection: true });
-			} else {
-				this.model.selectEditor(editor);
-			}
+		if (activeEditor && !editors.some(editor => editor.matches(activeEditor))) {
+			throw new Error('Active editor must be in the list of editors to select');
 		}
+
+		if (activeEditor) {
+			await this.doOpenEditor(activeEditor, { activation: EditorActivation.ACTIVATE }, { addToSelection: true, skipTitleUpdate: true });
+		}
+		this.model.selectEditors(editors);
 	}
 
 	async unselectEditors(editors: EditorInput[]): Promise<void> {
+		const isUnselectingActiveEditor = editors.some(editor => this.model.isActive(editor));
+		const shoulUnselectActiveEditor = isUnselectingActiveEditor && this.selectedEditors.length > editors.length;
 
-		// Unselect all none active editors
-		let unselectingActiveEditor = false;
-		for (const editor of editors) {
-			if (this.model.isActive(editor)) {
-				unselectingActiveEditor = true;
-				continue;
-			}
-			this.model.unselectEditor(editor);
-		}
-
-		// if the active editor is unselected, make another selected editor active
-		if (unselectingActiveEditor) {
-			if (this.selectedEditors.length === 1) {
-				return; // do not allow to unselect the active editor if it is the last selected editor
-			}
-
-			// Find the next selected editor to make active based on MRU order
+		// If active editor is bing unselected and there will be selected editors left,
+		// then find the most recently opened selected editor that is not in the list of editors to unselect
+		if (shoulUnselectActiveEditor) {
 			const recentEditors = this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
-			const activeEditor = this.activeEditor;
 			for (let i = 1; i < recentEditors.length; i++) { // First one is the active editor
 				const recentEditor = recentEditors[i];
-				if (this.isSelected(recentEditor)) {
-					await this.doOpenEditor(recentEditor, { activation: EditorActivation.ACTIVATE }, { addToSelection: true });
-					this.model.unselectEditor(activeEditor!);
+				if (this.isSelected(recentEditor) && !editors.some(editor => editor.matches(recentEditor))) {
+					await this.doOpenEditor(recentEditor, { activation: EditorActivation.ACTIVATE }, { addToSelection: true, skipTitleUpdate: true });
 					break;
 				}
 			}
 		}
+		// If the active editor is being unselected and there are no other selected editors,
+		// do not unselect the active editor
+		else if (isUnselectingActiveEditor) {
+			editors = editors.filter(editor => !this.model.isActive(editor));
+		}
+
+		this.model.unselectEditors(editors);
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {

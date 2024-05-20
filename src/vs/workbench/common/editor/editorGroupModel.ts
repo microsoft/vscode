@@ -196,8 +196,8 @@ interface IEditorGroupModel extends IReadonlyEditorGroupModel {
 	closeEditor(editor: EditorInput, context?: EditorCloseContext, openNext?: boolean): IEditorCloseResult | undefined;
 	moveEditor(editor: EditorInput, toIndex: number): EditorInput | undefined;
 	setActive(editor: EditorInput | undefined): EditorInput | undefined;
-	selectEditor(editor: EditorInput): EditorInput | undefined;
-	unselectEditor(editor: EditorInput): EditorInput | undefined;
+	selectEditors(editors: EditorInput[]): EditorInput[];
+	unselectEditors(editors: EditorInput[]): EditorInput[];
 }
 
 export class EditorGroupModel extends Disposable implements IEditorGroupModel {
@@ -418,7 +418,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			if (makeActive) {
 				this.doSetActive(newEditor, targetIndex, options?.addToSelection);
 			} else if (options?.addToSelection) {
-				this.doSetSelected(newEditor, targetIndex, true);
+				this.doSetSelected([newEditor], true);
 			}
 
 			return {
@@ -443,7 +443,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			if (makeActive) {
 				this.doSetActive(existingEditor, existingEditorIndex, options?.addToSelection);
 			} else if (options?.addToSelection) {
-				this.doSetSelected(existingEditor, existingEditorIndex, true);
+				this.doSetSelected([existingEditor], true);
 			}
 
 			// Respect index
@@ -592,7 +592,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		else if (!isActiveEditor) {
 			const wasSelected = !!this.selected.find(selected => this.matches(selected, editor));
 			if (wasSelected) {
-				this.doSetSelected(editor, index, false);
+				this.doSetSelected([editor], false);
 			}
 		}
 
@@ -743,60 +743,62 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return !!this.selected.find(selectedEditor => this.matches(selectedEditor, editor));
 	}
 
-	selectEditor(candidate: EditorInput): EditorInput | undefined {
-		const res = this.findEditor(candidate);
-		if (!res) {
-			return; // not found
-		}
-
-		const [editor, editorIndex] = res;
-
-		this.doSetSelected(editor, editorIndex, true);
-
-		return editor;
-	}
-
-	unselectEditor(candidate: EditorInput): EditorInput | undefined {
-		const res = this.findEditor(candidate);
-		if (!res) {
-			return; // not found
-		}
-
-		const [editor, editorIndex] = res;
-
-		this.doSetSelected(editor, editorIndex, false);
-
-		return editor;
-	}
-
-	private doSetSelected(editor: EditorInput, editorIndex: number, select: boolean, active: boolean = false): void {
-		if (select) {
-			if (this.isSelected(editor)) {
-				return;
+	selectEditors(candidates: EditorInput[]): EditorInput[] {
+		const editors = [];
+		for (const candidate of candidates) {
+			const res = this.findEditor(candidate);
+			if (res) {
+				editors.push(res[0]);
 			}
+		}
 
-			if (active) {
-				this.doSetActive(editor, editorIndex, true);
-			} else {
+		this.doSetSelected(editors, true);
+
+		return editors;
+	}
+
+	unselectEditors(candidates: EditorInput[]): EditorInput[] {
+		const editors = [];
+		for (const candidate of candidates) {
+			const res = this.findEditor(candidate);
+			if (res) {
+				editors.push(res[0]);
+			}
+		}
+
+		this.doSetSelected(editors, false);
+
+		return editors;
+	}
+
+	private doSetSelected(editors: EditorInput[], select: Boolean): void {
+		if (editors.length === 0) {
+			return;
+		}
+
+		for (const editor of editors) {
+			if (select) {
+				if (this.isSelected(editor)) {
+					continue;
+				}
+
 				this.selected.push(editor);
-			}
-		} else {
-			if (!this.isSelected(editor)) {
-				return;
-			}
+			} else {
+				if (!this.isSelected(editor)) {
+					continue;
+				}
 
-			if (this.matches(this.active, editor)) {
-				return;
-			}
+				if (this.matches(this.active, editor)) {
+					continue;
+				}
 
-			this.selected.splice(this.selected.indexOf(editor), 1);
+				this.selected.splice(this.selected.indexOf(editor), 1);
+			}
 		}
 
 		// Event
-		const event: IGroupEditorChangeEvent = {
+		const event: IGroupModelChangeEvent = {
 			kind: GroupModelChangeKind.EDITOR_SELECTION,
-			editor,
-			editorIndex
 		};
 		this._onDidModelChange.fire(event);
 	}

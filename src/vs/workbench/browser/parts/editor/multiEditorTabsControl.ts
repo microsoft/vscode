@@ -1281,8 +1281,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			throw new BugIndicatingError();
 		}
 
+		// Make sure to first select the new editors and later unselect the others
+		// Such that the active editor only changes once
+
+		// Select editors between anchor and target
+		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
+		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
+
+		const selectedEditors = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
+		await this.groupView.selectEditors(selectedEditors, target);
+
 		// Unselect editors on other side of anchor in relation to the target
 		let currentIndex = anchorIndex;
+		const editorsToUnselect: EditorInput[] = [];
 		while (currentIndex >= 0 && currentIndex <= this.groupView.count - 1) {
 			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
 
@@ -1295,15 +1306,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				break;
 			}
 
-			await this.groupView.unselectEditors([currentEditor]);
+			editorsToUnselect.push(currentEditor);
 		}
-
-		// Select editors between anchor and target
-		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
-		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
-
-		const selectedEditors = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
-		await this.groupView.selectEditors(selectedEditors, target);
+		await this.groupView.unselectEditors(editorsToUnselect);
 	}
 
 	private async unselectAllEditors(): Promise<void> {
