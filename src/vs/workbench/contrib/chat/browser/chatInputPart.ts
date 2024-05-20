@@ -441,7 +441,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					hidePath: true,
 				});
 			} else {
-				label.setLabel(attachment.name);
+				label.setLabel(attachment.fullName ?? attachment.name);
 			}
 
 			const clearButton = new Button(widget, { supportIcons: true });

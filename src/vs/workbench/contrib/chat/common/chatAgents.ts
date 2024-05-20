@@ -389,7 +389,7 @@ interface IChatParticipantRegistryResponse {
 
 export interface IChatAgentNameService {
 	_serviceBrand: undefined;
-	getAgentNameRestriction(chatAgentData: IChatAgentData): IObservable<boolean>;
+	getAgentNameRestriction(chatAgentData: IChatAgentData): boolean;
 }
 
 export class ChatAgentNameService implements IChatAgentNameService {
@@ -454,10 +454,20 @@ export class ChatAgentNameService implements IChatAgentNameService {
 		this.storageService.store(ChatAgentNameService.StorageKey, JSON.stringify(registry), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	getAgentNameRestriction(chatAgentData: IChatAgentData): IObservable<boolean> {
+	/**
+	 * Returns true if the agent is allowed to use this name
+	 */
+	getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
+		// TODO would like to use observables here but nothing uses it downstream and I'm not sure how to combine these two
+		const nameAllowed = this.checkAgentNameRestriction(chatAgentData.name, chatAgentData).get();
+		const fullNameAllowed = !chatAgentData.fullName || this.checkAgentNameRestriction(chatAgentData.fullName.replace(/\s/g, ''), chatAgentData).get();
+		return nameAllowed && fullNameAllowed;
+	}
+
+	private checkAgentNameRestriction(name: string, chatAgentData: IChatAgentData): IObservable<boolean> {
 		// Registry is a map of name to an array of extension publisher IDs or extension IDs that are allowed to use it.
 		// Look up the list of extensions that are allowed to use this name
-		const allowList = this.registry.map<string[] | undefined>(registry => registry[chatAgentData.name.toLowerCase()]);
+		const allowList = this.registry.map<string[] | undefined>(registry => registry[name.toLowerCase()]);
 		return allowList.map(allowList => {
 			if (!allowList) {
 				return true;

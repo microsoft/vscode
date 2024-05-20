@@ -39,7 +39,7 @@ class SlashCommandCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel || (widget.location !== ChatAgentLocation.Panel && widget.location !== ChatAgentLocation.Notebook) /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -95,7 +95,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['@'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel || (widget.location !== ChatAgentLocation.Panel && widget.location !== ChatAgentLocation.Notebook) /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -393,7 +393,7 @@ class VariableCompletions extends Disposable {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);
 
 function getAgentCompletionDetails(agent: IChatAgentData, otherAgents: IChatAgentData[], chatAgentNameService: IChatAgentNameService): { label: string; isDupe: boolean } {
-	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent).get();
+	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent);
 	const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
 	const isDupe = isAllowed && !!otherAgents.find(other => other.name === agent.name && other.id !== agent.id);
 

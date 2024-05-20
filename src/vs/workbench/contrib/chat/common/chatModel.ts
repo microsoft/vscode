@@ -25,6 +25,8 @@ import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chat
 
 export interface IChatRequestVariableEntry {
 	id: string;
+	fullName?: string;
+	icon?: ThemeIcon;
 	name: string;
 	modelDescription?: string;
 	range?: IOffsetRange;

@@ -68,9 +68,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	public get onDidContentSizeChange() { return this._editors.onDidContentSizeChange; }
 
 	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
-	private readonly _instantiationService = this._parentInstantiationService.createChild(
+	private readonly _instantiationService = this._register(this._parentInstantiationService.createChild(
 		new ServiceCollection([IContextKeyService, this._contextKeyService])
-	);
+	));
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 
 

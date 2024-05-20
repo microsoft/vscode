@@ -188,15 +188,15 @@ class VoiceChatSessionControllerFactory {
 			switch (state) {
 				case VoiceChatSessionState.GettingReady:
 					contextVoiceChatGettingReady.set(true);
-					contextVoiceChatInProgress.set(undefined);
+					contextVoiceChatInProgress.reset();
 					break;
 				case VoiceChatSessionState.Started:
-					contextVoiceChatGettingReady.set(false);
+					contextVoiceChatGettingReady.reset();
 					contextVoiceChatInProgress.set(context);
 					break;
 				case VoiceChatSessionState.Stopped:
-					contextVoiceChatGettingReady.set(false);
-					contextVoiceChatInProgress.set(undefined);
+					contextVoiceChatGettingReady.reset();
+					contextVoiceChatInProgress.reset();
 					break;
 			}
 		};
@@ -629,7 +629,8 @@ export class StopListeningAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: AnyScopedVoiceChatInProgress
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
@@ -693,27 +694,45 @@ interface IChatSynthesizerSessionController {
 class ChatSynthesizerSessionController {
 
 	static create(accessor: ServicesAccessor, context: IVoiceChatSessionController | 'focused', response: IChatResponseModel): IChatSynthesizerSessionController {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const contextKeyService = accessor.get(IContextKeyService);
-
 		if (context === 'focused') {
-			let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
-			if (chatWidget?.location === ChatAgentLocation.Editor) {
-				// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
-				// but should find a better way how to get to the chat widget from a response
-				chatWidget = chatWidgetService.lastFocusedWidget;
-			}
-
+			return ChatSynthesizerSessionController.doCreateForFocusedChat(accessor, response);
+		} else {
 			return {
-				onDidHideChat: chatWidget?.onDidHide ?? Event.None,
-				contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
+				onDidHideChat: context.onDidHideInput,
+				contextKeyService: context.scopedContextKeyService,
 				response
 			};
 		}
+	}
+
+	private static doCreateForFocusedChat(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const terminalService = accessor.get(ITerminalService);
+
+		// 1.) probe terminal chat which is not part of chat widget service
+		const activeInstance = terminalService.activeInstance;
+		if (activeInstance) {
+			const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+			if (terminalChat?.hasFocus()) {
+				return {
+					onDidHideChat: terminalChat.onDidHide,
+					contextKeyService: terminalChat.scopedContextKeyService,
+					response
+				};
+			}
+		}
+
+		// 2.) otherwise go via chat widget service
+		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
+		if (chatWidget?.location === ChatAgentLocation.Editor) {
+			// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
+			chatWidget = chatWidgetService.lastFocusedWidget;
+		}
 
 		return {
-			onDidHideChat: context.onDidHideInput,
-			contextKeyService: context.scopedContextKeyService,
+			onDidHideChat: chatWidget?.onDidHide ?? Event.None,
+			contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
 			response
 		};
 	}
@@ -757,7 +776,7 @@ class ChatSynthesizerSessions {
 		disposables.add(controller.onDidHideChat(() => this.stop()));
 
 		const scopedChatToSpeechInProgress = ScopedChatSynthesisInProgress.bindTo(controller.contextKeyService);
-		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.set(false)));
+		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.reset()));
 
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
@@ -765,7 +784,7 @@ class ChatSynthesizerSessions {
 					scopedChatToSpeechInProgress.set(true);
 					break;
 				case TextToSpeechStatus.Stopped:
-					scopedChatToSpeechInProgress.set(false);
+					scopedChatToSpeechInProgress.reset();
 					break;
 			}
 		}));
@@ -899,6 +918,7 @@ export class StopReadAloud extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape,
+				when: ScopedChatSynthesisInProgress
 			},
 			menu: [
 				{
@@ -1219,7 +1239,7 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 				enable: true
 			}, ProgressLocation.Notification);
 		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
+			InstallingSpeechProvider.bindTo(contextKeyService).reset();
 		}
 	}
 

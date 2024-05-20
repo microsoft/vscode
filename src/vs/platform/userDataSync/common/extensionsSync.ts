@@ -570,7 +570,7 @@ export class LocalExtensionsProvider {
 		return this.userDataProfileStorageService.withProfileScopedStorageService(profile,
 			async storageService => {
 				const disposables = new DisposableStore();
-				const instantiationService = this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService]));
+				const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService])));
 				const extensionEnablementService = disposables.add(instantiationService.createInstance(GlobalExtensionEnablementService));
 				const extensionStorageService = disposables.add(instantiationService.createInstance(ExtensionStorageService));
 				try {

@@ -74,25 +74,30 @@ class ChatAgentResponseStream {
 					this._firstProgress = this._stopWatch.elapsed();
 				}
 
-				this._proxy.$handleProgressChunk(this._request.requestId, progress)
-					.then((handle) => {
-						if (handle) {
-							task?.({
-								report: (p) => {
+				if (task) {
+					const progressReporterPromise = this._proxy.$handleProgressChunk(this._request.requestId, progress);
+					const progressReporter = {
+						report: (p: vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart) => {
+							progressReporterPromise?.then((handle) => {
+								if (handle) {
 									if (extHostTypes.MarkdownString.isMarkdownString(p.value)) {
 										this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatResponseWarningPart.from(<vscode.ChatResponseWarningPart>p), handle);
-										return;
 									} else {
 										this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatResponseReferencePart.from(<vscode.ChatResponseReferencePart>p), handle);
 									}
 								}
-							}).then((res) => {
-								if (typeof handle === 'number') {
-									this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
-								}
 							});
 						}
+					};
+
+					Promise.all([progressReporterPromise, task?.(progressReporter)]).then(([handle, res]) => {
+						if (handle !== undefined && res !== undefined) {
+							this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
+						}
 					});
+				} else {
+					this._proxy.$handleProgressChunk(this._request.requestId, progress);
+				}
 			};
 
 			this._apiObject = {
