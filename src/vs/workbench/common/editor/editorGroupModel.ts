@@ -25,7 +25,7 @@ export interface IEditorOpenOptions {
 	readonly sticky?: boolean;
 	readonly transient?: boolean;
 	active?: boolean;
-	readonly addToSelection?: boolean;
+	readonly selection?: EditorInput[];
 	readonly index?: number;
 	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 }
@@ -196,8 +196,7 @@ interface IEditorGroupModel extends IReadonlyEditorGroupModel {
 	closeEditor(editor: EditorInput, context?: EditorCloseContext, openNext?: boolean): IEditorCloseResult | undefined;
 	moveEditor(editor: EditorInput, toIndex: number): EditorInput | undefined;
 	setActive(editor: EditorInput | undefined): EditorInput | undefined;
-	selectEditors(editors: EditorInput[]): EditorInput[];
-	unselectEditors(editors: EditorInput[]): EditorInput[];
+	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): void;
 }
 
 export class EditorGroupModel extends Disposable implements IEditorGroupModel {
@@ -221,13 +220,13 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private locked = false;
 
-	private selected: EditorInput[] = [];					// editors in selected state, first one is active
+	private selection: EditorInput[] = [];					// editors in selected state, first one is active
 
 	private set active(editor: EditorInput | null) {
-		this.selected = editor ? [editor] : [];
+		this.selection = editor ? [editor] : [];
 	}
 	private get active(): EditorInput | null {
-		return this.selected[0] ?? null;
+		return this.selection[0] ?? null;
 	}
 
 	private preview: EditorInput | null = null; 			// editor in preview state
@@ -415,11 +414,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			this._onDidModelChange.fire(event);
 
 			// Handle active & selection
-			if (makeActive) {
-				this.doSetActive(newEditor, targetIndex, options?.addToSelection);
-			} else if (options?.addToSelection) {
-				this.doSetSelected([newEditor], true);
-			}
+			this.setSelection(makeActive ? newEditor : this.activeEditor, options?.selection ?? []);
 
 			return {
 				editor: newEditor,
@@ -440,11 +435,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			}
 
 			// Activate / select it
-			if (makeActive) {
-				this.doSetActive(existingEditor, existingEditorIndex, options?.addToSelection);
-			} else if (options?.addToSelection) {
-				this.doSetSelected([existingEditor], true);
-			}
+			this.setSelection(makeActive ? existingEditor : this.activeEditor, options?.selection ?? []);
 
 			// Respect index
 			if (options && typeof options.index === 'number') {
@@ -579,7 +570,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					}
 				}
 
-				this.doSetActive(newActive, this.editors.indexOf(newActive));
+				const newSelection = this.selection.filter(selected => !selected.matches(newActive) && !selected.matches(editor));
+				this.doSetSelection(newActive, this.editors.indexOf(newActive), newSelection);
 			}
 
 			// One Editor
@@ -590,9 +582,10 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		// Remove from selection
 		else if (!isActiveEditor) {
-			const wasSelected = !!this.selected.find(selected => this.matches(selected, editor));
+			const wasSelected = !!this.selection.find(selected => this.matches(selected, editor));
 			if (wasSelected) {
-				this.doSetSelected([editor], false);
+				const newSelection = this.selection.filter(selected => !selected.matches(editor));
+				this.doSetSelection(this.activeEditor!, this.indexOf(this.activeEditor), newSelection);
 			}
 		}
 
@@ -697,17 +690,13 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return editor;
 	}
 
-	private doSetActive(editor: EditorInput, editorIndex: number, selected: boolean = false): void {
+	private doSetActive(editor: EditorInput, editorIndex: number): void {
 		if (this.matches(this.active, editor)) {
+			this.selection = [editor];
 			return; // already active
 		}
 
-		if (selected) {
-			this.selected = this.selected.filter(selected => selected !== editor);
-			this.selected.unshift(editor);
-		} else {
-			this.selected = [editor];
-		}
+		this.active = editor;
 
 		// Bring to front in MRU list
 		const mruIndex = this.indexOf(editor, this.mru);
@@ -721,13 +710,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			editorIndex
 		};
 		this._onDidModelChange.fire(event);
-
-		const selectionEvent: IGroupEditorChangeEvent = {
-			kind: GroupModelChangeKind.EDITOR_SELECTION,
-			editor,
-			editorIndex
-		};
-		this._onDidModelChange.fire(selectionEvent);
 	}
 
 	public get selectedEditors(): EditorInput[] {
@@ -740,59 +722,27 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			editor = this.editors[editor];
 		}
 
-		return !!this.selected.find(selectedEditor => this.matches(selectedEditor, editor));
+		return !!this.selection.find(selectedEditor => this.matches(selectedEditor, editor));
 	}
 
-	selectEditors(candidates: EditorInput[]): EditorInput[] {
-		const editors = [];
-		for (const candidate of candidates) {
-			const res = this.findEditor(candidate);
-			if (res) {
-				editors.push(res[0]);
-			}
-		}
-
-		this.doSetSelected(editors, true);
-
-		return editors;
-	}
-
-	unselectEditors(candidates: EditorInput[]): EditorInput[] {
-		const editors = [];
-		for (const candidate of candidates) {
-			const res = this.findEditor(candidate);
-			if (res) {
-				editors.push(res[0]);
-			}
-		}
-
-		this.doSetSelected(editors, false);
-
-		return editors;
-	}
-
-	private doSetSelected(editors: EditorInput[], select: Boolean): void {
-		if (editors.length === 0) {
+	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): void {
+		const res = this.findEditor(activeSelectedEditor);
+		if (!res) {
 			return;
 		}
 
-		for (const editor of editors) {
-			if (select) {
-				if (this.isSelected(editor)) {
-					continue;
-				}
+		const [newActiveEditor, newActiveEditorIndex] = res;
 
-				this.selected.push(editor);
-			} else {
-				if (!this.isSelected(editor)) {
-					continue;
-				}
+		this.doSetSelection(newActiveEditor, newActiveEditorIndex, inactiveSelectedEditors);
+	}
 
-				if (this.matches(this.active, editor)) {
-					continue;
-				}
+	private doSetSelection(newActiveEditor: EditorInput, activeEditorIndex: number, inactiveSelectedEditors: EditorInput[]): void {
+		this.doSetActive(newActiveEditor, activeEditorIndex);
 
-				this.selected.splice(this.selected.indexOf(editor), 1);
+		for (const candidate of inactiveSelectedEditors) {
+			const editor = this.findEditor(candidate)?.[0];
+			if (editor && !this.isSelected(editor)) {
+				this.selection.push(editor);
 			}
 		}
 

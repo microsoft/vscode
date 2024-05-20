@@ -901,15 +901,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					await this.selectEditorsBetween(editor, anchor);
 				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
 					if (this.tabsModel.isSelected(editor)) {
-						await this.groupView.unselectEditors([editor]);
+						await this.unselectEditor(editor);
 					} else {
-						await this.groupView.selectEditors([editor], editor);
+						await this.selectEditor(editor);
 						this.lastSingleSelectSelectedEditor = editor;
 					}
 				} else {
 					// Even if focus is preserved make sure to activate the group.
-					// Add to selection on key down such that drag and drop can operate over the selection. Selection is remove on key up.
-					await this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { addToSelection: this.tabsModel.isSelected(editor) });
+					// If new active editor is selected, keep the current selection on key down
+					// such that drag and drop can operate over the selection. Selection is remove on key up in this case.
+					const selection = this.groupView.isSelected(editor) ? [this.groupView.activeEditor!, ...this.groupView.selectedEditors.filter(e => !e.matches(editor))] : [];
+					await this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { inactiveSelectedEditors: selection, focusTabControl: true });
 				}
 			}
 		};
@@ -1270,6 +1272,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return { leftElement: tabBefore as HTMLElement, rightElement: tabAfter as HTMLElement };
 	}
 
+	private async selectEditor(editor: EditorInput): Promise<void> {
+		if (this.groupView.isActive(editor)) {
+			return;
+		}
+
+		const inactiveSelectedEditors = [this.groupView.activeEditor!, ...this.groupView.selectedEditors];
+		await this.groupView.setSelection(editor, inactiveSelectedEditors);
+	}
+
 	private async selectEditorsBetween(target: EditorInput, anchor: EditorInput): Promise<void> {
 		const editorIndex = this.groupView.getIndexOfEditor(target);
 		if (editorIndex === -1) {
@@ -1281,19 +1292,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			throw new BugIndicatingError();
 		}
 
-		// Make sure to first select the new editors and later unselect the others
-		// Such that the active editor only changes once
-
-		// Select editors between anchor and target
-		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
-		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
-
-		const selectedEditors = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
-		await this.groupView.selectEditors(selectedEditors, target);
+		const selection = this.groupView.selectedEditors;
 
 		// Unselect editors on other side of anchor in relation to the target
 		let currentIndex = anchorIndex;
-		const editorsToUnselect: EditorInput[] = [];
 		while (currentIndex >= 0 && currentIndex <= this.groupView.count - 1) {
 			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
 
@@ -1306,13 +1308,55 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				break;
 			}
 
-			editorsToUnselect.push(currentEditor);
+			selection.filter(editor => !editor.matches(currentEditor));
 		}
-		await this.groupView.unselectEditors(editorsToUnselect);
+
+		// Select editors between anchor and target
+		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
+		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
+
+		const editorsToSelect = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
+		for (const editor of editorsToSelect) {
+			if (!this.groupView.isSelected(editor)) {
+				selection.push(editor);
+			}
+		}
+
+		const inactiveSelectedEditors = selection.filter(editor => !editor.matches(target));
+		await this.groupView.setSelection(target, inactiveSelectedEditors);
+	}
+
+	private async unselectEditor(editor: EditorInput): Promise<void> {
+		const isUnselectingActiveEditor = this.groupView.isActive(editor);
+
+		// If there is only one editor selected, do not unselect it
+		if (isUnselectingActiveEditor && this.groupView.selectedEditors.length === 1) {
+			return;
+		}
+
+		let newActiveEditor = this.groupView.activeEditor!;
+
+		// If active editor is bing unselectednthen find the most recently opened selected editor
+		// that is not the editor being unselected
+		if (isUnselectingActiveEditor) {
+			const recentEditors = this.groupView.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+			for (let i = 1; i < recentEditors.length; i++) { // First one is the active editor
+				const recentEditor = recentEditors[i];
+				if (this.tabsModel.isSelected(recentEditor)) {
+					newActiveEditor = recentEditor;
+					break;
+				}
+			}
+		}
+
+		const inactiveSelectedEditors = this.groupView.selectedEditors.filter(e => !e.matches(editor) && !e.matches(newActiveEditor));
+		await this.groupView.setSelection(newActiveEditor, inactiveSelectedEditors);
 	}
 
 	private async unselectAllEditors(): Promise<void> {
-		await this.groupView.unselectEditors(this.groupView.selectedEditors.filter(editor => !this.groupView.isActive(editor)));
+		if (this.groupView.selectedEditors.length > 1) {
+			await this.groupView.setSelection(this.groupView.activeEditor!, []);
+		}
 	}
 
 	private computeTabLabels(): void {

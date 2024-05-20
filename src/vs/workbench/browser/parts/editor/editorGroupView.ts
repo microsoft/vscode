@@ -946,8 +946,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('inactive', !isActive);
 
 		// Unselect editors if group is no longer active
-		if (!isActive) {
-			this.unselectEditors(this.selectedEditors.filter(editor => !this.model.isActive(editor)));
+		if (!isActive && this.selectedEditors.length > 1) {
+			this.setSelection(this.activeEditor!, []);
 		}
 
 		// Update title control
@@ -1020,40 +1020,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isActive(editor);
 	}
 
-	async selectEditors(editors: EditorInput[], activeEditor?: EditorInput): Promise<void> {
-		if (activeEditor && !editors.some(editor => editor.matches(activeEditor))) {
-			throw new Error('Active editor must be in the list of editors to select');
+	async setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): Promise<void> {
+		if (!this.model.isActive(activeSelectedEditor)) {
+			await this.doOpenEditor(activeSelectedEditor, { activation: EditorActivation.ACTIVATE }, { inactiveSelectedEditors });
+		} else {
+			this.model.setSelection(activeSelectedEditor, inactiveSelectedEditors);
 		}
-
-		if (activeEditor) {
-			await this.doOpenEditor(activeEditor, { activation: EditorActivation.ACTIVATE }, { addToSelection: true, skipTitleUpdate: true });
-		}
-		this.model.selectEditors(editors);
-	}
-
-	async unselectEditors(editors: EditorInput[]): Promise<void> {
-		const isUnselectingActiveEditor = editors.some(editor => this.model.isActive(editor));
-		const shoulUnselectActiveEditor = isUnselectingActiveEditor && this.selectedEditors.length > editors.length;
-
-		// If active editor is bing unselected and there will be selected editors left,
-		// then find the most recently opened selected editor that is not in the list of editors to unselect
-		if (shoulUnselectActiveEditor) {
-			const recentEditors = this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
-			for (let i = 1; i < recentEditors.length; i++) { // First one is the active editor
-				const recentEditor = recentEditors[i];
-				if (this.isSelected(recentEditor) && !editors.some(editor => editor.matches(recentEditor))) {
-					await this.doOpenEditor(recentEditor, { activation: EditorActivation.ACTIVATE }, { addToSelection: true, skipTitleUpdate: true });
-					break;
-				}
-			}
-		}
-		// If the active editor is being unselected and there are no other selected editors,
-		// do not unselect the active editor
-		else if (isUnselectingActiveEditor) {
-			editors = editors.filter(editor => !this.model.isActive(editor));
-		}
-
-		this.model.unselectEditors(editors);
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
@@ -1206,7 +1178,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			pinned,
 			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			transient: !!options?.transient,
-			addToSelection: internalOptions?.addToSelection,
+			selection: internalOptions?.inactiveSelectedEditors,
 			active: this.count === 0 || !options || !options.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};

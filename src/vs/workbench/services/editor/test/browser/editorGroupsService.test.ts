@@ -1555,9 +1555,9 @@ suite('EditorGroupsService', () => {
 			return inputs.length === group.selectedEditors.length;
 		}
 
+		// Active: input1, Selected: input1
 		await group.openEditors([input1, input2, input3].map(editor => ({ editor, options: { pinned: true } })));
 
-		// Active: input1, Selected: input1
 		assert.strictEqual(group.isActive(input1), true);
 		assert.strictEqual(group.isSelected(input1), true);
 		assert.strictEqual(group.isSelected(input2), false);
@@ -1565,9 +1565,9 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(isSelection([input1]), true);
 
-		await group.selectEditors([input3]);
-
 		// Active: input1, Selected: input1, input3
+		await group.setSelection(input1, [input3]);
+
 		assert.strictEqual(group.isActive(input1), true);
 		assert.strictEqual(group.isSelected(input1), true);
 		assert.strictEqual(group.isSelected(input2), false);
@@ -1575,9 +1575,9 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(isSelection([input1, input3]), true);
 
-		await group.selectEditors([input2], input2);
-
 		// Active: input2, Selected: input1, input3
+		await group.setSelection(input2, [input1, input3]);
+
 		assert.strictEqual(group.isSelected(input1), true);
 		assert.strictEqual(group.isActive(input2), true);
 		assert.strictEqual(group.isSelected(input2), true);
@@ -1585,24 +1585,24 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(isSelection([input1, input2, input3]), true);
 
-		await group.unselectEditors([input2]);
+		await group.setSelection(input1, []);
 
 		// Selected: input3
 		assert.strictEqual(group.isActive(input1), true);
-		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input1), false);
 		assert.strictEqual(group.isSelected(input2), false);
-		assert.strictEqual(group.isSelected(input3), true);
+		assert.strictEqual(group.isSelected(input3), false);
 
-		assert.strictEqual(isSelection([input1, input3]), true);
+		assert.strictEqual(isSelection([input1]), true);
 
-		await group.unselectEditors([input1]);
+		await group.closeAllEditors();
 
 		// Selected: NONE
 		assert.strictEqual(group.isSelected(input1), false);
 		assert.strictEqual(group.isSelected(input2), false);
-		assert.strictEqual(group.isSelected(input3), true);
+		assert.strictEqual(group.isSelected(input3), false);
 
-		assert.strictEqual(isSelection([input3]), true);
+		assert.strictEqual(isSelection([]), true);
 	});
 
 	test('moveEditor with context (across groups)', async () => {
