@@ -95,6 +95,7 @@ export interface IUserDataProfileImportExportService {
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
 	createProfile(from?: IUserDataProfile | URI): Promise<void>;
+	createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void>;
 	editProfile(profile: IUserDataProfile): Promise<void>;
 	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;

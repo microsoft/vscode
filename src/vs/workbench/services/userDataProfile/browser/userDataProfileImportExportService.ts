@@ -572,7 +572,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	private async createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void> {
+	async createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void> {
 		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, profile);
 		try {
 			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, options?.icon);
