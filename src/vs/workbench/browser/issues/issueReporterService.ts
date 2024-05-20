@@ -184,7 +184,6 @@ export class IssueWebReporter extends BaseIssueReporterService {
 							if (this.selectedExtension === selectedExtensionId) {
 								this.removeLoading(iconElement, true);
 								this.data = openReporterData;
-								this.data = openReporterData;
 							} else if (this.selectedExtension !== selectedExtensionId) {
 							}
 						}

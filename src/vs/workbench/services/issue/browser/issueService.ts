@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
+import { userAgent } from 'vs/base/common/platform';
+import { IExtensionDescription, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { mainWindow } from 'vs/base/browser/window';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -19,12 +23,14 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/com
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 
 export class WebIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -33,7 +39,8 @@ export class WebIssueService implements IWorkbenchIssueService {
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	//TODO @TylerLeonhardt @Tyriar to implement a process explorer for the web
@@ -42,6 +49,27 @@ export class WebIssueService implements IWorkbenchIssueService {
 	}
 
 	async openReporter(options: Partial<IssueReporterData>): Promise<void> {
+		if (!this.configurationService.getValue<boolean>('issueReporter.experimental.webReporter')) {
+			const extensionId = options.extensionId;
+			// If we don't have a extensionId, treat this as a Core issue
+			if (!extensionId) {
+				if (this.productService.reportIssueUrl) {
+					const uri = this.getIssueUriFromStaticContent(this.productService.reportIssueUrl);
+					dom.windowOpenNoOpener(uri);
+					return;
+				}
+				throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
+			}
+
+			const selectedExtension = this.extensionService.extensions.filter(ext => ext.identifier.value === options.extensionId)[0];
+			const extensionGitHubUrl = this.getExtensionGitHubUrl(selectedExtension);
+			if (!extensionGitHubUrl) {
+				throw new Error(`Unable to find issue reporting url for ${extensionId}`);
+			}
+			const uri = this.getIssueUriFromStaticContent(`${extensionGitHubUrl}/issues/new`, selectedExtension);
+			dom.windowOpenNoOpener(uri);
+		}
+
 		if (this.productService.reportIssueUrl) {
 			const theme = this.themeService.getColorTheme();
 			const experiments = await this.experimentService.getCurrentExperiments();
@@ -118,38 +146,38 @@ export class WebIssueService implements IWorkbenchIssueService {
 
 	}
 
-	// 	private getExtensionGitHubUrl(extension: IExtensionDescription): string {
-	// 		if (extension.isBuiltin && this.productService.reportIssueUrl) {
-	// 			return normalizeGitHubUrl(this.productService.reportIssueUrl);
-	// 		}
+	private getExtensionGitHubUrl(extension: IExtensionDescription): string {
+		if (extension.isBuiltin && this.productService.reportIssueUrl) {
+			return normalizeGitHubUrl(this.productService.reportIssueUrl);
+		}
 
-	// 		let repositoryUrl = '';
+		let repositoryUrl = '';
 
-	// 		const bugsUrl = extension?.bugs?.url;
-	// 		const extensionUrl = extension?.repository?.url;
+		const bugsUrl = extension?.bugs?.url;
+		const extensionUrl = extension?.repository?.url;
 
-	// 		// If given, try to match the extension's bug url
-	// 		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-	// 			repositoryUrl = normalizeGitHubUrl(bugsUrl);
-	// 		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-	// 			repositoryUrl = normalizeGitHubUrl(extensionUrl);
-	// 		}
+		// If given, try to match the extension's bug url
+		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+			repositoryUrl = normalizeGitHubUrl(bugsUrl);
+		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+		}
 
-	// 		return repositoryUrl;
-	// 	}
+		return repositoryUrl;
+	}
 
-	// 	private getIssueUriFromStaticContent(baseUri: string, extension?: IExtensionDescription): string {
-	// 		const issueDescription = `ADD ISSUE DESCRIPTION HERE
+	private getIssueUriFromStaticContent(baseUri: string, extension?: IExtensionDescription): string {
+		const issueDescription = `ADD ISSUE DESCRIPTION HERE
 
-	// Version: ${this.productService.version}
-	// Commit: ${this.productService.commit ?? 'unknown'}
-	// User Agent: ${userAgent ?? 'unknown'}
-	// Embedder: ${this.productService.embedderIdentifier ?? 'unknown'}
-	// ${extension?.version ? `\nExtension version: ${extension.version}` : ''}
-	// <!-- generated by web issue reporter -->`;
+	Version: ${this.productService.version}
+	Commit: ${this.productService.commit ?? 'unknown'}
+	User Agent: ${userAgent ?? 'unknown'}
+	Embedder: ${this.productService.embedderIdentifier ?? 'unknown'}
+	${extension?.version ? `\nExtension version: ${extension.version}` : ''}
+	<!-- generated by web issue reporter -->`;
 
-	// 		return `${baseUri}?body=${encodeURIComponent(issueDescription)}&labels=web`;
-	// 	}
+		return `${baseUri}?body=${encodeURIComponent(issueDescription)}&labels=web`;
+	}
 }
 
 

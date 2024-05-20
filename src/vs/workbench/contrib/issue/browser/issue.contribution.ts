@@ -14,6 +14,7 @@ import { WebIssueService } from 'vs/workbench/services/issue/browser/issueServic
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 
 class WebIssueContribution extends BaseIssueContribution {
@@ -29,3 +30,14 @@ registerSingleton(IWorkbenchIssueService, WebIssueService, InstantiationType.Del
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");
 });
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		properties: {
+			'issueReporter.experimental.webReporter': {
+				type: 'boolean',
+				default: false,
+				description: 'Enable experimental issue reporter for web.',
+			},
+		}
+	});
