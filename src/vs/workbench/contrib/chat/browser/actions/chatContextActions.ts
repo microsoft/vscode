@@ -89,9 +89,11 @@ class AttachContextAction extends Action2 {
 			return;
 		}
 
+		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
+		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: (QuickPickItem & { isDynamic?: boolean; name?: string; icon?: ThemeIcon; command?: Command; value?: unknown })[] = [];
 		for (const variable of chatVariablesService.getVariables()) {
-			if (variable.fullName) {
+			if (variable.fullName && (!variable.isSlow || slowSupported)) {
 				quickPickItems.push({ label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`, name: variable.name, id: variable.id, icon: variable.icon });
 			}
 		}
