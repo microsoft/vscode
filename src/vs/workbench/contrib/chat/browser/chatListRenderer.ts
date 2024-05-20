@@ -319,7 +319,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
 				const content = hoverContent();
 				if (content) {
-					this.hoverService.showHover({ content, target: user, trapFocus: true }, true);
+					this.hoverService.showHover({ content, target: user, trapFocus: true, actions: hoverOptions.actions }, true);
 				}
 			} else if (ev.equals(KeyCode.Escape)) {
 				this.hoverService.hideHover();
