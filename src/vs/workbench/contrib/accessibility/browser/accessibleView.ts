@@ -232,7 +232,7 @@ export class AccessibleView extends Disposable {
 		this.setPosition(new Position(codeBlock.startLine, 1), true);
 	}
 
-	showLastProvider(id: AccessibleViewProviderId): void {
+	showLastProvider(id: string): void {
 		if (!this._lastProvider || this._lastProvider.options.id !== id) {
 			return;
 		}
@@ -364,6 +364,7 @@ export class AccessibleView extends Disposable {
 
 	configureKeybindings(): void {
 		const items = this._currentProvider?.options?.configureKeybindingItems;
+		const provider = this._currentProvider;
 		if (!items) {
 			return;
 		}
@@ -380,7 +381,12 @@ export class AccessibleView extends Disposable {
 			}
 			quickPick.dispose();
 		});
-		quickPick.onDidHide(() => quickPick.dispose());
+		quickPick.onDidHide(() => {
+			if (!quickPick.selectedItems.length && provider) {
+				this.show(provider);
+			}
+			quickPick.dispose();
+		});
 	}
 
 	private _convertTokensToSymbols(tokens: marked.TokensList, symbols: IAccessibleViewSymbol[]): void {
