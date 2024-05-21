@@ -222,9 +222,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private selection: EditorInput[] = [];					// editors in selected state, first one is active TODO align this with transient editors and use a Set<EditorInput> instead
 
-	private set active(editor: EditorInput | null) { // TODO: this misses an event when selection changes and should be a method?
-		this.selection = editor ? [editor] : [];
-	}
 	private get active(): EditorInput | null {
 		return this.selection[0] ?? null;
 	}
@@ -413,7 +410,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			};
 			this._onDidModelChange.fire(event);
 
-			// Handle active & selection TODO why do we call this when `makeActive` is false?
+			// Handle active editor / selected editors
 			this.setSelection(makeActive ? newEditor : this.activeEditor, options?.inactiveSelection ?? []);
 
 			return {
@@ -434,7 +431,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.doPin(existingEditor, existingEditorIndex);
 			}
 
-			// Activate / select it TODO why do we call this when `makeActive` is false?
+			// Handle active editor / selected editors
 			this.setSelection(makeActive ? existingEditor : this.activeEditor, options?.inactiveSelection ?? []);
 
 			// Respect index
@@ -570,22 +567,22 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					}
 				}
 
-				const newInactiveSelection = this.selection.filter(selected => !selected.matches(newActive) && !selected.matches(editor));
+				const newInactiveSelection = this.selection.filter(selected => selected !== newActive && selected !== editor);
 				this.doSetSelection(newActive, this.editors.indexOf(newActive), newInactiveSelection);
 			}
 
 			// One Editor
 			else {
-				this.active = null; // TODO this potentially changes selection without a related event. and is it expected to change the selection?
+				this.selection = [];
 			}
 		}
 
-		// Remove from selection
+		// Inactive Editor closed
 		else if (!isActiveEditor) {
-			const wasSelected = !!this.selection.find(selected => this.matches(selected, editor));
-			if (wasSelected) {
-				const newInactiveSelection = this.selection.filter(selected => !selected.matches(editor));
-				this.doSetSelection(this.activeEditor!, this.indexOf(this.activeEditor), newInactiveSelection);
+			if (this.isSelected(editor)) {
+				const activeEditor = this.selection[0];
+				const newInactiveSelection = this.selection.filter(selected => selected !== editor && selected !== activeEditor);
+				this.doSetSelection(activeEditor, this.indexOf(activeEditor), newInactiveSelection);
 			}
 		}
 
@@ -685,47 +682,25 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		const [editor, editorIndex] = res;
 
-		this.doSetActive(editor, editorIndex);
+		this.doSetSelection(editor, editorIndex, []);
 
 		return editor;
 	}
 
-	private doSetActive(editor: EditorInput, editorIndex: number): void {
-		if (this.matches(this.active, editor)) {
-			this.selection = [editor]; // TODO this potentially changes selection without a related event. and is it expected to change the selection?
-			return; // already active
-		}
-
-		this.active = editor; // TODO this potentially changes selection without a related event. and is it expected to change the selection?
-
-		// Bring to front in MRU list
-		const mruIndex = this.indexOf(editor, this.mru);
-		this.mru.splice(mruIndex, 1);
-		this.mru.unshift(editor);
-
-		// Event
-		const event: IGroupEditorChangeEvent = {
-			kind: GroupModelChangeKind.EDITOR_ACTIVE,
-			editor,
-			editorIndex
-		};
-		this._onDidModelChange.fire(event);
-	}
-
 	get selectedEditors(): EditorInput[] {
 		// Return selected editors in sequential order
-		return this.editors.filter(editor => this.isSelected(editor)); // TODO I would have assumed `this.selection` to be in sequential order
+		return this.editors.filter(editor => this.isSelected(editor));
 	}
 
-	isSelected(editorOrIndex: EditorInput | number): boolean { // TODO align with how isTransient() works
-		let editor: EditorInput;
+	isSelected(editorOrIndex: EditorInput | number): boolean {
+		let editor: EditorInput | undefined;
 		if (typeof editorOrIndex === 'number') {
 			editor = this.editors[editorOrIndex];
 		} else {
-			editor = editorOrIndex;
+			editor = this.findEditor(editorOrIndex)?.[0];
 		}
 
-		return !!this.selection.find(selectedEditor => this.matches(selectedEditor, editor));
+		return !!editor && !!this.selection.includes(editor);
 	}
 
 	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): void {
@@ -736,24 +711,59 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		const [newActiveEditor, newActiveEditorIndex] = res;
 
-		this.doSetSelection(newActiveEditor, newActiveEditorIndex, inactiveSelectedEditors);
+		// Validate inactive selection and ensure they are not duplicates
+		const newInactiveSelection: EditorInput[] = [];
+		for (const candiate of inactiveSelectedEditors) {
+			const res = this.findEditor(candiate);
+			if (!res) {
+				return; // not found
+			}
+
+			const [inactiveEditor] = res;
+
+			if (inactiveEditor === newActiveEditor || newInactiveSelection.includes(inactiveEditor)) {
+				continue; // dedupe
+			}
+
+			newInactiveSelection.push(inactiveEditor);
+		}
+
+		this.doSetSelection(newActiveEditor, newActiveEditorIndex, newInactiveSelection);
 	}
 
 	private doSetSelection(newActiveEditor: EditorInput, activeEditorIndex: number, inactiveSelectedEditors: EditorInput[]): void {
-		this.doSetActive(newActiveEditor, activeEditorIndex);
+		const previousActiveEditor = this.selection[0];
+		const previousSelection = this.selection;
+		const newSelection = [newActiveEditor, ...inactiveSelectedEditors];
 
-		for (const candidate of inactiveSelectedEditors) { // TODO should this move up to the public API? the idea is that we do not trust editor inputs from public API but internal is fine
-			const editor = this.findEditor(candidate)?.[0];
-			if (editor && !this.isSelected(editor)) {
-				this.selection.push(editor);
-			}
+		// Update selection
+		this.selection = newSelection;
+
+		// Update MRU if active editor has changed and fire event
+		const activeEditorChanged = !this.matches(previousActiveEditor, newActiveEditor);
+		if (activeEditorChanged) {
+			// Bring to front in MRU list
+			const mruIndex = this.indexOf(newActiveEditor, this.mru);
+			this.mru.splice(mruIndex, 1);
+			this.mru.unshift(newActiveEditor);
+
+			// Event
+			const event: IGroupEditorChangeEvent = {
+				kind: GroupModelChangeKind.EDITOR_ACTIVE,
+				editor: newActiveEditor,
+				editorIndex: activeEditorIndex
+			};
+			this._onDidModelChange.fire(event);
 		}
 
-		// Event TODO what if selection did not change?
-		const event: IGroupModelChangeEvent = {
-			kind: GroupModelChangeKind.EDITORS_SELECTION,
-		};
-		this._onDidModelChange.fire(event);
+		// Fire event if the selection has changed
+		const selectionChanged = activeEditorChanged || previousSelection.length !== newSelection.length || previousSelection.some(editor => !newSelection.includes(editor));
+		if (selectionChanged) {
+			const event: IGroupModelChangeEvent = {
+				kind: GroupModelChangeKind.EDITORS_SELECTION,
+			};
+			this._onDidModelChange.fire(event);
+		}
 	}
 
 	setIndex(index: number) {
@@ -1143,7 +1153,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		clone.editors = this.editors.slice(0);
 		clone.mru = this.mru.slice(0);
 		clone.preview = this.preview;
-		clone.active = this.active;
+		clone.selection = this.selection;
 		clone.sticky = this.sticky;
 
 		// Ensure to register listeners for each editor
@@ -1245,7 +1255,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		this.mru = coalesce(data.mru.map(i => this.editors[i]));
 
-		this.active = this.mru[0];
+		this.selection = [this.mru[0]];
 
 		if (typeof data.preview === 'number') {
 			this.preview = this.editors[data.preview];
