@@ -33,7 +33,6 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 	}
 
 	private renderFollowup(container: HTMLElement, followup: T): void {
-
 		if (followup.kind === 'command' && followup.when && !this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(followup.when))) {
 			return;
 		}
@@ -60,9 +59,9 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 		const baseTitle = followup.kind === 'reply' ?
 			(followup.title || followup.message)
 			: followup.title;
-
-		const tooltip = tooltipPrefix +
-			('tooltip' in followup && followup.tooltip || baseTitle);
+		const message = followup.kind === 'reply' ? followup.message : followup.title;
+		const tooltip = (tooltipPrefix +
+			('tooltip' in followup && followup.tooltip || message)).trim();
 		const button = this._register(new Button(container, { ...this.options, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');
