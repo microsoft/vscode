@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
+.mac.web.issue-reporter-body {
+	position: absolute;
+	overflow-y: scroll;
+}
+
+.mac.web.issue-reporter-body .monaco-workbench select{
+	-webkit-appearance: auto;
+	appearance: auto;
+}
+
 /**
  * Table
  */
@@ -196,7 +207,7 @@ body {
 	padding: 10px;
 }
 
-#issue-reporter {
+.issue-reporter {
 	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
@@ -258,13 +269,13 @@ textarea {
 }
 
 
-#issue-reporter .validation-error {
+.issue-reporter .validation-error {
 	font-size: 12px;
 	padding: 10px;
 	border-top: 0px !important;
 }
 
-#issue-reporter .system-info {
+.issue-reporter .system-info {
 	margin-bottom: 10px;
 }
 

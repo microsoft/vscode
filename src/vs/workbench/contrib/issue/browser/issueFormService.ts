@@ -17,7 +17,6 @@ import { IIssueMainService, IssueReporterData, ProcessExplorerData } from 'vs/pl
 import product from 'vs/platform/product/common/product';
 import { IssueWebReporter } from 'vs/workbench/browser/issues/issueReporterService';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class IssueMainService implements IIssueMainService {
 
@@ -31,7 +30,6 @@ export class IssueMainService implements IIssueMainService {
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 
 		// listen for messages from the main window
@@ -89,13 +87,18 @@ export class IssueMainService implements IIssueMainService {
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
-			const backgroundColor = this.themeService.getColorTheme().getColor('editor.background');
-			if (backgroundColor) {
-				auxiliaryWindow.window.document.body.style.backgroundColor = backgroundColor.toString();
-			}
-			auxiliaryWindow.window.document.body.style.position = 'absolute';
-			auxiliaryWindow.window.document.body.style.overflowY = 'scroll';
-			safeInnerHtml(auxiliaryWindow.window.document.body, BaseHtml());
+			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body');
+
+			// custom issue reporter wrapper
+			const div = document.createElement('div');
+			div.classList.add('monaco-workbench');
+
+			// removes preset monaco-workbench
+			auxiliaryWindow.container.remove();
+			auxiliaryWindow.window.document.body.appendChild(div);
+			safeInnerHtml(div, BaseHtml());
+
+			// create issue reporter and instantiate
 			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: '', arch: '', release: '' }, product, auxiliaryWindow.window);
 			issueReporter.render();
 		} else {
