@@ -220,7 +220,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private locked = false;
 
-	private selection: EditorInput[] = [];					// editors in selected state, first one is active TODO align this with transient editors and use a Set<EditorInput> instead
+	private selection: EditorInput[] = [];					// editors in selected state, first one is active
 
 	private get active(): EditorInput | null {
 		return this.selection[0] ?? null;
@@ -700,7 +700,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			editor = this.findEditor(editorOrIndex)?.[0];
 		}
 
-		return !!editor && !!this.selection.includes(editor);
+		return !!editor && this.selection.includes(editor);
 	}
 
 	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): void {
