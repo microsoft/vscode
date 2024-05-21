@@ -127,15 +127,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			this.updateGlobalContextKeys();
 			this._onDidActiveGroupChange.fire(group);
 		}));
-		disposables.add(part.onDidChangeActiveGroup(group => {
-			this.updateGlobalContextKeys();
-			this._onDidActiveGroupChange.fire(group);
-		}));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
-		disposables.add(part.onDidRemoveGroup(group => {
-			this.removeGroupScopedContextKeys(group);
-			this._onDidRemoveGroup.fire(group);
-		}));
 		disposables.add(part.onDidRemoveGroup(group => {
 			this.removeGroupScopedContextKeys(group);
 			this._onDidRemoveGroup.fire(group);
