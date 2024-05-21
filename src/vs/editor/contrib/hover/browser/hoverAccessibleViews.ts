@@ -13,7 +13,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
-import { DECREASE_HOVER_VERBOSITY_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL } from 'vs/editor/contrib/hover/browser/hoverActionIds';
+import { DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -141,7 +141,7 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 				break;
 			case HoverVerbosityAction.Decrease:
 				actionId = DECREASE_HOVER_VERBOSITY_ACTION_ID;
-				accessibleActionId = DECREASE_HOVER_VERBOSITY_ACTION_ID;
+				accessibleActionId = DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID;
 				actionLabel = DECREASE_HOVER_VERBOSITY_ACTION_LABEL;
 				actionCodicon = Codicon.remove;
 				break;
