@@ -9,12 +9,13 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { IObservable } from 'vs/base/common/observable';
 import { observableValue } from 'vs/base/common/observableInternal/base';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { ProviderResult } from 'vs/editor/common/languages';
+import { Command, ProviderResult } from 'vs/editor/common/languages';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +24,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatProgressResponseContent, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -109,6 +110,7 @@ export interface IChatAgentMetadata {
 	followupPlaceholder?: string;
 	isSticky?: boolean;
 	requester?: IChatRequesterInformation;
+	supportsSlowVariables?: boolean;
 }
 
 
@@ -143,6 +145,14 @@ interface IChatAgentEntry {
 	impl?: IChatAgentImplementation;
 }
 
+export interface IChatAgentCompletionItem {
+	id: string;
+	fullName?: string;
+	icon?: ThemeIcon;
+	value: unknown;
+	command?: Command;
+}
+
 export interface IChatAgentService {
 	_serviceBrand: undefined;
 	/**
@@ -152,6 +162,8 @@ export interface IChatAgentService {
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
+	registerAgentCompletionProvider(id: string, provider: (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>): IDisposable;
+	getAgentCompletionItems(id: string, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getAgent(id: string): IChatAgentData | undefined;
@@ -253,6 +265,19 @@ export class ChatAgentService implements IChatAgentService {
 		});
 	}
 
+	private _agentCompletionProviders = new Map<string, (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>>();
+
+	registerAgentCompletionProvider(id: string, provider: (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>) {
+		this._agentCompletionProviders.set(id, provider);
+		return {
+			dispose: () => { this._agentCompletionProviders.delete(id); }
+		};
+	}
+
+	async getAgentCompletionItems(id: string, query: string, token: CancellationToken) {
+		return await this._agentCompletionProviders.get(id)?.(query, token) ?? [];
+	}
+
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void {
 		const agent = this._getAgentEntry(id);
 		if (!agent?.impl) {
@@ -335,6 +360,7 @@ export class MergedChatAgent implements IChatAgent {
 
 	get id(): string { return this.data.id; }
 	get name(): string { return this.data.name ?? ''; }
+	get fullName(): string { return this.data.fullName ?? ''; }
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
@@ -386,7 +412,7 @@ interface IChatParticipantRegistryResponse {
 
 export interface IChatAgentNameService {
 	_serviceBrand: undefined;
-	getAgentNameRestriction(chatAgentData: IChatAgentData): IObservable<boolean>;
+	getAgentNameRestriction(chatAgentData: IChatAgentData): boolean;
 }
 
 export class ChatAgentNameService implements IChatAgentNameService {
@@ -451,10 +477,20 @@ export class ChatAgentNameService implements IChatAgentNameService {
 		this.storageService.store(ChatAgentNameService.StorageKey, JSON.stringify(registry), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	getAgentNameRestriction(chatAgentData: IChatAgentData): IObservable<boolean> {
+	/**
+	 * Returns true if the agent is allowed to use this name
+	 */
+	getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
+		// TODO would like to use observables here but nothing uses it downstream and I'm not sure how to combine these two
+		const nameAllowed = this.checkAgentNameRestriction(chatAgentData.name, chatAgentData).get();
+		const fullNameAllowed = !chatAgentData.fullName || this.checkAgentNameRestriction(chatAgentData.fullName.replace(/\s/g, ''), chatAgentData).get();
+		return nameAllowed && fullNameAllowed;
+	}
+
+	private checkAgentNameRestriction(name: string, chatAgentData: IChatAgentData): IObservable<boolean> {
 		// Registry is a map of name to an array of extension publisher IDs or extension IDs that are allowed to use it.
 		// Look up the list of extensions that are allowed to use this name
-		const allowList = this.registry.map<string[] | undefined>(registry => registry[chatAgentData.name.toLowerCase()]);
+		const allowList = this.registry.map<string[] | undefined>(registry => registry[name.toLowerCase()]);
 		return allowList.map(allowList => {
 			if (!allowList) {
 				return true;
@@ -471,4 +507,24 @@ export class ChatAgentNameService implements IChatAgentNameService {
 
 export function getFullyQualifiedId(chatAgentData: IChatAgentData): string {
 	return `${chatAgentData.extensionId.value}.${chatAgentData.id}`;
+}
+
+export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
+	const agent = 'name' in raw ?
+		raw :
+		{
+			...(raw as any),
+			name: (raw as any).id,
+		};
+
+	// Fill in required fields that may be missing from old data
+	if (!('extensionPublisherId' in agent)) {
+		agent.extensionPublisherId = agent.extensionPublisher ?? '';
+	}
+
+	if (!('extensionDisplayName' in agent)) {
+		agent.extensionDisplayName = '';
+	}
+
+	return revive(agent);
 }

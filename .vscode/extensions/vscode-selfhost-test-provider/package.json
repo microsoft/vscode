@@ -14,6 +14,13 @@
       {
         "command": "selfhost-test-provider.updateSnapshot",
         "title": "Update Snapshot",
+        "category": "Testing",
+        "icon": "$(merge)"
+      },
+      {
+        "command": "selfhost-test-provider.openFailureLog",
+        "title": "Open Selfhost Failure Logs",
+        "category": "Testing",
         "icon": "$(merge)"
       }
     ],
@@ -71,7 +78,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "dependencies": {
     "@jridgewell/trace-mapping": "^0.3.25",

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { h } from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
@@ -15,7 +15,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { showExtensionsWithIdsCommandId } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { verifiedPublisherIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -29,12 +29,9 @@ export class ChatAgentHover extends Disposable {
 	private readonly publisherName: HTMLElement;
 	private readonly description: HTMLElement;
 
-	private currentAgent: IChatAgentData | undefined;
-
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IExtensionsWorkbenchService private readonly extensionService: IExtensionsWorkbenchService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
 		super();
@@ -55,7 +52,6 @@ export class ChatAgentHover extends Disposable {
 				]),
 				h('.chat-agent-hover-warning@warning'),
 				h('span.chat-agent-hover-description@description'),
-				h('span.chat-agent-hover-marketplace-button@button'),
 			]);
 		this.domNode = hoverElement.root;
 
@@ -76,31 +72,10 @@ export class ChatAgentHover extends Disposable {
 
 		hoverElement.warning.appendChild(renderIcon(Codicon.warning));
 		hoverElement.warning.appendChild(dom.$('span', undefined, localize('reservedName', "This chat extension is using a reserved name.")));
-
-		const label = localize('marketplaceLabel', "View in Marketplace") + '.';
-		const marketplaceButton = this._register(new Button(hoverElement.button, {
-			title: label,
-			buttonBackground: undefined,
-			buttonBorder: undefined,
-			buttonForeground: undefined,
-			buttonHoverBackground: undefined,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined,
-		}));
-		marketplaceButton.label = label;
-		this._register(marketplaceButton.onDidClick(() => {
-			if (this.currentAgent) {
-				this.commandService.executeCommand(showExtensionsWithIdsCommandId, [this.currentAgent.extensionId.value]);
-			}
-		}));
 	}
 
 	setAgent(id: string): void {
 		const agent = this.chatAgentService.getAgent(id)!;
-		this.currentAgent = agent;
-
 		if (agent.metadata.icon instanceof URI) {
 			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
 			avatarIcon.src = FileAccess.uriToBrowserUri(agent.metadata.icon).toString(true);
@@ -112,7 +87,8 @@ export class ChatAgentHover extends Disposable {
 
 		this.domNode.classList.toggle('noExtensionName', !!agent.isDynamic);
 
-		this.name.textContent = `@${agent.name}`;
+		const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent);
+		this.name.textContent = isAllowed ? `@${agent.name}` : getFullyQualifiedId(agent);
 		this.extensionName.textContent = agent.extensionDisplayName;
 		this.publisherName.textContent = agent.publisherDisplayName ?? agent.extensionPublisherId;
 
@@ -124,7 +100,6 @@ export class ChatAgentHover extends Disposable {
 		}
 
 		this.description.textContent = description;
-		const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent).get();
 		this.domNode.classList.toggle('allowedName', isAllowed);
 
 		this.domNode.classList.toggle('verifiedPublisher', false);
@@ -139,4 +114,21 @@ export class ChatAgentHover extends Disposable {
 			});
 		}
 	}
+}
+
+export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefined, commandService: ICommandService): IUpdatableHoverOptions {
+	return {
+		actions: [
+			{
+				commandId: showExtensionsWithIdsCommandId,
+				label: localize('marketplaceLabel', "View in Marketplace"),
+				run: () => {
+					const agent = getAgent();
+					if (agent) {
+						commandService.executeCommand(showExtensionsWithIdsCommandId, [agent.extensionId.value]);
+					}
+				},
+			}
+		]
+	};
 }

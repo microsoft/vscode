@@ -650,6 +650,12 @@ export interface IEditorGroup {
 	readonly activeEditor: EditorInput | null;
 
 	/**
+	 * All selected editor in this group in sequential order.
+	 * The active editor is always part of the selection.
+	 */
+	readonly selectedEditors: EditorInput[];
+
+	/**
 	 * The editor in the group that is in preview mode if any. There can
 	 * only ever be one editor in preview mode.
 	 */
@@ -766,6 +772,33 @@ export interface IEditorGroup {
 	 * Find out if the provided editor is active in the group.
 	 */
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
+
+	/**
+	 * Selects the editor in the group. If active is set to true,
+	 * it will be the active editor in the group.
+	 */
+	selectEditor(editor: EditorInput, active?: boolean): Promise<void>;
+
+	/**
+	 * Selects the editors in the group. If activeEditor is provided,
+	 * it will be the active editor in the group.
+	 */
+	selectEditors(editors: EditorInput[], activeEditor?: EditorInput): Promise<void>;
+
+	/**
+	 * Unselects the editor in the group. If the editor is not specified, unselects the active editor.
+	 */
+	unSelectEditor(editor: EditorInput): Promise<void>;
+
+	/**
+	 * Unselects the editors in the group. If the editor is not specified, unselects the active editor.
+	 */
+	unSelectEditors(editors: EditorInput[]): Promise<void>;
+
+	/**
+	 * Whether the editor is selected in the group.
+	 */
+	isSelected(editor: EditorInput): boolean;
 
 	/**
 	 * Find out if a certain editor is included in the group.

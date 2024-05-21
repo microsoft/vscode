@@ -33,7 +33,6 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 	}
 
 	private renderFollowup(container: HTMLElement, followup: T): void {
-
 		if (followup.kind === 'command' && followup.when && !this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(followup.when))) {
 			return;
 		}
@@ -60,23 +59,17 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 		const baseTitle = followup.kind === 'reply' ?
 			(followup.title || followup.message)
 			: followup.title;
-
-		const tooltip = tooltipPrefix +
-			('tooltip' in followup && followup.tooltip || baseTitle);
-		const button = this._register(new Button(container, { ...this.options, supportIcons: true, title: tooltip }));
+		const message = followup.kind === 'reply' ? followup.message : followup.title;
+		const tooltip = (tooltipPrefix +
+			('tooltip' in followup && followup.tooltip || message)).trim();
+		const button = this._register(new Button(container, { ...this.options, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');
 		} else if (followup.kind === 'command') {
 			button.element.classList.add('interactive-followup-command');
 		}
-		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", followup.title);
-		let label = '';
-		if (followup.kind === 'reply') {
-			label = '$(sparkle) ' + baseTitle;
-		} else {
-			label = baseTitle;
-		}
-		button.label = new MarkdownString(label, { supportThemeIcons: true });
+		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", baseTitle);
+		button.label = new MarkdownString(baseTitle);
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));
 	}

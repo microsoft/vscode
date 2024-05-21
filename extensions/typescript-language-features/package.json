@@ -50,7 +50,7 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -139,6 +139,10 @@
       {
         "fileMatch": "jsconfig.*.json",
         "url": "./schemas/jsconfig.schema.json"
+      },
+      {
+        "fileMatch": ".swcrc",
+        "url": "https://swc.rs/schema.json"
       },
       {
         "fileMatch": "typedoc.json",

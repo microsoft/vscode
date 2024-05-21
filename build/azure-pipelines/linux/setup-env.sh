@@ -13,7 +13,7 @@ SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } 
 if [ "$npm_config_arch" == "x64" ]; then
   if [ "$(echo "$@" | grep -c -- "--only-remote")" -eq 0 ]; then
     # Download clang based on chromium revision used by vscode
-    curl -s https://raw.githubusercontent.com/chromium/chromium/120.0.6099.268/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+    curl -s https://raw.githubusercontent.com/chromium/chromium/122.0.6261.156/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
 
     # Download libcxx headers and objects from upstream electron releases
     DEBUG=libcxx-fetcher \
@@ -25,12 +25,12 @@ if [ "$npm_config_arch" == "x64" ]; then
 
     # Set compiler toolchain
     # Flags for the client build are based on
-    # https://source.chromium.org/chromium/chromium/src/+/refs/tags/120.0.6099.268:build/config/arm.gni
-    # https://source.chromium.org/chromium/chromium/src/+/refs/tags/120.0.6099.268:build/config/compiler/BUILD.gn
-    # https://source.chromium.org/chromium/chromium/src/+/refs/tags/120.0.6099.268:build/config/c++/BUILD.gn
+    # https://source.chromium.org/chromium/chromium/src/+/refs/tags/122.0.6261.156:build/config/arm.gni
+    # https://source.chromium.org/chromium/chromium/src/+/refs/tags/122.0.6261.156:build/config/compiler/BUILD.gn
+    # https://source.chromium.org/chromium/chromium/src/+/refs/tags/122.0.6261.156:build/config/c++/BUILD.gn
     export CC="$PWD/.build/CR_Clang/bin/clang --gcc-toolchain=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu"
     export CXX="$PWD/.build/CR_Clang/bin/clang++ --gcc-toolchain=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu"
-    export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+    export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
     export LDFLAGS="-stdlib=libc++ --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -fuse-ld=lld -flto=thin -L$PWD/.build/libcxx-objects -lc++abi -L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu -L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/lib/x86_64-linux-gnu -Wl,--lto-O0"
 
     # Set compiler toolchain for remote server
