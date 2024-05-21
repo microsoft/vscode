@@ -1336,7 +1336,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		let newActiveEditor = this.groupView.activeEditor!;
 
-		// If active editor is bing unselectednthen find the most recently opened selected editor
+		// If active editor is bing unselected then find the most recently opened selected editor
 		// that is not the editor being unselected
 		if (isUnselectingActiveEditor) {
 			const recentEditors = this.groupView.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
