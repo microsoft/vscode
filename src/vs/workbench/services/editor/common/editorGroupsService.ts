@@ -491,11 +491,20 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
-type ContextKeyHandler = (group: IEditorGroup) => ContextKeyValue;
-
 export interface IContextKeyProvider {
+	/**
+	 * The context key that needs to be set for each editor group context and the global context.
+	 */
 	readonly contextKey: RawContextKey<ContextKeyValue>;
-	readonly getGroupContextKeyValue: ContextKeyHandler;
+
+	/**
+	 * Retrieves the context key value for the given editor group.
+	 */
+	readonly getGroupContextKeyValue: (group: IEditorGroup) => ContextKeyValue;
+
+	/**
+	 * An event that is fired when there was a change leading to the context key value to be re-evaluated.
+	 */
 	readonly onDidChange?: Event<void>;
 }
 
@@ -571,10 +580,10 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void;
 
 	/**
-	 * Registers a context key provider which is used to to set a context key for each group and the global part.
+	 * Registers a context key provider. This provider sets a context key for each scoped editor group context and the global context.
 	 *
-	 * @param provider the context key provider to register
-	 * @returns a disposable to unregister the provider
+	 * @param provider - The context key provider to be registered.
+	 * @returns - A disposable object to unregister the provider.
 	 */
 	registerContextKeyProvider(provider: IContextKeyProvider): IDisposable;
 }
