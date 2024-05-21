@@ -160,7 +160,8 @@ export class ChatVariablesService implements IChatVariablesService {
 		const key = name.toLowerCase();
 		if (key === 'file' && typeof value !== 'string') {
 			const uri = URI.isUri(value) ? value : value.uri;
-			widget.attachContext({ value, id: uri.toString(), name: basename(uri.path), isDynamic: true });
+			const range = 'range' in value ? value.range : undefined;
+			widget.attachContext({ value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isDynamic: true });
 			return;
 		}
 
