@@ -37,11 +37,6 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
 
-		this._logService.warn('TEST WARNING');
-		this._logService.error('TEST ERROR');
-		this._logService.info('TEST INFO');
-		this._logService.trace('TEST TRACE');
-
 		const handle = ExtHostDocumentContentProvider._handlePool++;
 
 		this._documentContentProviders.set(handle, provider);
