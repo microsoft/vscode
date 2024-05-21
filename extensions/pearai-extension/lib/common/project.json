@@ -1,0 +1,13 @@
+{
+  "root": "lib/common",
+  "targets": {
+    "build": {
+      "dependsOn": ["^build"],
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "lib/common",
+        "command": "tsc"
+      }
+    }
+  }
+}

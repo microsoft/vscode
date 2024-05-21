@@ -1,0 +1,137 @@
+pre {
+  line-height: 1.5 !important;
+  font-family: var(--vscode-editor-font-family) !important;
+  font-size: var(--vscode-editor-font-size) !important;
+  font-weight: var(--vscode-editor-font-weight) !important;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+body {
+  background-color: var(--vscode-panel-background);
+}
+
+/* Comes from https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.css */
+code[class*="language-"],
+pre[class*="language-"] {
+  color: var(--vscode-editor-foreground);
+  background: 0 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+  font-weight: var(--vscode-editor-font-weight);
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+  /* -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4; */
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+  padding: 1em;
+  margin: 0.5em 0;
+  overflow: auto;
+}
+
+code[class*="language-"] ::selection,
+code[class*="language-"]::selection,
+pre[class*="language-"] ::selection,
+pre[class*="language-"]::selection {
+  text-shadow: none;
+  background: var(--vscode-editor-selectionBackground);
+}
+
+@media print {
+  code[class*="language-"],
+  pre[class*="language-"] {
+    text-shadow: none;
+  }
+}
+
+:not(pre) > code[class*="language-"],
+pre[class*="language-"] {
+  background: #f5f2f0;
+}
+:not(pre) > code[class*="language-"] {
+  padding: 0.1em;
+  border-radius: 0.3em;
+  white-space: normal;
+}
+
+.token.cdata,
+.token.comment,
+.token.doctype,
+.token.prolog {
+  color: var(--vscode-editor-foreground);
+}
+.token.punctuation {
+  color: var(--vscode-editor-foreground);
+}
+.token.namespace {
+  opacity: 0.7;
+}
+
+.token.boolean {
+  color: var(--vscode-symbolIcon-booleanForeground);
+}
+
+.token.constant {
+  color: var(--vscode-symbolIcon-constantForeground);
+}
+
+.token.deleted,
+.token.property,
+.token.symbol,
+.token.tag {
+  color: var(--vscode-symbolIcon-propertyForeground);
+}
+.token.attr-name,
+.token.builtin,
+.token.char,
+.token.inserted,
+.token.selector,
+.token.string {
+  color: var(--vscode-symbolIcon-textForeground);
+}
+.language-css .token.string,
+  .style .token.string,
+  .token.number, /* even tho there is a number style, numbers are colored like strings in vscode */
+  .token.entity,
+  .token.url {
+  color: var(--vscode-symbolIcon-stringForeground);
+}
+.token.atrule,
+.token.attr-value,
+.token.operator,
+.token.keyword {
+  color: var(--vscode-symbolIcon-keywordForeground);
+}
+
+.token.class-name {
+  color: var(--vscode-symbolIcon-classForeground);
+}
+
+.token.function {
+  color: var(--vscode-symbolIcon-functionForeground);
+}
+
+.token.important,
+.token.regex,
+.token.variable {
+  color: var(--vscode-symbolIcon-variableForeground);
+}
+
+.token.bold,
+.token.important {
+  font-weight: 700;
+}
+.token.italic {
+  font-style: italic;
+}
+.token.entity {
+  cursor: help;
+}
