@@ -570,8 +570,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					}
 				}
 
-				const newSelection = this.selection.filter(selected => !selected.matches(newActive) && !selected.matches(editor));
-				this.doSetSelection(newActive, this.editors.indexOf(newActive), newSelection);
+				const newInactiveSelection = this.selection.filter(selected => !selected.matches(newActive) && !selected.matches(editor));
+				this.doSetSelection(newActive, this.editors.indexOf(newActive), newInactiveSelection);
 			}
 
 			// One Editor
@@ -584,8 +584,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		else if (!isActiveEditor) {
 			const wasSelected = !!this.selection.find(selected => this.matches(selected, editor));
 			if (wasSelected) {
-				const newSelection = this.selection.filter(selected => !selected.matches(editor));
-				this.doSetSelection(this.activeEditor!, this.indexOf(this.activeEditor), newSelection);
+				const newInactiveSelection = this.selection.filter(selected => !selected.matches(editor));
+				this.doSetSelection(this.activeEditor!, this.indexOf(this.activeEditor), newInactiveSelection);
 			}
 		}
 
