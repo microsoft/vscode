@@ -1024,7 +1024,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	async setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): Promise<void> {
 		if (!this.isActive(activeSelectedEditor)) {
-			await this.doOpenEditor(activeSelectedEditor, { activation: EditorActivation.ACTIVATE }, { inactiveSelectedEditors });
+			// The active selected editor is not yet opened, so we go
+			// through `openEditor` to show it. We pass the inactive
+			// selection as internal options
+			await this.openEditor(activeSelectedEditor, { activation: EditorActivation.ACTIVATE }, { inactiveSelectedEditors });
 		} else {
 			this.model.setSelection(activeSelectedEditor, inactiveSelectedEditors);
 		}
