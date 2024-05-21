@@ -25,7 +25,7 @@ export interface IEditorOpenOptions {
 	readonly sticky?: boolean;
 	readonly transient?: boolean;
 	active?: boolean;
-	readonly selection?: EditorInput[];
+	readonly inactiveSelection?: EditorInput[];
 	readonly index?: number;
 	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 }
@@ -414,7 +414,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			this._onDidModelChange.fire(event);
 
 			// Handle active & selection
-			this.setSelection(makeActive ? newEditor : this.activeEditor, options?.selection ?? []);
+			this.setSelection(makeActive ? newEditor : this.activeEditor, options?.inactiveSelection ?? []);
 
 			return {
 				editor: newEditor,
@@ -435,7 +435,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			}
 
 			// Activate / select it
-			this.setSelection(makeActive ? existingEditor : this.activeEditor, options?.selection ?? []);
+			this.setSelection(makeActive ? existingEditor : this.activeEditor, options?.inactiveSelection ?? []);
 
 			// Respect index
 			if (options && typeof options.index === 'number') {

@@ -908,10 +908,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					}
 				} else {
 					// Even if focus is preserved make sure to activate the group.
-					// If new active editor is selected, keep the current selection on key down
-					// such that drag and drop can operate over the selection. Selection is remove on key up in this case.
-					const selection = this.tabsModel.isSelected(editor) ? [this.groupView.activeEditor!, ...this.groupView.selectedEditors.filter(e => !e.matches(editor))] : [];
-					await this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { inactiveSelectedEditors: selection, focusTabControl: true });
+					// If a new active editor is selected, keep the current selection on key
+					// down such that drag and drop can operate over the selection. The selection
+					// is removed on key up in this case.
+					const inactiveSelection = this.tabsModel.isSelected(editor) ? this.groupView.selectedEditors.filter(e => !e.matches(editor)) : [];
+					await this.groupView.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE }, { inactiveSelection, focusTabControl: true });
 				}
 			}
 		};

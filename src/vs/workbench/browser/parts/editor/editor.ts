@@ -342,7 +342,7 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	/**
 	 * Inactive editors to select after opening the active selected editor.
 	 */
-	readonly inactiveSelectedEditors?: EditorInput[];
+	readonly inactiveSelection?: EditorInput[];
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {

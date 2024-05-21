@@ -1027,7 +1027,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// The active selected editor is not yet opened, so we go
 			// through `openEditor` to show it. We pass the inactive
 			// selection as internal options
-			await this.openEditor(activeSelectedEditor, { activation: EditorActivation.ACTIVATE }, { inactiveSelectedEditors });
+			await this.openEditor(activeSelectedEditor, { activation: EditorActivation.ACTIVATE }, { inactiveSelection: inactiveSelectedEditors });
 		} else {
 			this.model.setSelection(activeSelectedEditor, inactiveSelectedEditors);
 		}
@@ -1183,7 +1183,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			pinned,
 			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			transient: !!options?.transient,
-			selection: internalOptions?.inactiveSelectedEditors,
+			inactiveSelection: internalOptions?.inactiveSelection,
 			active: this.count === 0 || !options || !options.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};
