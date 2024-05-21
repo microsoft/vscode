@@ -717,7 +717,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this.editors.filter(editor => this.isSelected(editor)); // TODO I would have assumed `this.selection` to be in sequential order
 	}
 
-	isSelected(editorOrIndex: EditorInput | number): boolean {
+	isSelected(editorOrIndex: EditorInput | number): boolean { // TODO align with how isTransient() works
 		let editor: EditorInput;
 		if (typeof editorOrIndex === 'number') {
 			editor = this.editors[editorOrIndex];
