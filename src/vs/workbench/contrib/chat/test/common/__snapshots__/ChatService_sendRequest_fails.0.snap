@@ -55,7 +55,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
-      result: { errorDetails: { message: "No activated agent with id ChatProviderWithUsedContext" } },
+      result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
       followups: undefined,
       isCanceled: false,
       vote: undefined,
