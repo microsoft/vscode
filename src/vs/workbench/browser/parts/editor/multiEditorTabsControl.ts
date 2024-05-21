@@ -1278,8 +1278,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			return;
 		}
 
-		const inactiveSelectedEditors = [this.groupView.activeEditor!, ...this.groupView.selectedEditors];
-		await this.groupView.setSelection(editor, inactiveSelectedEditors);
+		await this.groupView.setSelection(editor, this.groupView.selectedEditors);
 	}
 
 	private async selectEditorsBetween(target: EditorInput, anchor: EditorInput): Promise<void> {
