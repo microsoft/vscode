@@ -1,0 +1,22 @@
+{
+  "name": "@pearai/webview",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/prismjs": "1.26.0",
+    "@types/react": "18",
+    "@types/react-dom": "18",
+    "@types/vscode-webview": "1.57.0",
+    "eslint": "^8.32.0",
+    "eslint-plugin-react": "^7.32.1"
+  },
+  "dependencies": {
+    "@pearai/common": "*",
+    "prismjs": "1.29.0",
+    "react": "18.2.0",
+    "react-diff-viewer-continued": "3.2.5",
+    "react-dom": "18.2.0",
+    "react-markdown": "8.0.5"
+  }
+}

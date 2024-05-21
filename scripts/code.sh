@@ -2,6 +2,8 @@
 
 set -e
 
+(cd extensions/pearai-extension && yarn install && yarn build-all)
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname "$(dirname "$(realpath "$0")")")

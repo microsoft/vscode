@@ -1,0 +1,18 @@
+{
+  "projectName": "pearai-extension",
+  "projectOwner": "pearai",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitConvention": "none",
+  "contributorsPerLine": 4,
+  "contributorsSortAlphabetically": false,
+  "skipCi": true,
+  "badgeTemplate": "[![All Contributors](#contributors)",
+  "contributors": [],
+  "commitType": "docs"
+}
