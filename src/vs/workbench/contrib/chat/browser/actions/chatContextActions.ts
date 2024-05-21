@@ -70,6 +70,8 @@ class AttachContextAction extends Action2 {
 
 					toAttach.push({ ...pick, isDynamic: pick.isDynamic, value: pick.value, name: qualifiedName, fullName: `$(${pick.icon.id}) ${selection}` });
 				}
+			} else if (pick && typeof pick === 'object' && 'resource' in pick) {
+				toAttach.push({ ...pick, value: pick.resource });
 			} else {
 				toAttach.push({ ...pick, fullName: pick.label });
 			}

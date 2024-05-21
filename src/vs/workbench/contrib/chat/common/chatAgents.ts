@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findLast } from 'vs/base/common/arraysFind';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -288,7 +289,7 @@ export class ChatAgentService implements IChatAgentService {
 	}
 
 	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined {
-		return this.getActivatedAgents().find(a => !!a.isDefault && a.locations.includes(location));
+		return findLast(this.getActivatedAgents(), a => !!a.isDefault && a.locations.includes(location));
 	}
 
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {
@@ -332,7 +333,7 @@ export class ChatAgentService implements IChatAgentService {
 	async invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		const data = this._getAgentEntry(id);
 		if (!data?.impl) {
-			throw new Error(`No activated agent with id ${id}`);
+			throw new Error(`No activated agent with id "${id}"`);
 		}
 
 		return await data.impl.invoke(request, progress, history, token);
@@ -341,7 +342,7 @@ export class ChatAgentService implements IChatAgentService {
 	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 		const data = this._getAgentEntry(id);
 		if (!data?.impl) {
-			throw new Error(`No activated agent with id ${id}`);
+			throw new Error(`No activated agent with id "${id}"`);
 		}
 
 		if (!data.impl?.provideFollowups) {
@@ -524,6 +525,10 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 
 	if (!('extensionDisplayName' in agent)) {
 		agent.extensionDisplayName = '';
+	}
+
+	if (!('extensionId' in agent)) {
+		agent.extensionId = new ExtensionIdentifier('');
 	}
 
 	return revive(agent);

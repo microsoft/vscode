@@ -6,6 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { Location } from 'vs/editor/common/languages';
 import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -1290,6 +1291,7 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$registerVariable(handle: number, data: IChatVariableData): void;
 	$handleProgressChunk(requestId: string, progress: IChatVariableResolverProgressDto): Promise<number | void>;
 	$unregisterVariable(handle: number): void;
+	$attachContext(name: string, value: string | Dto<Location> | URI | unknown, location: ChatAgentLocation): void;
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
