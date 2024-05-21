@@ -785,7 +785,7 @@ export interface IEditorGroup {
 	 * @param activeSelectedEditor the editor to set as active selected editor
 	 * @param inactiveSelectedEditors the inactive editors to set as selected
 	 */
-	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): void;
+	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): Promise<void>;
 
 	/**
 	 * Find out if a certain editor is included in the group.

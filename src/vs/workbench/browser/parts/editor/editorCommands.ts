@@ -31,7 +31,7 @@ import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/br
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
-import { CloseDirection, EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorCommandsContext, isEditorIdentifier, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { CloseDirection, EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorIdentifier, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -656,37 +656,27 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 	}
 }
 
-export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, contexts?: (IEditorCommandsContext | URI)[]): void {
+export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, contexts?: IEditorCommandsContext[]): void {
 	let newGroup: IEditorGroup | undefined;
 	let sourceGroup: IEditorGroup | undefined;
 
 	for (const context of contexts ?? [undefined]) {
 		let currentGroup: IEditorGroup | undefined;
 
-		const isEditorCommand = context && isEditorCommandsContext(context);
-		const isURI = context && URI.isUri(context);
-
-		if (isEditorCommand) {
+		if (context) {
 			currentGroup = editorGroupService.getGroup(context.groupId);
-		} else if (isURI) {
-			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (isEqual(group.activeEditor?.resource, context)) {
-					currentGroup = group;
-					break;
-				}
-			}
 		} else {
 			currentGroup = editorGroupService.activeGroup;
 		}
 
 		if (!currentGroup) {
-			return;
+			continue;
 		}
 
 		if (!sourceGroup) {
 			sourceGroup = currentGroup;
-		} else if (sourceGroup !== currentGroup) {
-			return; // Only support splitting from the same group
+		} else if (sourceGroup.id !== currentGroup.id) {
+			continue; // Only support splitting from the same group
 		}
 
 		// Add group
@@ -696,7 +686,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 
 		// Split editor (if it can be split)
 		let editorToCopy: EditorInput | undefined;
-		if (isEditorCommand && typeof context.editorIndex === 'number') {
+		if (context && typeof context.editorIndex === 'number') {
 			editorToCopy = currentGroup.getEditorByIndex(context.editorIndex);
 		} else {
 			editorToCopy = currentGroup.activeEditor ?? undefined;
@@ -704,7 +694,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 
 		// Copy the editor to the new group, else create an empty group
 		if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
-			currentGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: isEditorCommand && context?.preserveFocus });
+			currentGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: context?.preserveFocus });
 		}
 	}
 

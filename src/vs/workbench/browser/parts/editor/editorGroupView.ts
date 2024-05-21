@@ -349,7 +349,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
 					break;
-				case GroupModelChangeKind.EDITOR_SELECTION:
+				case GroupModelChangeKind.EDITORS_SELECTION:
 					multipleEditorsSelectedContext.set(this.model.selectedEditors.length > 1);
 					twoEditorsSelectedContext.set(this.model.selectedEditors.length === 2);
 					break;
@@ -603,7 +603,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.classList.toggle('locked', this.isLocked);
 		}
 
-		if (e.kind === GroupModelChangeKind.EDITOR_SELECTION) {
+		if (e.kind === GroupModelChangeKind.EDITORS_SELECTION) {
 			this.onDidChangeEditorSelection();
 		}
 
@@ -1022,7 +1022,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	async setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): Promise<void> {
-		if (!this.model.isActive(activeSelectedEditor)) {
+		if (!this.isActive(activeSelectedEditor)) {
 			await this.doOpenEditor(activeSelectedEditor, { activation: EditorActivation.ACTIVATE }, { inactiveSelectedEditors });
 		} else {
 			this.model.setSelection(activeSelectedEditor, inactiveSelectedEditors);

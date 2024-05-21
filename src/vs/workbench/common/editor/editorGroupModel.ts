@@ -748,7 +748,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		// Event
 		const event: IGroupModelChangeEvent = {
-			kind: GroupModelChangeKind.EDITOR_SELECTION,
+			kind: GroupModelChangeKind.EDITORS_SELECTION,
 		};
 		this._onDidModelChange.fire(event);
 	}
