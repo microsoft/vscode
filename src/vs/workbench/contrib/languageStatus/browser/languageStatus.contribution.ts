@@ -72,9 +72,9 @@ class LanguageStatusContribution extends Disposable implements IWorkbenchContrib
 		super();
 
 		// --- main language status
-		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
+		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IEditorService, editorService.createScoped('main', this._store)]
-		));
+		)));
 		this._register(mainInstantiationService.createInstance(LanguageStatus));
 
 		// --- auxiliary language status

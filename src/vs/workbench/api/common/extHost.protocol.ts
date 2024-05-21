@@ -1241,8 +1241,8 @@ export interface IDynamicChatAgentProps {
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
-	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
-	$unregisterAgentCompletionsProvider(handle: number): void;
+	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
+	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunk: IChatProgressDto, handle?: number): Promise<number | void>;
@@ -1252,6 +1252,8 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 
 export interface IChatAgentCompletionItem {
 	id: string;
+	fullName?: string;
+	icon?: string;
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
 	value: IChatRequestVariableValueDto;
