@@ -112,64 +112,64 @@ html {
 
 /* Font Families (with CJK support) */
 
-.mac {
+.mac.web {
 	font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.mac:lang(zh-Hans) {
+.mac.web:lang(zh-Hans) {
 	font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
 }
 
-.mac:lang(zh-Hant) {
+.mac.web:lang(zh-Hant) {
 	font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif;
 }
 
-.mac:lang(ja) {
+.mac.web:lang(ja) {
 	font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif;
 }
 
-.mac:lang(ko) {
+.mac.web:lang(ko) {
 	font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif;
 }
 
-.windows {
+.windows.web {
 	font-family: "Segoe WPC", "Segoe UI", sans-serif;
 }
 
-.windows:lang(zh-Hans) {
+.windows.web:lang(zh-Hans) {
 	font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 
-.windows:lang(zh-Hant) {
+.windows.web:lang(zh-Hant) {
 	font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif;
 }
 
-.windows:lang(ja) {
+.windows.web:lang(ja) {
 	font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
 }
 
-.windows:lang(ko) {
+.windows.web:lang(ko) {
 	font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif;
 }
 
 /* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
-.linux {
+.linux.web {
 	font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif;
 }
 
-.linux:lang(zh-Hans) {
+.linux.web:lang(zh-Hans) {
 	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif;
 }
 
-.linux:lang(zh-Hant) {
+.linux.web:lang(zh-Hant) {
 	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif;
 }
 
-.linux:lang(ja) {
+.linux.web:lang(ja) {
 	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif;
 }
 
-.linux:lang(ko) {
+.linux.web:lang(ko) {
 	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif;
 }
 
@@ -243,6 +243,7 @@ textarea {
 
 .input-group {
 	margin-bottom: 1em;
+	font-size: 16px;
 }
 
 #extension-selection {
@@ -353,6 +354,7 @@ a {
 @media (max-width: 950px) {
 	.section .inline-label {
 		width: 15%;
+		font-size: 16px;
 	}
 
 	#problem-source-help-text {

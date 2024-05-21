@@ -192,10 +192,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 								iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 							}
 							this.removeLoading(iconElement);
-							// if not using command, should have no configuration data in fields we care about and check later.
 							this.clearExtensionData();
-
-							// case when previous extension was opened from normal openIssueReporter command
 							selectedExtension.data = undefined;
 							selectedExtension.uri = undefined;
 						}

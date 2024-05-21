@@ -180,7 +180,6 @@ export class WebIssueService implements IWorkbenchIssueService {
 	}
 }
 
-
 export function getIssueReporterStyles(theme: IColorTheme): IssueReporterStyles {
 	return {
 		backgroundColor: getColor(theme, SIDE_BAR_BACKGROUND),

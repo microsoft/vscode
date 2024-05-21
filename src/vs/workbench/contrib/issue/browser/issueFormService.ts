@@ -16,22 +16,25 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IIssueMainService, IssueReporterData, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import product from 'vs/platform/product/common/product';
 import { IssueWebReporter } from 'vs/workbench/browser/issues/issueReporterService';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+
 export class IssueMainService implements IIssueMainService {
 
 	readonly _serviceBrand: undefined;
 
 	private issueReporterWindow: Window | null = null;
 	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
-	private returnedIssueReporterData: IssueReporterData | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 
+		// listen for messages from the main window
 		mainWindow.addEventListener('message', async (event) => {
 			if (event.data && event.data.sendChannel === 'vscode:triggerReporterMenu') {
 				// creates menu from contributed
@@ -64,7 +67,6 @@ export class IssueMainService implements IIssueMainService {
 
 	async openReporter(data: IssueReporterData): Promise<void> {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
-			this.returnedIssueReporterData = data;
 			const replyChannel = `vscode:triggerReporterMenuResponse`;
 			mainWindow.postMessage({ data, replyChannel }, '*');
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(data.extensionId));
@@ -73,24 +75,26 @@ export class IssueMainService implements IIssueMainService {
 		if (this.issueReporterWindow) {
 			this.issueReporterWindow.focus();
 			return;
-
 		}
 
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open());
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal }));
 
 		this.issueReporterWindow = auxiliaryWindow.window;
 
-		// Editor Part
-		const editorPartContainer = document.createElement('div');
-		editorPartContainer.classList.add('part', 'editor');
-		editorPartContainer.setAttribute('role', 'main');
-		editorPartContainer.style.position = 'relative';
+
 
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
+			auxiliaryWindow.window.document.title = 'Issue Reporter';
+			const backgroundColor = this.themeService.getColorTheme().getColor('editor.background');
+			if (backgroundColor) {
+				auxiliaryWindow.window.document.body.style.backgroundColor = backgroundColor.toString();
+			}
+			auxiliaryWindow.window.document.body.style.position = 'absolute';
+			auxiliaryWindow.window.document.body.style.overflowY = 'scroll';
 			safeInnerHtml(auxiliaryWindow.window.document.body, BaseHtml());
 			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: '', arch: '', release: '' }, product, auxiliaryWindow.window);
 			issueReporter.render();
@@ -106,7 +110,7 @@ export class IssueMainService implements IIssueMainService {
 	}
 
 	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
-
+		throw new Error('Method not implemented.');
 	}
 
 	stopTracing(): Promise<void> {
@@ -142,35 +146,6 @@ export class IssueMainService implements IIssueMainService {
 	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
 		throw new Error('Method not implemented.');
 	}
-
-	async $sendReporterMenu2(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
-		// creates menu from contributed
-		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
-
-		// render menu and dispose
-		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-		actions.forEach(async action => {
-			try {
-				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-					this.extensionIdentifierSet.add(extensionId);
-					await action.run();
-				}
-			} catch (error) {
-				console.error(error);
-			}
-		});
-
-		menu.dispose();
-
-		if (this.returnedIssueReporterData) {
-			const data = this.returnedIssueReporterData;
-			this.returnedIssueReporterData = undefined;
-			return Promise.resolve(data);
-		}
-
-		return undefined;
-	}
-
 
 	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
 		const sendChannel = `vscode:triggerReporterMenu`;
