@@ -239,6 +239,10 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	private async setSaveDelegate() {
 		const serializer = await this.getNotebookSerializer();
 		this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
 			try {
 				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
 				return stat;
