@@ -30,7 +30,7 @@ import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browse
 import { HunkState, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
-import { EditMode, IInlineChatService, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
@@ -64,7 +64,6 @@ suite('InlineChatSession', function () {
 	let editor: IActiveCodeEditor;
 	let model: ITextModel;
 	let instaService: TestInstantiationService;
-	let inlineChatService: InlineChatServiceImpl;
 
 	let inlineChatSessionService: IInlineChatSessionService;
 
@@ -124,8 +123,6 @@ suite('InlineChatSession', function () {
 
 
 		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
-
-		inlineChatService = instaService.get(IInlineChatService) as InlineChatServiceImpl;
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
 		instaService.get(IChatAgentService).registerDynamicAgent({
@@ -136,7 +133,7 @@ suite('InlineChatSession', function () {
 			id: 'testAgent',
 			name: 'testAgent',
 			isDefault: true,
-			locations: [ChatAgentLocation.Panel],
+			locations: [ChatAgentLocation.Editor],
 			metadata: {},
 			slashCommands: []
 		}, {
@@ -145,25 +142,7 @@ suite('InlineChatSession', function () {
 			}
 		});
 
-		store.add(inlineChatService.addProvider({
-			extensionId: nullExtensionDescription.identifier,
-			label: 'Unit Test',
-			prepareInlineChatSession() {
-				return {
-					id: Math.random()
-				};
-			},
-			provideResponse(session, request) {
-				return {
-					type: InlineChatResponseType.EditorEdit,
-					id: Math.random(),
-					edits: [{
-						range: new Range(1, 1, 1, 1),
-						text: request.prompt
-					}]
-				};
-			}
-		}));
+
 		model = store.add(instaService.get(IModelService).createModel('one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven', null));
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 	});

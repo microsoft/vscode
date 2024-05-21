@@ -131,6 +131,8 @@ export class InlineChatWidget {
 
 	private _isLayouting: boolean = false;
 
+	readonly scopedContextKeyService: IContextKeyService;
+
 	private readonly _followUpDisposables = this._store.add(new DisposableStore());
 	constructor(
 		location: ChatAgentLocation,
@@ -151,12 +153,13 @@ export class InlineChatWidget {
 
 		let allowRequests = false;
 
-
+		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
 		const scopedInstaService = _instantiationService.createChild(
 			new ServiceCollection([
 				IContextKeyService,
-				this._store.add(_contextKeyService.createScoped(this._elements.chatWidget))
-			])
+				this.scopedContextKeyService
+			]),
+			this._store
 		);
 
 		this._chatWidget = scopedInstaService.createInstance(
@@ -380,17 +383,17 @@ export class InlineChatWidget {
 		// The chat widget is variable height and supports scrolling. It should be
 		// at least "maxWidgetHeight" high and at most the content height.
 
-		let maxWidgetHeight = 100;
+		let maxWidgetOutputHeight = 100;
 		for (const item of this._chatWidget.viewModel?.getItems() ?? []) {
 			if (isResponseVM(item) && item.response.value.some(r => r.kind === 'textEditGroup' && !r.state?.applied)) {
-				maxWidgetHeight = 270;
+				maxWidgetOutputHeight = 270;
 				break;
 			}
 		}
 
 		let value = this.contentHeight;
 		value -= this._chatWidget.contentHeight;
-		value += Math.min(maxWidgetHeight, this._chatWidget.contentHeight);
+		value += Math.min(this._chatWidget.input.contentHeight + maxWidgetOutputHeight, this._chatWidget.contentHeight);
 		return value;
 	}
 

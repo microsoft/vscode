@@ -3,7 +3,8 @@
   "displayName": "VS Code Selfhost Test Provider",
   "description": "Test provider for the VS Code project",
   "enabledApiProposals": [
-    "testObserver"
+    "testObserver",
+    "attributableCoverage"
   ],
   "engines": {
     "vscode": "^1.88.0"
@@ -13,6 +14,13 @@
       {
         "command": "selfhost-test-provider.updateSnapshot",
         "title": "Update Snapshot",
+        "category": "Testing",
+        "icon": "$(merge)"
+      },
+      {
+        "command": "selfhost-test-provider.openFailureLog",
+        "title": "Open Selfhost Failure Logs",
+        "category": "Testing",
         "icon": "$(merge)"
       }
     ],
@@ -65,10 +73,12 @@
   "license": "MIT",
   "scripts": {
     "compile": "gulp compile-extension:vscode-selfhost-test-provider",
-    "watch": "gulp watch-extension:vscode-selfhost-test-provider"
+    "watch": "gulp watch-extension:vscode-selfhost-test-provider",
+    "test": "npx mocha --ui tdd 'out/*.test.js'"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/mocha": "^10.0.6",
+    "@types/node": "20.x"
   },
   "dependencies": {
     "@jridgewell/trace-mapping": "^0.3.25",
