@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ContextKeyHandler, EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -707,38 +707,41 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	private readonly contextKeyHandlers = new Map<string, { handler: ContextKeyHandler<ContextKeyValue>; rawContextKey: RawContextKey<ContextKeyValue> }>();
-	private readonly registeredContextKeys = new Map<GroupIdentifier, Map<string, IContextKey<ContextKeyValue>>>();
+	private readonly contextKeyProviders = new Map<string, IContextKeyProvider>();
+	private readonly registeredContextKeys = new Map<GroupIdentifier, Map<string, IContextKey>>();
 
-	registerContextKeyHandler<T extends ContextKeyValue>(rawContextKey: RawContextKey<T>, handler: ContextKeyHandler<ContextKeyValue>): { run: () => void; dispose: () => void } {
-		this.contextKeyHandlers.set(rawContextKey.key, { handler, rawContextKey });
+	registerContextKeyProvider(provider: IContextKeyProvider): IDisposable {
+		this.contextKeyProviders.set(provider.contextKey.key, provider);
 
 		const run = () => {
 			this.groups.forEach(group => {
-				this.runregisteredContextKeyHandler(group, rawContextKey, handler);
+				this.runregisteredContextKeyHandler(group, provider);
 			});
 		};
+
+		// Run initially
 		run();
 
-		return {
-			run,
-			dispose: () => {
-				this.contextKeyHandlers.delete(rawContextKey.key);
-				this.globalContextKeys.delete(rawContextKey.key);
-				this.registeredContextKeys.forEach(registeredContextKeys => registeredContextKeys.delete(rawContextKey.key));
-				this.scopedContextKeys.forEach(scopedContextKeys => scopedContextKeys.delete(rawContextKey.key));
-			}
-		};
+		// Run when a change is registered for the provider
+		const onDidChange = provider.onDidChange?.(() => { run(); });
+
+		return toDisposable(() => {
+			onDidChange?.dispose();
+			this.contextKeyProviders.delete(provider.contextKey.key);
+			this.globalContextKeys.delete(provider.contextKey.key);
+			this.scopedContextKeys.forEach(scopedContextKeys => scopedContextKeys.delete(provider.contextKey.key));
+			this.registeredContextKeys.forEach(registeredContextKeys => registeredContextKeys.delete(provider.contextKey.key));
+		});
 	}
 
 	runRegisteredContextKeyHandlers(group: IEditorGroupView): void {
-		for (const { handler, rawContextKey } of this.contextKeyHandlers.values()) {
-			this.runregisteredContextKeyHandler(group, rawContextKey, handler);
+		for (const contextKeyProvider of this.contextKeyProviders.values()) {
+			this.runregisteredContextKeyHandler(group, contextKeyProvider);
 		}
 	}
 
-	private runregisteredContextKeyHandler<T extends ContextKeyValue>(group: IEditorGroupView, rawContextKey: RawContextKey<T>, handler: ContextKeyHandler<T>): void {
-		const handle = this.contextKeyHandlers.get(rawContextKey.key);
+	private runregisteredContextKeyHandler(group: IEditorGroupView, provider: IContextKeyProvider): void {
+		const handle = this.contextKeyProviders.get(provider.contextKey.key);
 		if (!handle) {
 			return;
 		}
@@ -746,18 +749,18 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		// Ensure we only bind to the same context key once per group
 		let groupregisteredContextKeys = this.registeredContextKeys.get(group.id);
 		if (!groupregisteredContextKeys) {
-			groupregisteredContextKeys = new Map<string, IContextKey<T>>();
+			groupregisteredContextKeys = new Map<string, IContextKey>();
 			this.scopedContextKeys.set(group.id, groupregisteredContextKeys);
 		}
 
-		let handledContextKey = groupregisteredContextKeys.get(rawContextKey.key);
+		let handledContextKey = groupregisteredContextKeys.get(provider.contextKey.key);
 		if (!handledContextKey) {
-			handledContextKey = this.bind(rawContextKey, group);
-			groupregisteredContextKeys.set(rawContextKey.key, handledContextKey);
+			handledContextKey = this.bind(provider.contextKey, group);
+			groupregisteredContextKeys.set(provider.contextKey.key, handledContextKey);
 		}
 
 		// Ensure we run the handler for the active editor
-		handler(handledContextKey as IContextKey<T>, group.activeEditor);
+		handledContextKey.set(provider.handler(group.activeEditor));
 	}
 
 	//#endregion
