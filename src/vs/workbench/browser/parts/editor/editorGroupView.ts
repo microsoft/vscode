@@ -599,12 +599,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Handle within
 
-		if (e.kind === GroupModelChangeKind.GROUP_LOCKED) {
-			this.element.classList.toggle('locked', this.isLocked);
-		}
-
-		if (e.kind === GroupModelChangeKind.EDITORS_SELECTION) {
-			this.onDidChangeEditorSelection();
+		switch (e.kind) {
+			case GroupModelChangeKind.GROUP_LOCKED:
+				this.element.classList.toggle('locked', this.isLocked);
+				break;
+			case GroupModelChangeKind.EDITORS_SELECTION:
+				this.onDidChangeEditorSelection();
+				break;
 		}
 
 		if (!e.editor) {
@@ -942,14 +943,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	setActive(isActive: boolean): void {
 		this.active = isActive;
 
+		// Clear selection when group no longer active
+		if (!isActive && this.activeEditor && this.selectedEditors.length > 1) {
+			this.setSelection(this.activeEditor, []);
+		}
+
 		// Update container
 		this.element.classList.toggle('active', isActive);
 		this.element.classList.toggle('inactive', !isActive);
-
-		// Unselect editors if group is no longer active
-		if (!isActive && this.selectedEditors.length > 1) {
-			this.setSelection(this.activeEditor!, []);
-		}
 
 		// Update title control
 		this.titleControl.setActive(isActive);
