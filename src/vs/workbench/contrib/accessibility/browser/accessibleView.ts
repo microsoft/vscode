@@ -471,9 +471,9 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
-		let disableHelpHint;
+		let disableHelpHint = '';
 		if (provider instanceof AdvancedContentProvider && provider.options.type === AccessibleViewType.Help && verbose) {
-			disableHelpHint = this._getDisableVerbosityHint(provider.verbositySettingKey);
+			disableHelpHint = this._getDisableVerbosityHint();
 		}
 		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
 		let message = '';
@@ -717,10 +717,7 @@ export class AccessibleView extends Disposable {
 		return localize('accessibleViewNextPreviousHint', "Show the next item<keybinding:{0}> or previous item<keybinding:{1}>.", AccessibilityCommandId.ShowNext, AccessibilityCommandId.ShowPrevious);
 	}
 
-	private _getDisableVerbosityHint(verbositySettingKey: AccessibilityVerbositySettingId | string): string {
-		if (!this._configurationService.getValue(verbositySettingKey)) {
-			return '';
-		}
+	private _getDisableVerbosityHint(): string {
 		return localize('acessibleViewDisableHint', "\n\nDisable accessibility verbosity for this feature<keybinding:{0}>.", AccessibilityCommandId.DisableVerbosityHint);
 	}
 
