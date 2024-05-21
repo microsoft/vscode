@@ -19,6 +19,7 @@ import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, Issue
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/browser/issues/issueReporterModel';
+import { mainWindow } from 'vs/base/browser/window';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -836,8 +837,7 @@ export class BaseIssueReporterService extends Disposable {
 			return false;
 		}
 		const result = await response.json();
-		this.window.open(result.html_url, '_blank');
-
+		mainWindow.open(result.html_url, '_blank');
 		this.close();
 		return true;
 	}
