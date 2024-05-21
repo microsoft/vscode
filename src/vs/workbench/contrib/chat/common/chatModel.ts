@@ -185,13 +185,7 @@ export class Response implements IResponse {
 				// The last part can't be merged with- not markdown, or markdown with different permissions
 				this._responseParts.push(progress);
 			} else {
-				lastResponsePart.content = {
-					value: lastResponsePart.content.value + progress.content.value,
-					isTrusted: lastResponsePart.content.isTrusted,
-					supportThemeIcons: lastResponsePart.content.supportThemeIcons,
-					supportHtml: lastResponsePart.content.supportHtml,
-					baseUri: lastResponsePart.content.baseUri
-				} satisfies IMarkdownString;
+				lastResponsePart.content = appendMarkdownString(lastResponsePart.content, progress.content);
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit') {
@@ -1017,4 +1011,15 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 	return equals(md1.isTrusted, md2.isTrusted) &&
 		md1.supportHtml === md2.supportHtml &&
 		md1.supportThemeIcons === md2.supportThemeIcons;
+}
+
+export function appendMarkdownString(md1: IMarkdownString, md2: IMarkdownString | string): IMarkdownString {
+	const appendedValue = typeof md2 === 'string' ? md2 : md2.value;
+	return {
+		value: md1.value + appendedValue,
+		isTrusted: md1.isTrusted,
+		supportThemeIcons: md1.supportThemeIcons,
+		supportHtml: md1.supportHtml,
+		baseUri: md1.baseUri
+	};
 }
