@@ -2566,6 +2566,15 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
 		}
 	}
+
+	export function from(loc: types.ChatLocation): ChatAgentLocation {
+		switch (loc) {
+			case types.ChatLocation.Notebook: return ChatAgentLocation.Notebook;
+			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
+			case types.ChatLocation.Panel: return ChatAgentLocation.Panel;
+			case types.ChatLocation.Editor: return ChatAgentLocation.Editor;
+		}
+	}
 }
 
 export namespace ChatAgentValueReference {
@@ -2579,7 +2588,9 @@ export namespace ChatAgentValueReference {
 			id: variable.id,
 			name: variable.name,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
-			value: isUriComponents(value) ? URI.revive(value) : value,
+			value: isUriComponents(value) ? URI.revive(value) :
+				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
+					Location.to(revive(value)) : value,
 			modelDescription: variable.modelDescription
 		};
 	}

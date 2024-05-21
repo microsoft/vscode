@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { Range } from 'vs/editor/common/core/range';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -442,6 +443,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
 					hidePath: true,
+					range: attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined,
 				});
 			} else {
 				label.setLabel(attachment.fullName ?? attachment.name);
