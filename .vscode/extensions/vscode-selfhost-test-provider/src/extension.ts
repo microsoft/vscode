@@ -7,8 +7,9 @@ import { randomBytes } from 'crypto';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { coverageContext } from './coverageProvider';
+import { V8CoverageFile } from './coverageProvider';
 import { FailingDeepStrictEqualAssertFixer } from './failingDeepStrictEqualAssertFixer';
+import { FailureTracker } from './failureTracker';
 import { registerSnapshotUpdate } from './snapshot';
 import { scanTestOutput } from './testOutputScanner';
 import {
@@ -19,13 +20,12 @@ import {
 	itemData,
 } from './testTree';
 import { BrowserTestRunner, PlatformTestRunner, VSCodeTestRunner } from './vscodeTestRunner';
-import { FailureTracker } from './failureTracker';
 
 const TEST_FILE_PATTERN = 'src/vs/**/*.{test,integrationTest}.ts';
 
 const getWorkspaceFolderForTestFile = (uri: vscode.Uri) =>
 	(uri.path.endsWith('.test.ts') || uri.path.endsWith('.integrationTest.ts')) &&
-		uri.path.includes('/src/vs/')
+	uri.path.includes('/src/vs/')
 		? vscode.workspace.getWorkspaceFolder(uri)
 		: undefined;
 
@@ -55,10 +55,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	};
 
-	let startedTrackingFailures = false;
+	guessWorkspaceFolder().then(folder => {
+		if (folder) {
+			context.subscriptions.push(new FailureTracker(context, folder.uri.fsPath));
+		}
+	});
 
 	const createRunHandler = (
-		runnerCtor: { new(folder: vscode.WorkspaceFolder): VSCodeTestRunner },
+		runnerCtor: { new (folder: vscode.WorkspaceFolder): VSCodeTestRunner },
 		kind: vscode.TestRunProfileKind,
 		args: string[] = []
 	) => {
@@ -71,11 +75,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			if (!startedTrackingFailures) {
-				startedTrackingFailures = true;
-				context.subscriptions.push(new FailureTracker(folder.uri.fsPath));
-			}
-
 			const runner = new runnerCtor(folder);
 			const map = await getPendingTestMap(ctrl, req.include ?? gatherTestItems(ctrl.items));
 			const task = ctrl.createTestRun(req);
@@ -86,17 +85,23 @@ export async function activate(context: vscode.ExtensionContext) {
 			let coverageDir: string | undefined;
 			let currentArgs = args;
 			if (kind === vscode.TestRunProfileKind.Coverage) {
-				coverageDir = path.join(tmpdir(), `vscode-test-coverage-${randomBytes(8).toString('hex')}`);
-				currentArgs = [
-					...currentArgs,
-					'--coverage',
-					'--coveragePath',
-					coverageDir,
-					'--coverageFormats',
-					'json',
-					'--coverageFormats',
-					'html',
-				];
+				// todo: browser runs currently don't support per-test coverage
+				if (args.includes('--browser')) {
+					coverageDir = path.join(
+						tmpdir(),
+						`vscode-test-coverage-${randomBytes(8).toString('hex')}`
+					);
+					currentArgs = [
+						...currentArgs,
+						'--coverage',
+						'--coveragePath',
+						coverageDir,
+						'--coverageFormats',
+						'json',
+					];
+				} else {
+					currentArgs = [...currentArgs, '--per-test-coverage'];
+				}
 			}
 
 			return await scanTestOutput(
@@ -180,7 +185,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		true
 	);
 
-	coverage.loadDetailedCoverage = coverageContext.loadDetailedCoverage;
+	coverage.loadDetailedCoverage = async (_run, coverage) => {
+		if (coverage instanceof V8CoverageFile) {
+			return coverage.details;
+		}
+
+		return [];
+	};
 
 	for (const [name, arg] of browserArgs) {
 		const cfg = ctrl.createRunProfile(
@@ -233,7 +244,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.onDidOpenTextDocument(updateNodeForDocument),
 		vscode.workspace.onDidChangeTextDocument(e => updateNodeForDocument(e.document)),
 		registerSnapshotUpdate(ctrl),
-		new FailingDeepStrictEqualAssertFixer(),
+		new FailingDeepStrictEqualAssertFixer()
 	);
 }
 

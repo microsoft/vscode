@@ -42,7 +42,7 @@ import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
 import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_HAS_DEBUGGED, CONTEXT_IN_DEBUG_MODE, DEBUG_MEMORY_SCHEME, DEBUG_SCHEME, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, debuggerDisabledMessage, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakpointOptions, IInstructionBreakpointOptions, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
@@ -796,8 +796,6 @@ export class DebugService implements IDebugService {
 		if (launch) {
 			unresolved = launch.getConfiguration(session.configuration.name);
 			if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
-				// Take the type from the session since the debug extension might overwrite it #21316
-				unresolved.type = session.configuration.type;
 				unresolved.noDebug = session.configuration.noDebug;
 				needsToSubstitute = true;
 			}
@@ -811,7 +809,7 @@ export class DebugService implements IDebugService {
 			if (resolvedByProviders) {
 				resolved = await this.substituteVariables(launch, resolvedByProviders);
 				if (resolved && !initCancellationToken.token.isCancellationRequested) {
-					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
+					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, resolved.type, resolved, initCancellationToken.token);
 				}
 			} else {
 				resolved = resolvedByProviders;
@@ -1073,8 +1071,14 @@ export class DebugService implements IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	addFunctionBreakpoint(name?: string, id?: string, mode?: string): void {
-		this.model.addFunctionBreakpoint(name || '', id, mode);
+	async addFunctionBreakpoint(opts?: IFunctionBreakpointOptions, id?: string): Promise<void> {
+		this.model.addFunctionBreakpoint(opts ?? { name: '' }, id);
+		// If opts not provided, sending the breakpoint is handled by a later to call to `updateFunctionBreakpoint`
+		if (opts) {
+			this.debugStorage.storeBreakpoints(this.model);
+			await this.sendFunctionBreakpoints();
+			this.debugStorage.storeBreakpoints(this.model);
+		}
 	}
 
 	async updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): Promise<void> {
