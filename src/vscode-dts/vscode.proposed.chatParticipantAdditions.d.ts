@@ -206,6 +206,8 @@ declare module 'vscode' {
 		id: string;
 		label: string | CompletionItemLabel;
 		values: ChatVariableValue[];
+		fullName?: string;
+		icon?: ThemeIcon;
 		insertText?: string;
 		detail?: string;
 		documentation?: string | MarkdownString;
