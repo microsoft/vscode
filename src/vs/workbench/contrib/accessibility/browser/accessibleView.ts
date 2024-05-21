@@ -501,7 +501,7 @@ export class AccessibleView extends Disposable {
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		let content = provider.provideContent();
 		if (provider.options.type === AccessibleViewType.Help) {
-			const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, content);
+			const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, content + readMoreLink + disableHelpHint + exitThisDialogHint);
 			if (resolvedContent) {
 				content = resolvedContent.content.value;
 				if (resolvedContent.configureKeybindingItems) {
@@ -509,7 +509,7 @@ export class AccessibleView extends Disposable {
 				}
 			}
 		}
-		const newContent = message + content + readMoreLink + disableHelpHint + exitThisDialogHint;
+		const newContent = message + content;
 		this.calculateCodeBlocks(newContent);
 		this._currentContent = newContent;
 		this._updateContextKeys(provider, true);
