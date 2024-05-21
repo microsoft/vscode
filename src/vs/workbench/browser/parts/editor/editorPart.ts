@@ -978,9 +978,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Scoped instantiation service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+		this.scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
-		));
+		)));
 
 		// Grid control
 		this._willRestoreState = !options || options.restorePreviousState;

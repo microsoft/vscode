@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -32,8 +32,9 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatRequestModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 
 export type TelemetryData = {
@@ -160,7 +161,7 @@ export class Session {
 		 * The document into which AI edits went, when live this is `targetUri` otherwise it is a temporary document
 		 */
 		readonly textModelN: ITextModel,
-		readonly provider: IInlineChatSessionProvider,
+		readonly agent: IChatAgent,
 		readonly session: IInlineChatSession,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
@@ -168,7 +169,7 @@ export class Session {
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
-			extension: ExtensionIdentifier.toKey(provider.extensionId),
+			extension: ExtensionIdentifier.toKey(agent.extensionId),
 			startTime: this._startTime.toISOString(),
 			endTime: this._startTime.toISOString(),
 			edits: 0,
@@ -279,9 +280,13 @@ export class Session {
 
 export class SessionPrompt {
 
+	readonly value: string;
+
 	constructor(
-		readonly value: string,
-	) { }
+		readonly request: IChatRequestModel
+	) {
+		this.value = request.message.text;
+	}
 }
 
 export class SessionExchange {
@@ -449,6 +454,12 @@ export class StashedSession {
 }
 
 // ---
+
+function lineRangeAsRange(lineRange: LineRange, model: ITextModel): Range {
+	return lineRange.isEmpty
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
+}
 
 export class HunkData {
 
@@ -636,8 +647,8 @@ export class HunkData {
 					const textModelNDecorations: string[] = [];
 					const textModel0Decorations: string[] = [];
 
-					textModelNDecorations.push(accessorN.addDecoration(LineRange.asRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
-					textModel0Decorations.push(accessor0.addDecoration(LineRange.asRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
+					textModelNDecorations.push(accessorN.addDecoration(lineRangeAsRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
+					textModel0Decorations.push(accessor0.addDecoration(lineRangeAsRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
 
 					for (const change of hunk.changes) {
 						textModelNDecorations.push(accessorN.addDecoration(change.modifiedRange, HunkData._HUNK_TRACKED_RANGE));

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
@@ -14,7 +14,7 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { score, targetsNotebooks } from 'vs/editor/common/languageSelector';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
 import { OverviewRulerLane } from 'vs/editor/common/model';
-import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
@@ -1244,9 +1244,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.breakpoints;
 			},
 			get activeStackItem() {
-				if (!isProposedApiEnabled(extension, 'debugFocus')) {
-					return undefined;
-				}
 				return extHostDebugService.activeStackItem;
 			},
 			registerDebugVisualizationProvider(id, provider) {
@@ -1273,7 +1270,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostDebugService.onDidChangeBreakpoints)(listener, thisArgs, disposables);
 			},
 			onDidChangeActiveStackItem(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'debugFocus');
 				return _asExtensionEvent(extHostDebugService.onDidChangeActiveStackItem)(listener, thisArg, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, triggerKind?: vscode.DebugConfigurationProviderTriggerKind) {
@@ -1381,8 +1377,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: interactive
 		const interactive: typeof vscode.interactive = {
-			// IMPORTANT
-			// this needs to be updated whenever the API proposal changes
+			// TODO Can be deleted after another Insiders
 			_version: 1,
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
@@ -1408,52 +1403,50 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chat
 		const chat: typeof vscode.chat = {
+			// IMPORTANT
+			// this needs to be updated whenever the API proposal changes and breaks backwards compatibility
+			_version: 1,
+
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
 			},
-			registerChatVariableResolver(name: string, description: string, resolver: vscode.ChatVariableResolver) {
+			registerChatVariableResolver(id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver, fullName?: string, icon?: vscode.ThemeIcon) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatVariables.registerVariableResolver(extension, name, description, resolver);
+				return extHostChatVariables.registerVariableResolver(extension, id, name, userDescription, modelDescription, isSlow, resolver, fullName, icon?.id);
 			},
 			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
 			createChatParticipant(id: string, handler: vscode.ChatExtendedRequestHandler) {
-				checkProposedApiEnabled(extension, 'chatParticipant');
 				return extHostChatAgents2.createChatAgent(extension, id, handler);
 			},
-			createDynamicChatParticipant(id: string, name: string, publisherName: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+			createDynamicChatParticipant(id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-				return extHostChatAgents2.createDynamicChatAgent(extension, id, name, publisherName, description, handler);
+				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
+			},
+			attachContext(name: string, value: string | vscode.Uri | vscode.Location | unknown, location: vscode.ChatLocation.Panel) {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostChatVariables.attachContext(name, value, location);
 			}
 		};
 
 		// namespace: lm
 		const lm: typeof vscode.lm = {
-			get languageModels() {
-				checkProposedApiEnabled(extension, 'languageModels');
-				return extHostLanguageModels.getLanguageModelIds();
+			selectChatModels: (selector) => {
+				if (initData.quality === 'stable') {
+					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
+					return Promise.resolve([]);
+				}
+				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
-			onDidChangeLanguageModels: (listener, thisArgs?, disposables?) => {
-				checkProposedApiEnabled(extension, 'languageModels');
+			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
+				if (initData.quality === 'stable') {
+					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
+					return Event.None(listener, thisArgs, disposables);
+				}
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
-			},
-			sendChatRequest(languageModel: string, messages: (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[], options?: vscode.LanguageModelChatRequestOptions, token?: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				token ??= CancellationToken.None;
-				options ??= {};
-				return extHostLanguageModels.sendChatRequest(extension, languageModel, messages, options, token);
-			},
-			computeTokenLength(languageModel: string, text: string | vscode.LanguageModelChatMessage, token?: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				token ??= CancellationToken.None;
-				return extHostLanguageModels.computeTokenLength(languageModel, text, token);
-			},
-			getLanguageModelInformation(languageModel: string) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				return extHostLanguageModels.getLanguageModelInfo(languageModel);
 			},
 			// --- embeddings
 			get embeddingModels() {
@@ -1679,7 +1672,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
-			TestRunRequest2: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
@@ -1688,6 +1680,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DataTransferItem: extHostTypes.DataTransferItem,
 			TestCoverageCount: extHostTypes.TestCoverageCount,
 			FileCoverage: extHostTypes.FileCoverage,
+			FileCoverage2: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
 			DeclarationCoverage: extHostTypes.DeclarationCoverage,
@@ -1723,17 +1716,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
+			ChatResponseProgressPart2: extHostTypes.ChatResponseProgressPart2,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseWarningPart: extHostTypes.ChatResponseWarningPart,
 			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
 			ChatResponseMarkdownWithVulnerabilitiesPart: extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatResponseDetectedParticipantPart: extHostTypes.ChatResponseDetectedParticipantPart,
+			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatLocation: extHostTypes.ChatLocation,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
-			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
+			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
+			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage, // TODO@jrieken REMOVE
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,// TODO@jrieken REMOVE
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,// TODO@jrieken REMOVE
 			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,// TODO@jrieken REMOVE

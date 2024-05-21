@@ -180,7 +180,8 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		public resource: string,
 		private _range: T | undefined,
 		private _canReply: boolean,
-		private _isTemplate: boolean
+		private _isTemplate: boolean,
+		public editorId?: string
 	) {
 		this._isDisposed = false;
 		if (_isTemplate) {
@@ -291,7 +292,8 @@ export class MainThreadCommentController implements ICommentController {
 		threadId: string,
 		resource: UriComponents,
 		range: IRange | ICellRange | undefined,
-		isTemplate: boolean
+		isTemplate: boolean,
+		editorId?: string
 	): languages.CommentThread<IRange | ICellRange> {
 		const thread = new MainThreadCommentThread(
 			commentThreadHandle,
@@ -301,7 +303,8 @@ export class MainThreadCommentController implements ICommentController {
 			URI.revive(resource).toString(),
 			range,
 			true,
-			isTemplate
+			isTemplate,
+			editorId
 		);
 
 		this._threads.set(commentThreadHandle, thread);
@@ -479,8 +482,8 @@ export class MainThreadCommentController implements ICommentController {
 		return ret;
 	}
 
-	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void> {
-		return this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined, editorId?: string): Promise<void> {
+		return this._proxy.$createCommentThreadTemplate(this.handle, resource, range, editorId);
 	}
 
 	async updateCommentThreadTemplate(threadHandle: number, range: IRange) {
@@ -580,7 +583,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		resource: UriComponents,
 		range: IRange | ICellRange | undefined,
 		extensionId: ExtensionIdentifier,
-		isTemplate: boolean
+		isTemplate: boolean,
+		editorId?: string
 	): languages.CommentThread<IRange | ICellRange> | undefined {
 		const provider = this._commentControllers.get(handle);
 
@@ -588,7 +592,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return undefined;
 		}
 
-		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range, isTemplate);
+		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range, isTemplate, editorId);
 	}
 
 	$updateCommentThread(handle: number,

@@ -47,6 +47,7 @@ export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more ge
 	outputFontFamily: string;
 	outputLineHeight: number;
 	markupFontSize: number;
+	markdownLineHeight: number;
 	editorOptionsCustomizations: Partial<{
 		'editor.indentSize': 'tabSize' | number;
 		'editor.tabSize': number;
@@ -96,6 +97,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly fontSize?: boolean;
 	readonly outputFontSize?: boolean;
 	readonly markupFontSize?: boolean;
+	readonly markdownLineHeight?: boolean;
 	readonly fontFamily?: boolean;
 	readonly outputFontFamily?: boolean;
 	readonly editorOptionsCustomizations?: boolean;
@@ -159,6 +161,7 @@ export class NotebookOptions extends Disposable {
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		const markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
+		const markdownLineHeight = this.configurationService.getValue<number>(NotebookSetting.markdownLineHeight);
 		let editorOptionsCustomizations = this.configurationService.getValue<Partial<{
 			'editor.indentSize': 'tabSize' | number;
 			'editor.tabSize': number;
@@ -246,6 +249,7 @@ export class NotebookOptions extends Disposable {
 			outputFontFamily,
 			outputLineHeight,
 			markupFontSize,
+			markdownLineHeight,
 			editorOptionsCustomizations,
 			focusIndicatorGap: 3,
 			interactiveWindowCollapseCodeCells,
@@ -411,6 +415,7 @@ export class NotebookOptions extends Disposable {
 		const fontSize = e.affectsConfiguration('editor.fontSize');
 		const outputFontSize = e.affectsConfiguration(NotebookSetting.outputFontSize);
 		const markupFontSize = e.affectsConfiguration(NotebookSetting.markupFontSize);
+		const markdownLineHeight = e.affectsConfiguration(NotebookSetting.markdownLineHeight);
 		const fontFamily = e.affectsConfiguration('editor.fontFamily');
 		const outputFontFamily = e.affectsConfiguration(NotebookSetting.outputFontFamily);
 		const editorOptionsCustomizations = e.affectsConfiguration(NotebookSetting.cellEditorOptionsCustomizations);
@@ -439,6 +444,7 @@ export class NotebookOptions extends Disposable {
 			&& !fontSize
 			&& !outputFontSize
 			&& !markupFontSize
+			&& !markdownLineHeight
 			&& !fontFamily
 			&& !outputFontFamily
 			&& !editorOptionsCustomizations
@@ -525,6 +531,10 @@ export class NotebookOptions extends Disposable {
 			configuration.markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		}
 
+		if (markdownLineHeight) {
+			configuration.markdownLineHeight = this.configurationService.getValue<number>(NotebookSetting.markdownLineHeight);
+		}
+
 		if (outputFontFamily) {
 			configuration.outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
 		}
@@ -579,6 +589,7 @@ export class NotebookOptions extends Disposable {
 			fontSize,
 			outputFontSize,
 			markupFontSize,
+			markdownLineHeight,
 			fontFamily,
 			outputFontFamily,
 			editorOptionsCustomizations,
@@ -796,6 +807,7 @@ export class NotebookOptions extends Disposable {
 			outputFontSize: this._layoutConfiguration.outputFontSize,
 			outputFontFamily: this._layoutConfiguration.outputFontFamily,
 			markupFontSize: this._layoutConfiguration.markupFontSize,
+			markdownLineHeight: this._layoutConfiguration.markdownLineHeight,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
 			outputScrolling: this._layoutConfiguration.outputScrolling,
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
@@ -819,6 +831,7 @@ export class NotebookOptions extends Disposable {
 			outputFontSize: this._layoutConfiguration.outputFontSize,
 			outputFontFamily: this._layoutConfiguration.outputFontFamily,
 			markupFontSize: this._layoutConfiguration.markupFontSize,
+			markdownLineHeight: this._layoutConfiguration.markdownLineHeight,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
 			outputScrolling: this._layoutConfiguration.outputScrolling,
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
