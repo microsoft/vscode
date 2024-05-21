@@ -77,7 +77,7 @@ export interface IStoredFileWorkingCopyModel extends IFileWorkingCopyModel {
 	 * which is to ask the model for a `snapshot` and then
 	 * writing that to the model's resource.
 	 */
-	save?(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
+	save?(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata | undefined>;
 }
 
 export interface IStoredFileWorkingCopyModelContentChangedEvent {
@@ -1019,7 +1019,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Delegate to working copy model save method if any
 					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
-						stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+						const result = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+						if (!result && saveCancellation.token.isCancellationRequested) {
+							return;
+						}
+						stat = assertIsDefined(result);
 					}
 
 					// Otherwise ask for a snapshot and save via file services

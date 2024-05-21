@@ -311,7 +311,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return VSBuffer.wrap(bytes);
 	}
 
-	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata> {
+	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata | undefined> {
 		const uri = URI.revive(uriComponents);
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
@@ -330,7 +330,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
 			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
 		}
-
 
 		const data: vscode.NotebookData = {
 			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
@@ -356,7 +355,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		// validate write
 		await this._validateWriteFile(uri, options);
 
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		// Don't accept any cancellation beyond this point, we need to report the result of the file write
 		await this._extHostFileSystem.value.writeFile(uri, bytes);
 		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
 		const stat = await this._extHostFileSystem.value.stat(uri);

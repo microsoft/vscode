@@ -80,11 +80,13 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			},
 			save: async (uri, versionId, options, token) => {
 				const stat = await this._proxy.$saveNotebook(handle, uri, versionId, options, token);
-				return {
-					...stat,
-					children: undefined,
-					resource: uri
-				};
+				return stat
+					? {
+						...stat,
+						children: undefined,
+						resource: uri
+					}
+					: undefined;
 			},
 			searchInNotebooks: async (textQuery, token, allPriorityInfo): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
 				const contributedType = this._notebookService.getContributedNotebookType(viewType);

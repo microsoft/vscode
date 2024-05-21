@@ -191,7 +191,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	readonly onWillDispose: Event<void>;
 
 	readonly configuration: IFileWorkingCopyModelConfiguration | undefined = undefined;
-	save: ((options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata>) | undefined;
+	save: ((options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata | undefined>) | undefined;
 
 	constructor(
 		private readonly _notebookModel: NotebookTextModel,
@@ -239,10 +239,6 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	private async setSaveDelegate() {
 		const serializer = await this.getNotebookSerializer();
 		this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-
 			try {
 				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
 				return stat;
@@ -262,6 +258,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
 						versionMismatch: error instanceof Error && error.message === 'Document version mismatch'
 					});
+					return undefined;
 				}
 
 				throw error;
