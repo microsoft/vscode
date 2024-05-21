@@ -789,11 +789,11 @@ pub enum TunnelUserSubCommands {
 #[derive(Args, Debug, Clone)]
 pub struct LoginArgs {
 	/// An access token to store for authentication.
-	#[clap(long, requires = "provider")]
+	#[clap(long, requires = "provider", env = "VSCODE_CLI_ACCESS_TOKEN")]
 	pub access_token: Option<String>,
 
 	/// An access token to store for authentication.
-	#[clap(long, requires = "access_token")]
+	#[clap(long, requires = "access_token", env = "VSCODE_CLI_REFRESH_TOKEN")]
 	pub refresh_token: Option<String>,
 
 	/// The auth provider to use. If not provided, a prompt will be shown.

@@ -2590,6 +2590,8 @@ export namespace ChatAgentCompletionItem {
 		return {
 			id: item.id,
 			label: item.label,
+			fullName: item.fullName,
+			icon: item.icon?.id,
 			value: item.values[0].value,
 			insertText: item.insertText,
 			detail: item.detail,

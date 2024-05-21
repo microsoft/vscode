@@ -639,7 +639,7 @@ export class InlineChatController implements IEditorContribution {
 			return State.ACCEPT;
 		}
 
-		this._session.addInput(new SessionPrompt(input));
+		this._session.addInput(new SessionPrompt(request));
 
 		return State.SHOW_REQUEST;
 	}
@@ -669,7 +669,6 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		let lastLength = 0;
 
 
 		let message = Message.NONE;
@@ -684,6 +683,8 @@ export class InlineChatController implements IEditorContribution {
 			this._chatService.cancelCurrentRequestForSession(request.session.sessionId);
 		}));
 
+		let lastLength = 0;
+		let isFirstChange = true;
 
 		// apply edits
 		store.add(response.onDidChange(() => {
@@ -698,13 +699,6 @@ export class InlineChatController implements IEditorContribution {
 				responsePromise.complete();
 				return;
 			}
-
-			// if ("1") {
-			// 	return;
-			// }
-
-			// TODO@jrieken
-			const editsShouldBeInstant = false;
 
 			const edits = response.response.value.map(part => {
 				if (part.kind === 'textEditGroup' && isEqual(part.uri, this._session?.textModelN.uri)) {
@@ -732,10 +726,12 @@ export class InlineChatController implements IEditorContribution {
 				// influence the time it takes to receive the changes and progressive typing will
 				// become infinitely fast
 				for (const edits of newEdits) {
-					await this._makeChanges(edits, editsShouldBeInstant
-						? undefined
-						: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
-					);
+					await this._makeChanges(edits, {
+						duration: progressiveEditsAvgDuration.value,
+						token: progressiveEditsCts.token
+					}, isFirstChange);
+
+					isFirstChange = false;
 				}
 
 				// reshow the widget if the start position changed or shows at the wrong position
@@ -981,7 +977,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
+	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined, undoStopBefore: boolean) {
 		assertType(this._session);
 		assertType(this._strategy);
 
@@ -1004,9 +1000,9 @@ export class InlineChatController implements IEditorContribution {
 		this._inlineChatSavingService.markChanged(this._session);
 		this._session.wholeRange.trackEdits(editOperations);
 		if (opts) {
-			await this._strategy.makeProgressiveChanges(editOperations, editsObserver, opts);
+			await this._strategy.makeProgressiveChanges(editOperations, editsObserver, opts, undoStopBefore);
 		} else {
-			await this._strategy.makeChanges(editOperations, editsObserver);
+			await this._strategy.makeChanges(editOperations, editsObserver, undoStopBefore);
 		}
 		this._ctxDidEdit.set(this._session.hasChangedText);
 

@@ -32,7 +32,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatRequestModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
@@ -279,9 +279,13 @@ export class Session {
 
 export class SessionPrompt {
 
+	readonly value: string;
+
 	constructor(
-		readonly value: string,
-	) { }
+		readonly request: IChatRequestModel
+	) {
+		this.value = request.message.text;
+	}
 }
 
 export class SessionExchange {

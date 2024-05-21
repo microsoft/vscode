@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findLast } from 'vs/base/common/arraysFind';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,7 +16,7 @@ import { observableValue } from 'vs/base/common/observableInternal/base';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { ProviderResult } from 'vs/editor/common/languages';
+import { Command, ProviderResult } from 'vs/editor/common/languages';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -145,6 +146,14 @@ interface IChatAgentEntry {
 	impl?: IChatAgentImplementation;
 }
 
+export interface IChatAgentCompletionItem {
+	id: string;
+	fullName?: string;
+	icon?: ThemeIcon;
+	value: unknown;
+	command?: Command;
+}
+
 export interface IChatAgentService {
 	_serviceBrand: undefined;
 	/**
@@ -154,6 +163,8 @@ export interface IChatAgentService {
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
+	registerAgentCompletionProvider(id: string, provider: (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>): IDisposable;
+	getAgentCompletionItems(id: string, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getAgent(id: string): IChatAgentData | undefined;
@@ -255,6 +266,19 @@ export class ChatAgentService implements IChatAgentService {
 		});
 	}
 
+	private _agentCompletionProviders = new Map<string, (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>>();
+
+	registerAgentCompletionProvider(id: string, provider: (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>) {
+		this._agentCompletionProviders.set(id, provider);
+		return {
+			dispose: () => { this._agentCompletionProviders.delete(id); }
+		};
+	}
+
+	async getAgentCompletionItems(id: string, query: string, token: CancellationToken) {
+		return await this._agentCompletionProviders.get(id)?.(query, token) ?? [];
+	}
+
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void {
 		const agent = this._getAgentEntry(id);
 		if (!agent?.impl) {
@@ -265,7 +289,7 @@ export class ChatAgentService implements IChatAgentService {
 	}
 
 	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined {
-		return this.getActivatedAgents().find(a => !!a.isDefault && a.locations.includes(location));
+		return findLast(this.getActivatedAgents(), a => !!a.isDefault && a.locations.includes(location));
 	}
 
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {
