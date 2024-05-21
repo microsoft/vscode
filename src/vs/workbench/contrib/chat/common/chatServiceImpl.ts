@@ -561,10 +561,7 @@ export class ChatService extends Disposable implements IChatService {
 					const initVariableData: IChatRequestVariableData = { variables: [] };
 					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command);
 					completeResponseCreated();
-					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, progressCallback, token);
-					if (options?.attachedContext) {
-						variableData.variables.push(...options.attachedContext);
-					}
+					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
 					request.variableData = variableData;
 
 					const promptTextResult = getPromptText(request.message);
