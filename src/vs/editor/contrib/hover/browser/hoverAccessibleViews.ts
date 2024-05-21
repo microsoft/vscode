@@ -163,7 +163,7 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 
 	private _descriptionOfVerbosityAction(hoverController: HoverController, action: HoverVerbosityAction): string | undefined {
 		const isActionSupported = hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, action);
-		if (isActionSupported) {
+		if (!isActionSupported) {
 			return;
 		}
 		let actionId: string;
