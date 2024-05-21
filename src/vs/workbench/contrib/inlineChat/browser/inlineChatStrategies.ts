@@ -60,7 +60,6 @@ export abstract class EditModeStrategy {
 	protected readonly _onDidAccept = this._store.add(new Emitter<void>());
 	protected readonly _onDidDiscard = this._store.add(new Emitter<void>());
 
-	protected _editCount: number = 0;
 
 	readonly onDidAccept: Event<void> = this._onDidAccept.event;
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
@@ -133,38 +132,9 @@ export abstract class EditModeStrategy {
 		this._onDidDiscard.fire();
 	}
 
-	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions): Promise<void>;
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void>;
 
-	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void>;
-
-	protected async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined, progress: Progress<IValidEditOperation[]> | undefined): Promise<void> {
-
-		// push undo stop before first edit
-		if (++this._editCount === 1) {
-			this._editor.pushUndoStop();
-		}
-
-		if (opts) {
-			// ASYNC
-			const durationInSec = opts.duration / 1000;
-			for (const edit of edits) {
-				const wordCount = countWords(edit.text ?? '');
-				const speed = wordCount / durationInSec;
-				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				const asyncEdit = asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token);
-				await performAsyncTextEdit(this._session.textModelN, asyncEdit, progress, obs);
-			}
-
-		} else {
-			// SYNC
-			obs.start();
-			this._session.textModelN.pushEditOperations(null, edits, (undoEdits) => {
-				progress?.report(undoEdits);
-				return null;
-			});
-			obs.stop();
-		}
-	}
+	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void>;
 
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
@@ -216,10 +186,10 @@ export class PreviewStrategy extends EditModeStrategy {
 		await super._doApplyChanges(false);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
+	override async makeChanges(): Promise<void> {
 	}
 
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(): Promise<void> {
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
@@ -289,6 +259,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _ctxCurrentChangeShowsDiff: IContextKey<boolean>;
 
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
+	private _editCount: number = 0;
 
 	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
 	override discardHunk: () => Promise<void> = () => super.discardHunk();
@@ -347,11 +318,11 @@ export class LiveStrategy extends EditModeStrategy {
 		await undoModelUntil(textModelN, altVersionId);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
-		return this._makeChanges(edits, obs, undefined, undefined);
+	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void> {
+		return this._makeChanges(edits, obs, undefined, undefined, undoStopBefore);
 	}
 
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void> {
 
 		// add decorations once per line that got edited
 		const progress = new Progress<IValidEditOperation[]>(edits => {
@@ -371,7 +342,38 @@ export class LiveStrategy extends EditModeStrategy {
 
 			this._progressiveEditingDecorations.append(newDecorations);
 		});
-		return this._makeChanges(edits, obs, opts, progress);
+		return this._makeChanges(edits, obs, opts, progress, undoStopBefore);
+	}
+
+	private async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined, progress: Progress<IValidEditOperation[]> | undefined, undoStopBefore: boolean): Promise<void> {
+
+		// push undo stop before first edit
+		if (undoStopBefore) {
+			this._editor.pushUndoStop();
+		}
+
+		this._editCount++;
+
+		if (opts) {
+			// ASYNC
+			const durationInSec = opts.duration / 1000;
+			for (const edit of edits) {
+				const wordCount = countWords(edit.text ?? '');
+				const speed = wordCount / durationInSec;
+				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+				const asyncEdit = asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token);
+				await performAsyncTextEdit(this._session.textModelN, asyncEdit, progress, obs);
+			}
+
+		} else {
+			// SYNC
+			obs.start();
+			this._session.textModelN.pushEditOperations(null, edits, (undoEdits) => {
+				progress?.report(undoEdits);
+				return null;
+			});
+			obs.stop();
+		}
 	}
 
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();

@@ -796,8 +796,6 @@ export class DebugService implements IDebugService {
 		if (launch) {
 			unresolved = launch.getConfiguration(session.configuration.name);
 			if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
-				// Take the type from the session since the debug extension might overwrite it #21316
-				unresolved.type = session.configuration.type;
 				unresolved.noDebug = session.configuration.noDebug;
 				needsToSubstitute = true;
 			}
@@ -811,7 +809,7 @@ export class DebugService implements IDebugService {
 			if (resolvedByProviders) {
 				resolved = await this.substituteVariables(launch, resolvedByProviders);
 				if (resolved && !initCancellationToken.token.isCancellationRequested) {
-					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
+					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, resolved.type, resolved, initCancellationToken.token);
 				}
 			} else {
 				resolved = resolvedByProviders;

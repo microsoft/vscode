@@ -8,6 +8,7 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { Event } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
+import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
@@ -60,6 +61,11 @@ export interface IAccessibleViewOptions {
 	 * If this provider might want to request to be shown again, provide an ID.
 	 */
 	id?: AccessibleViewProviderId;
+
+	/**
+	 * Keybinding items to configure
+	 */
+	configureKeybindingItems?: IQuickPickItem[];
 }
 
 
@@ -113,6 +119,7 @@ export interface IAccessibleViewService {
 	 */
 	getOpenAriaHint(verbositySettingKey: string): string | null;
 	getCodeBlockContext(): ICodeBlockActionContext | undefined;
+	configureKeybindings(): void;
 }
 
 
