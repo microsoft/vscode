@@ -6,13 +6,13 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, canMergeMarkdownStrings, appendMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatAgentMarkdownContentWithVulnerability, IChatAgentVulnerabilityDetails, IChatContentInlineReference, IChatMarkdownContent, IChatTask } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from 'vs/workbench/contrib/chat/common/chatService';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
 export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): ReadonlyArray<IChatProgressRenderableResponseContent> {
-	const result: Exclude<IChatProgressResponseContent | IChatTask, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>[] = [];
+	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
 		const previousItem = result[result.length - 1];
 		if (item.kind === 'inlineReference') {
