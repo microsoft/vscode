@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference, IChatProgressMessage } from 'vs/workbench/contrib/chat/common/chatService';
@@ -45,6 +46,7 @@ export interface IChatVariablesService {
 	getVariable(name: string): IChatVariableData | undefined;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
+	attachContext(name: string, value: string | URI | Location | unknown, location: ChatAgentLocation): void;
 
 	/**
 	 * Resolves all variables that occur in `prompt`
