@@ -54,7 +54,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	// Other fields
 	public static readonly ID = 'editor.contrib.hover';
-	public shouldRemainOpenOnEditorMouseMoveOrLeave: boolean = false;
+
+	public shouldKeepOpenOnEditorMouseMoveOrLeave: boolean = false;
 
 	private readonly _listenersStore = new DisposableStore();
 
@@ -181,7 +182,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
-		if (this.shouldRemainOpenOnEditorMouseMoveOrLeave) {
+		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
 
@@ -233,7 +234,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		if (this.shouldRemainOpenOnEditorMouseMoveOrLeave) {
+		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
 
@@ -418,10 +419,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.widget.isResizing || false;
 	}
 
-	public updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index: number = -1, focus: boolean = true): void {
-		this._getOrCreateContentWidget().updateMarkdownHoverVerbosityLevel(action, index, focus);
-	}
-
 	public focusedMarkdownHoverIndex(): number {
 		return this._getOrCreateContentWidget().focusedMarkdownHoverIndex();
 	}
@@ -432,6 +429,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
 		return this._getOrCreateContentWidget().doesMarkdownHoverAtIndexSupportVerbosityAction(index, action);
+	}
+
+	public updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): void {
+		this._getOrCreateContentWidget().updateMarkdownHoverVerbosityLevel(action, index, focus);
 	}
 
 	public focus(): void {

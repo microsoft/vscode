@@ -191,10 +191,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return this._renderedHoverParts;
 	}
 
-	public updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index: number = -1, focus: boolean = true) {
-		this._renderedHoverParts?.updateMarkdownHoverPartVerbosityLevel(action, index, focus);
-	}
-
 	public markdownHoverContentAtIndex(index: number): string {
 		return this._renderedHoverParts?.markdownHoverContentAtIndex(index) ?? '';
 	}
@@ -205,6 +201,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
 		return this._renderedHoverParts?.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action) ?? false;
+	}
+
+	public updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean) {
+		this._renderedHoverParts?.updateMarkdownHoverPartVerbosityLevel(action, index, focus);
 	}
 }
 

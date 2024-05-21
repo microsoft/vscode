@@ -360,7 +360,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index: number = -1, focus: boolean = true): Promise<void> {
+	public async updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): Promise<void> {
 		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevel(action, index, focus);
 	}
 

@@ -13,7 +13,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
-import { DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL } from 'vs/editor/contrib/hover/browser/hoverActionIds';
+import { DECREASE_HOVER_VERBOSITY_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -65,6 +65,7 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 	private readonly _hoverController: HoverController | null = null;
 	private _markdownHoverFocusedIndex: number = -1;
 
+	// Listener
 	private _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
@@ -73,64 +74,129 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+		this._hoverController = HoverController.get(this._editor);
 		this.options = {
 			language: this._editor.getModel()?.getLanguageId(),
 			type: AccessibleViewType.View
 		};
-		this.actions.push(new Action(INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL, ThemeIcon.asClassName(Codicon.add), true, () => {
-			this._editor.getAction(INCREASE_HOVER_VERBOSITY_ACTION_ID)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
-		}));
-		this.actions.push(new Action(DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, ThemeIcon.asClassName(Codicon.remove), true, () => {
-			this._editor.getAction(DECREASE_HOVER_VERBOSITY_ACTION_ID)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
-		}));
-		this._hoverController = HoverController.get(this._editor);
-		if (this._hoverController) {
-			this._register(this._hoverController.onHoverContentsChanged(() => {
-				this._onDidChangeContent.fire();
-			}));
-		}
+		this._initializeActions();
+		this._hookListeners();
 	}
 
-	provideContent(): string {
+	public provideContent(): string {
 		const content: string[] = [HoverAccessibilityHelpNLS.intro];
 		if (!this._hoverController) {
 			return content.join('\n');
 		}
-		this._hoverController.shouldRemainOpenOnEditorMouseMoveOrLeave = true;
-		if (this._markdownHoverFocusedIndex === -1) {
-			this._markdownHoverFocusedIndex = this._hoverController.focusedMarkdownHoverIndex();
-		}
-		const isFocusOnExpandableMarkdownHover = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, HoverVerbosityAction.Increase);
-		if (isFocusOnExpandableMarkdownHover) {
-			content.push(this._descriptionForCommand(INCREASE_HOVER_VERBOSITY_ACTION_ID, HoverAccessibilityHelpNLS.increaseVerbosity, HoverAccessibilityHelpNLS.increaseVerbosityNoKb));
-		}
-		const isFocusOnContractableMarkdownHover = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, HoverVerbosityAction.Decrease);
-		if (isFocusOnContractableMarkdownHover) {
-			content.push(this._descriptionForCommand(DECREASE_HOVER_VERBOSITY_ACTION_ID, HoverAccessibilityHelpNLS.decreaseVerbosity, HoverAccessibilityHelpNLS.decreaseVerbosityNoKb));
-		}
-		const hoverContent = this._hoverController.markdownHoverContentAtIndex(this._markdownHoverFocusedIndex);
-		if (hoverContent) {
-			content.push('\n' + HoverAccessibilityHelpNLS.hoverContent);
-			content.push('\n' + hoverContent);
-		}
+		this._updateMarkdownHoverFocusedIndex(this._hoverController);
+		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = true;
+		content.push(...this._descriptionsOfVerbosityActions(this._hoverController));
+		content.push(...this._descriptionOfFocusedMarkdownHover(this._hoverController));
 		return content.join('\n');
 	}
 
-	onClose(): void {
+	public onClose(): void {
 		if (!this._hoverController) {
 			return;
 		}
-		this._hoverController.focus();
-		this._hoverController.shouldRemainOpenOnEditorMouseMoveOrLeave = false;
 		this._markdownHoverFocusedIndex = -1;
+		this._hoverController.focus();
+		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
+	}
+
+	private _initializeActions(): void {
+		this.actions.push(this._getActionFor(HoverVerbosityAction.Increase));
+		this.actions.push(this._getActionFor(HoverVerbosityAction.Decrease));
+	}
+
+	private _hookListeners(): void {
+		if (!this._hoverController) {
+			return;
+		}
+		this._register(this._hoverController.onHoverContentsChanged(() => {
+			this._onDidChangeContent.fire();
+		}));
+	}
+
+	private _getActionFor(action: HoverVerbosityAction): IAction {
+		let actionId: string;
+		let accessibleActionId: string;
+		let actionLabel: string;
+		let actionCodicon: ThemeIcon;
+		switch (action) {
+			case HoverVerbosityAction.Increase:
+				actionId = INCREASE_HOVER_VERBOSITY_ACTION_ID;
+				accessibleActionId = INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID;
+				actionLabel = INCREASE_HOVER_VERBOSITY_ACTION_LABEL;
+				actionCodicon = Codicon.add;
+				break;
+			case HoverVerbosityAction.Decrease:
+				actionId = DECREASE_HOVER_VERBOSITY_ACTION_ID;
+				accessibleActionId = DECREASE_HOVER_VERBOSITY_ACTION_ID;
+				actionLabel = DECREASE_HOVER_VERBOSITY_ACTION_LABEL;
+				actionCodicon = Codicon.remove;
+				break;
+		}
+		return new Action(accessibleActionId, actionLabel, ThemeIcon.asClassName(actionCodicon), true, () => {
+			this._editor.getAction(actionId)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
+		});
+	}
+
+	private _updateMarkdownHoverFocusedIndex(hoverController: HoverController) {
+		if (this._markdownHoverFocusedIndex === -1) {
+			this._markdownHoverFocusedIndex = hoverController.focusedMarkdownHoverIndex();
+		}
+	}
+
+	private _descriptionsOfVerbosityActions(hoverController: HoverController): string[] {
+		const content: string[] = [];
+		const descriptionForIncreaseAction = this._descriptionOfVerbosityAction(hoverController, HoverVerbosityAction.Increase);
+		if (descriptionForIncreaseAction !== undefined) {
+			content.push(descriptionForIncreaseAction);
+		}
+		const descriptionForDecreaseAction = this._descriptionOfVerbosityAction(hoverController, HoverVerbosityAction.Decrease);
+		if (descriptionForDecreaseAction !== undefined) {
+			content.push(descriptionForDecreaseAction);
+		}
+		return content;
+	}
+
+	private _descriptionOfVerbosityAction(hoverController: HoverController, action: HoverVerbosityAction): string | undefined {
+		const isActionSupported = hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, action);
+		if (isActionSupported) {
+			return;
+		}
+		let actionId: string;
+		let descriptionWithKb: string;
+		let descriptionWithoutKb: string;
+		switch (action) {
+			case HoverVerbosityAction.Increase:
+				actionId = INCREASE_HOVER_VERBOSITY_ACTION_ID;
+				descriptionWithKb = HoverAccessibilityHelpNLS.increaseVerbosity;
+				descriptionWithoutKb = HoverAccessibilityHelpNLS.increaseVerbosityNoKb;
+				break;
+			case HoverVerbosityAction.Decrease:
+				actionId = DECREASE_HOVER_VERBOSITY_ACTION_ID;
+				descriptionWithKb = HoverAccessibilityHelpNLS.decreaseVerbosity;
+				descriptionWithoutKb = HoverAccessibilityHelpNLS.decreaseVerbosityNoKb;
+				break;
+		}
+		return this._descriptionForCommand(actionId, descriptionWithKb, descriptionWithoutKb);
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
 		const kb = this._keybindingService.lookupKeybinding(commandId);
-		if (kb) {
-			return format(msg, kb.getAriaLabel());
+		return kb ? format(msg, kb.getAriaLabel()) : format(noKbMsg, commandId);
+	}
+
+	private _descriptionOfFocusedMarkdownHover(hoverController: HoverController): string[] {
+		const content: string[] = [];
+		const hoverContent = hoverController.markdownHoverContentAtIndex(this._markdownHoverFocusedIndex);
+		if (hoverContent) {
+			content.push('\n' + HoverAccessibilityHelpNLS.hoverContent);
+			content.push('\n' + hoverContent);
 		}
-		return format(noKbMsg, commandId);
+		return content;
 	}
 }
 

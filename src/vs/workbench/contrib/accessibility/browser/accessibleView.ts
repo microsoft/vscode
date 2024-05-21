@@ -289,10 +289,11 @@ export class AccessibleView extends Disposable {
 		if (provider instanceof ExtensionContentProvider) {
 			this._storageService.store(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
-		provider.onDidChangeContent?.(() => {
-			if (viewContainer) { this._render(provider, viewContainer, showAccessibleViewHelp); }
-		});
-
+		if (provider.onDidChangeContent) {
+			this._register(provider.onDidChangeContent(() => {
+				if (viewContainer) { this._render(provider, viewContainer, showAccessibleViewHelp); }
+			}));
+		}
 	}
 
 	previous(): void {
@@ -623,7 +624,8 @@ export class AccessibleView extends Disposable {
 			provider.onClose,
 			provider.next,
 			provider.previous,
-			provider.actions
+			provider.actions,
+			provider.onDidChangeContent,
 		);
 		return lastProvider;
 	}
