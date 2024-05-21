@@ -361,6 +361,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		await this._validateWriteFile(uri, options);
 
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
+		this.trace(`serialized versionId: ${versionId} ${uri.toString()}`);
 		await this._extHostFileSystem.value.writeFile(uri, bytes);
 		this.trace(`Finished write versionId: ${versionId} ${uri.toString()}`);
 		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
