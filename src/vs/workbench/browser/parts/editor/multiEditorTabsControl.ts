@@ -889,14 +889,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const editor = this.tabsModel.getEditorByIndex(tabIndex);
 			if (editor) {
 				if (e.shiftKey) {
-					let anchor;
+					let anchor: EditorInput;
 					if (this.lastSingleSelectSelectedEditor && this.tabsModel.isSelected(this.lastSingleSelectSelectedEditor)) {
 						// The last selected editor is the anchor
 						anchor = this.lastSingleSelectSelectedEditor;
 					} else {
 						// The active editor is the anchor
-						this.lastSingleSelectSelectedEditor = this.groupView.activeEditor!;
-						anchor = this.groupView.activeEditor!;
+						const activeEditor = assertIsDefined(this.groupView.activeEditor);
+						this.lastSingleSelectSelectedEditor = activeEditor;
+						anchor = activeEditor;
 					}
 					await this.selectEditorsBetween(editor, anchor);
 				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
@@ -1308,7 +1309,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				break;
 			}
 
-			selection.filter(editor => !editor.matches(currentEditor));
+			selection.filter(editor => !editor.matches(currentEditor)); // TODO this is a no-op
 		}
 
 		// Select editors between anchor and target
@@ -1334,7 +1335,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			return;
 		}
 
-		let newActiveEditor = this.groupView.activeEditor!;
+		let newActiveEditor = assertIsDefined(this.groupView.activeEditor);
 
 		// If active editor is bing unselected then find the most recently opened selected editor
 		// that is not the editor being unselected
@@ -1355,7 +1356,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private async unselectAllEditors(): Promise<void> {
 		if (this.groupView.selectedEditors.length > 1) {
-			await this.groupView.setSelection(this.groupView.activeEditor!, []);
+			const activeEditor = assertIsDefined(this.groupView.activeEditor);
+			await this.groupView.setSelection(activeEditor, []);
 		}
 	}
 
