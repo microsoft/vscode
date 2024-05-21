@@ -712,7 +712,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		this._onDidModelChange.fire(event);
 	}
 
-	public get selectedEditors(): EditorInput[] {
+	get selectedEditors(): EditorInput[] {
 		// Return selected editors in sequential order
 		return this.editors.filter(editor => this.isSelected(editor));
 	}
