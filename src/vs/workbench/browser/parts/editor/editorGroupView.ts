@@ -297,7 +297,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					sideBySideEditorContext.set(false);
 					groupActiveEditorDirtyContext.set(false);
 				}
-				this.editorPartsView.runRegisteredContextKeyHandlers(this);
+				this.editorPartsView.runRegisteredContextProviders(this);
 
 				if (activeEditorPane) {
 					groupActiveEditorContext.set(activeEditorPane.getId());

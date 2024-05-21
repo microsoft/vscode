@@ -190,7 +190,7 @@ export interface IEditorPartsView {
 	createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart>;
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T>;
-	runRegisteredContextKeyHandlers(group: IEditorGroupView): void;
+	runRegisteredContextProviders(group: IEditorGroupView): void;
 }
 
 /**
