@@ -18,11 +18,11 @@ import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
-import { EventType, getActiveWindow, isActiveElement } from 'vs/base/browser/dom';
+import { isActiveElement } from 'vs/base/browser/dom';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize, localize2 } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -58,10 +58,6 @@ async function updateFocus(widget: WorkbenchListWidget, updateFocusFn: (widget: 
 async function navigate(widget: WorkbenchListWidget | undefined, updateFocusFn: (widget: WorkbenchListWidget) => void | Promise<void>): Promise<void> {
 	if (!widget) {
 		return;
-	}
-
-	if (activeHover) {
-		toggleCustomHover(activeHover, widget);
 	}
 
 	await updateFocus(widget, updateFocusFn);
@@ -733,32 +729,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		toggleCustomHover(elementWithHover as HTMLElement, lastFocusedList);
+		accessor.get(IHoverService).triggerUpdatableHover(elementWithHover as HTMLElement);
 	},
 });
-
-let activeHover: undefined | HTMLElement;
-let disposable: IDisposable | undefined;
-function toggleCustomHover(element: HTMLElement, list: WorkbenchListWidget) {
-	const show = !element.getAttribute('custom-hover-active');
-	const mouseEvent = new MouseEvent(show ? EventType.MOUSE_OVER : EventType.MOUSE_LEAVE, {
-		view: getActiveWindow(),
-		bubbles: true,
-		cancelable: true,
-	});
-	element.dispatchEvent(mouseEvent);
-
-	if (activeHover === element && !show) {
-		activeHover = undefined;
-		disposable?.dispose();
-		disposable = undefined;
-	} else {
-		activeHover = element;
-		disposable = list.onDidBlur(() => {
-			toggleCustomHover(element, list);
-		});
-	}
-}
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.toggleExpand',

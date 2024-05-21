@@ -33,6 +33,7 @@ import { category, getElementsToOperateOn, getSearchView, openSearchView } from 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 
 //#region Interfaces
@@ -317,7 +318,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	let resources: URI[];
 
 	if (isFromExplorer) {
-		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
+		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	} else {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (!searchView) {

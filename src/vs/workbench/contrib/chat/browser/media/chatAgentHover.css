@@ -76,15 +76,6 @@
 }
 
 .chat-agent-hover-description,
-.chat-agent-hover-marketplace-button .monaco-text-button,
 .chat-agent-hover-warning {
 	font-size: 13px;
-}
-
-.chat-agent-hover .chat-agent-hover-marketplace-button .monaco-text-button {
-	margin-left: 3px;
-	display: unset;
-	padding: unset;
-	border: unset;
-	line-height: unset;
 }

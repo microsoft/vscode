@@ -5,9 +5,12 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -25,7 +28,7 @@ import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workben
 import { ChatAgentLocation, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -36,17 +39,48 @@ interface AgentData {
 	hasFollowups?: boolean;
 }
 
+class MainThreadChatTask implements IChatTask {
+	public readonly kind = 'progressTask';
+
+	public readonly deferred = new DeferredPromise<string | void>();
+
+	private readonly _onDidAddProgress = new Emitter<IChatWarningMessage | IChatContentReference>();
+	public get onDidAddProgress(): Event<IChatWarningMessage | IChatContentReference> { return this._onDidAddProgress.event; }
+
+	public readonly progress: (IChatWarningMessage | IChatContentReference)[] = [];
+
+	constructor(public content: IMarkdownString) { }
+
+	task() {
+		return this.deferred.p;
+	}
+
+	isSettled() {
+		return this.deferred.isSettled;
+	}
+
+	complete(v: string | void) {
+		this.deferred.complete(v);
+	}
+
+	add(progress: IChatWarningMessage | IChatContentReference): void {
+		this.progress.push(progress);
+		this._onDidAddProgress.fire(progress);
+	}
+}
+
 @extHostNamedCustomer(MainContext.MainThreadChatAgents2)
 export class MainThreadChatAgents2 extends Disposable implements MainThreadChatAgentsShape2 {
 
 	private readonly _agents = this._register(new DisposableMap<number, AgentData>());
 	private readonly _agentCompletionProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _agentIdsToCompletionProviders = this._register(new DisposableMap<string, IDisposable>);
 
 	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
 	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | void>>();
+	private readonly _activeTasks = new Map<string, IChatTask>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -172,29 +206,42 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
-		if (progress.kind === 'progressTask') {
+		const revivedProgress = revive(progress) as IChatProgress;
+		if (revivedProgress.kind === 'progressTask') {
 			const handle = ++this._responsePartHandlePool;
 			const responsePartId = `${requestId}_${handle}`;
-			const deferredContentPromise = new DeferredPromise<string | void>();
-			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
-			this._pendingProgress.get(requestId)?.({ ...progress, task: () => deferredContentPromise.p, isSettled: () => deferredContentPromise.isSettled });
+			const task = new MainThreadChatTask(revivedProgress.content);
+			this._activeTasks.set(responsePartId, task);
+			this._pendingProgress.get(requestId)?.(task);
 			return handle;
-		} else if (progress.kind === 'progressTaskResult' && responsePartHandle !== undefined) {
+		} else if (responsePartHandle !== undefined) {
 			const responsePartId = `${requestId}_${responsePartHandle}`;
-			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
-			if (deferredContentPromise && progress.content) {
-				deferredContentPromise.complete(progress.content.value);
-				this._activeResponsePartPromises.delete(responsePartId);
-			} else {
-				deferredContentPromise?.complete(undefined);
+			const task = this._activeTasks.get(responsePartId);
+			switch (revivedProgress.kind) {
+				case 'progressTaskResult':
+					if (task && revivedProgress.content) {
+						task.complete(revivedProgress.content.value);
+						this._activeTasks.delete(responsePartId);
+					} else {
+						task?.complete(undefined);
+					}
+					return responsePartHandle;
+				case 'warning':
+				case 'reference':
+					task?.add(revivedProgress);
+					return;
 			}
-			return responsePartHandle;
 		}
-		const revivedProgress = revive(progress);
-		this._pendingProgress.get(requestId)?.(revivedProgress as IChatProgress);
+		this._pendingProgress.get(requestId)?.(revivedProgress);
 	}
 
-	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void {
+	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void {
+		const provide = async (query: string, token: CancellationToken) => {
+			const completions = await this._proxy.$invokeCompletionProvider(handle, query, token);
+			return completions.map((c) => ({ ...c, icon: c.icon ? ThemeIcon.fromId(c.icon) : undefined }));
+		};
+		this._agentIdsToCompletionProviders.set(id, this._chatAgentService.registerAgentCompletionProvider(id, provide));
+
 		this._agentCompletionProviders.set(handle, this._languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentCompletions:' + handle,
 			triggerCharacters,
@@ -224,7 +271,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return null;
 				}
 
-				const result = await this._proxy.$invokeCompletionProvider(handle, query, token);
+				const result = await provide(query, token);
 				const variableItems = result.map(v => {
 					const insertText = v.insertText ?? (typeof v.label === 'string' ? v.label : v.label.label);
 					const rangeAfterInsert = new Range(range.insert.startLineNumber, range.insert.startColumn, range.insert.endLineNumber, range.insert.startColumn + insertText.length);
@@ -235,7 +282,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						kind: CompletionItemKind.Text,
 						detail: v.detail,
 						documentation: v.documentation,
-						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: revive(v.value) as any, command: v.command } satisfies IAddDynamicVariableContext] }
+						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ id: v.id, widget, range: rangeAfterInsert, variableData: revive(v.value) as any, command: v.command } satisfies IAddDynamicVariableContext] }
 					} satisfies CompletionItem;
 				});
 
@@ -246,8 +293,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}));
 	}
 
-	$unregisterAgentCompletionsProvider(handle: number): void {
+	$unregisterAgentCompletionsProvider(handle: number, id: string): void {
 		this._agentCompletionProviders.deleteAndDispose(handle);
+		this._agentIdsToCompletionProviders.deleteAndDispose(id);
 	}
 }
 

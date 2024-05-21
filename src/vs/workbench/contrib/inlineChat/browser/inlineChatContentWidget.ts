@@ -22,6 +22,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -56,7 +57,8 @@ export class InlineChatContentWidget implements IContentWidget {
 			new ServiceCollection([
 				IContextKeyService,
 				this._store.add(contextKeyService.createScoped(this._domNode))
-			])
+			]),
+			this._store
 		);
 
 		this._widget = scopedInstaService.createInstance(
@@ -167,7 +169,7 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._visible = true;
 			this._focusNext = true;
 
-			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position));
+			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position), ScrollType.Immediate);
 			this._widget.inputEditor.setValue('');
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
