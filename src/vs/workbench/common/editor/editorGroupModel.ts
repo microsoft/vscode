@@ -220,9 +220,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private locked = false;
 
-	private selection: EditorInput[] = [];					// editors in selected state, first one is active
+	private selection: EditorInput[] = [];					// editors in selected state, first one is active TODO align this with transient editors and use a Set<EditorInput> instead
 
-	private set active(editor: EditorInput | null) {
+	private set active(editor: EditorInput | null) { // TODO: this misses an event when selection changes and should be a method?
 		this.selection = editor ? [editor] : [];
 	}
 	private get active(): EditorInput | null {
@@ -714,12 +714,15 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	get selectedEditors(): EditorInput[] {
 		// Return selected editors in sequential order
-		return this.editors.filter(editor => this.isSelected(editor));
+		return this.editors.filter(editor => this.isSelected(editor)); // TODO I would have assumed `this.selection` to be in sequential order
 	}
 
-	isSelected(editor: EditorInput | number): boolean {
-		if (typeof editor === 'number') {
-			editor = this.editors[editor];
+	isSelected(editorOrIndex: EditorInput | number): boolean {
+		let editor: EditorInput;
+		if (typeof editorOrIndex === 'number') {
+			editor = this.editors[editorOrIndex];
+		} else {
+			editor = editorOrIndex;
 		}
 
 		return !!this.selection.find(selectedEditor => this.matches(selectedEditor, editor));
