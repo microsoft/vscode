@@ -8,7 +8,7 @@ import { AccessibleViewType, AdvancedContentProvider, ExtensionContentProvider }
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export interface IAccessibleViewImplentation {
+export interface IAccessibleViewImplentation extends IDisposable {
 	type: AccessibleViewType;
 	priority: number;
 	name: string;
@@ -30,6 +30,7 @@ export const AccessibleViewRegistry = new class AccessibleViewRegistry {
 				if (idx !== -1) {
 					this._implementations.splice(idx, 1);
 				}
+				implementation.dispose();
 			}
 		};
 	}

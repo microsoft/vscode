@@ -70,4 +70,5 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 			options: { type: AccessibleViewType.Help }
 		};
 	}
+	dispose() { }
 }

@@ -99,9 +99,6 @@ export interface IAccessibleViewService {
 	show(provider: AccesibleViewContentProvider, position?: IPosition): void;
 	showLastProvider(id: AccessibleViewProviderId): void;
 	showAccessibleViewHelp(): void;
-	rerender(): void;
-	isVisible(): boolean;
-	providerId(): string;
 	next(): void;
 	previous(): void;
 	navigateToCodeBlock(type: 'next' | 'previous'): void;
@@ -139,6 +136,7 @@ export class AdvancedContentProvider implements IAccessibleViewContentProvider {
 		public actions?: IAction[],
 		public next?: () => void,
 		public previous?: () => void,
+		public onDidChangeContent?: Event<void>,
 		public onKeyDown?: (e: IKeyboardEvent) => void,
 		public getSymbols?: () => IAccessibleViewSymbol[],
 		public onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>,
@@ -155,6 +153,7 @@ export class ExtensionContentProvider implements IBasicContentProvider {
 		public next?: () => void,
 		public previous?: () => void,
 		public actions?: IAction[],
+		public onDidChangeContent?: Event<void>,
 	) { }
 }
 
@@ -166,4 +165,5 @@ export interface IBasicContentProvider {
 	actions?: IAction[];
 	previous?(): void;
 	next?(): void;
+	onDidChangeContent?: Event<void>;
 }

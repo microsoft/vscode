@@ -23,7 +23,6 @@ import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import 'vs/css!./hover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
-import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { Emitter } from 'vs/base/common/event';
 
 // sticky hover widget which doesn't disappear on focus out and such
@@ -55,6 +54,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	// Other fields
 	public static readonly ID = 'editor.contrib.hover';
+	public shouldRemainOpenOnEditorMouseMoveOrLeave: boolean = false;
 
 	private readonly _listenersStore = new DisposableStore();
 
@@ -73,8 +73,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this._reactToEditorMouseMoveRunner = this._register(
@@ -182,7 +181,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
-		if (this._isHoverAccessibleViewVisible) {
+		if (this.shouldRemainOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
 
@@ -234,7 +233,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		if (this._isHoverAccessibleViewVisible) {
+		if (this.shouldRemainOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
 
@@ -268,13 +267,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 		this._reactToEditorMouseMove(mouseEvent);
-	}
-
-	private get _isHoverAccessibleViewVisible(): boolean {
-		const isAccessibleViewVisible = this._accessibleViewService.isVisible();
-		const isHoverProviderUsed = this._accessibleViewService.providerId() === AccessibleViewProviderId.Hover;
-		const isHoverAccessibleViewVisible = isAccessibleViewVisible && isHoverProviderUsed;
-		return isHoverAccessibleViewVisible;
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {

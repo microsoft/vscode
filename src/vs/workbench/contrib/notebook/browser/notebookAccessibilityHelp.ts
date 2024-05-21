@@ -30,6 +30,7 @@ export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 		}
 		return;
 	}
+	dispose() { }
 }
 
 
