@@ -576,7 +576,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 			// One Editor
 			else {
-				this.active = null;
+				this.active = null; // TODO this potentially changes selection without a related event. and is it expected to change the selection?
 			}
 		}
 
@@ -692,11 +692,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private doSetActive(editor: EditorInput, editorIndex: number): void {
 		if (this.matches(this.active, editor)) {
-			this.selection = [editor];
+			this.selection = [editor]; // TODO this potentially changes selection without a related event. and is it expected to change the selection?
 			return; // already active
 		}
 
-		this.active = editor;
+		this.active = editor; // TODO this potentially changes selection without a related event. and is it expected to change the selection?
 
 		// Bring to front in MRU list
 		const mruIndex = this.indexOf(editor, this.mru);
@@ -731,7 +731,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): void {
 		const res = this.findEditor(activeSelectedEditor);
 		if (!res) {
-			return;
+			return; // not found
 		}
 
 		const [newActiveEditor, newActiveEditorIndex] = res;
@@ -742,14 +742,14 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	private doSetSelection(newActiveEditor: EditorInput, activeEditorIndex: number, inactiveSelectedEditors: EditorInput[]): void {
 		this.doSetActive(newActiveEditor, activeEditorIndex);
 
-		for (const candidate of inactiveSelectedEditors) {
+		for (const candidate of inactiveSelectedEditors) { // TODO should this move up to the public API? the idea is that we do not trust editor inputs from public API but internal is fine
 			const editor = this.findEditor(candidate)?.[0];
 			if (editor && !this.isSelected(editor)) {
 				this.selection.push(editor);
 			}
 		}
 
-		// Event
+		// Event TODO what if selection did not change?
 		const event: IGroupModelChangeEvent = {
 			kind: GroupModelChangeKind.EDITORS_SELECTION,
 		};
