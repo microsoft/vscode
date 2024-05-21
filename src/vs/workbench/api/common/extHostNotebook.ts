@@ -311,7 +311,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return VSBuffer.wrap(bytes);
 	}
 
-	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata | undefined> {
+	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata> {
 		const uri = URI.revive(uriComponents);
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
@@ -356,11 +356,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		await this._validateWriteFile(uri, options);
 
 		if (token.isCancellationRequested) {
-			return undefined;
+			throw new Error('canceled');
 		}
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
 		if (token.isCancellationRequested) {
-			return undefined;
+			throw new Error('canceled');
 		}
 
 		// Don't accept any cancellation beyond this point, we need to report the result of the file write

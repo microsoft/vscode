@@ -77,7 +77,7 @@ export interface IStoredFileWorkingCopyModel extends IFileWorkingCopyModel {
 	 * which is to ask the model for a `snapshot` and then
 	 * writing that to the model's resource.
 	 */
-	save?(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata | undefined>;
+	save?(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
 }
 
 export interface IStoredFileWorkingCopyModelContentChangedEvent {
@@ -91,6 +91,18 @@ export interface IStoredFileWorkingCopyModelContentChangedEvent {
 	 * Flag that indicates that this event was generated while redoing.
 	 */
 	readonly isRedoing: boolean;
+}
+
+async function optionalIfCancelled<T>(callback: (token: CancellationToken) => Promise<T>, token: CancellationToken): Promise<T | undefined> {
+	try {
+		return await callback(token);
+	} catch (error) {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		throw error;
+	}
 }
 
 /**
@@ -1019,11 +1031,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Delegate to working copy model save method if any
 					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
-						const result = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
-						if (!result && saveCancellation.token.isCancellationRequested) {
+						const result = await optionalIfCancelled((token) => resolvedFileWorkingCopy.model.save!(writeFileOptions, token), saveCancellation.token);
+						if (result) {
+							stat = result;
+						} else {
 							return;
 						}
-						stat = assertIsDefined(result);
 					}
 
 					// Otherwise ask for a snapshot and save via file services
