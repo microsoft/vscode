@@ -1,0 +1,11 @@
+{
+  "name": "@pearai/vscode",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {},
+  "devDependencies": {},
+  "dependencies": {
+    "@pearai/extension": "*",
+    "@pearai/webview": "*"
+  }
+}

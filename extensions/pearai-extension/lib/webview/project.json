@@ -1,0 +1,21 @@
+{
+  "root": "lib/webview",
+  "targets": {
+    "compile": {
+      "dependsOn": ["^build"],
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "lib/webview",
+        "command": "tsc"
+      }
+    },
+    "build": {
+      "dependsOn": ["compile"],
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "lib/webview",
+        "command": "npx esbuild build/webview.js --external:vscode --bundle --platform=browser --outfile=dist/webview.js"
+      }
+    }
+  }
+}

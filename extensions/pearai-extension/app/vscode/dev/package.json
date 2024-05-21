@@ -1,0 +1,411 @@
+{
+  "publisher": "pearai",
+  "name": "pearai-extension",
+  "version": "0.0.1",
+  "displayName": "PearAI - ChatGPT for Visual Studio Code",
+  "description": "Generate code, edit code, explain code, generate tests, find bugs, diagnose errors",
+  "keywords": [
+    "ai",
+    "chatgpt",
+    "gpt",
+    "openai",
+    "codex",
+    "copilot",
+    "code explanation"
+  ],
+  "categories": [
+    "Machine Learning",
+    "Programming Languages",
+    "Linters",
+    "Formatters",
+    "Data Science",
+    "Education",
+    "Testing"
+  ],
+  "icon": "media/extension-icon.png",
+  "galleryBanner": {
+    "color": "#000000",
+    "theme": "dark"
+  },
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "engines": {
+    "node": ">=18",
+    "vscode": "^1.72.0"
+  },
+  "homepage": "https://github.com/trypear/pearai-app",
+  "repository": "https://github.com/trypear/pearai-app",
+  "bugs": "https://github.com/trypear/pearai-app/issues",
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./extension/dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "pearai.enterOpenAIApiKey",
+        "category": "PearAI",
+        "title": "Enter OpenAI API key"
+      },
+      {
+        "command": "pearai.clearOpenAIApiKey",
+        "category": "PearAI",
+        "title": "Clear OpenAI API key"
+      },
+      {
+        "command": "pearai.startChat",
+        "title": "Start Chat 💬",
+        "category": "PearAI",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "pearai.editCode",
+        "title": "Edit Code 🖊️",
+        "category": "PearAI",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "pearai.explainCode",
+        "title": "Explain Code 💬",
+        "category": "PearAI",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "pearai.generateCode",
+        "title": "Generate Code 🪄",
+        "category": "PearAI",
+        "icon": "$(wand)"
+      },
+      {
+        "command": "pearai.generateUnitTest",
+        "title": "Generate Unit Test 🪄",
+        "category": "PearAI",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "pearai.diagnoseErrors",
+        "title": "Diagnose Errors 💬",
+        "category": "PearAI",
+        "icon": "$(search-fuzzy)"
+      },
+      {
+        "command": "pearai.findBugs",
+        "title": "Find Bugs 💬",
+        "category": "PearAI",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "pearai.touchBar.startChat",
+        "category": "PearAI",
+        "title": "💬"
+      },
+      {
+        "command": "pearai.showChatPanel",
+        "title": "Show Chat Panel 💬",
+        "category": "PearAI",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "pearai.getStarted",
+        "title": "Get Started",
+        "category": "PearAI",
+        "icon": "$(question)"
+      },
+      {
+        "command": "pearai.showLogs",
+        "title": "Show Logs",
+        "category": "PearAI",
+        "icon": "$(output)"
+      },
+      {
+        "command": "pearai.indexRepository",
+        "title": "Index Repository",
+        "category": "PearAI",
+        "enablement": "config.pearai.indexRepository.enabled"
+      }
+    ],
+    "configuration": {
+      "title": "PearAI",
+      "properties": {
+        "pearai.syntaxHighlighting.useVisualStudioCodeColors": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Use the Visual Studio Code Theme colors for syntax highlighting in the diff viewer. Might not work with all themes. Only applies to newly opened diffs.",
+          "scope": "application"
+        },
+        "pearai.indexRepository.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable the command to index your repository and give more context to the AI model. Experimental.",
+          "scope": "application"
+        },
+        "pearai.action.editCode.showInEditorContextMenu": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show this action in the editor context menu, when you right-click on the code.",
+          "scope": "application"
+        },
+        "pearai.action.startChat.showInEditorContextMenu": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show this action in the editor context menu, when you right-click on the code.",
+          "scope": "application"
+        },
+        "pearai.action.explainCode.showInEditorContextMenu": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show this action in the editor context menu, when you right-click on the code.",
+          "scope": "application"
+        },
+        "pearai.action.findBugs.showInEditorContextMenu": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show this action in the editor context menu, when you right-click on the code.",
+          "scope": "application"
+        },
+        "pearai.action.generateUnitTest.showInEditorContextMenu": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show this action in the editor context menu, when you right-click on the code.",
+          "scope": "application"
+        },
+        "pearai.action.diagnoseErrors.showInEditorContextMenu": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show this action in the editor context menu, when you right-click on the code.",
+          "scope": "application"
+        },
+        "pearai.logger.level": {
+          "type": "string",
+          "default": "info",
+          "enum": [
+            "debug",
+            "info",
+            "warning",
+            "error"
+          ],
+          "enumDescriptions": [
+            "Show all logs",
+            "Show all logs except the debug ones",
+            "Only show warnings and errors",
+            "Only show errors"
+          ],
+          "markdownDescription": "Specify the verbosity of logs that will appear in 'PearAI: Show Logs'.",
+          "scope": "application"
+        },
+        "pearai.openAI.surfacePromptForPlus": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable UI to surface the prompt text to use with OpenAI plus web chat",
+          "scope": "application"
+        },
+        "pearai.openAI.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1/",
+          "markdownDescription": "Specify the URL to the OpenAI API. If you are using a proxy, you can set it here.",
+          "scope": "application"
+        },
+        "pearai.model": {
+          "type": "string",
+          "default": "gpt-3.5-turbo-0125",
+          "enum": [
+            "gpt-3.5-turbo",
+            "gpt-3.5-turbo-16k",
+            "gpt-3.5-turbo-1106",
+            "gpt-3.5-turbo-0125",
+            "gpt-4",
+            "gpt-4-32k",
+            "gpt-4-1106-preview",
+            "gpt-4-0125-preview",
+            "gpt-4-turbo-preview",
+            "llama.cpp"
+          ],
+          "enumDescriptions": [
+            "OpenAI GPT-3.5-turbo: 4k context window. Faster, less expensive model. Less accurate.",
+            "OpenAI GPT-3.5-turbo: 16k context window. Faster, less expensive model. Less accurate.",
+            "OpenAI GPT-3.5-turbo: 16k context window. Faster, less expensive. Less accurate.",
+            "OpenAI GPT-3.5-turbo: 16k context window. Faster, less expensive. Less accurate. The latest GPT-3.5 Turbo model with higher accuracy at responding in requested formats and a fix for a bug which caused a text encoding issue for non-English language function calls. Returns a maximum of 4,096 output tokens.",
+            "OpenAI GPT-4: 8k context window. Expensive, slow model. More accurate.",
+            "OpenAI GPT-4: 32k context window. Expensive, slow model. More accurate.",
+            "OpenAI GPT-4 Turbo: 128k context window. Expensive (but cheaper than 32k), slow model. More accurate.",
+            "OpenAI GPT-4 Turbo: 128k context window. Expensive (but cheaper than 32k), slow model. More accurate. The latest GPT-4 model intended to reduce cases of \"laziness\" where the model doesn't complete a task.",
+            "OpenAI GPT-4 Turbo: Currently points to gpt-4-0125-preview.",
+            "(Experimental) Llama.cpp: Calls Llama.cpp running locally on http://127.0.0.1:8080. Use for local models with Llama 2 prompt format."
+          ],
+          "markdownDescription": "Select the OpenAI model that you want to use.",
+          "scope": "application"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "pearai.startChat",
+        "when": "isMac",
+        "key": "Ctrl+Cmd+c"
+      },
+      {
+        "command": "pearai.startChat",
+        "when": "!isMac",
+        "key": "Ctrl+Alt+c"
+      },
+      {
+        "command": "pearai.editCode",
+        "when": "isMac",
+        "key": "Ctrl+Cmd+e"
+      },
+      {
+        "command": "pearai.editCode",
+        "when": "!isMac",
+        "key": "Ctrl+Alt+e"
+      },
+      {
+        "command": "pearai.generateCode",
+        "when": "isMac",
+        "key": "Ctrl+Cmd+g"
+      },
+      {
+        "command": "pearai.generateCode",
+        "when": "!isMac",
+        "key": "Ctrl+Alt+g"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pearai.startChat",
+          "when": "view == pearai.chat",
+          "group": "navigation@1"
+        }
+      ],
+      "touchBar": [
+        {
+          "command": "pearai.touchBar.startChat",
+          "group": "pearai"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "pearai.touchBar.startChat",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "pearai.startChat",
+          "group": "pearai",
+          "when": "config.pearai.action.startChat.showInEditorContextMenu && editorHasSelection"
+        },
+        {
+          "command": "pearai.editCode",
+          "group": "pearai",
+          "when": "config.pearai.action.editCode.showInEditorContextMenu && editorHasSelection"
+        },
+        {
+          "command": "pearai.explainCode",
+          "group": "pearai",
+          "when": "config.pearai.action.explainCode.showInEditorContextMenu && editorHasSelection"
+        },
+        {
+          "command": "pearai.findBugs",
+          "group": "pearai",
+          "when": "config.pearai.action.findBugs.showInEditorContextMenu && editorHasSelection"
+        },
+        {
+          "command": "pearai.generateUnitTest",
+          "group": "pearai",
+          "when": "config.pearai.action.generateUnitTest.showInEditorContextMenu && editorHasSelection"
+        },
+        {
+          "command": "pearai.diagnoseErrors",
+          "group": "pearai",
+          "when": "config.pearai.action.diagnoseErrors.showInEditorContextMenu && editorHasSelection"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pearai",
+          "title": "PearAI",
+          "icon": "media/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "pearai": [
+        {
+          "id": "pearai.chat",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
+    },
+    "walkthroughs": [
+      {
+        "id": "pearai",
+        "title": "PearAI",
+        "description": "Your AI Chat Assistant in Visual Studio Code",
+        "steps": [
+          {
+            "id": "setup",
+            "title": "Setup PearAI",
+            "description": "[Enter your OpenAI API key](command:pearai.enterOpenAIApiKey) to get started.",
+            "media": {
+              "markdown": "walkthrough/setup.md"
+            }
+          },
+          {
+            "id": "chat",
+            "title": "AI Chat",
+            "description": "Chat with PearAI about your code and software development topics.",
+            "media": {
+              "markdown": "walkthrough/chat.md"
+            }
+          },
+          {
+            "id": "generate-code",
+            "title": "Generate Code",
+            "description": "Generate code by instructing PearAI.",
+            "media": {
+              "markdown": "walkthrough/generate-code.md"
+            }
+          },
+          {
+            "id": "edit-code",
+            "title": "Edit Code",
+            "description": "Change the selected code by instructing PearAI to create an edit.",
+            "media": {
+              "markdown": "walkthrough/edit-code.md"
+            }
+          },
+          {
+            "id": "other-actions",
+            "title": "Other Actions",
+            "description": "Generate unit tests, explain code, find bugs, and more.",
+            "media": {
+              "markdown": "walkthrough/other-actions.md"
+            }
+          },
+          {
+            "id": "tips-and-tricks",
+            "title": "Tips and Tricks",
+            "description": "How to get the most out of PearAI.",
+            "media": {
+              "markdown": "walkthrough/tips-and-tricks.md"
+            }
+          },
+          {
+            "id": "project",
+            "title": "Project",
+            "description": "Learn more about the PearAI open source project.",
+            "media": {
+              "markdown": "walkthrough/project.md"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

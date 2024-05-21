@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "run - app/vscode",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/app/vscode/dev"],
+      "outFiles": ["${workspaceFolder}/app/vscode/dev/extension/dist/**/*.js"],
+      "preLaunchTask": "build-extension"
+    }
+  ]
+}

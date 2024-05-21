@@ -1,0 +1,10 @@
+{
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint **/src/**"
+      }
+    }
+  }
+}

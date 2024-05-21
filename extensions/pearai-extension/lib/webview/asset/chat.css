@@ -1,0 +1,331 @@
+:root {
+  --pearai-container-padding: calc(var(--container-padding) / 2);
+}
+
+body {
+  padding-top: 0;
+  background-color: var(--vscode-sideBar-background);
+}
+
+.codicon.inline {
+  vertical-align: sub;
+  margin-right: 5px;
+}
+
+.start-chat,
+.enter-api-key {
+  padding: var(--pearai-container-padding);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.start-chat>button {
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+.start-chat>button:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.enter-api-key>button {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.enter-api-key>button:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+.conversation {
+  cursor: default;
+}
+
+.conversation>.header>i {
+  margin-right: 5px;
+}
+
+.conversation>.message-exchange {
+  min-height: 25px;
+}
+
+.conversation>.instruction-refinement {
+  margin: var(--pearai-container-padding);
+}
+
+.conversation>.instruction-refinement>.chat-input {
+  margin: 0;
+}
+
+.instruction-refinement button:disabled {
+  background-color: var(--vscode-disabledForeground);
+  cursor: default;
+}
+
+.conversation>.footer {
+  color: var(--vscode-disabledForeground);
+
+  padding: var(--pearai-container-padding);
+  padding-top: 0;
+  width: 100%;
+
+  display: flex;
+  justify-content: space-between;
+}
+
+.conversation.collapsed {
+  padding: var(--pearai-container-padding);
+  color: var(--vscode-disabledForeground);
+  cursor: pointer;
+}
+
+.conversation.collapsed:hover {
+  color: var(--vscode-list-hoverForeground);
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.conversation.expanded {
+  color: var(--vscode-list-inactiveSelectionForeground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.conversation.expanded>.header {
+  margin-bottom: 10px;
+  padding: 10px;
+  background-color: var(--vscode-inputValidation-infoBackground);
+}
+
+.conversation>.header>.message.user {
+  margin: 0;
+  padding: 0;
+  background-color: inherit;
+}
+
+.in-progress:after {
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: bottom;
+  -webkit-animation: ellipsis steps(4, end) 1500ms infinite;
+  animation: ellipsis steps(4, end) 1500ms infinite;
+  content: "\2026";
+  /* ascii code for the ellipsis character */
+  width: 0px;
+}
+
+@keyframes ellipsis {
+  to {
+    width: 15px;
+  }
+}
+
+@-webkit-keyframes ellipsis {
+  to {
+    width: 15px;
+  }
+}
+
+.chat-input {
+  display: grid;
+  margin-top: 20px;
+  margin: var(--pearai-container-padding);
+
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 5px;
+  padding: 5px;
+
+  background-color: var(--vscode-sideBar-background);
+}
+
+/* Inspired from https://css-tricks.com/the-cleanest-trick-for-autogrowing-textareas */
+.chat-input::after {
+  /* Note the weird space! Needed to preventy jumpy behavior */
+  content: attr(data-replicated-value) " ";
+
+  /* This is how textarea text behaves */
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  /* Hidden from view, clicks, and screen readers */
+  visibility: hidden;
+}
+
+.chat-input>textarea {
+  resize: none;
+  overflow: hidden;
+}
+
+/* Use same visual style */
+.chat-input>textarea,
+.chat-input::after {
+  display: block;
+  width: 100%;
+  border: none;
+  background-color: var(--vscode-sideBar-background);
+  color: var(--vscode-input-foreground);
+
+  padding: var(--input-padding-vertical) var(--input-padding-horizontal);
+
+  font: inherit;
+
+  /* Place on top of each other */
+  grid-area: 1 / 1 / 2 / 2;
+}
+
+.chat-input>textarea:focus {
+  outline: none;
+}
+
+.chat-input>textarea:disabled {
+  color: var(--vscode-disabledForeground);
+}
+
+.message {
+  margin-left: var(--pearai-container-padding);
+  margin-right: var(--pearai-container-padding);
+  margin-bottom: 10px;
+}
+
+.message>p {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.message code {
+  color: var(--vscode-editor-foreground);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message pre {
+  border-radius: var(--pearai-container-padding);
+  padding: var(--pearai-container-padding);
+  background-color: var(--vscode-editor-wordHighlightStrongBackground);
+
+  color: var(--vscode-editor-foreground);
+  white-space: pre-wrap;
+}
+
+.message.user {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 10px;
+  background-color: var(--vscode-inputValidation-infoBackground);
+}
+
+.message>p {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.message code {
+  white-space: pre-wrap;
+}
+
+.message pre {
+  white-space: pre-wrap;
+}
+
+.message.error {
+  margin: var(--pearai-container-padding);
+  padding: var(--pearai-container-padding);
+  border: 1px solid;
+  border-color: var(--vscode-errorForeground);
+  color: var(--vscode-errorForeground);
+}
+
+.message.error.level-warning {
+  border-color: var(--vscode-editorWarning-foreground);
+  color: var(--vscode-editorWarning-foreground);
+}
+
+.error-body {
+  display: flex;
+  justify-content: space-between;
+  overflow-wrap: anywhere;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.error-body>.error-retry {
+  display: flex;
+  text-align: left;
+  margin-top: auto;
+  margin-bottom: auto;
+  margin-left: 10px;
+}
+
+.error-title {
+  display: block;
+  padding-bottom: var(--pearai-container-padding);
+  font-size: 110%;
+  text-decoration: underline;
+}
+
+.error-buttons {
+  display: flex;
+  gap: var(--pearai-container-padding);
+}
+
+.error-retry,
+.error-dismiss {
+  display: block;
+  cursor: pointer;
+  text-align: center;
+  margin-top: var(--pearai-container-padding);
+}
+
+.error-retry { 
+  min-width: fit-content;
+  align-self: end;
+}
+
+button.error-retry,
+button.error-dismiss {
+  margin-bottom: 0;
+}
+
+button.error-retry {
+  background: var(--vscode-inputValidation-errorBorder);
+}
+
+.level-warning button.error-retry {
+  background: var(--vscode-inputValidation-warningBorder);
+}
+
+button.error-dismiss {
+  background: var(--vscode-button-secondaryBackground);
+}
+
+button.error-retry:hover {
+  opacity: 70%;
+}
+
+button.error-dismiss:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+span.error-retry:hover {
+  filter: brightness(125%);
+  cursor: pointer;
+}
+
+.action-delete,
+.action-export {
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 3px;
+}
+
+.action-delete:hover,
+.action-export:hover {
+  color: var(--vscode-icon-foreground);
+  background-color: var(--vscode-sideBar-background);
+}
+
+.action-delete:hover {
+  color: var(--vscode-charts-red);
+}
+
+.action-panel {
+  margin-left: auto;
+}

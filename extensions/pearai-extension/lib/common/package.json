@@ -1,0 +1,10 @@
+{
+  "name": "@pearai/common",
+  "version": "0.0.0",
+  "private": true,
+  "main": "build/index.js",
+  "devDependencies": {},
+  "dependencies": {
+    "zod": "3.20.2"
+  }
+}
