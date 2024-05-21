@@ -60,7 +60,7 @@ export interface IQuickAccessOptions {
 	/**
 	 * Provider specific options for this particular showing of the
 	 * quick access.
-	*/
+	 */
 	readonly providerOptions?: IQuickAccessProviderRunOptions;
 
 	/**

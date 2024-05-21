@@ -56,6 +56,9 @@ export interface IChatVariablesService {
 export interface IDynamicVariable {
 	range: IRange;
 	id: string;
+	fullName?: string;
+	icon?: ThemeIcon;
+	prefix?: string;
 	modelDescription?: string;
 	data: IChatRequestVariableValue;
 }

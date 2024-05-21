@@ -677,9 +677,9 @@ class ExtHostChatAgent {
 						throw new Error('triggerCharacters are required');
 					}
 
-					that._proxy.$registerAgentCompletionsProvider(that._handle, v.triggerCharacters);
+					that._proxy.$registerAgentCompletionsProvider(that._handle, that.id, v.triggerCharacters);
 				} else {
-					that._proxy.$unregisterAgentCompletionsProvider(that._handle);
+					that._proxy.$unregisterAgentCompletionsProvider(that._handle, that.id);
 				}
 			},
 			get participantVariableProvider() {
