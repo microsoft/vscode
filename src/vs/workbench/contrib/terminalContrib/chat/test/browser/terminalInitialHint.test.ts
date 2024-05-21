@@ -10,13 +10,10 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 import { NullLogService } from 'vs/platform/log/common/log';
 import { InitialHintAddon } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.initialHint.contribution';
 import { getActiveDocument } from 'vs/base/browser/dom';
-import { IInlineChatSession, IInlineChatSessionProvider, InlineChatProviderChangeEvent } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatSessionProvider, InlineChatProviderChangeEvent } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Emitter } from 'vs/base/common/event';
 import { strictEqual } from 'assert';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ITextModel } from 'vs/editor/common/model';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 // Test TerminalInitialHintAddon
 
@@ -51,13 +48,7 @@ suite('Terminal Initial Hint Addon', () => {
 			eventCount = 0;
 			const provider: IInlineChatSessionProvider = {
 				extensionId: new ExtensionIdentifier('test'),
-				label: 'blahblah',
-				prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): Promise<IInlineChatSession> {
-					throw new Error('Method not implemented.');
-				},
-				provideResponse() {
-					throw new Error('Method not implemented.');
-				}
+				label: 'blahblah'
 			};
 			_onDidChangeProviders.fire({ added: provider });
 			xterm.focus();
@@ -68,13 +59,7 @@ suite('Terminal Initial Hint Addon', () => {
 		test('hint is not shown when there has been input', () => {
 			const provider: IInlineChatSessionProvider = {
 				extensionId: new ExtensionIdentifier('test'),
-				label: 'blahblah',
-				prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): Promise<IInlineChatSession> {
-					throw new Error('Method not implemented.');
-				},
-				provideResponse() {
-					throw new Error('Method not implemented.');
-				}
+				label: 'blahblah'
 			};
 			_onDidChangeProviders.fire({ added: provider });
 			xterm.writeln('data');
@@ -85,5 +70,3 @@ suite('Terminal Initial Hint Addon', () => {
 		});
 	});
 });
-
-

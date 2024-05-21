@@ -6,6 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { Location } from 'vs/editor/common/languages';
 import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -1241,8 +1242,8 @@ export interface IDynamicChatAgentProps {
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
-	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
-	$unregisterAgentCompletionsProvider(handle: number): void;
+	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
+	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunk: IChatProgressDto, handle?: number): Promise<number | void>;
@@ -1252,6 +1253,8 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 
 export interface IChatAgentCompletionItem {
 	id: string;
+	fullName?: string;
+	icon?: string;
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
 	value: IChatRequestVariableValueDto;
@@ -1288,6 +1291,7 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$registerVariable(handle: number, data: IChatVariableData): void;
 	$handleProgressChunk(requestId: string, progress: IChatVariableResolverProgressDto): Promise<number | void>;
 	$unregisterVariable(handle: number): void;
+	$attachContext(name: string, value: string | Dto<Location> | URI | unknown, location: ChatAgentLocation): void;
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;

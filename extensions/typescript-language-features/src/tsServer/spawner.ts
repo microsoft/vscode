@@ -234,7 +234,7 @@ export class TypeScriptServerSpawner {
 					tsServerLog = { type: 'file', uri: logFilePath };
 
 					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-					args.push('--logFile', logFilePath.fsPath);
+					args.push('--logFile', `"${logFilePath.fsPath}"`);
 				}
 			}
 		}
@@ -242,7 +242,7 @@ export class TypeScriptServerSpawner {
 		if (configuration.enableTsServerTracing && !isWeb()) {
 			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
 			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory.fsPath);
+				args.push('--traceDirectory', `"${tsServerTraceDirectory.fsPath}"`);
 			}
 		}
 
