@@ -316,13 +316,13 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 		// Create context key providers which will update the context keys based on each groups active editor
 		const hasChangesContextKeyProvider: IContextKeyProvider = {
 			contextKey: activeResourceHasChangesContextKey,
-			handler: (group) => this.getEditorHasChanges(group.activeEditor),
+			getGroupContextKeyValue: (group) => this.getEditorHasChanges(group.activeEditor),
 			onDidChange: this.onDidRepositoryChange.event
 		};
 
 		const repositoryContextKeyProvider: IContextKeyProvider = {
 			contextKey: activeResourceRepositoryContextKey,
-			handler: (group) => this.getEditorRepositoryId(group.activeEditor),
+			getGroupContextKeyValue: (group) => this.getEditorRepositoryId(group.activeEditor),
 			onDidChange: this.onDidRepositoryChange.event
 		};
 

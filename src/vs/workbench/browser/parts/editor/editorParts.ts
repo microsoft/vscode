@@ -760,7 +760,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 
 		// Ensure we run the handler for the active editor
-		handledContextKey.set(provider.handler(group));
+		handledContextKey.set(provider.getGroupContextKeyValue(group));
 	}
 
 	//#endregion

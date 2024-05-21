@@ -495,7 +495,7 @@ type ContextKeyHandler = (group: IEditorGroup) => ContextKeyValue;
 
 export interface IContextKeyProvider {
 	readonly contextKey: RawContextKey<ContextKeyValue>;
-	readonly handler: ContextKeyHandler;
+	readonly getGroupContextKeyValue: ContextKeyHandler;
 	readonly onDidChange?: Event<void>;
 }
 
