@@ -1249,6 +1249,16 @@ export class AmbiguousCharacters {
 		return this.confusableDictionary.has(codePoint);
 	}
 
+	public containsAmbiguousCharacter(str: string): boolean {
+		for (let i = 0; i < str.length; i++) {
+			const codePoint = str.codePointAt(i);
+			if (typeof codePoint === 'number' && this.isAmbiguous(codePoint)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Returns the non basic ASCII code point that the given code point can be confused,
 	 * or undefined if such code point does note exist.
@@ -1279,6 +1289,17 @@ export class InvisibleCharacters {
 
 	public static isInvisibleCharacter(codePoint: number): boolean {
 		return InvisibleCharacters.getData().has(codePoint);
+	}
+
+	public static containsInvisibleCharacter(str: string): boolean {
+		for (let i = 0; i < str.length; i++) {
+			const codePoint = str.codePointAt(i);
+			if (typeof codePoint === 'number' && InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+				return true;
+			}
+		}
+		return false;
+
 	}
 
 	public static get codePoints(): ReadonlySet<number> {

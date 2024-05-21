@@ -35,5 +35,8 @@
     "vscode-textmate": "9.0.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
+  },
+  "resolutions": {
+    "node-gyp-build": "4.8.1"
   }
 }

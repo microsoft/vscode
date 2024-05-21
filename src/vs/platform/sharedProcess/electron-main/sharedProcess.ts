@@ -19,6 +19,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
+import { Emitter } from 'vs/base/common/event';
 
 export class SharedProcess extends Disposable {
 
@@ -26,6 +27,9 @@ export class SharedProcess extends Disposable {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
 	private utilityProcessLogListener: IDisposable | undefined = undefined;
+
+	private readonly _onDidCrash = this._register(new Emitter<void>());
+	readonly onDidCrash = this._onDidCrash.event;
 
 	constructor(
 		private readonly machineId: string,
@@ -168,6 +172,8 @@ export class SharedProcess extends Disposable {
 			payload: this.createSharedProcessConfiguration(),
 			execArgv
 		});
+
+		this._register(this.utilityProcess.onCrash(() => this._onDidCrash.fire()));
 	}
 
 	private createSharedProcessConfiguration(): ISharedProcessConfiguration {

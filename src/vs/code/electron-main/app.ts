@@ -989,6 +989,8 @@ export class CodeApplication extends Disposable {
 	private setupSharedProcess(machineId: string, sqmId: string): { sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
 		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, sqmId));
 
+		this._register(sharedProcess.onDidCrash(() => this.windowsMainService?.sendToFocused('vscode:reportSharedProcessCrash')));
+
 		const sharedProcessClient = (async () => {
 			this.logService.trace('Main->SharedProcess#connect');
 

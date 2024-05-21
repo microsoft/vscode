@@ -122,6 +122,7 @@ import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { NotebookAccessibilityHelp } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityHelp';
 import { NotebookAccessibleView } from 'vs/workbench/contrib/notebook/browser/notebookAccessibleView';
+import { DefaultFormatter } from 'vs/workbench/contrib/format/browser/formatActionsMultiple';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -941,6 +942,12 @@ configurationRegistry.registerConfiguration({
 			default: 0,
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.markdownLineHeight]: {
+			markdownDescription: nls.localize('notebook.markdown.lineHeight', "Controls the line height in pixels of markdown cells in notebooks. When set to {0}, {1} will be used", '`0`', '`normal`'),
+			type: 'number',
+			default: 0,
+			tags: ['notebookLayout']
+		},
 		[NotebookSetting.cellEditorOptionsCustomizations]: editorOptionsCustomizationSchema,
 		[NotebookSetting.interactiveWindowCollapseCodeCells]: {
 			markdownDescription: nls.localize('notebook.interactiveWindow.collapseCodeCells', "Controls whether code cells in the interactive window are collapsed by default."),
@@ -976,6 +983,14 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: false
+		},
+		[NotebookSetting.defaultFormatter]: {
+			description: nls.localize('notebookFormatter.default', "Defines a default notebook formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
+			type: ['string', 'null'],
+			default: null,
+			enum: DefaultFormatter.extensionIds,
+			enumItemLabels: DefaultFormatter.extensionItemLabels,
+			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		},
 		[NotebookSetting.formatOnSave]: {
 			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
@@ -1041,9 +1056,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.remoteSaving]: {
-			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks in Remote environment. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
+			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
 			type: 'boolean',
-			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
+			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
+			tags: ['experimental']
 		},
 		[NotebookSetting.scrollToRevealCell]: {
 			markdownDescription: nls.localize('notebook.scrolling.revealNextCellOnExecute.description', "How far to scroll when revealing the next cell upon running {0}.", 'notebook.cell.executeAndSelectBelow'),

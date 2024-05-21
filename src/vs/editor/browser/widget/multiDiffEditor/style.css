@@ -5,7 +5,34 @@
 
 .monaco-component.multiDiffEditor {
 	background: var(--vscode-multiDiffEditor-background);
+
+	position: relative;
+
+	height: 100%;
+	width: 100%;
+
 	overflow-y: hidden;
+
+	> div {
+		position: absolute;
+		top: 0px;
+		left: 0px;
+
+		height: 100%;
+		width: 100%;
+
+		&.placeholder {
+			visibility: hidden;
+
+			&.visible {
+				visibility: visible;
+			}
+
+			display: grid;
+			place-items: center;
+			place-content: center;
+		}
+	}
 
 	.active {
 		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);
