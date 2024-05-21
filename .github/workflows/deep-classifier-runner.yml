@@ -1,4 +1,9 @@
 name: "Deep Classifier: Runner"
+
+permissions:
+  id-token: write
+  contents: read
+
 on:
   schedule:
     - cron: 0 * * * *
@@ -9,9 +14,15 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    environment: main
     steps:
+      - uses: azure/login@v2
+        with:
+            client-id: ${{ vars.AZURE_CLIENT_ID }}
+            tenant-id: ${{ vars.AZURE_TENANT_ID }}
+            allow-no-subscriptions: true
       - name: Checkout Actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable
@@ -33,7 +44,7 @@ jobs:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
       - name: Set up Python 3.7
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v5
         with:
           python-version: 3.7
       - name: Install dependencies
@@ -46,7 +57,5 @@ jobs:
         uses: ./actions/classifier-deep/apply/apply-labels
         with:
           configPath: classifier
-          allowLabels: "needs more info|new release|error-telemetry|*english-please|translation-required"
-          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
-          manifestDbConnectionString: ${{secrets.MANIFEST_DB_CONNECTION_STRING}}
+          allowLabels: "info-needed|new release|error-telemetry|*english-please|translation-required"
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}

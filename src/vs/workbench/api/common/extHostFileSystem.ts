@@ -17,6 +17,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 
 class FsLinkProvider {
 
@@ -128,8 +129,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProviderRegistration?.dispose();
 	}
 
+	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean; isReadonly?: boolean | vscode.MarkdownString } = {}) {
 
-	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean; isReadonly?: boolean } = {}) {
+		// validate the given provider is complete
+		ExtHostFileSystem._validateFileSystemProvider(provider);
 
 		if (this._registeredSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -162,7 +165,19 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			capabilities += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
 		}
 
-		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities).catch(err => {
+		let readOnlyMessage: IMarkdownString | undefined;
+		if (options.isReadonly && isMarkdownString(options.isReadonly) && options.isReadonly.value !== '') {
+			readOnlyMessage = {
+				value: options.isReadonly.value,
+				isTrusted: options.isReadonly.isTrusted,
+				supportThemeIcons: options.isReadonly.supportThemeIcons,
+				supportHtml: options.isReadonly.supportHtml,
+				baseUri: options.isReadonly.baseUri,
+				uris: options.isReadonly.uris
+			};
+		}
+
+		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities, readOnlyMessage).catch(err => {
 			console.error(`FAILED to register filesystem provider of ${extension.identifier.value}-extension for the scheme ${scheme}`);
 			console.error(err);
 		});
@@ -170,7 +185,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		const subscription = provider.onDidChangeFile(event => {
 			const mapped: IFileChangeDto[] = [];
 			for (const e of event) {
-				let { uri: resource, type } = e;
+				const { uri: resource, type } = e;
 				if (resource.scheme !== scheme) {
 					// dropping events for wrong scheme
 					continue;
@@ -201,6 +216,36 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._fsProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle);
 		});
+	}
+
+	private static _validateFileSystemProvider(provider: vscode.FileSystemProvider) {
+		if (!provider) {
+			throw new Error('MISSING provider');
+		}
+		if (typeof provider.watch !== 'function') {
+			throw new Error('Provider does NOT implement watch');
+		}
+		if (typeof provider.stat !== 'function') {
+			throw new Error('Provider does NOT implement stat');
+		}
+		if (typeof provider.readDirectory !== 'function') {
+			throw new Error('Provider does NOT implement readDirectory');
+		}
+		if (typeof provider.createDirectory !== 'function') {
+			throw new Error('Provider does NOT implement createDirectory');
+		}
+		if (typeof provider.readFile !== 'function') {
+			throw new Error('Provider does NOT implement readFile');
+		}
+		if (typeof provider.writeFile !== 'function') {
+			throw new Error('Provider does NOT implement writeFile');
+		}
+		if (typeof provider.delete !== 'function') {
+			throw new Error('Provider does NOT implement delete');
+		}
+		if (typeof provider.rename !== 'function') {
+			throw new Error('Provider does NOT implement rename');
+		}
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {

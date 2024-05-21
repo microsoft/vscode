@@ -11,16 +11,16 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class ExtensionsLifecycle extends Disposable {
 
 	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUserDataProfilesService private userDataProfilesService: IUserDataProfilesService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -30,11 +30,22 @@ export class ExtensionsLifecycle extends Disposable {
 		const script = this.parseScript(extension, 'uninstall');
 		if (script) {
 			this.logService.info(extension.identifier.id, extension.manifest.version, `Running post uninstall script`);
-			await this.processesLimiter.queue(() =>
-				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
-					.then(() => this.logService.info(extension.identifier.id, extension.manifest.version, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, extension.manifest.version, `Failed to run post uninstall script: ${err}`)));
+			await this.processesLimiter.queue(async () => {
+				try {
+					await this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension);
+					this.logService.info(`Finished running post uninstall script`, extension.identifier.id, extension.manifest.version);
+				} catch (error) {
+					this.logService.error('Failed to run post uninstall script', extension.identifier.id, extension.manifest.version);
+					this.logService.error(error);
+				}
+			});
 		}
-		return Promises.rm(this.getExtensionStoragePath(extension)).then(undefined, e => this.logService.error('Error while removing extension storage path', e));
+		try {
+			await Promises.rm(this.getExtensionStoragePath(extension));
+		} catch (error) {
+			this.logService.error('Error while removing extension storage path', extension.identifier.id);
+			this.logService.error(error);
+		}
 	}
 
 	private parseScript(extension: ILocalExtension, type: string): { script: string; args: string[] } | null {
@@ -105,19 +116,19 @@ export class ExtensionsLifecycle extends Disposable {
 		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr!, 'data');
 
 		// Log output
-		onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
-		onStderr(data => this.logService.error(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
+		this._register(onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data)));
+		this._register(onStderr(data => this.logService.error(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data)));
 
 		const onOutput = Event.any(
-			Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-			Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+			Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] }), this._store),
+			Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }), this._store)
 		);
 		// Debounce all output, so we can render it in the Chrome console as a group
 		const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
 			return r
 				? { data: r.data + o.data, format: [...r.format, ...o.format] }
 				: { data: o.data, format: o.format };
-		}, 100);
+		}, 100, undefined, undefined, undefined, this._store);
 
 		// Print out output
 		onDebouncedOutput(data => {
@@ -130,6 +141,6 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private getExtensionStoragePath(extension: ILocalExtension): string {
-		return join(this.environmentService.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
+		return join(this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
 	}
 }

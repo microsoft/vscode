@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
+import type * as lsp from 'vscode-languageserver-types';
+import { MdLanguageClient } from '../client/client';
 import { Command, CommandManager } from '../commandManager';
-import { MdReferencesProvider } from './references';
-
-const localize = nls.loadMessageBundle();
 
 
 export class FindFileReferencesCommand implements Command {
@@ -16,25 +14,23 @@ export class FindFileReferencesCommand implements Command {
 	public readonly id = 'markdown.findAllFileReferences';
 
 	constructor(
-		private readonly referencesProvider: MdReferencesProvider,
+		private readonly _client: MdLanguageClient,
 	) { }
 
 	public async execute(resource?: vscode.Uri) {
+		resource ??= vscode.window.activeTextEditor?.document.uri;
 		if (!resource) {
-			resource = vscode.window.activeTextEditor?.document.uri;
-		}
-
-		if (!resource) {
-			vscode.window.showErrorMessage(localize('error.noResource', "Find file references failed. No resource provided."));
+			vscode.window.showErrorMessage(vscode.l10n.t("Find file references failed. No resource provided."));
 			return;
 		}
 
 		await vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
-			title: localize('progress.title', "Finding file references")
+			title: vscode.l10n.t("Finding file references")
 		}, async (_progress, token) => {
-			const references = await this.referencesProvider.getAllReferencesToFile(resource!, token);
-			const locations = references.map(ref => ref.location);
+			const locations = (await this._client.getReferencesToFileInWorkspace(resource, token)).map(loc => {
+				return new vscode.Location(vscode.Uri.parse(loc.uri), convertRange(loc.range));
+			});
 
 			const config = vscode.workspace.getConfiguration('references');
 			const existingSetting = config.inspect<string>('preferredLocation');
@@ -49,6 +45,13 @@ export class FindFileReferencesCommand implements Command {
 	}
 }
 
-export function registerFindFileReferences(commandManager: CommandManager, referencesProvider: MdReferencesProvider): vscode.Disposable {
-	return commandManager.register(new FindFileReferencesCommand(referencesProvider));
+export function convertRange(range: lsp.Range): vscode.Range {
+	return new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character);
+}
+
+export function registerFindFileReferenceSupport(
+	commandManager: CommandManager,
+	client: MdLanguageClient,
+): vscode.Disposable {
+	return commandManager.register(new FindFileReferencesCommand(client));
 }

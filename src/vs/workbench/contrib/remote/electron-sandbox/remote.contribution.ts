@@ -5,20 +5,17 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchContributionsExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -26,27 +23,13 @@ import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteA
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand, RemoteFileDialogContext } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
-
-class RemoteChannelsContribution implements IWorkbenchContribution {
-
-	constructor(
-		@ILogService logService: ILogService,
-		@ILogService loggerService: ILoggerService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDownloadService downloadService: IDownloadService
-	) {
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService));
-		}
-	}
-}
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	constructor(
@@ -61,6 +44,12 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 					.then(info => {
 						if (info) {
 							(info as IRemoteDiagnosticInfo).hostName = hostName;
+							if (remoteConnectionLatencyMeasurer.latency?.high) {
+								(info as IRemoteDiagnosticInfo).latency = {
+									average: remoteConnectionLatencyMeasurer.latency.average,
+									current: remoteConnectionLatencyMeasurer.latency.current
+								};
+							}
 						}
 
 						ipcRenderer.send(request.replyChannel, info);
@@ -97,6 +86,9 @@ class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
 }
 
 class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteTelemetryEnablementUpdater';
+
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -119,6 +111,9 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 
 
 class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteEmptyWorkbenchPresentation';
+
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -137,8 +132,8 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 			return shouldShowExplorer();
 		}
 
-		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService;
-		if (remoteAuthority && contextService.getWorkbenchState() === WorkbenchState.EMPTY && !filesToDiff?.length && !filesToOpenOrCreate?.length && !filesToWait) {
+		const { remoteAuthority, filesToDiff, filesToMerge, filesToOpenOrCreate, filesToWait } = environmentService;
+		if (remoteAuthority && contextService.getWorkbenchState() === WorkbenchState.EMPTY && !filesToDiff?.length && !filesToMerge?.length && !filesToOpenOrCreate?.length && !filesToWait) {
 			remoteAuthorityResolverService.resolveAuthority(remoteAuthority).then(() => {
 				if (shouldShowExplorer()) {
 					commandService.executeCommand('workbench.view.explorer');
@@ -151,12 +146,51 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 	}
 }
 
+/**
+ * Sets the 'wslFeatureInstalled' context key if the WSL feature is or was installed on this machine.
+ */
+class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.wslContextKeyInitializer';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService
+	) {
+		super();
+
+		const contextKeyId = 'wslFeatureInstalled';
+		const storageKey = 'remote.wslFeatureInstalled';
+
+		const defaultValue = storageService.getBoolean(storageKey, StorageScope.APPLICATION, undefined);
+
+		const hasWSLFeatureContext = new RawContextKey<boolean>(contextKeyId, !!defaultValue, nls.localize('wslFeatureInstalled', "Whether the platform has the WSL feature installed"));
+		const contextKey = hasWSLFeatureContext.bindTo(contextKeyService);
+
+		if (defaultValue === undefined) {
+			lifecycleService.when(LifecyclePhase.Eventually).then(async () => {
+				nativeHostService.hasWSLFeatureInstalled().then(res => {
+					if (res) {
+						contextKey.set(true);
+						// once detected, set to true
+						storageService.store(storageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					}
+				});
+			});
+		}
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
+registerWorkbenchContribution2(RemoteTelemetryEnablementUpdater.ID, RemoteTelemetryEnablementUpdater, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(RemoteEmptyWorkbenchPresentation.ID, RemoteEmptyWorkbenchPresentation, WorkbenchPhase.BlockRestore);
+if (isWindows) {
+	registerWorkbenchContribution2(WSLContextKeyInitializer.ID, WSLContextKeyInitializer, WorkbenchPhase.BlockRestore);
+}
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
@@ -178,7 +212,7 @@ if (isMacintosh) {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyCode.KeyO,
 		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
+		metadata: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
 		handler: OpenLocalFileFolderCommand.handler()
 	});
 } else {
@@ -187,7 +221,7 @@ if (isMacintosh) {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyCode.KeyO,
 		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFileCommand.LABEL, args: [] },
+		metadata: { description: OpenLocalFileCommand.LABEL, args: [] },
 		handler: OpenLocalFileCommand.handler()
 	});
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -195,7 +229,7 @@ if (isMacintosh) {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyO),
 		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFolderCommand.LABEL, args: [] },
+		metadata: { description: OpenLocalFolderCommand.LABEL, args: [] },
 		handler: OpenLocalFolderCommand.handler()
 	});
 }
@@ -205,6 +239,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
 	when: RemoteFileDialogContext,
-	description: { description: SaveLocalFileCommand.LABEL, args: [] },
+	metadata: { description: SaveLocalFileCommand.LABEL, args: [] },
 	handler: SaveLocalFileCommand.handler()
 });

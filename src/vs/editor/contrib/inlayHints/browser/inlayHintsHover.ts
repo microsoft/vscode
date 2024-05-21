@@ -13,7 +13,7 @@ import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textM
 import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
+import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
 import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,10 +24,17 @@ import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
-	constructor(readonly part: RenderedInlayHintLabelPart, owner: InlayHintsHover) {
-		super(10, owner, part.item.anchor.range);
+	constructor(
+		readonly part: RenderedInlayHintLabelPart,
+		owner: InlayHintsHover,
+		initialMousePosX: number | undefined,
+		initialMousePosY: number | undefined
+	) {
+		super(10, owner, part.item.anchor.range, initialMousePosX, initialMousePosY, true);
 	}
 }
 
@@ -39,11 +46,13 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		editor: ICodeEditor,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly _resolverService: ITextModelService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(editor, languageService, openerService, configurationService, languageFeaturesService);
+		super(editor, languageService, openerService, configurationService, languageFeaturesService, keybindingService, hoverService);
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
@@ -58,7 +67,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof RenderedInlayHintLabelPart)) {
 			return null;
 		}
-		return new InlayHintsHoverAnchor(options.attachedData, this);
+		return new InlayHintsHoverAnchor(options.attachedData, this, mouseEvent.event.posx, mouseEvent.event.posy);
 	}
 
 	override computeSync(): MarkdownHover[] {
@@ -87,11 +96,11 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 				itemTooltip = part.item.hint.tooltip;
 			}
 			if (itemTooltip) {
-				executor.emitOne(new MarkdownHover(this, anchor.range, [itemTooltip], 0));
+				executor.emitOne(new MarkdownHover(this, anchor.range, [itemTooltip], false, 0));
 			}
 			// (1.2) Inlay dbl-click gesture
 			if (isNonEmptyArray(part.item.hint.textEdits)) {
-				executor.emitOne(new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double click to insert"))], 10001));
+				executor.emitOne(new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double-click to insert"))], false, 10001));
 			}
 
 			// (2) Inlay Label Part Tooltip
@@ -102,7 +111,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 				partTooltip = part.part.tooltip;
 			}
 			if (partTooltip) {
-				executor.emitOne(new MarkdownHover(this, anchor.range, [partTooltip], 1));
+				executor.emitOne(new MarkdownHover(this, anchor.range, [partTooltip], false, 1));
 			}
 
 			// (2.2) Inlay Label Part Help Hover
@@ -125,14 +134,14 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 					linkHint = new MarkdownString(`[${localize('hint.cmd', "Execute Command")}](${asCommandLink(part.part.command)} "${part.part.command.title}") (${kb})`, { isTrusted: true });
 				}
 				if (linkHint) {
-					executor.emitOne(new MarkdownHover(this, anchor.range, [linkHint], 10000));
+					executor.emitOne(new MarkdownHover(this, anchor.range, [linkHint], false, 10000));
 				}
 			}
 
 
 			// (3) Inlay Label Part Location tooltip
 			const iterable = await this._resolveInlayHintLabelPartHover(part, token);
-			for await (let item of iterable) {
+			for await (const item of iterable) {
 				executor.emitOne(item);
 			}
 		});
@@ -149,9 +158,9 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
 				return AsyncIterableObject.EMPTY;
 			}
-			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
+			return getHoverProviderResultsAsAsyncIterable(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, 2 + item.ordinal));
+				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
 		} finally {
 			ref.dispose();
 		}

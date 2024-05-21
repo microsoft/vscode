@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IOpenUriOptions } from './extHost.protocol';
-import { WindowState } from 'vscode';
-import { URI } from 'vs/base/common/uri';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { WindowState } from 'vscode';
+import { ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from './extHost.protocol';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
 	private static InitialState: WindowState = {
-		focused: true
+		focused: true,
+		active: true,
 	};
 
 	private _proxy: MainThreadWindowShape;
@@ -24,19 +25,43 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
 
 	private _state = ExtHostWindow.InitialState;
-	get state(): WindowState { return this._state; }
+
+	getState(): WindowState {
+		// todo@connor4312: this can be changed to just return this._state after proposed api is finalized
+		const state = this._state;
+
+		return {
+			get focused() {
+				return state.focused;
+			},
+			get active() {
+				return state.active;
+			},
+		};
+	}
 
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWindow);
-		this._proxy.$getWindowVisibility().then(isFocused => this.$onDidChangeWindowFocus(isFocused));
+		this._proxy.$getInitialState().then(({ isFocused, isActive }) => {
+			this.onDidChangeWindowProperty('focused', isFocused);
+			this.onDidChangeWindowProperty('active', isActive);
+		});
 	}
 
-	$onDidChangeWindowFocus(focused: boolean): void {
-		if (focused === this._state.focused) {
+	$onDidChangeWindowFocus(value: boolean) {
+		this.onDidChangeWindowProperty('focused', value);
+	}
+
+	$onDidChangeWindowActive(value: boolean) {
+		this.onDidChangeWindowProperty('active', value);
+	}
+
+	onDidChangeWindowProperty(property: keyof WindowState, value: boolean): void {
+		if (value === this._state[property]) {
 			return;
 		}
 
-		this._state = { ...this._state, focused };
+		this._state = { ...this._state, [property]: value };
 		this._onDidChangeWindowState.fire(this._state);
 	}
 

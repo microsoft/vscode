@@ -32,6 +32,9 @@ import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export type SearchConfiguration = {
 	query: string;
@@ -44,9 +47,17 @@ export type SearchConfiguration = {
 	useExcludeSettingsAndIgnoreFiles: boolean;
 	showIncludesExcludes: boolean;
 	onlyOpenEditors: boolean;
+	notebookSearchConfig: {
+		includeMarkupInput: boolean;
+		includeMarkupPreview: boolean;
+		includeCodeInput: boolean;
+		includeOutput: boolean;
+	};
 };
 
 export const SEARCH_EDITOR_EXT = '.code-search';
+
+const SearchEditorIcon = registerIcon('search-editor-label-icon', Codicon.search, localize('searchEditorLabelIcon', 'Icon of the search editor label.'));
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = SearchEditorInputTypeId;
@@ -57,6 +68,10 @@ export class SearchEditorInput extends EditorInput {
 
 	override get editorId(): string | undefined {
 		return this.typeId;
+	}
+
+	override getIcon(): ThemeIcon {
+		return SearchEditorIcon;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -71,6 +86,8 @@ export class SearchEditorInput extends EditorInput {
 	private memento: Memento;
 
 	private dirty: boolean = false;
+
+	private lastLabel: string | undefined;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
@@ -123,6 +140,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly onDidChangeContent = input.onDidChangeContent;
 			readonly onDidSave = input.onDidSave;
 			isDirty(): boolean { return input.isDirty(); }
+			isModified(): boolean { return input.isDirty(); }
 			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return input.backup(token); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
 			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
@@ -158,9 +176,9 @@ export class SearchEditorInput extends EditorInput {
 		this.configChangeListenerDisposable?.dispose();
 		if (!this.isDisposed()) {
 			this.configChangeListenerDisposable = model.onConfigDidUpdate(() => {
-				const oldName = this.getName();
-				if (oldName !== this.getName()) {
+				if (this.lastLabel !== this.getName()) {
 					this._onDidChangeLabel.fire();
+					this.lastLabel = this.getName();
 				}
 				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = model.config;
 			});
@@ -170,11 +188,11 @@ export class SearchEditorInput extends EditorInput {
 
 	async resolveModels() {
 		return this.model.resolve().then(data => {
-			const oldName = this.getName();
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
-			if (oldName !== this.getName()) {
+			if (this.lastLabel !== this.getName()) {
 				this._onDidChangeLabel.fire();
+				this.lastLabel = this.getName();
 			}
 			this.registerConfigChangeListeners(data.configurationModel);
 			return data;
@@ -184,7 +202,13 @@ export class SearchEditorInput extends EditorInput {
 	override async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<EditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
-			this.telemetryService.publicLog2('searchEditor/saveSearchResults');
+			this.telemetryService.publicLog2<
+				{},
+				{
+					owner: 'roblourens';
+					comment: 'Fired when a search editor is saved';
+				}>
+				('searchEditor/saveSearchResults');
 			const toWrite = await this.serializeForDisk();
 			if (await this.textFileService.create([{ resource: path, value: toWrite, options: { overwrite: true } }])) {
 				this.setDirty(false);

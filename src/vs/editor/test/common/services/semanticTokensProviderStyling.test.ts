@@ -6,12 +6,13 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { MetadataConsts } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
@@ -28,6 +29,8 @@ suite('ModelService', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #134973: invalid semantic tokens should be handled better', () => {
 		const languageId = 'java';
 		disposables.add(languageService.registerLanguage({ id: languageId }));
@@ -35,9 +38,9 @@ suite('ModelService', () => {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9', 'st10'],
 			tokenModifiers: []
 		};
-		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+		instantiationService.stub(IThemeService, {
 			getColorTheme() {
-				return {
+				return <IColorTheme>{
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
 							foreground: parseInt(tokenType.substr(2), 10),
@@ -87,9 +90,9 @@ suite('ModelService', () => {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9'],
 			tokenModifiers: ['stm0', 'stm1', 'stm2']
 		};
-		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+		instantiationService.stub(IThemeService, {
 			getColorTheme() {
-				return {
+				return <IColorTheme>{
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
 							foreground: parseInt(tokenType.substr(2), 10),
@@ -128,6 +131,44 @@ suite('ModelService', () => {
 			0, 6, 9, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (2 << MetadataConsts.FOREGROUND_OFFSET)),
 			0, 9, 10, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (3 << MetadataConsts.FOREGROUND_OFFSET)),
 			0, 11, 15, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (4 << MetadataConsts.FOREGROUND_OFFSET)),
+		]));
+		assert.deepStrictEqual(result.toString(), expected.toString());
+	});
+
+	test('issue #149130: vscode freezes because of Bracket Pair Colorization', () => {
+		const languageId = 'q';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		const legend = {
+			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5'],
+			tokenModifiers: ['stm0', 'stm1', 'stm2']
+		};
+		instantiationService.stub(IThemeService, {
+			getColorTheme() {
+				return <IColorTheme>{
+					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
+						return {
+							foreground: parseInt(tokenType.substr(2), 10),
+							bold: undefined,
+							underline: undefined,
+							strikethrough: undefined,
+							italic: undefined
+						};
+					}
+				};
+			}
+		});
+		const styling = instantiationService.createInstance(SemanticTokensProviderStyling, legend);
+		const badTokens = {
+			data: new Uint32Array([
+				0, 11, 1, 1, 0,
+				0, 4, 1, 1, 0,
+				0, 4294967289, 1, 1, 0
+			])
+		};
+		const result = toMultilineTokens2(badTokens, styling, languageId);
+		const expected = SparseMultilineTokens.create(1, new Uint32Array([
+			0, 11, 12, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
+			0, 15, 16, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
 		]));
 		assert.deepStrictEqual(result.toString(), expected.toString());
 	});

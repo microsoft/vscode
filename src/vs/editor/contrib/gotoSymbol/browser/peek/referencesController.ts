@@ -27,6 +27,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { OneReference, ReferencesModel } from '../referencesModel';
 import { LayoutData, ReferenceWidget } from './referencesWidget';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false, nls.localize('referenceSearchVisible', "Whether reference peek is visible, like 'Peek References' or 'Peek Definition'"));
 
@@ -94,7 +96,7 @@ export abstract class ReferencesController implements IEditorContribution {
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = LayoutData.fromJSON(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
+		const data = LayoutData.fromJSON(this._storageService.get(storageKey, StorageScope.PROFILE, '{}'));
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
@@ -102,14 +104,14 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._disposables.add(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 			if (this._widget) {
-				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.PROFILE, StorageTarget.MACHINE);
 				this._widget = undefined;
 			}
 			this.closeWidget();
 		}));
 
 		this._disposables.add(this._widget.onDidSelectReference(event => {
-			let { element, kind } = event;
+			const { element, kind } = event;
 			if (!element) {
 				return;
 			}
@@ -126,7 +128,7 @@ export abstract class ReferencesController implements IEditorContribution {
 					break;
 				case 'goto':
 					if (peekMode) {
-						this._gotoReference(element);
+						this._gotoReference(element, true);
 					} else {
 						this.openReference(element, false, true);
 					}
@@ -159,9 +161,9 @@ export abstract class ReferencesController implements IEditorContribution {
 					}
 
 					// set 'best' selection
-					let uri = this._editor.getModel().uri;
-					let pos = new Position(range.startLineNumber, range.startColumn);
-					let selection = this._model.nearestReference(uri, pos);
+					const uri = this._editor.getModel().uri;
+					const pos = new Position(range.startLineNumber, range.startColumn);
+					const selection = this._model.nearestReference(uri, pos);
 					if (selection) {
 						return this._widget.setSelection(selection).then(() => {
 							if (this._widget && this._editor.getOption(EditorOption.peekWidgetDefaultFocus) === 'editor') {
@@ -207,7 +209,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		const editorFocus = this._editor.hasTextFocus();
 		const previewEditorFocus = this._widget.isPreviewEditorFocused();
 		await this._widget.setSelection(target);
-		await this._gotoReference(target);
+		await this._gotoReference(target, false);
 		if (editorFocus) {
 			this._editor.focus();
 		} else if (this._widget && previewEditorFocus) {
@@ -237,17 +239,15 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location): Promise<any> {
-		if (this._widget) {
-			this._widget.hide();
-		}
+	private _gotoReference(ref: Location, pinned: boolean): Promise<any> {
+		this._widget?.hide();
 
 		this._ignoreModelChangeEvent = true;
 		const range = Range.lift(ref.range).collapseToStart();
 
 		return this._editorService.openCodeEditor({
 			resource: ref.uri,
-			options: { selection: range, selectionSource: TextEditorSelectionSource.JUMP }
+			options: { selection: range, selectionSource: TextEditorSelectionSource.JUMP, pinned }
 		}, this._editor).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
@@ -369,7 +369,14 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
+	when: ContextKeyExpr.and(
+		ctxReferenceSearchVisible,
+		ContextKeyExpr.not('config.editor.stablePeek'),
+		ContextKeyExpr.or(
+			EditorContextKeys.editorTextFocus,
+			InputFocusedContext.negate()
+		)
+	)
 });
 
 

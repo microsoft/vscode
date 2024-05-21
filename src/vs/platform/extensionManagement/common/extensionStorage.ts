@@ -5,14 +5,14 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { adoptToGalleryExtensionId, areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { isArray, isString } from 'vs/base/common/types';
+import { isString } from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
@@ -27,6 +27,7 @@ export interface IExtensionStorageService {
 	readonly _serviceBrand: undefined;
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined;
+	getExtensionStateRaw(extension: IExtension | IGalleryExtension | string, global: boolean): string | undefined;
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void;
 
 	readonly onDidChangeExtensionStorageToSync: Event<void>;
@@ -43,6 +44,8 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 
 	readonly _serviceBrand: undefined;
 
+	private static LARGE_STATE_WARNING_THRESHOLD = 512 * 1024;
+
 	private static toKey(extension: IExtensionIdWithVersion): string {
 		return `extensionKeys/${adoptToGalleryExtensionId(extension.id)}@${extension.version}`;
 	}
@@ -55,6 +58,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		return undefined;
 	}
 
+	/* TODO @sandy081: This has to be done across all profiles */
 	static async removeOutdatedExtensionVersions(extensionManagementService: IExtensionManagementService, storageService: IStorageService): Promise<void> {
 		const extensions = await extensionManagementService.getInstalled();
 		const extensionVersionsToRemove: string[] = [];
@@ -67,13 +71,13 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 			}
 		}
 		for (const key of extensionVersionsToRemove) {
-			storageService.remove(key, StorageScope.GLOBAL);
+			storageService.remove(key, StorageScope.PROFILE);
 		}
 	}
 
 	private static readAllExtensionsWithKeysForSync(storageService: IStorageService): Map<string, string[]> {
 		const extensionsWithKeysForSync = new Map<string, string[]>();
-		const keys = storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const keys = storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE);
 		for (const key of keys) {
 			const extensionIdWithVersion = ExtensionStorageService.fromKey(key);
 			if (extensionIdWithVersion) {
@@ -99,13 +103,10 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	) {
 		super();
 		this.extensionsWithKeysForSync = ExtensionStorageService.readAllExtensionsWithKeysForSync(storageService);
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorageValue(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._register(new DisposableStore()))(e => this.onDidChangeStorageValue(e)));
 	}
 
-	private onDidChangeStorageValue(e: IStorageValueChangeEvent): void {
-		if (e.scope !== StorageScope.GLOBAL) {
-			return;
-		}
+	private onDidChangeStorageValue(e: IProfileStorageValueChangeEvent): void {
 
 		// State of extension with keys for sync has changed
 		if (this.extensionsWithKeysForSync.has(e.key.toLowerCase())) {
@@ -116,7 +117,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		// Keys for sync of an extension has changed
 		const extensionIdWithVersion = ExtensionStorageService.fromKey(e.key);
 		if (extensionIdWithVersion) {
-			if (this.storageService.get(e.key, StorageScope.GLOBAL) === undefined) {
+			if (this.storageService.get(e.key, StorageScope.PROFILE) === undefined) {
 				this.extensionsWithKeysForSync.delete(extensionIdWithVersion.id.toLowerCase());
 			} else {
 				let versions = this.extensionsWithKeysForSync.get(extensionIdWithVersion.id.toLowerCase());
@@ -141,7 +142,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined {
 		const extensionId = this.getExtensionId(extension);
-		const jsonValue = this.storageService.get(extensionId, global ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+		const jsonValue = this.getExtensionStateRaw(extension, global);
 		if (jsonValue) {
 			try {
 				return JSON.parse(jsonValue);
@@ -155,22 +156,33 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		return undefined;
 	}
 
+	getExtensionStateRaw(extension: IExtension | IGalleryExtension | string, global: boolean): string | undefined {
+		const extensionId = this.getExtensionId(extension);
+		const rawState = this.storageService.get(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);
+
+		if (rawState && rawState?.length > ExtensionStorageService.LARGE_STATE_WARNING_THRESHOLD) {
+			this.logService.warn(`[mainThreadStorage] large extension state detected (extensionId: ${extensionId}, global: ${global}): ${rawState.length / 1024}kb. Consider to use 'storageUri' or 'globalStorageUri' to store this data on disk instead.`);
+		}
+
+		return rawState;
+	}
+
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void {
 		const extensionId = this.getExtensionId(extension);
 		if (state === undefined) {
-			this.storageService.remove(extensionId, global ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+			this.storageService.remove(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);
 		} else {
-			this.storageService.store(extensionId, JSON.stringify(state), global ? StorageScope.GLOBAL : StorageScope.WORKSPACE, StorageTarget.MACHINE /* Extension state is synced separately through extensions */);
+			this.storageService.store(extensionId, JSON.stringify(state), global ? StorageScope.PROFILE : StorageScope.WORKSPACE, StorageTarget.MACHINE /* Extension state is synced separately through extensions */);
 		}
 	}
 
 	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void {
-		this.storageService.store(ExtensionStorageService.toKey(extensionIdWithVersion), JSON.stringify(keys), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(ExtensionStorageService.toKey(extensionIdWithVersion), JSON.stringify(keys), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	getKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion): string[] | undefined {
 		const extensionKeysForSyncFromProduct = this.productService.extensionSyncedKeys?.[extensionIdWithVersion.id.toLowerCase()];
-		const extensionKeysForSyncFromStorageValue = this.storageService.get(ExtensionStorageService.toKey(extensionIdWithVersion), StorageScope.GLOBAL);
+		const extensionKeysForSyncFromStorageValue = this.storageService.get(ExtensionStorageService.toKey(extensionIdWithVersion), StorageScope.PROFILE);
 		const extensionKeysForSyncFromStorage = extensionKeysForSyncFromStorageValue ? JSON.parse(extensionKeysForSyncFromStorageValue) : undefined;
 
 		return extensionKeysForSyncFromStorage && extensionKeysForSyncFromProduct
@@ -193,10 +205,10 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	}
 
 	private get migrationList(): [string, string][] {
-		const value = this.storageService.get('extensionStorage.migrationList', StorageScope.GLOBAL, '[]');
+		const value = this.storageService.get('extensionStorage.migrationList', StorageScope.APPLICATION, '[]');
 		try {
 			const migrationList = JSON.parse(value);
-			if (isArray(migrationList)) {
+			if (Array.isArray(migrationList)) {
 				return migrationList;
 			}
 		} catch (error) { /* ignore */ }
@@ -205,9 +217,9 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 
 	private set migrationList(migrationList: [string, string][]) {
 		if (migrationList.length) {
-			this.storageService.store('extensionStorage.migrationList', JSON.stringify(migrationList), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store('extensionStorage.migrationList', JSON.stringify(migrationList), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} else {
-			this.storageService.remove('extensionStorage.migrationList', StorageScope.GLOBAL);
+			this.storageService.remove('extensionStorage.migrationList', StorageScope.APPLICATION);
 		}
 	}
 

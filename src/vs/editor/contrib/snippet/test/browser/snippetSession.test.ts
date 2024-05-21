@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -38,8 +39,15 @@ suite('SnippetSession', function () {
 		languageConfigurationService = new TestLanguageConfigurationService();
 		const serviceCollection = new ServiceCollection(
 			[ILabelService, new class extends mock<ILabelService>() { }],
-			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
-			[ILanguageConfigurationService, languageConfigurationService]
+			[ILanguageConfigurationService, languageConfigurationService],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() {
+					return {
+						id: 'workspace-id',
+						folders: [],
+					};
+				}
+			}],
 		);
 		editor = createTestCodeEditor(model, { serviceCollection }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
@@ -51,11 +59,13 @@ suite('SnippetSession', function () {
 		editor.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('normalize whitespace', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
 			const snippet = new SnippetParser().parse(input);
-			SnippetSession.adjustWhitespace(model, position, snippet, true, true);
+			SnippetSession.adjustWhitespace(model, position, true, snippet);
 			assert.strictEqual(snippet.toTextmateString(), expected);
 		}
 
@@ -63,7 +73,7 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(1, 1), 'foo\rbar', 'foo\nbar');
 		assertNormalized(new Position(1, 1), 'foo\rbar', 'foo\nbar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar', 'foo\n        bar');
-		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
+		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n    bar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar\nfoo', 'foo\n        bar\n    foo');
 
 		//Indentation issue with choice elements that span multiple lines #46266
@@ -699,7 +709,7 @@ suite('SnippetSession', function () {
 	test('Tabs don\'t get replaced with spaces in snippet transformations #103818', function () {
 		const model = editor.getModel()!;
 		model.setValue('\n{\n  \n}');
-		model.updateOptions({ insertSpaces: true, tabSize: 2 });
+		model.updateOptions({ insertSpaces: true, indentSize: 2 });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(3, 6, 3, 6)]);
 		const session = new SnippetSession(editor, [
 			'function animate () {',
@@ -742,5 +752,55 @@ suite('SnippetSession', function () {
 			'  }',
 			'}',
 		].join('\n'));
+	});
+
+
+	suite('createEditsAndSnippetsFromEdits', function () {
+
+		test('empty', function () {
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(editor, [], true, true, undefined, undefined, languageConfigurationService);
+
+			assert.deepStrictEqual(result.edits, []);
+			assert.deepStrictEqual(result.snippets, []);
+		});
+
+		test('basic', function () {
+
+			editor.getModel().setValue('foo("bar")');
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[{ range: new Range(1, 5, 1, 9), template: '$1' }, { range: new Range(1, 1, 1, 1), template: 'const ${1:new_const} = "bar"' }],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].range, new Range(1, 1, 1, 1));
+			assert.deepStrictEqual(result.edits[0].text, 'const new_const = "bar"');
+			assert.deepStrictEqual(result.edits[1].range, new Range(1, 5, 1, 9));
+			assert.deepStrictEqual(result.edits[1].text, 'new_const');
+
+			assert.strictEqual(result.snippets.length, 1);
+			assert.strictEqual(result.snippets[0].isTrivialSnippet, false);
+		});
+
+		test('with $SELECTION variable', function () {
+			editor.getModel().setValue('Some text and a selection');
+			editor.setSelections([new Selection(1, 17, 1, 26)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[{ range: new Range(1, 17, 1, 26), template: 'wrapped <$SELECTION>' }],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 1);
+			assert.deepStrictEqual(result.edits[0].range, new Range(1, 17, 1, 26));
+			assert.deepStrictEqual(result.edits[0].text, 'wrapped <selection>');
+
+			assert.strictEqual(result.snippets.length, 1);
+			assert.strictEqual(result.snippets[0].isTrivialSnippet, true);
+		});
 	});
 });

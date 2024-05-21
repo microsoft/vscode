@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
-import { StackFrame, Expression, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockSession, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Expression, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
+import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
+import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 suite('Debug - View Model', () => {
 	let model: ViewModel;
@@ -16,6 +19,8 @@ suite('Debug - View Model', () => {
 	setup(() => {
 		model = new ViewModel(new MockContextKeyService());
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('focused stack frame', () => {
 		assert.strictEqual(model.focusedStackFrame, undefined);
@@ -26,7 +31,7 @@ suite('Debug - View Model', () => {
 			name: 'internalModule.js',
 			sourceReference: 11,
 			presentationHint: 'deemphasize'
-		}, 'aDebugSessionId', mockUriIdentityService);
+		}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 		const frame = new StackFrame(thread, 1, source, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, 0, true);
 		model.setFocus(frame, thread, session, false);
 

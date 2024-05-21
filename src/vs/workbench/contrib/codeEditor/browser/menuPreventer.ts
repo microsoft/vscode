@@ -6,7 +6,7 @@
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 
 /**
@@ -57,4 +57,4 @@ export class MenuPreventer extends Disposable implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(MenuPreventer.ID, MenuPreventer);
+registerEditorContribution(MenuPreventer.ID, MenuPreventer, EditorContributionInstantiation.BeforeFirstInteraction);

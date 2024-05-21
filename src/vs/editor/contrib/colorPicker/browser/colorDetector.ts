@@ -6,17 +6,18 @@
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -25,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export const ColorDecorationInjectedTextMarker = Object.create({});
 
-const MAX_DECORATORS = 500;
 
 export class ColorDetector extends Disposable implements IEditorContribution {
 
@@ -41,11 +41,14 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _decorationsIds: string[] = [];
 	private _colorDatas = new Map<string, IColorData>();
 
-	private _colorDecoratorIds: ReadonlySet<string> = new Set<string>();
+	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
 
-	private _isEnabled: boolean;
+	private _isColorDecoratorsEnabled: boolean;
+	private _isDefaultColorDecoratorsEnabled: boolean;
 
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+
+	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -56,18 +59,22 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		super();
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 		this._register(_editor.onDidChangeModel(() => {
-			this._isEnabled = this.isEnabled();
-			this.onModelChanged();
+			this._isColorDecoratorsEnabled = this.isEnabled();
+			this.updateColors();
 		}));
-		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
-		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration(() => {
-			let prevIsEnabled = this._isEnabled;
-			this._isEnabled = this.isEnabled();
-			if (prevIsEnabled !== this._isEnabled) {
-				if (this._isEnabled) {
-					this.onModelChanged();
-				} else {
+		this._register(_editor.onDidChangeModelLanguage(() => this.updateColors()));
+		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.updateColors()));
+		this._register(_editor.onDidChangeConfiguration((e) => {
+			const prevIsEnabled = this._isColorDecoratorsEnabled;
+			this._isColorDecoratorsEnabled = this.isEnabled();
+			this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorators);
+			const updatedColorDecoratorsSetting = prevIsEnabled !== this._isColorDecoratorsEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
+			const updatedDefaultColorDecoratorsSetting = e.hasChanged(EditorOption.defaultColorDecorators);
+			if (updatedColorDecoratorsSetting || updatedDefaultColorDecoratorsSetting) {
+				if (this._isColorDecoratorsEnabled) {
+					this.updateColors();
+				}
+				else {
 					this.removeAllDecorations();
 				}
 			}
@@ -75,8 +82,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 		this._timeoutTimer = null;
 		this._computePromise = null;
-		this._isEnabled = this.isEnabled();
-		this.onModelChanged();
+		this._isColorDecoratorsEnabled = this.isEnabled();
+		this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorators);
+		this.updateColors();
 	}
 
 	isEnabled(): boolean {
@@ -97,6 +105,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		return this._editor.getOption(EditorOption.colorDecorators);
 	}
 
+	public get limitReporter() {
+		return this._decoratorLimitReporter;
+	}
+
 	static get(editor: ICodeEditor): ColorDetector | null {
 		return editor.getContribution<ColorDetector>(this.ID);
 	}
@@ -107,10 +119,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		super.dispose();
 	}
 
-	private onModelChanged(): void {
+	private updateColors(): void {
 		this.stop();
 
-		if (!this._isEnabled) {
+		if (!this._isColorDecoratorsEnabled) {
 			return;
 		}
 		const model = this._editor.getModel();
@@ -131,22 +143,25 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private beginCompute(): void {
+	private async beginCompute(): Promise<void> {
 		this._computePromise = createCancelablePromise(async token => {
 			const model = this._editor.getModel();
 			if (!model) {
-				return Promise.resolve([]);
+				return [];
 			}
 			const sw = new StopWatch(false);
-			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
+			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token, this._isDefaultColorDecoratorsEnabled);
 			this._debounceInformation.update(model, sw.elapsed());
 			return colors;
 		});
-		this._computePromise.then((colorInfos) => {
-			this.updateDecorations(colorInfos);
-			this.updateColorDecorators(colorInfos);
+		try {
+			const colors = await this._computePromise;
+			this.updateDecorations(colors);
+			this.updateColorDecorators(colors);
 			this._computePromise = null;
-		}, onUnexpectedError);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
 	}
 
 	private stop(): void {
@@ -172,23 +187,27 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			options: ModelDecorationOptions.EMPTY
 		}));
 
-		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
+		this._editor.changeDecorations((changeAccessor) => {
+			this._decorationsIds = changeAccessor.deltaDecorations(this._decorationsIds, decorations);
 
-		this._colorDatas = new Map<string, IColorData>();
-		this._decorationsIds.forEach((id, i) => this._colorDatas.set(id, colorDatas[i]));
+			this._colorDatas = new Map<string, IColorData>();
+			this._decorationsIds.forEach((id, i) => this._colorDatas.set(id, colorDatas[i]));
+		});
 	}
 
-	private _colorDecorationClassRefs = this._register(new DisposableStore());
+	private readonly _colorDecorationClassRefs = this._register(new DisposableStore());
 
 	private updateColorDecorators(colorData: IColorData[]): void {
 		this._colorDecorationClassRefs.clear();
 
-		let decorations: IModelDeltaDecoration[] = [];
+		const decorations: IModelDeltaDecoration[] = [];
 
-		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
+		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
+
+		for (let i = 0; i < colorData.length && decorations.length < limit; i++) {
 			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
+			const color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 
 			const ref = this._colorDecorationClassRefs.add(
 				this._ruleFactory.createClassNameRef({
@@ -214,13 +233,16 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				}
 			});
 		}
+		const limited = limit < colorData.length ? limit : false;
+		this._decoratorLimitReporter.update(colorData.length, limited);
 
-		this._colorDecoratorIds = new Set(this._editor.deltaDecorations([...this._colorDecoratorIds], decorations));
+		this._colorDecoratorIds.set(decorations);
 	}
 
 	private removeAllDecorations(): void {
-		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
-		this._colorDecoratorIds = new Set(this._editor.deltaDecorations([...this._colorDecoratorIds], []));
+		this._editor.removeDecorations(this._decorationsIds);
+		this._decorationsIds = [];
+		this._colorDecoratorIds.clear();
 		this._colorDecorationClassRefs.clear();
 	}
 
@@ -241,9 +263,30 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		return this._colorDatas.get(decorations[0].id)!;
 	}
 
-	isColorDecorationId(decorationId: string): boolean {
-		return this._colorDecoratorIds.has(decorationId);
+	isColorDecoration(decoration: IModelDecoration): boolean {
+		return this._colorDecoratorIds.has(decoration);
 	}
 }
 
-registerEditorContribution(ColorDetector.ID, ColorDetector);
+export class DecoratorLimitReporter {
+	private _onDidChange = new Emitter<void>();
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private _computed: number = 0;
+	private _limited: number | false = false;
+	public get computed(): number {
+		return this._computed;
+	}
+	public get limited(): number | false {
+		return this._limited;
+	}
+	public update(computed: number, limited: number | false) {
+		if (computed !== this._computed || limited !== this._limited) {
+			this._computed = computed;
+			this._limited = limited;
+			this._onDidChange.fire();
+		}
+	}
+}
+
+registerEditorContribution(ColorDetector.ID, ColorDetector, EditorContributionInstantiation.AfterFirstRender);

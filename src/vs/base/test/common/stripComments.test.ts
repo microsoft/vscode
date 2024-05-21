@@ -5,10 +5,13 @@
 import * as assert from 'assert';
 
 import { stripComments } from 'vs/base/common/stripComments';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 // We use this regular expression quite often to strip comments in JSON files.
 
 suite('Strip Comments', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Line comment', () => {
 		const content: string = [
 			"{",
@@ -119,6 +122,28 @@ suite('Strip Comments', () => {
 			"{",
 			"  '/* */': 10",
 			"}"
+		].join('\n');
+		assert.strictEqual(stripComments(content), expected);
+	});
+	test('Trailing comma in object', () => {
+		const content: string = [
+			"{",
+			`  "a": 10,`,
+			"}"
+		].join('\n');
+		const expected: string = [
+			"{",
+			`  "a": 10`,
+			"}"
+		].join('\n');
+		assert.strictEqual(stripComments(content), expected);
+	});
+	test('Trailing comma in array', () => {
+		const content: string = [
+			`[ "a", "b", "c", ]`
+		].join('\n');
+		const expected: string = [
+			`[ "a", "b", "c" ]`
 		].join('\n');
 		assert.strictEqual(stripComments(content), expected);
 	});

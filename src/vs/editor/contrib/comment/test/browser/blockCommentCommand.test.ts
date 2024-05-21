@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -30,6 +31,8 @@ function testBlockCommentCommand(lines: string[], selection: Selection, expected
 }
 
 suite('Editor Contrib - Block Comment Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('empty selection wraps itself', function () {
 		testBlockCommentCommand(

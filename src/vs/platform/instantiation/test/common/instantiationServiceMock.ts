@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -15,18 +17,18 @@ interface IServiceMock<T> {
 
 const isSinonSpyLike = (fn: Function): fn is sinon.SinonSpy => fn && 'callCount' in fn;
 
-export class TestInstantiationService extends InstantiationService {
+export class TestInstantiationService extends InstantiationService implements IDisposable {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false) {
-		super(_serviceCollection, strict);
+	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: TestInstantiationService, private _properDispose?: boolean) {
+		super(_serviceCollection, strict, parent);
 
 		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {
-		return super._getOrCreateServiceInstance(service, Trace.traceCreation(TestInstantiationService));
+		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
 	}
 
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
@@ -43,12 +45,12 @@ export class TestInstantiationService extends InstantiationService {
 	public stub<T, V>(service: ServiceIdentifier<T>, obj: Partial<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stub<T, V>(service: ServiceIdentifier<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2: any, arg3?: string, arg4?: any): sinon.SinonStub | sinon.SinonSpy {
-		let service = typeof arg2 !== 'string' ? arg2 : undefined;
-		let serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
-		let property = typeof arg2 === 'string' ? arg2 : arg3;
-		let value = typeof arg2 === 'string' ? arg3 : arg4;
+		const service = typeof arg2 !== 'string' ? arg2 : undefined;
+		const serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
+		const property = typeof arg2 === 'string' ? arg2 : arg3;
+		const value = typeof arg2 === 'string' ? arg3 : arg4;
 
-		let stubObject = <any>this._create(serviceMock, { stub: true }, service && !property);
+		const stubObject = <any>this._create(serviceMock, { stub: true }, service && !property);
 		if (property) {
 			if (stubObject[property]) {
 				if (stubObject[property].hasOwnProperty('restore')) {
@@ -80,7 +82,7 @@ export class TestInstantiationService extends InstantiationService {
 	}
 
 	public spy<T>(service: ServiceIdentifier<T>, fnProperty: string): sinon.SinonSpy {
-		let spy = sinon.spy();
+		const spy = sinon.spy();
 		this.stub(service, fnProperty, spy);
 		return spy;
 	}
@@ -89,7 +91,7 @@ export class TestInstantiationService extends InstantiationService {
 	private _create<T>(ctor: any, options: SinonOptions): any;
 	private _create(arg1: any, options: SinonOptions, reset: boolean = false): any {
 		if (this.isServiceMock(arg1)) {
-			let service = this._getOrCreateService(arg1, options, reset);
+			const service = this._getOrCreateService(arg1, options, reset);
 			this._serviceCollection.set(arg1.id, service);
 			return service;
 		}
@@ -97,7 +99,7 @@ export class TestInstantiationService extends InstantiationService {
 	}
 
 	private _getOrCreateService<T>(serviceMock: IServiceMock<T>, opts: SinonOptions, reset?: boolean): any {
-		let service: any = this._serviceCollection.get(serviceMock.id);
+		const service: any = this._serviceCollection.get(serviceMock.id);
 		if (!reset && service) {
 			if (opts.mock && service['sinonOptions'] && !!service['sinonOptions'].mock) {
 				return service;
@@ -111,7 +113,7 @@ export class TestInstantiationService extends InstantiationService {
 
 	private _createService(serviceMock: IServiceMock<any>, opts: SinonOptions): any {
 		serviceMock.service = serviceMock.service ? serviceMock.service : this._servciesMap.get(serviceMock.id);
-		let service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
+		const service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
 		service['sinonOptions'] = opts;
 		return service;
 	}
@@ -123,9 +125,53 @@ export class TestInstantiationService extends InstantiationService {
 	private isServiceMock(arg1: any): boolean {
 		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
 	}
+
+	override createChild(services: ServiceCollection): TestInstantiationService {
+		return new TestInstantiationService(services, false, this);
+	}
+
+	override dispose() {
+		sinon.restore();
+		if (this._properDispose) {
+			super.dispose();
+		}
+	}
 }
 
 interface SinonOptions {
 	mock?: boolean;
 	stub?: boolean;
+}
+
+export type ServiceIdCtorPair<T> = [id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)];
+
+export function createServices(disposables: DisposableStore, services: ServiceIdCtorPair<any>[]): TestInstantiationService {
+	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
+	const serviceCollection = new ServiceCollection();
+
+	const define = <T>(id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)) => {
+		if (!serviceCollection.has(id)) {
+			if (typeof ctorOrInstance === 'function') {
+				serviceCollection.set(id, new SyncDescriptor(ctorOrInstance as any));
+			} else {
+				serviceCollection.set(id, ctorOrInstance);
+			}
+		}
+		serviceIdentifiers.push(id);
+	};
+
+	for (const [id, ctor] of services) {
+		define(id, ctor);
+	}
+
+	const instantiationService = disposables.add(new TestInstantiationService(serviceCollection, true));
+	disposables.add(toDisposable(() => {
+		for (const id of serviceIdentifiers) {
+			const instanceOrDescriptor = serviceCollection.get(id);
+			if (typeof instanceOrDescriptor.dispose === 'function') {
+				instanceOrDescriptor.dispose();
+			}
+		}
+	}));
+	return instantiationService;
 }

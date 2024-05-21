@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit
+	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit, Diagnostic
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CSSFormatConfiguration } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { formatError, runSafeAsync } from './utils/runner';
+import { runSafeAsync } from './utils/runner';
+import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
 import { getDocumentContext } from './utils/documentContext';
 import { fetchDataProviders } from './customData';
 import { RequestService, getRequestService } from './requests';
@@ -56,6 +57,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	let dataProvidersReady: Promise<any> = Promise.resolve();
 
+	let diagnosticsSupport: DiagnosticsSupport | undefined;
+
 	const languageServices: { [id: string]: LanguageService } = {};
 
 	const notReady = () => Promise.reject('Not Ready');
@@ -64,15 +67,18 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// After the server has started the client sends an initialize request. The server receives
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
+
+		const initializationOptions = params.initializationOptions as any || {};
+
 		workspaceFolders = (<any>params).workspaceFolders;
 		if (!Array.isArray(workspaceFolders)) {
 			workspaceFolders = [];
 			if (params.rootPath) {
-				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
+				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString(true) });
 			}
 		}
 
-		requestService = getRequestService(params.initializationOptions?.handledSchemas || ['file'], connection, runtime);
+		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
 
 		function getClientCapability<T>(name: string, def: T) {
 			const keys = name.split('.');
@@ -88,11 +94,19 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		const snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 		scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-		formatterMaxNumberOfEdits = params.initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
+
+		formatterMaxNumberOfEdits = initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 
 		languageServices.css = getCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
 		languageServices.scss = getSCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
 		languageServices.less = getLESSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
+
+		const supportsDiagnosticPull = getClientCapability('textDocument.diagnostic', undefined);
+		if (supportsDiagnosticPull === undefined) {
+			diagnosticsSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
+		} else {
+			diagnosticsSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
+		}
 
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -110,8 +124,13 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
-			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
+			diagnosticProvider: {
+				documentSelector: null,
+				interFileDependencies: false,
+				workspaceDiagnostics: false
+			},
+			documentRangeFormattingProvider: initializationOptions?.provideFormatter === true,
+			documentFormattingProvider: initializationOptions?.provideFormatter === true,
 		};
 		return { capabilities };
 	});
@@ -135,7 +154,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			let promise = documentSettings[textDocument.uri];
 			if (!promise) {
 				const configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
-				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0]);
+				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0] as LanguageSettings | undefined);
 				documentSettings[textDocument.uri] = promise;
 			}
 			return promise;
@@ -145,62 +164,25 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration(change => {
-		updateConfiguration(<Settings>change.settings);
+		updateConfiguration(change.settings as any);
 	});
 
-	function updateConfiguration(settings: Settings) {
+	function updateConfiguration(settings: any) {
 		for (const languageId in languageServices) {
-			languageServices[languageId].configure((settings as any)[languageId]);
+			languageServices[languageId].configure(settings[languageId]);
 		}
 		// reset all document settings
 		documentSettings = {};
-		// Revalidate any open text documents
-		documents.all().forEach(triggerValidation);
+		diagnosticsSupport?.requestRefresh();
 	}
 
-	const pendingValidationRequests: { [uri: string]: Disposable } = {};
-	const validationDelayMs = 500;
-
-	// The content of a text document has changed. This event is emitted
-	// when the text document first opened or when its content has changed.
-	documents.onDidChangeContent(change => {
-		triggerValidation(change.document);
-	});
-
-	// a document has closed: clear all diagnostics
-	documents.onDidClose(event => {
-		cleanPendingValidation(event.document);
-		connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
-	});
-
-	function cleanPendingValidation(textDocument: TextDocument): void {
-		const request = pendingValidationRequests[textDocument.uri];
-		if (request) {
-			request.dispose();
-			delete pendingValidationRequests[textDocument.uri];
-		}
-	}
-
-	function triggerValidation(textDocument: TextDocument): void {
-		cleanPendingValidation(textDocument);
-		pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
-			delete pendingValidationRequests[textDocument.uri];
-			validateTextDocument(textDocument);
-		}, validationDelayMs);
-	}
-
-	function validateTextDocument(textDocument: TextDocument): void {
+	async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
 		const settingsPromise = getDocumentSettings(textDocument);
-		Promise.all([settingsPromise, dataProvidersReady]).then(async ([settings]) => {
-			const stylesheet = stylesheets.get(textDocument);
-			const diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
-			// Send the computed diagnostics to VSCode.
-			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-		}, e => {
-			connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
-		});
-	}
+		const [settings] = await Promise.all([settingsPromise, dataProvidersReady]);
 
+		const stylesheet = stylesheets.get(textDocument);
+		return getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
+	}
 
 	function updateDataProviders(dataPaths: string[]) {
 		dataProvidersReady = fetchDataProviders(dataPaths, requestService).then(customDataProviders => {
@@ -241,7 +223,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (document) {
 				await dataProvidersReady;
 				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentSymbols(document, stylesheet);
+				return getLanguageService(document).findDocumentSymbols2(document, stylesheet);
 			}
 			return [];
 		}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
@@ -374,8 +356,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	async function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): Promise<TextEdit[]> {
 		const document = documents.get(textDocument.uri);
 		if (document) {
-			console.log(JSON.stringify(options));
-			const edits = getLanguageService(document).format(document, range ?? getFullRange(document), options as CSSFormatConfiguration);
+			const edits = getLanguageService(document).format(document, range ?? getFullRange(document), options);
 			if (edits.length > formatterMaxNumberOfEdits) {
 				const newText = TextDocument.applyEdits(document, edits);
 				return [TextEdit.replace(getFullRange(document), newText)];

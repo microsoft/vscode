@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,6 +20,9 @@ import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/view
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IView } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { VIEWPANE_FILTER_ACTION } from 'vs/workbench/browser/parts/views/viewPane';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export abstract class PaneComposite extends Composite implements IPaneComposite {
 
@@ -39,6 +42,7 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 	}
 
 	override create(parent: HTMLElement): void {
+		super.create(parent);
 		this.viewPaneContainer = this._register(this.createViewPaneContainer(parent));
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 		this.viewPaneContainer.create(parent);
@@ -51,6 +55,10 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 
 	layout(dimension: Dimension): void {
 		this.viewPaneContainer?.layout(dimension);
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes): void {
+		this.viewPaneContainer?.setBoundarySashes(sashes);
 	}
 
 	getOptimalWidth(): number {
@@ -73,12 +81,27 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		return this.viewPaneContainer?.menuActions?.getContextMenuActions() ?? [];
 	}
 
+	override getMenuIds(): MenuId[] {
+		const result: MenuId[] = [];
+		if (this.viewPaneContainer?.menuActions) {
+			result.push(this.viewPaneContainer.menuActions.menuId);
+			if (this.viewPaneContainer.isViewMergedWithContainer()) {
+				result.push(this.viewPaneContainer.panes[0].menuActions.menuId);
+			}
+		}
+		return result;
+	}
+
 	override getActions(): readonly IAction[] {
 		const result = [];
 		if (this.viewPaneContainer?.menuActions) {
 			result.push(...this.viewPaneContainer.menuActions.getPrimaryActions());
 			if (this.viewPaneContainer.isViewMergedWithContainer()) {
-				result.push(...this.viewPaneContainer.panes[0].menuActions.getPrimaryActions());
+				const viewPane = this.viewPaneContainer.panes[0];
+				if (viewPane.shouldShowFilterInHeader()) {
+					result.push(VIEWPANE_FILTER_ACTION);
+				}
+				result.push(...viewPane.menuActions.getPrimaryActions());
 			}
 		}
 		return result;
@@ -118,19 +141,16 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		return menuActions.length ? menuActions : viewPaneActions;
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return this.viewPaneContainer?.getActionViewItem(action);
+	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		return this.viewPaneContainer?.getActionViewItem(action, options);
 	}
 
 	override getTitle(): string {
 		return this.viewPaneContainer?.getTitle() ?? '';
 	}
 
-	override saveState(): void {
-		super.saveState();
-	}
-
 	override focus(): void {
+		super.focus();
 		this.viewPaneContainer?.focus();
 	}
 
@@ -139,7 +159,7 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 
 
 /**
- * A Pane Composite descriptor is a leightweight descriptor of a Pane Composite in the workbench.
+ * A Pane Composite descriptor is a lightweight descriptor of a Pane Composite in the workbench.
  */
 export class PaneCompositeDescriptor extends CompositeDescriptor<PaneComposite> {
 

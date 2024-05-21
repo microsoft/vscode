@@ -7,9 +7,9 @@ import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isUNC } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
-import { sep } from 'vs/base/common/path';
+import { normalize, sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
 
@@ -65,7 +65,7 @@ export async function loadLocalResource(
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 
 	try {
-		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch });
+		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch }, token);
 		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime);
 	} catch (err) {
 		if (err instanceof FileOperationError) {
@@ -73,7 +73,7 @@ export async function loadLocalResource(
 
 			// NotModified status is expected and can be handled gracefully
 			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-				return new WebviewResourceResponse.NotModified(mime, err.options?.mtime);
+				return new WebviewResourceResponse.NotModified(mime, (err.options as IWriteFileOptions | undefined)?.mtime);
 			}
 		}
 
@@ -103,8 +103,8 @@ function containsResource(root: URI, resource: URI): boolean {
 		return false;
 	}
 
-	let rootPath = root.fsPath + (root.fsPath.endsWith(sep) ? '' : sep);
-	let resourceFsPath = resource.fsPath;
+	let resourceFsPath = normalize(resource.fsPath);
+	let rootPath = normalize(root.fsPath + (root.fsPath.endsWith(sep) ? '' : sep));
 
 	if (isUNC(root.fsPath) && isUNC(resource.fsPath)) {
 		rootPath = rootPath.toLowerCase();

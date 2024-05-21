@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -12,11 +13,10 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Memento } from 'vs/workbench/common/memento';
-import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -40,7 +40,7 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 
 		const hasOpenedNotebook = HAS_OPENED_NOTEBOOK.bindTo(_contextKeyService);
 		const memento = new Memento('notebookGettingStarted2', _storageService);
-		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		const storedValue = memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 		if (storedValue[hasOpenedNotebookKey]) {
 			hasOpenedNotebook.set(true);
 		}
@@ -81,17 +81,17 @@ registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.gettingStarted',
-			title: localize('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
+			title: localize2('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true),
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 		});
 	}
 	run(accessor: ServicesAccessor): void {
 		const storageService = accessor.get(IStorageService);
 		const memento = new Memento('notebookGettingStarted', storageService);
 
-		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		const storedValue = memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 		storedValue[hasOpenedNotebookKey] = undefined;
 		memento.saveMemento();
 	}

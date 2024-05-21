@@ -7,13 +7,13 @@ import * as nls from 'vs/nls';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 
-export enum DocumentationExtensionPointFields {
+enum DocumentationExtensionPointFields {
 	when = 'when',
 	title = 'title',
 	command = 'command',
 }
 
-export interface RefactoringDocumentationExtensionPoint {
+interface RefactoringDocumentationExtensionPoint {
 	readonly [DocumentationExtensionPointFields.title]: string;
 	readonly [DocumentationExtensionPointFields.when]: string;
 	readonly [DocumentationExtensionPointFields.command]: string;

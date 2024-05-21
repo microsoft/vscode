@@ -10,7 +10,7 @@ import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory }
 import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
-export class PieceTreeTextBufferFactory implements ITextBufferFactory {
+class PieceTreeTextBufferFactory implements ITextBufferFactory {
 
 	constructor(
 		private readonly _chunks: StringBuffer[],
@@ -141,16 +141,15 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		this.lf += lineStarts.lf;
 		this.crlf += lineStarts.crlf;
 
-		if (this.isBasicASCII) {
-			this.isBasicASCII = lineStarts.isBasicASCII;
-		}
-		if (!this.isBasicASCII && !this.containsRTL) {
-			// No need to check if it is basic ASCII
-			this.containsRTL = strings.containsRTL(chunk);
-		}
-		if (!this.isBasicASCII && !this.containsUnusualLineTerminators) {
-			// No need to check if it is basic ASCII
-			this.containsUnusualLineTerminators = strings.containsUnusualLineTerminators(chunk);
+		if (!lineStarts.isBasicASCII) {
+			// this chunk contains non basic ASCII characters
+			this.isBasicASCII = false;
+			if (!this.containsRTL) {
+				this.containsRTL = strings.containsRTL(chunk);
+			}
+			if (!this.containsUnusualLineTerminators) {
+				this.containsUnusualLineTerminators = strings.containsUnusualLineTerminators(chunk);
+			}
 		}
 	}
 

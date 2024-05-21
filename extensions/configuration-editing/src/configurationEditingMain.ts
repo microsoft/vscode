@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getLocation, JSONPath, parse, visit } from 'jsonc-parser';
+import { getLocation, JSONPath, parse, visit, Location } from 'jsonc-parser';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { SettingsDocument } from './settingsDocumentHelper';
 import { provideInstalledExtensionProposals } from './extensionsProposals';
-const localize = nls.loadMessageBundle();
+import './importExportProfiles';
 
 export function activate(context: vscode.ExtensionContext): void {
 	//settings.json suggestions
@@ -22,6 +21,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// task.json variable suggestions
 	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
+
+	// Workspace file launch/tasks variable completions
+	context.subscriptions.push(registerVariableCompletions('**/*.code-workspace'));
 
 	// keybindings.json/package.json context key suggestions
 	context.subscriptions.push(registerContextKeyCompletions());
@@ -39,29 +41,36 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern }, {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
-			if (!location.isAtPropertyKey && location.previousNode && location.previousNode.type === 'string') {
-				const indexOf$ = document.lineAt(position.line).text.lastIndexOf('$', position.character);
-				const startPosition = indexOf$ >= 0 ? new vscode.Position(position.line, indexOf$) : position;
+			if (isCompletingInsidePropertyStringValue(document, location, position)) {
+				if (document.fileName.endsWith('.code-workspace') && !isLocationInsideTopLevelProperty(location, ['launch', 'tasks'])) {
+					return [];
+				}
+
+				let range = document.getWordRangeAtPosition(position, /\$\{[^"\}]*\}?/);
+				if (!range || range.start.isEqual(position) || range.end.isEqual(position) && document.getText(range).endsWith('}')) {
+					range = new vscode.Range(position, position);
+				}
 
 				return [
-					{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") },
-					{ label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
-					{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") },
-					{ label: 'relativeFileDirname', detail: localize('relativeFileDirname', "The current opened file's dirname relative to ${workspaceFolder}") },
-					{ label: 'file', detail: localize('file', "The current opened file") },
-					{ label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
-					{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") },
-					{ label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
-					{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") },
-					{ label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") },
-					{ label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
-					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") },
-					{ label: 'defaultBuildTask', detail: localize('defaultBuildTask', "The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
-					{ label: 'pathSeparator', detail: localize('pathSeparator', "The character used by the operating system to separate components in file paths") },
-					{ label: 'extensionInstallFolder', detail: localize('extensionInstallFolder', "The path where an an extension is installed."), param: 'publisher.extension' },
+					{ label: 'workspaceFolder', detail: vscode.l10n.t("The path of the folder opened in VS Code") },
+					{ label: 'workspaceFolderBasename', detail: vscode.l10n.t("The name of the folder opened in VS Code without any slashes (/)") },
+					{ label: 'fileWorkspaceFolderBasename', detail: vscode.l10n.t("The current opened file workspace folder name without any slashes (/)") },
+					{ label: 'relativeFile', detail: vscode.l10n.t("The current opened file relative to ${workspaceFolder}") },
+					{ label: 'relativeFileDirname', detail: vscode.l10n.t("The current opened file's dirname relative to ${workspaceFolder}") },
+					{ label: 'file', detail: vscode.l10n.t("The current opened file") },
+					{ label: 'cwd', detail: vscode.l10n.t("The task runner's current working directory on startup") },
+					{ label: 'lineNumber', detail: vscode.l10n.t("The current selected line number in the active file") },
+					{ label: 'selectedText', detail: vscode.l10n.t("The current selected text in the active file") },
+					{ label: 'fileDirname', detail: vscode.l10n.t("The current opened file's dirname") },
+					{ label: 'fileExtname', detail: vscode.l10n.t("The current opened file's extension") },
+					{ label: 'fileBasename', detail: vscode.l10n.t("The current opened file's basename") },
+					{ label: 'fileBasenameNoExtension', detail: vscode.l10n.t("The current opened file's basename with no file extension") },
+					{ label: 'defaultBuildTask', detail: vscode.l10n.t("The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
+					{ label: 'pathSeparator', detail: vscode.l10n.t("The character used by the operating system to separate components in file paths. Is also aliased to '/'.") },
+					{ label: 'extensionInstallFolder', detail: vscode.l10n.t("The path where an extension is installed."), param: 'publisher.extension' },
 				].map(variable => ({
 					label: `\${${variable.label}}`,
-					range: new vscode.Range(startPosition, position),
+					range,
 					insertText: variable.param ? new vscode.SnippetString(`\${${variable.label}:`).appendPlaceholder(variable.param).appendText('}') : (`\${${variable.label}}`),
 					detail: variable.detail
 				}));
@@ -70,6 +79,22 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 			return [];
 		}
 	});
+}
+
+function isCompletingInsidePropertyStringValue(document: vscode.TextDocument, location: Location, pos: vscode.Position) {
+	if (location.isAtPropertyKey) {
+		return false;
+	}
+	const previousNode = location.previousNode;
+	if (previousNode && previousNode.type === 'string') {
+		const offset = document.offsetAt(pos);
+		return offset > previousNode.offset && offset < previousNode.offset + previousNode.length;
+	}
+	return false;
+}
+
+function isLocationInsideTopLevelProperty(location: Location, values: string[]) {
+	return values.includes(location.path[0] as string);
 }
 
 interface IExtensionsContent {
@@ -84,8 +109,8 @@ function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable 
 	return vscode.languages.registerCompletionItemProvider({ pattern: '**/extensions.json' }, {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
-			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'recommendations') {
+				const range = getReplaceRange(document, location, position);
 				const extensionsContent = <IExtensionsContent>parse(document.getText());
 				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], '', range, false);
 			}
@@ -98,14 +123,25 @@ function registerExtensionsCompletionsInWorkspaceConfigurationDocument(): vscode
 	return vscode.languages.registerCompletionItemProvider({ pattern: '**/*.code-workspace' }, {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
-			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'extensions' && location.path[1] === 'recommendations') {
+				const range = getReplaceRange(document, location, position);
 				const extensionsContent = <IExtensionsContent>parse(document.getText())['extensions'];
 				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], '', range, false);
 			}
 			return [];
 		}
 	});
+}
+
+function getReplaceRange(document: vscode.TextDocument, location: Location, position: vscode.Position) {
+	const node = location.previousNode;
+	if (node) {
+		const nodeStart = document.positionAt(node.offset), nodeEnd = document.positionAt(node.offset + node.length);
+		if (nodeStart.isBeforeOrEqual(position) && nodeEnd.isAfterOrEqual(position)) {
+			return new vscode.Range(nodeStart, nodeEnd);
+		}
+	}
+	return new vscode.Range(position, position);
 }
 
 vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {
@@ -180,28 +216,11 @@ function registerContextKeyCompletions(): vscode.Disposable {
 					}
 				}
 
-				if (!isValidLocation) {
+				if (!isValidLocation || !isCompletingInsidePropertyStringValue(document, location, position)) {
 					return;
 				}
 
-				// for JSON everything with quotes is a word
-				const jsonWord = document.getWordRangeAtPosition(position);
-				if (!jsonWord || jsonWord.start.isEqual(position) || jsonWord.end.isEqual(position)) {
-					// we aren't inside a "JSON word" or on its quotes
-					return;
-				}
-
-				let replacing: vscode.Range | undefined;
-				if (jsonWord.end.character - jsonWord.start.character === 2 || document.getWordRangeAtPosition(position, /\s+/)) {
-					// empty json word or on whitespace
-					replacing = new vscode.Range(position, position);
-				} else {
-					replacing = document.getWordRangeAtPosition(position, /[a-zA-Z.]+/);
-				}
-
-				if (!replacing) {
-					return;
-				}
+				const replacing = document.getWordRangeAtPosition(position, /[a-zA-Z.]+/) || new vscode.Range(position, position);
 				const inserting = replacing.with(undefined, position);
 
 				const data = await vscode.commands.executeCommand<ContextKeyInfo[]>('getContextKeyInfo');

@@ -8,12 +8,12 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const BANNER_ELEMENT_HEIGHT = 26;
 
@@ -39,9 +39,7 @@ export class BannerController extends Disposable {
 			...item,
 			onClose: () => {
 				this.hide();
-				if (item.onClose) {
-					item.onClose();
-				}
+				item.onClose?.();
 			}
 		});
 		this._editor.setBanner(this.banner.element, BANNER_ELEMENT_HEIGHT);

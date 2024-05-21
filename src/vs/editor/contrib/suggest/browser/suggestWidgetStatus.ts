@@ -8,22 +8,21 @@ import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar
 import { IAction } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { suggestWidgetStatusbarMenu } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class StatusBarViewItem extends MenuEntryActionViewItem {
 
-	override updateLabel() {
+	protected override updateLabel() {
 		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
 		if (!kb) {
 			return super.updateLabel();
 		}
 		if (this.label) {
-			this.label.textContent = localize('ddd', '{0} ({1})', this._action.label, StatusBarViewItem.symbolPrintEnter(kb));
+			this.label.textContent = localize({ key: 'content', comment: ['A label', 'A keybinding'] }, '{0} ({1})', this._action.label, StatusBarViewItem.symbolPrintEnter(kb));
 		}
 	}
 
@@ -42,6 +41,7 @@ export class SuggestWidgetStatus {
 
 	constructor(
 		container: HTMLElement,
+		private readonly _menuId: MenuId,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private _menuService: IMenuService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -60,15 +60,17 @@ export class SuggestWidgetStatus {
 
 	dispose(): void {
 		this._menuDisposables.dispose();
+		this._leftActions.dispose();
+		this._rightActions.dispose();
 		this.element.remove();
 	}
 
 	show(): void {
-		const menu = this._menuService.createMenu(suggestWidgetStatusbarMenu, this._contextKeyService);
+		const menu = this._menuService.createMenu(this._menuId, this._contextKeyService);
 		const renderMenu = () => {
 			const left: IAction[] = [];
 			const right: IAction[] = [];
-			for (let [group, actions] of menu.getActions()) {
+			for (const [group, actions] of menu.getActions()) {
 				if (group === 'left') {
 					left.push(...actions);
 				} else {

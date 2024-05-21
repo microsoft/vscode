@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
@@ -41,8 +42,8 @@ suite('History Storage', () => {
 		}
 		assert.strictEqual(actual.workspaces.length, expected.workspaces.length, message);
 		for (let i = 0; i < actual.workspaces.length; i++) {
-			let expectedRecent = expected.workspaces[i];
-			let actualRecent = actual.workspaces[i];
+			const expectedRecent = expected.workspaces[i];
+			const actualRecent = actual.workspaces[i];
 			if (isRecentFolder(actualRecent)) {
 				assertEqualURI(actualRecent.folderUri, (<IRecentFolder>expectedRecent).folderUri, message);
 			} else {
@@ -131,8 +132,8 @@ suite('History Storage', () => {
 			]
 		}`;
 
-		let windowsState = restoreRecentlyOpened(JSON.parse(v1_55), new NullLogService());
-		let expected: IRecentlyOpened = {
+		const windowsState = restoreRecentlyOpened(JSON.parse(v1_55), new NullLogService());
+		const expected: IRecentlyOpened = {
 			files: [{ label: 'def', fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
 			workspaces: [
 				{ folderUri: URI.parse('foo://bar/23/43'), remoteAuthority: 'test+test' },
@@ -143,4 +144,6 @@ suite('History Storage', () => {
 
 		assertEqualRecentlyOpened(windowsState, expected, 'v1_33');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

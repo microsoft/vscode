@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import { FileAccess } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
@@ -19,7 +19,7 @@ function fork(id: string): cp.ChildProcess {
 		})
 	};
 
-	return cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=processTests'], opts);
+	return cp.fork(FileAccess.asFileUri('bootstrap-fork').fsPath, ['--type=processTests'], opts);
 }
 
 suite('Processes', () => {

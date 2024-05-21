@@ -5,15 +5,23 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { DataUri } from 'vs/base/common/resources';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI, URI as uri } from 'vs/base/common/uri';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
-export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
+export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind, icon?: ThemeIcon | URI): string[] {
+	if (ThemeIcon.isThemeIcon(icon)) {
+		return [`codicon-${icon.id}`, 'predefined-file-icon'];
+	}
+
+	if (URI.isUri(icon)) {
+		return [];
+	}
 
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
@@ -37,8 +45,13 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			}
 		}
 
+		// Root Folders
+		if (fileKind === FileKind.ROOT_FOLDER) {
+			classes.push(`${name}-root-name-folder-icon`);
+		}
+
 		// Folders
-		if (fileKind === FileKind.FOLDER) {
+		else if (fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
 		}
 
@@ -70,7 +83,6 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 	}
 	return classes;
 }
-
 
 export function getIconClassesForLanguageId(languageId: string): string[] {
 	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
@@ -110,6 +122,6 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 	return languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 }
 
-export function cssEscape(str: string): string {
+function cssEscape(str: string): string {
 	return str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
 }

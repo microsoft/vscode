@@ -8,6 +8,7 @@ import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThre
 import { timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { extUri } from 'vs/base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('BoundModelReferenceCollection', function () {
 
@@ -20,6 +21,8 @@ suite('BoundModelReferenceCollection', function () {
 	teardown(function () {
 		col.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('max age', async function () {
 
@@ -40,7 +43,7 @@ suite('BoundModelReferenceCollection', function () {
 
 	test('max size', function () {
 
-		let disposed: number[] = [];
+		const disposed: number[] = [];
 
 		col.add(
 			URI.parse('test://farboo'),
@@ -76,7 +79,7 @@ suite('BoundModelReferenceCollection', function () {
 		col.dispose();
 		col = new BoundModelReferenceCollection(extUri, 10000, 10000, 2);
 
-		let disposed: number[] = [];
+		const disposed: number[] = [];
 
 		col.add(
 			URI.parse('test://xxxxxxx'),

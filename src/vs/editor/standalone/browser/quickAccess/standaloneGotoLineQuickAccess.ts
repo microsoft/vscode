@@ -7,7 +7,6 @@ import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAcce
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { GoToLineNLS } from 'vs/editor/common/standaloneStrings';
 import { Event } from 'vs/base/common/event';
 import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -25,21 +24,17 @@ export class StandaloneGotoLineQuickAccessProvider extends AbstractGotoLineQuick
 	}
 
 	protected get activeTextEditorControl() {
-		return withNullAsUndefined(this.editorService.getFocusedCodeEditor());
+		return this.editorService.getFocusedCodeEditor() ?? undefined;
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StandaloneGotoLineQuickAccessProvider,
-	prefix: StandaloneGotoLineQuickAccessProvider.PREFIX,
-	helpEntries: [{ description: GoToLineNLS.gotoLineActionLabel, needsEditor: true }]
-});
-
 export class GotoLineAction extends EditorAction {
+
+	static readonly ID = 'editor.action.gotoLine';
 
 	constructor() {
 		super({
-			id: 'editor.action.gotoLine',
+			id: GotoLineAction.ID,
 			label: GoToLineNLS.gotoLineActionLabel,
 			alias: 'Go to Line/Column...',
 			precondition: undefined,
@@ -58,3 +53,9 @@ export class GotoLineAction extends EditorAction {
 }
 
 registerEditorAction(GotoLineAction);
+
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: StandaloneGotoLineQuickAccessProvider,
+	prefix: StandaloneGotoLineQuickAccessProvider.PREFIX,
+	helpEntries: [{ description: GoToLineNLS.gotoLineActionLabel, commandId: GotoLineAction.ID }]
+});

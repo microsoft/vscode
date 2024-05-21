@@ -139,7 +139,7 @@ export class ExtHostConfigProvider {
 		this._proxy = proxy;
 		this._logService = logService;
 		this._extHostWorkspace = extHostWorkspace;
-		this._configuration = Configuration.parse(data);
+		this._configuration = Configuration.parse(data, logService);
 		this._configurationScopes = this._toMap(data.configurationScopes);
 	}
 
@@ -149,7 +149,7 @@ export class ExtHostConfigProvider {
 
 	$acceptConfigurationChanged(data: IConfigurationInitData, change: IConfigurationChange) {
 		const previous = { data: this._configuration.toData(), workspace: this._extHostWorkspace.workspace };
-		this._configuration = Configuration.parse(data);
+		this._configuration = Configuration.parse(data, this._logService);
 		this._configurationScopes = this._toMap(data.configurationScopes);
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
@@ -191,13 +191,13 @@ export class ExtHostConfigProvider {
 				} else {
 					let clonedConfig: any | undefined = undefined;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
-						let clonedTarget: any | undefined = undefined;
-						const cloneTarget = () => {
-							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
-							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
-						};
-						return isObject(target) ?
-							new Proxy(target, {
+						if (isObject(target)) {
+							let clonedTarget: any | undefined = undefined;
+							const cloneTarget = () => {
+								clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
+								clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+							};
+							return new Proxy(target, {
 								get: (target: any, property: PropertyKey) => {
 									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
 										cloneTarget();
@@ -234,7 +234,12 @@ export class ExtHostConfigProvider {
 									}
 									return true;
 								}
-							}) : target;
+							});
+						}
+						if (Array.isArray(target)) {
+							return deepClone(target);
+						}
+						return target;
 					};
 					result = cloneOnWriteProxy(result, key);
 				}
@@ -251,22 +256,22 @@ export class ExtHostConfigProvider {
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> | undefined => {
 				key = section ? `${section}.${key}` : key;
-				const config = deepClone(this._configuration.inspect<T>(key, overrides, this._extHostWorkspace.workspace));
+				const config = this._configuration.inspect<T>(key, overrides, this._extHostWorkspace.workspace);
 				if (config) {
 					return {
 						key,
 
-						defaultValue: config.default?.value,
-						globalValue: config.user?.value,
-						workspaceValue: config.workspace?.value,
-						workspaceFolderValue: config.workspaceFolder?.value,
+						defaultValue: deepClone(config.policy?.value ?? config.default?.value),
+						globalValue: deepClone(config.user?.value ?? config.application?.value),
+						workspaceValue: deepClone(config.workspace?.value),
+						workspaceFolderValue: deepClone(config.workspaceFolder?.value),
 
-						defaultLanguageValue: config.default?.override,
-						globalLanguageValue: config.user?.override,
-						workspaceLanguageValue: config.workspace?.override,
-						workspaceFolderLanguageValue: config.workspaceFolder?.override,
+						defaultLanguageValue: deepClone(config.default?.override),
+						globalLanguageValue: deepClone(config.user?.override ?? config.application?.override),
+						workspaceLanguageValue: deepClone(config.workspace?.override),
+						workspaceFolderLanguageValue: deepClone(config.workspaceFolder?.override),
 
-						languageIds: config.overrideIdentifiers
+						languageIds: deepClone(config.overrideIdentifiers)
 					};
 				}
 				return undefined;
@@ -314,7 +319,7 @@ export class ExtHostConfigProvider {
 	}
 
 	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData; workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
-		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
+		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace, this._logService);
 		return Object.freeze({
 			affectsConfiguration: (section: string, scope?: vscode.ConfigurationScope) => event.affectsConfiguration(section, scopeToOverrides(scope))
 		});

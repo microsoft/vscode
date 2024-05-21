@@ -8,6 +8,8 @@
 //@ts-check
 'use strict';
 
+/* eslint-disable no-restricted-globals */
+
 // Simple module style to support node.js and browser environments
 (function (globalThis, factory) {
 
@@ -18,6 +20,7 @@
 
 	// Browser
 	else {
+		// @ts-ignore
 		globalThis.MonacoBootstrapWindow = factory();
 	}
 }(this, function () {
@@ -39,19 +42,10 @@
 	 * 	},
 	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
 	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *  beforeRequire?: () => void
+	 *  beforeRequire?: (config: ISandboxConfiguration) => void
 	 * }} [options]
 	 */
 	async function load(modulePaths, resultCallback, options) {
-		const isDev = !!safeProcess.env['VSCODE_DEV'];
-
-		// Error handler (node.js enabled renderers only)
-		let showDevtoolsOnError = isDev;
-		if (!safeProcess.sandboxed) {
-			safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
-				onUnexpectedError(error, showDevtoolsOnError);
-			});
-		}
 
 		// Await window configuration from preload
 		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
@@ -68,29 +62,26 @@
 
 		// Developer settings
 		const {
-			forceDisableShowDevtoolsOnError,
 			forceEnableDeveloperKeybindings,
 			disallowReloadKeybinding,
 			removeDeveloperKeybindingsAfterLoad
 		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
-			forceDisableShowDevtoolsOnError: false,
 			forceEnableDeveloperKeybindings: false,
 			disallowReloadKeybinding: false,
 			removeDeveloperKeybindingsAfterLoad: false
 		};
-		showDevtoolsOnError = isDev && !forceDisableShowDevtoolsOnError;
+		const isDev = !!safeProcess.env['VSCODE_DEV'];
 		const enableDeveloperKeybindings = isDev || forceEnableDeveloperKeybindings;
+		/**
+		 * @type {() => void | undefined}
+		 */
 		let developerDeveloperKeybindingsDisposable;
 		if (enableDeveloperKeybindings) {
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Enable ASAR support (node.js enabled renderers only)
-		if (!safeProcess.sandboxed) {
-			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
-		}
-
 		// Get the nls configuration into the process.env as early as possible
+		// @ts-ignore
 		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
 
 		let locale = nlsConfig.availableLanguages['*'] || 'en';
@@ -102,16 +93,12 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// Define `fs` as `original-fs` to disable ASAR support
-		// in fs-operations  (node.js enabled renderers only)
-		if (!safeProcess.sandboxed) {
-			require.define('fs', [], function () {
-				return require.__$__nodeRequire('original-fs');
-			});
-		}
-
 		window['MonacoEnvironment'] = {};
 
+		/**
+		 * @typedef {any} LoaderConfig
+		 */
+		/** @type {LoaderConfig} */
 		const loaderConfig = {
 			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			'vs/nls': nlsConfig,
@@ -135,23 +122,19 @@
 		loaderConfig.paths = {
 			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
 			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
-			'xterm': `${baseNodeModulesPath}/xterm/lib/xterm.js`,
-			'xterm-addon-search': `${baseNodeModulesPath}/xterm-addon-search/lib/xterm-addon-search.js`,
-			'xterm-addon-unicode11': `${baseNodeModulesPath}/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-			'xterm-addon-webgl': `${baseNodeModulesPath}/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
+			'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
+			'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
+			'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
+			'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
+			'@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
+			'@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
 			'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
 			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
 			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
 			'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
 			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
 		};
-
-		// Allow to load built-in and other node.js modules via AMD
-		// which has a fallback to using node.js `require`
-		// (node.js enabled renderers only)
-		if (!safeProcess.sandboxed) {
-			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^@vscode\/iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^vscode-regexp-languagedetection$)|(^tas-client-umd$)/;
-		}
 
 		// Signal before require.config()
 		if (typeof options?.beforeLoaderConfig === 'function') {
@@ -170,15 +153,15 @@
 
 		// Signal before require()
 		if (typeof options?.beforeRequire === 'function') {
-			options.beforeRequire();
+			options.beforeRequire(configuration);
 		}
 
 		// Actually require the main module as specified
-		require(modulePaths, async result => {
+		require(modulePaths, async firstModule => {
 			try {
 
 				// Callback only after process environment is resolved
-				const callbackResult = resultCallback(result, configuration);
+				const callbackResult = resultCallback(firstModule, configuration);
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 

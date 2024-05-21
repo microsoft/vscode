@@ -7,16 +7,15 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual, dirname } from 'vs/base/common/resources';
+import { Schemas, matchesSomeScheme } from 'vs/base/common/network';
+import { dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { IEditorPane } from 'vs/workbench/common/editor';
+import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 export class FileElement {
 	constructor(
@@ -37,7 +36,7 @@ export class OutlineElement2 {
 export class BreadcrumbsModel {
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _fileInfo: FileInfo;
+	private _fileInfo: FileInfo;
 
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
@@ -60,6 +59,7 @@ export class BreadcrumbsModel {
 
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
+		this._workspaceService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspaceFolders, this, this._disposables);
 		this._fileInfo = this._initFilePathInfo(resource);
 
 		if (editor) {
@@ -115,15 +115,15 @@ export class BreadcrumbsModel {
 
 	private _initFilePathInfo(uri: URI): FileInfo {
 
-		if (uri.scheme === Schemas.untitled) {
+		if (matchesSomeScheme(uri, Schemas.untitled, Schemas.data)) {
 			return {
 				folder: undefined,
 				path: []
 			};
 		}
 
-		let info: FileInfo = {
-			folder: withNullAsUndefined(this._workspaceService.getWorkspaceFolder(uri)),
+		const info: FileInfo = {
+			folder: this._workspaceService.getWorkspaceFolder(uri) ?? undefined,
 			path: []
 		};
 
@@ -133,7 +133,7 @@ export class BreadcrumbsModel {
 				break;
 			}
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
-			let prevPathLength = uriPrefix.path.length;
+			const prevPathLength = uriPrefix.path.length;
 			uriPrefix = dirname(uriPrefix);
 			if (uriPrefix.path.length === prevPathLength) {
 				break;
@@ -144,6 +144,11 @@ export class BreadcrumbsModel {
 			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
 		}
 		return info;
+	}
+
+	private _onDidChangeWorkspaceFolders() {
+		this._fileInfo = this._initFilePathInfo(this.resource);
+		this._onDidUpdate.fire(this);
 	}
 
 	private _bindToEditor(editor: IEditorPane): void {

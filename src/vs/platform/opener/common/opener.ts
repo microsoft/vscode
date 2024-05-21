@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -33,14 +32,17 @@ export type OpenInternalOptions = {
 
 	/**
 	 * Allow command links to be handled.
+	 *
+	 * If this is an array, then only the commands included in the array can be run.
 	 */
-	readonly allowCommands?: boolean;
+	readonly allowCommands?: boolean | readonly string[];
 };
 
 export type OpenExternalOptions = {
 	readonly openExternal?: boolean;
 	readonly allowTunneling?: boolean;
 	readonly allowContributedOpeners?: boolean | string;
+	readonly fromWorkspace?: boolean;
 };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
@@ -61,7 +63,7 @@ export interface IExternalOpener {
 }
 
 export interface IValidator {
-	shouldOpen(resource: URI | string): Promise<boolean>;
+	shouldOpen(resource: URI | string, openOptions?: OpenOptions): Promise<boolean>;
 }
 
 export interface IExternalUriResolver {
@@ -112,29 +114,6 @@ export interface IOpenerService {
 	 * @throws whenever resolvers couldn't resolve this resource externally.
 	 */
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
-}
-
-export const NullOpenerService = Object.freeze({
-	_serviceBrand: undefined,
-	registerOpener() { return Disposable.None; },
-	registerValidator() { return Disposable.None; },
-	registerExternalUriResolver() { return Disposable.None; },
-	setDefaultExternalOpener() { },
-	registerExternalOpener() { return Disposable.None; },
-	async open() { return false; },
-	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
-} as IOpenerService);
-
-export function matchesScheme(target: URI | string, scheme: string): boolean {
-	if (URI.isUri(target)) {
-		return equalsIgnoreCase(target.scheme, scheme);
-	} else {
-		return startsWithIgnoreCase(target, scheme + ':');
-	}
-}
-
-export function matchesSomeScheme(target: URI | string, ...schemes: string[]): boolean {
-	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
 /**

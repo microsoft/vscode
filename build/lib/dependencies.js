@@ -1,14 +1,15 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getProductionDependencies = void 0;
+exports.getProductionDependencies = getProductionDependencies;
+const fs = require("fs");
 const path = require("path");
 const cp = require("child_process");
-const _ = require("underscore");
 const parseSemver = require('parse-semver');
+const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
 function asYarnDependency(prefix, tree) {
     let parseResult;
     try {
@@ -35,26 +36,40 @@ function asYarnDependency(prefix, tree) {
     }
     return { name, version, path: dependencyPath, children };
 }
-function getYarnProductionDependencies(cwd) {
-    const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
+function getYarnProductionDependencies(folderPath) {
+    const raw = cp.execSync('yarn list --json', { cwd: folderPath, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
     const match = /^{"type":"tree".*$/m.exec(raw);
     if (!match || match.length !== 1) {
         throw new Error('Could not parse result of `yarn list --json`');
     }
     const trees = JSON.parse(match[0]).data.trees;
     return trees
-        .map(tree => asYarnDependency(path.join(cwd, 'node_modules'), tree))
+        .map(tree => asYarnDependency(path.join(folderPath, 'node_modules'), tree))
         .filter((dep) => !!dep);
 }
-function getProductionDependencies(cwd) {
+function getProductionDependencies(folderPath) {
     const result = [];
-    const deps = getYarnProductionDependencies(cwd);
+    const deps = getYarnProductionDependencies(folderPath);
     const flatten = (dep) => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
     deps.forEach(flatten);
-    return _.uniq(result);
+    // Account for distro npm dependencies
+    const realFolderPath = fs.realpathSync(folderPath);
+    const relativeFolderPath = path.relative(root, realFolderPath);
+    const distroPackageJsonPath = `${root}/.build/distro/npm/${relativeFolderPath}/package.json`;
+    if (fs.existsSync(distroPackageJsonPath)) {
+        const distroPackageJson = JSON.parse(fs.readFileSync(distroPackageJsonPath, 'utf8'));
+        const distroDependencyNames = Object.keys(distroPackageJson.dependencies ?? {});
+        for (const name of distroDependencyNames) {
+            result.push({
+                name,
+                version: distroPackageJson.dependencies[name],
+                path: path.join(realFolderPath, 'node_modules', name)
+            });
+        }
+    }
+    return [...new Set(result)];
 }
-exports.getProductionDependencies = getProductionDependencies;
 if (require.main === module) {
-    const root = path.dirname(path.dirname(__dirname));
     console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }
+//# sourceMappingURL=dependencies.js.map

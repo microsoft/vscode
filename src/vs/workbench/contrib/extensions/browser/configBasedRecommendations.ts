@@ -10,7 +10,7 @@ import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRe
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Emitter } from 'vs/base/common/event';
 
-export type ConfigBasedExtensionRecommendation = ExtensionRecommendation & { whenNotInstalled: string[] | undefined };
+type ConfigBasedExtensionRecommendation = ExtensionRecommendation & { whenNotInstalled: string[] | undefined };
 
 export class ConfigBasedRecommendations extends ExtensionRecommendations {
 
@@ -73,7 +73,7 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 
 	private toExtensionRecommendation(tip: IConfigBasedExtensionTip): ConfigBasedExtensionRecommendation {
 		return {
-			extensionId: tip.extensionId,
+			extension: tip.extensionId,
 			reason: {
 				reasonId: ExtensionRecommendationReason.WorkspaceConfig,
 				reasonText: localize('exeBasedRecommendation', "This extension is recommended because of the current workspace configuration")

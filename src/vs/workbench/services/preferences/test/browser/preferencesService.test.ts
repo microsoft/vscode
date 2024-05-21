@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { TestJSONEditingService } from 'vs/workbench/services/configuration/test/common/testServices';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
@@ -18,15 +18,13 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { TestRemoteAgentService, ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('PreferencesService', () => {
-
-	let disposables: DisposableStore;
 	let testInstantiationService: ITestInstantiationService;
 	let testObject: PreferencesService;
 	let editorService: TestEditorService2;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		disposables = new DisposableStore();
-		editorService = new TestEditorService2();
+		editorService = disposables.add(new TestEditorService2());
 		testInstantiationService = workbenchInstantiationService({
 			editorService: () => editorService
 		}, disposables);
@@ -39,18 +37,13 @@ suite('PreferencesService', () => {
 		const collection = new ServiceCollection();
 		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
 		const instantiationService = testInstantiationService.createChild(collection);
-		testObject = instantiationService.createInstance(PreferencesService);
+		testObject = disposables.add(instantiationService.createInstance(PreferencesService));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
 	test('options are preserved when calling openEditor', async () => {
 		testObject.openSettings({ jsonEditor: false, query: 'test query' });
 		const options = editorService.lastOpenEditorOptions as ISettingsEditorOptions;
 		assert.strictEqual(options.focusSearch, true);
-		assert.strictEqual(options.override, EditorResolution.DISABLED);
+		assert.strictEqual(options.override, DEFAULT_EDITOR_ASSOCIATION.id);
 		assert.strictEqual(options.query, 'test query');
 	});
 });
@@ -58,8 +51,8 @@ suite('PreferencesService', () => {
 class TestEditorService2 extends TestEditorService {
 	lastOpenEditorOptions: any;
 
-	override async openEditor(editor: any, optionsOrGroup?: any): Promise<any | undefined> {
-		this.lastOpenEditorOptions = optionsOrGroup;
-		return undefined;
+	override async openEditor(editorInput: any, options?: any): Promise<any | undefined> {
+		this.lastOpenEditorOptions = options;
+		return super.openEditor(editorInput, options);
 	}
 }

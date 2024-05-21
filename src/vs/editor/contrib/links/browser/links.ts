@@ -15,7 +15,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./links';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -30,8 +30,6 @@ import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/browser/getLi
 import * as nls from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class LinkDetector extends Disposable implements IEditorContribution {
 
@@ -121,6 +119,10 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 		const model = this.editor.getModel();
 
+		if (model.isTooLargeForSyncing()) {
+			return;
+		}
+
 		if (!this.providers.has(model)) {
 			return;
 		}
@@ -163,14 +165,16 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			}
 		}
 
-		const decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
+		this.editor.changeDecorations((changeAccessor) => {
+			const decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
 
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const occurence = new LinkOccurrence(links[i], decorations[i]);
-			this.currentOccurrences[occurence.decorationId] = occurence;
-		}
+			this.currentOccurrences = {};
+			this.activeLinkDecorationId = null;
+			for (let i = 0, len = decorations.length; i < len; i++) {
+				const occurence = new LinkOccurrence(links[i], decorations[i]);
+				this.currentOccurrences[occurence.decorationId] = occurence;
+			}
+		});
 	}
 
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {
@@ -233,9 +237,9 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 						const fsPath = resources.originalFSPath(parsedUri);
 
 						let relativePath: string | null = null;
-						if (fsPath.startsWith('/./')) {
+						if (fsPath.startsWith('/./') || fsPath.startsWith('\\.\\')) {
 							relativePath = `.${fsPath.substr(1)}`;
-						} else if (fsPath.startsWith('//./')) {
+						} else if (fsPath.startsWith('//./') || fsPath.startsWith('\\\\.\\')) {
 							relativePath = `.${fsPath.substr(2)}`;
 						}
 
@@ -246,7 +250,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
 
 		}, err => {
 			const messageOrError =
@@ -421,12 +425,5 @@ class OpenLinkAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(LinkDetector.ID, LinkDetector);
+registerEditorContribution(LinkDetector.ID, LinkDetector, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(OpenLinkAction);
-
-registerThemingParticipant((theme, collector) => {
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .detected-link-active { color: ${activeLinkForeground} !important; }`);
-	}
-});

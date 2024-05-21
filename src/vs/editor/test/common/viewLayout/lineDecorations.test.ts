@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { DecorationSegment, LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {
 

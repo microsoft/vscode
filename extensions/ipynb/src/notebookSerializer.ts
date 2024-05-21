@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nbformat from '@jupyterlab/nbformat';
+import type * as nbformat from '@jupyterlab/nbformat';
 import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
 import { createJupyterCellFromNotebookCell, pruneCell, sortObjectPropertiesRecursively } from './serializers';
 import * as fnv from '@enonic/fnv-plus';
+import { useCustomPropertyInMetadata } from './common';
 
 export class NotebookSerializer implements vscode.NotebookSerializer {
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -63,7 +64,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 
 		// For notebooks without metadata default the language in metadata to the preferred language.
 		if (!json.metadata || (!json.metadata.kernelspec && !json.metadata.language_info)) {
-			json.metadata = json.metadata || { orig_nbformat: defaultNotebookFormat.major };
+			json.metadata = json.metadata || {};
 			json.metadata.language_info = json.metadata.language_info || { name: preferredCellLanguage };
 		}
 
@@ -84,7 +85,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 	public serializeNotebookToString(data: vscode.NotebookData): string {
 		const notebookContent = getNotebookMetadata(data);
 		// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
-		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells[0].languageId;
+		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === vscode.NotebookCellKind.Code)?.languageId;
 
 		notebookContent.cells = data.cells
 			.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
@@ -93,16 +94,17 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
 			data.metadata.indentAmount :
 			' ';
-		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecesary changes, resulting from a missing trailing new line).
+		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
 		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount) + '\n';
 	}
 }
 
 export function getNotebookMetadata(document: vscode.NotebookDocument | vscode.NotebookData) {
-	const notebookContent: Partial<nbformat.INotebookContent> = document.metadata?.custom || {};
-	notebookContent.cells = notebookContent.cells || [];
-	notebookContent.nbformat = notebookContent.nbformat || 4;
-	notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? 2;
-	notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
+	const existingContent: Partial<nbformat.INotebookContent> = (useCustomPropertyInMetadata() ? document.metadata?.custom : document.metadata) || {};
+	const notebookContent: Partial<nbformat.INotebookContent> = {};
+	notebookContent.cells = existingContent.cells || [];
+	notebookContent.nbformat = existingContent.nbformat || defaultNotebookFormat.major;
+	notebookContent.nbformat_minor = existingContent.nbformat_minor ?? defaultNotebookFormat.minor;
+	notebookContent.metadata = existingContent.metadata || {};
 	return notebookContent;
 }

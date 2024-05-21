@@ -1,20 +1,20 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+const path = require("path");
+const fs = require("fs");
 const vscode_universal_bundler_1 = require("vscode-universal-bundler");
 const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
-const fs = require("fs-extra");
-const path = require("path");
-const product = require("../../product.json");
-async function main() {
-    const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+const root = path.dirname(path.dirname(__dirname));
+async function main(buildDir) {
     const arch = process.env['VSCODE_ARCH'];
     if (!buildDir) {
-        throw new Error('$AGENT_BUILDDIRECTORY not set');
+        throw new Error('Build dir not provided');
     }
+    const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
     const appName = product.nameLong + '.app';
     const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
     const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
@@ -32,28 +32,29 @@ async function main() {
             'Credits.rtf',
             'CodeResources',
             'fsevents.node',
-            'Info.plist',
-            'MainMenu.nib',
+            'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
+            'MainMenu.nib', // Generated sequence is not deterministic with Xcode 13
             '.npmrc'
         ],
         outAppPath,
         force: true
     });
-    let productJson = await fs.readJson(productJsonPath);
+    const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
     Object.assign(productJson, {
         darwinUniversalAssetId: 'darwin-universal'
     });
-    await fs.writeJson(productJsonPath, productJson);
+    fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'));
     // Verify if native module architecture is correct
-    const findOutput = await (0, cross_spawn_promise_1.spawn)('find', [outAppPath, '-name', 'keytar.node']);
+    const findOutput = await (0, cross_spawn_promise_1.spawn)('find', [outAppPath, '-name', 'kerberos.node']);
     const lipoOutput = await (0, cross_spawn_promise_1.spawn)('lipo', ['-archs', findOutput.replace(/\n$/, '')]);
     if (lipoOutput.replace(/\n$/, '') !== 'x86_64 arm64') {
         throw new Error(`Invalid arch, got : ${lipoOutput}`);
     }
 }
 if (require.main === module) {
-    main().catch(err => {
+    main(process.argv[2]).catch(err => {
         console.error(err);
         process.exit(1);
     });
 }
+//# sourceMappingURL=create-universal-app.js.map

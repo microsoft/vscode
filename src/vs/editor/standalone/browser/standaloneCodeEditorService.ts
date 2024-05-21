@@ -13,8 +13,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class StandaloneCodeEditorService extends AbstractCodeEditorService {
@@ -27,10 +27,17 @@ export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 		@IThemeService themeService: IThemeService,
 	) {
 		super(themeService);
-		this.onCodeEditorAdd(() => this._checkContextKey());
-		this.onCodeEditorRemove(() => this._checkContextKey());
+		this._register(this.onCodeEditorAdd(() => this._checkContextKey()));
+		this._register(this.onCodeEditorRemove(() => this._checkContextKey()));
 		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);
 		this._activeCodeEditor = null;
+
+		this._register(this.registerCodeEditorOpenHandler(async (input, source, sideBySide) => {
+			if (!source) {
+				return null;
+			}
+			return this.doOpenEditor(source, input);
+		}));
 	}
 
 	private _checkContextKey(): void {
@@ -52,13 +59,6 @@ export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 		return this._activeCodeEditor;
 	}
 
-	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
-		if (!source) {
-			return Promise.resolve(null);
-		}
-
-		return Promise.resolve(this.doOpenEditor(source, input));
-	}
 
 	private doOpenEditor(editor: ICodeEditor, input: ITextResourceEditorInput): ICodeEditor | null {
 		const model = this.findModel(editor, input.resource);
@@ -103,4 +103,4 @@ export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 	}
 }
 
-registerSingleton(ICodeEditorService, StandaloneCodeEditorService);
+registerSingleton(ICodeEditorService, StandaloneCodeEditorService, InstantiationType.Eager);

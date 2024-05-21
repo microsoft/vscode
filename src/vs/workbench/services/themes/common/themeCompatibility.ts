@@ -19,21 +19,21 @@ function addSettingMapping(settingId: string, colorId: string) {
 }
 
 export function convertSettings(oldSettings: ITextMateThemingRule[], result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap }): void {
-	for (let rule of oldSettings) {
+	for (const rule of oldSettings) {
 		result.textMateRules.push(rule);
 		if (!rule.scope) {
-			let settings = rule.settings;
+			const settings = rule.settings;
 			if (!settings) {
 				rule.settings = {};
 			} else {
 				for (const settingKey in settings) {
 					const key = <keyof typeof settings>settingKey;
-					let mappings = settingToColorIdMapping[key];
+					const mappings = settingToColorIdMapping[key];
 					if (mappings) {
-						let colorHex = settings[key];
+						const colorHex = settings[key];
 						if (typeof colorHex === 'string') {
-							let color = Color.fromHex(colorHex);
-							for (let colorId of mappings) {
+							const color = Color.fromHex(colorHex);
+							for (const colorId of mappings) {
 								result.colors[colorId] = color;
 							}
 						}
@@ -64,8 +64,8 @@ addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
 addSettingMapping('caret', editorColorRegistry.editorCursorForeground);
 addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
-addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
-addSettingMapping('activeGuide', editorColorRegistry.editorActiveIndentGuides);
+addSettingMapping('guide', editorColorRegistry.editorIndentGuide1);
+addSettingMapping('activeGuide', editorColorRegistry.editorActiveIndentGuide1);
 
 const ansiColorMap = ['ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow', 'ansiBlue', 'ansiMagenta', 'ansiCyan', 'ansiWhite',
 	'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow', 'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite'

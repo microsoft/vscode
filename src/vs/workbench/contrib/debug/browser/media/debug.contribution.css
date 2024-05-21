@@ -31,9 +31,13 @@
 	margin-top: -1px;
 }
 
+
+.codicon-debug-breakpoint-conditional.codicon-debug-stackframe-focused::after,
+.codicon-debug-breakpoint-conditional.codicon-debug-stackframe::after,
 .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
 .codicon-debug-breakpoint.codicon-debug-stackframe::after {
-	content: '\eb8a';
+	content: var(--vscode-icon-debug-stackframe-dot-content);
+	font-family: var(--vscode-icon-debug-stackframe-dot-font-family);
 	position: absolute;
 }
 
@@ -49,6 +53,10 @@
 	width: 0.9em;
 	display: inline-flex;
 	vertical-align: middle;
+}
+
+.debug-var-hover-pre {
+	margin: 0;
 }
 
 /* Do not push text with inline decoration when decoration on start of line */
@@ -70,6 +78,11 @@
 
 /* Expressions */
 
+
+.monaco-workbench .monaco-list-row .expression {
+	display: flex;
+}
+
 .monaco-workbench .debug-pane .monaco-list-row .expression,
 .monaco-workbench .debug-hover-widget .monaco-list-row .expression {
 	font-size: 13px;
@@ -90,6 +103,13 @@
 
 .monaco-workbench .monaco-list-row .expression .lazy-button {
 	margin-left: 3px;
+	display: none;
+	border-radius: 5px;
+	align-self: center;
+}
+
+.monaco-workbench .monaco-list-row .expression.lazy .lazy-button {
+	display: inline;
 }
 
 /* Links */
@@ -118,16 +138,6 @@
 
 .monaco-workbench .monaco-list-row .expression .unavailable {
 	font-style: italic;
-}
-
-.monaco-workbench .monaco-list-row .expression .lazy-button {
-	display: none;
-	border-radius: 5px;
-	padding: 3px;
-}
-
-.monaco-workbench .monaco-list-row .expression.lazy .lazy-button {
-	display: inline;
 }
 
 .monaco-workbench .debug-inline-value {

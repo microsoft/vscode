@@ -467,5 +467,52 @@ assert.doesNotThrow = function(block, /*optional*/message) {
 };
 
 assert.ifError = function(err) { if (err) {throw err;}};
+
+function checkIsPromise(obj) {
+	return (obj !== null && typeof obj === 'object' &&
+		typeof obj.then === 'function' &&
+		typeof obj.catch === 'function');
+}
+
+const NO_EXCEPTION_SENTINEL = {};
+async function waitForActual(promiseFn) {
+	let resultPromise;
+	if (typeof promiseFn === 'function') {
+		// Return a rejected promise if `promiseFn` throws synchronously.
+		resultPromise = promiseFn();
+		// Fail in case no promise is returned.
+		if (!checkIsPromise(resultPromise)) {
+			throw new Error('ERR_INVALID_RETURN_VALUE: promiseFn did not return Promise. ' + resultPromise);
+		}
+	} else if (checkIsPromise(promiseFn)) {
+		resultPromise = promiseFn;
+	} else {
+		throw new Error('ERR_INVALID_ARG_TYPE: promiseFn is not Function or Promise. ' + promiseFn);
+	}
+
+	try {
+		await resultPromise;
+	} catch (e) {
+		return e;
+	}
+	return NO_EXCEPTION_SENTINEL;
+}
+
+function expectsError(shouldHaveError, actual, message) {
+	if (shouldHaveError && actual === NO_EXCEPTION_SENTINEL) {
+		fail(undefined, 'Error', `Missing expected rejection${message ? ': ' + message : ''}`)
+	} else if (!shouldHaveError && actual !== NO_EXCEPTION_SENTINEL) {
+		fail(actual, undefined, `Got unexpected rejection (${actual.message})${message ? ': ' + message : ''}`)
+	}
+}
+
+assert.rejects = async function rejects(promiseFn, message) {
+	expectsError(true, await waitForActual(promiseFn), message);
+};
+
+assert.doesNotReject = async function doesNotReject(fn, message) {
+	expectsError(false, await waitForActual(fn), message);
+};
+
 return assert;
 });

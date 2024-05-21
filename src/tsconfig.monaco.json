@@ -2,22 +2,25 @@
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
 		"noEmit": true,
-		"types": ["trusted-types"],
+		"types": [
+			"trusted-types",
+			"wicg-file-system-access"
+		],
 		"paths": {},
 		"module": "amd",
 		"moduleResolution": "classic",
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es6",
+		"target": "es2018",
 		"sourceMap": false,
 		"declaration": true
 	},
 	"include": [
 		"typings/require.d.ts",
 		"typings/thenable.d.ts",
-		"vs/css.d.ts",
+		"typings/vscode-globals-product.d.ts",
+		"vs/loader.d.ts",
 		"vs/monaco.d.ts",
-		"vs/nls.d.ts",
 		"vs/editor/*",
 		"vs/base/common/*",
 		"vs/base/browser/*",
@@ -28,6 +31,9 @@
 		"node_modules/*",
 		"vs/platform/files/browser/htmlFileSystemProvider.ts",
 		"vs/platform/files/browser/webFileSystemAccess.ts",
-		"vs/platform/assignment/*"
+		"vs/platform/telemetry/*",
+		"vs/platform/assignment/*",
+		"vs/platform/terminal/*",
+		"vs/platform/externalTerminal/*"
 	]
 }

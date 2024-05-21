@@ -18,15 +18,15 @@ suite('github smoke test', function () {
 
 	test('should find all templates', async function () {
 		const expectedValuesSorted = [
-			'/PULL_REQUEST_TEMPLATE/a.md',
-			'/PULL_REQUEST_TEMPLATE/b.md',
-			'/docs/PULL_REQUEST_TEMPLATE.md',
-			'/docs/PULL_REQUEST_TEMPLATE/a.md',
-			'/docs/PULL_REQUEST_TEMPLATE/b.md',
-			'/.github/PULL_REQUEST_TEMPLATE.md',
-			'/.github/PULL_REQUEST_TEMPLATE/a.md',
-			'/.github/PULL_REQUEST_TEMPLATE/b.md',
-			'/PULL_REQUEST_TEMPLATE.md'
+			'PULL_REQUEST_TEMPLATE/a.md',
+			'PULL_REQUEST_TEMPLATE/b.md',
+			'docs/PULL_REQUEST_TEMPLATE.md',
+			'docs/PULL_REQUEST_TEMPLATE/a.md',
+			'docs/PULL_REQUEST_TEMPLATE/b.md',
+			'.github/PULL_REQUEST_TEMPLATE.md',
+			'.github/PULL_REQUEST_TEMPLATE/a.md',
+			'.github/PULL_REQUEST_TEMPLATE/b.md',
+			'PULL_REQUEST_TEMPLATE.md'
 		];
 		expectedValuesSorted.sort();
 
@@ -43,7 +43,7 @@ suite('github smoke test', function () {
 		const template1 = Uri.file("some-imaginary-template-1");
 		const templates = [template0, template1];
 
-		const pick = pickPullRequestTemplate(templates);
+		const pick = pickPullRequestTemplate(Uri.file("/"), templates);
 
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
@@ -55,7 +55,7 @@ suite('github smoke test', function () {
 	test('selecting first quick-pick item should return undefined', async () => {
 		const templates = [Uri.file("some-imaginary-file")];
 
-		const pick = pickPullRequestTemplate(templates);
+		const pick = pickPullRequestTemplate(Uri.file("/"), templates);
 
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');

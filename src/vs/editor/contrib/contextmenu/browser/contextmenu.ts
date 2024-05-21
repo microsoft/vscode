@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
@@ -14,7 +14,7 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -25,6 +25,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceContextService, isStandaloneEditorWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -44,7 +46,9 @@ export class ContextMenuController implements IEditorContribution {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IMenuService private readonly _menuService: IMenuService
+		@IMenuService private readonly _menuService: IMenuService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		this._editor = editor;
 
@@ -98,6 +102,10 @@ export class ContextMenuController implements IEditorContribution {
 		e.event.preventDefault();
 		e.event.stopPropagation();
 
+		if (e.target.type === MouseTargetType.SCROLLBAR) {
+			return this._showScrollbarContextMenu(e.event);
+		}
+
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
 			return; // only support mouse click into text or native context menu key for now
 		}
@@ -121,16 +129,16 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-		let anchor: IAnchor | null = null;
+		let anchor: IMouseEvent | null = null;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
-			anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
+			anchor = e.event;
 		}
 
 		// Show the context menu
 		this.showContextMenu(anchor);
 	}
 
-	public showContextMenu(anchor?: IAnchor | null): void {
+	public showContextMenu(anchor?: IMouseEvent | null): void {
 		if (!this._editor.getOption(EditorOption.contextmenu)) {
 			return; // Context menu is turned off through configuration
 		}
@@ -138,14 +146,9 @@ export class ContextMenuController implements IEditorContribution {
 			return;
 		}
 
-		if (!this._contextMenuService) {
-			this._editor.focus();
-			return;	// We need the context menu service to function
-		}
-
 		// Find actions available for menu
 		const menuActions = this._getMenuActions(this._editor.getModel(),
-			this._editor.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext);
+			this._editor.contextMenuId);
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -162,7 +165,7 @@ export class ContextMenuController implements IEditorContribution {
 		menu.dispose();
 
 		// translate them into other actions
-		for (let group of groups) {
+		for (const group of groups) {
 			const [, actions] = group;
 			let addedItems = 0;
 			for (const action of actions) {
@@ -190,7 +193,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
+	private _doShowContextMenu(actions: IAction[], event: IMouseEvent | null = null): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -203,6 +206,7 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		});
 
+		let anchor: IMouseEvent | IAnchor | null = event;
 		if (!anchor) {
 			// Ensure selection is visible
 			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
@@ -225,7 +229,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
 
-			getAnchor: () => anchor!,
+			getAnchor: () => anchor,
 
 			getActions: () => actions,
 
@@ -249,10 +253,124 @@ export class ContextMenuController implements IEditorContribution {
 
 			onHide: (wasCancelled: boolean) => {
 				this._contextMenuIsBeingShownCount--;
-				this._editor.focus();
 				this._editor.updateOptions({
 					hover: oldHoverSetting
 				});
+			}
+		});
+	}
+
+	private _showScrollbarContextMenu(anchor: IMouseEvent): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		if (isStandaloneEditorWorkspace(this._workspaceContextService.getWorkspace())) {
+			// can't update the configuration properly in the standalone editor
+			return;
+		}
+
+		const minimapOptions = this._editor.getOption(EditorOption.minimap);
+
+		let lastId = 0;
+		const createAction = (opts: { label: string; enabled?: boolean; checked?: boolean; run: () => void }): IAction => {
+			return {
+				id: `menu-action-${++lastId}`,
+				label: opts.label,
+				tooltip: '',
+				class: undefined,
+				enabled: (typeof opts.enabled === 'undefined' ? true : opts.enabled),
+				checked: opts.checked,
+				run: opts.run
+			};
+		};
+		const createSubmenuAction = (label: string, actions: IAction[]): SubmenuAction => {
+			return new SubmenuAction(
+				`menu-action-${++lastId}`,
+				label,
+				actions,
+				undefined
+			);
+		};
+		const createEnumAction = <T>(label: string, enabled: boolean, configName: string, configuredValue: T, options: { label: string; value: T }[]): IAction => {
+			if (!enabled) {
+				return createAction({ label, enabled, run: () => { } });
+			}
+			const createRunner = (value: T) => {
+				return () => {
+					this._configurationService.updateValue(configName, value);
+				};
+			};
+			const actions: IAction[] = [];
+			for (const option of options) {
+				actions.push(createAction({
+					label: option.label,
+					checked: configuredValue === option.value,
+					run: createRunner(option.value)
+				}));
+			}
+			return createSubmenuAction(
+				label,
+				actions
+			);
+		};
+
+		const actions: IAction[] = [];
+		actions.push(createAction({
+			label: nls.localize('context.minimap.minimap', "Minimap"),
+			checked: minimapOptions.enabled,
+			run: () => {
+				this._configurationService.updateValue(`editor.minimap.enabled`, !minimapOptions.enabled);
+			}
+		}));
+		actions.push(new Separator());
+		actions.push(createAction({
+			label: nls.localize('context.minimap.renderCharacters', "Render Characters"),
+			enabled: minimapOptions.enabled,
+			checked: minimapOptions.renderCharacters,
+			run: () => {
+				this._configurationService.updateValue(`editor.minimap.renderCharacters`, !minimapOptions.renderCharacters);
+			}
+		}));
+		actions.push(createEnumAction<'proportional' | 'fill' | 'fit'>(
+			nls.localize('context.minimap.size', "Vertical size"),
+			minimapOptions.enabled,
+			'editor.minimap.size',
+			minimapOptions.size,
+			[{
+				label: nls.localize('context.minimap.size.proportional', "Proportional"),
+				value: 'proportional'
+			}, {
+				label: nls.localize('context.minimap.size.fill', "Fill"),
+				value: 'fill'
+			}, {
+				label: nls.localize('context.minimap.size.fit', "Fit"),
+				value: 'fit'
+			}]
+		));
+		actions.push(createEnumAction<'always' | 'mouseover'>(
+			nls.localize('context.minimap.slider', "Slider"),
+			minimapOptions.enabled,
+			'editor.minimap.showSlider',
+			minimapOptions.showSlider,
+			[{
+				label: nls.localize('context.minimap.slider.mouseover', "Mouse Over"),
+				value: 'mouseover'
+			}, {
+				label: nls.localize('context.minimap.slider.always', "Always"),
+				value: 'always'
+			}]
+		));
+
+		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
+		this._contextMenuIsBeingShownCount++;
+		this._contextMenuService.showContextMenu({
+			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			onHide: (wasCancelled: boolean) => {
+				this._contextMenuIsBeingShownCount--;
+				this._editor.focus();
 			}
 		});
 	}
@@ -291,5 +409,5 @@ class ShowContextMenu extends EditorAction {
 	}
 }
 
-registerEditorContribution(ContextMenuController.ID, ContextMenuController);
+registerEditorContribution(ContextMenuController.ID, ContextMenuController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowContextMenu);

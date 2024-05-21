@@ -5,32 +5,20 @@
 
 import { deepStrictEqual } from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
-import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Workbench - TerminalInstanceService', () => {
-	let instantiationService: TestInstantiationService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let terminalInstanceService: ITerminalInstanceService;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
-		// TODO: Should be able to create these services without this config set
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({
-			terminal: {
-				integrated: {
-					fontWeight: 'normal'
-				}
-			}
-		}));
-		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
-
-		terminalInstanceService = instantiationService.createInstance(TerminalInstanceService);
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		terminalInstanceService = store.add(instantiationService.createInstance(TerminalInstanceService));
 	});
 
 	suite('convertProfileToShellLaunchConfig', () => {

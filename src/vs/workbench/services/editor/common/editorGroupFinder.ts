@@ -3,33 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { EditorResourceAccessor, EditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput, isEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput, isEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * Finds the target `IEditorGroup` given the instructions provided
  * that is best for the editor and matches the preferred group if
  * possible.
  */
-export function findGroup(accessor: ServicesAccessor, editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
-export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
-export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
-export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined] {
+export function findGroup(accessor: ServicesAccessor, editor: IUntypedEditorInput, preferredGroup: Exclude<PreferredGroup, AUX_WINDOW_GROUP_TYPE> | undefined): [IEditorGroup, EditorActivation | undefined];
+export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions, preferredGroup: Exclude<PreferredGroup, AUX_WINDOW_GROUP_TYPE> | undefined): [IEditorGroup, EditorActivation | undefined];
+export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: Exclude<PreferredGroup, AUX_WINDOW_GROUP_TYPE> | undefined): [IEditorGroup, EditorActivation | undefined];
+export function findGroup(accessor: ServicesAccessor, editor: IUntypedEditorInput, preferredGroup: AUX_WINDOW_GROUP_TYPE): Promise<[IEditorGroup, EditorActivation | undefined]>;
+export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions, preferredGroup: AUX_WINDOW_GROUP_TYPE): Promise<[IEditorGroup, EditorActivation | undefined]>;
+export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: AUX_WINDOW_GROUP_TYPE): Promise<[IEditorGroup, EditorActivation | undefined]>;
+export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IEditorGroup, EditorActivation | undefined]> | [IEditorGroup, EditorActivation | undefined];
+export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IEditorGroup, EditorActivation | undefined]> | [IEditorGroup, EditorActivation | undefined] {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const configurationService = accessor.get(IConfigurationService);
 
 	const group = doFindGroup(editor, preferredGroup, editorGroupService, configurationService);
+	if (group instanceof Promise) {
+		return group.then(group => handleGroupActivation(group, editor, preferredGroup, editorGroupService));
+	}
+
+	return handleGroupActivation(group, editor, preferredGroup, editorGroupService);
+}
+
+function handleGroupActivation(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService): [IEditorGroup, EditorActivation | undefined] {
 
 	// Resolve editor activation strategy
 	let activation: EditorActivation | undefined = undefined;
 	if (
-		editorGroupService.activeGroup !== group && 	// only if target group is not already active
+		editorGroupService.activeGroup !== group && 		// only if target group is not already active
 		editor.options && !editor.options.inactive &&		// never for inactive editors
 		editor.options.preserveFocus &&						// only if preserveFocus
 		typeof editor.options.activation !== 'number' &&	// only if activation is not already defined (either true or false)
@@ -50,10 +61,10 @@ export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOpt
 	return [group, activation];
 }
 
-function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): IEditorGroup {
-	let group: IEditorGroup | undefined;
-	let editor = isEditorInputWithOptions(input) ? input.editor : input;
-	let options = input.options;
+function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): Promise<IEditorGroup> | IEditorGroup {
+	let group: Promise<IEditorGroup> | IEditorGroup | undefined;
+	const editor = isEditorInputWithOptions(input) ? input.editor : input;
+	const options = input.options;
 
 	// Group: Instance of Group
 	if (preferredGroup && typeof preferredGroup !== 'number') {
@@ -77,6 +88,11 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		}
 
 		group = candidateGroup;
+	}
+
+	// Group: Aux Window
+	else if (preferredGroup === AUX_WINDOW_GROUP) {
+		group = editorGroupService.createAuxiliaryEditorPart().then(group => group.activeGroup);
 	}
 
 	// Group: Unspecified without a specific index to open
@@ -182,31 +198,14 @@ function isActive(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput
 		return false;
 	}
 
-	return matchesEditor(group.activeEditor, editor);
+	return group.activeEditor.matches(editor);
 }
 
 function isOpened(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {
 	for (const typedEditor of group.editors) {
-		if (matchesEditor(typedEditor, editor)) {
+		if (typedEditor.matches(editor)) {
 			return true;
 		}
-	}
-
-	return false;
-}
-
-function matchesEditor(typedEditor: EditorInput, editor: EditorInput | IUntypedEditorInput): boolean {
-	if (typedEditor.matches(editor)) {
-		return true;
-	}
-
-	// Note: intentionally doing a "weak" check on the resource
-	// because `EditorInput.matches` will not work for untyped
-	// editors that have no `override` defined.
-	//
-	// TODO@lramos15 https://github.com/microsoft/vscode/issues/131619
-	if (typedEditor.resource) {
-		return isEqual(typedEditor.resource, EditorResourceAccessor.getCanonicalUri(editor));
 	}
 
 	return false;

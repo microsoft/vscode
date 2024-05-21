@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 
 function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string, shouldMatch: boolean, traverse: boolean) {
@@ -62,9 +63,10 @@ function assertNoIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, inp
 }
 
 suite('Parsing .gitignore files', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('paths with trailing slashes do not match files', () => {
-		let i = 'node_modules/\n';
+		const i = 'node_modules/\n';
 
 		assertNoIgnoreMatch(i, '/', '/node_modules');
 		assertIgnoreMatch(i, '/', '/node_modules/');
@@ -253,7 +255,7 @@ suite('Parsing .gitignore files', () => {
 	});
 
 	test('real world example: vscode-js-debug', () => {
-		let i = `.cache/
+		const i = `.cache/
 			.profile/
 			.cdp-profile/
 			.headless-profile/
@@ -273,7 +275,7 @@ suite('Parsing .gitignore files', () => {
 			/testWorkspace/webview/win/true/
 			*.cpuprofile`;
 
-		let included = [
+		const included = [
 			'/distro',
 
 			'/inner/coverage',
@@ -288,7 +290,7 @@ suite('Parsing .gitignore files', () => {
 			'/best/b/c.actual',
 		];
 
-		let excluded = [
+		const excluded = [
 			'/.profile/',
 			'/inner/.profile/',
 
@@ -357,7 +359,7 @@ suite('Parsing .gitignore files', () => {
 			vscode.db
 			/.profile-oss`;
 
-		let included = [
+		const included = [
 			'/inner/extensions/dist',
 			'/inner/extensions/boop/dist/test',
 			'/inner/extensions/boop/doop/dist',
@@ -383,7 +385,7 @@ suite('Parsing .gitignore files', () => {
 			'/extensions/boop/out',
 		];
 
-		let excluded = [
+		const excluded = [
 			'/extensions/dist/',
 			'/extensions/boop/dist/test',
 			'/extensions/boop/doop/dist/',

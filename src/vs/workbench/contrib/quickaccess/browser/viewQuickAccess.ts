@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IQuickPickSeparator, IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IViewDescriptorService, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IDebugService, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -36,6 +37,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
@@ -54,7 +56,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			}
 
 			// Match fuzzy on label
-			entry.highlights = { label: withNullAsUndefined(matchesFuzzy(filter, entry.label, true)) };
+			entry.highlights = { label: matchesFuzzy(filter, entry.label, true) ?? undefined };
 
 			// Return if we have a match on label or container
 			return entry.highlights.label || fuzzyContains(entry.containerLabel, filter);
@@ -103,7 +105,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			for (const view of viewContainerModel.allViewDescriptors) {
 				if (this.contextKeyService.contextMatchesRules(view.when)) {
 					result.push({
-						label: view.name,
+						label: view.name.value,
 						containerLabel: viewContainerModel.title,
 						accept: () => this.viewsService.openView(view.id, true)
 					});
@@ -181,12 +183,28 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			});
 		});
 
+		// Debug Consoles
+		this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl()).forEach((session, _) => {
+			const label = session.name;
+			viewEntries.push({
+				label,
+				containerLabel: localize('debugConsoles', "Debug Console"),
+				accept: async () => {
+					await this.debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
+
+					if (!this.viewsService.isViewVisible(REPL_VIEW_ID)) {
+						await this.viewsService.openView(REPL_VIEW_ID, true);
+					}
+				}
+			});
+
+		});
+
 		// Output Channels
 		const channels = this.outputService.getChannelDescriptors();
 		for (const channel of channels) {
-			const label = channel.log ? localize('logChannel', "Log ({0})", channel.label) : channel.label;
 			viewEntries.push({
-				label,
+				label: channel.label,
 				containerLabel: localize('channels', "Output"),
 				accept: () => this.outputService.showChannel(channel.id)
 			});
@@ -215,8 +233,8 @@ export class OpenViewPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenViewPickerAction.ID,
-			title: { value: localize('openView', "Open View"), original: 'Open View' },
-			category: CATEGORIES.View,
+			title: localize2('openView', 'Open View'),
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -238,9 +256,9 @@ export class QuickAccessViewPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: QuickAccessViewPickerAction.ID,
-			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
-			category: CATEGORIES.View,
-			f1: true,
+			title: localize2('quickOpenView', 'Quick Open View'),
+			category: Categories.View,
+			f1: false, // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: undefined,

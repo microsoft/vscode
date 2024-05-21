@@ -6,31 +6,36 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { URL } from 'url';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
+import { commands, languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
+import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
+import { JsonStringScanner } from './jsonReconstruct';
+import { implicitActivationEvent, redundantImplicitActivationEvent } from './constants';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
 const allowedBadgeProvidersRegex: RegExp[] = (product.extensionAllowedBadgeProvidersRegex || []).map((r: string) => new RegExp(r));
 const extensionEnabledApiProposals: Record<string, string[]> = product.extensionEnabledApiProposals ?? {};
+const reservedImplicitActivationEventPrefixes = ['onNotebookSerializer:'];
+const redundantImplicitActivationEventPrefixes = ['onLanguage:', 'onView:', 'onAuthenticationRequest:', 'onCommand:', 'onCustomEditor:', 'onTerminalProfile:', 'onRenderer:', 'onTerminalQuickFixRequest:', 'onWalkthrough:'];
 
 function isTrustedSVGSource(uri: Uri): boolean {
 	return allowedBadgeProviders.includes(uri.authority.toLowerCase()) || allowedBadgeProvidersRegex.some(r => r.test(uri.toString()));
 }
 
-const httpsRequired = localize('httpsRequired', "Images must use the HTTPS protocol.");
-const svgsNotValid = localize('svgsNotValid', "SVGs are not a valid image source.");
-const embeddedSvgsNotValid = localize('embeddedSvgsNotValid', "Embedded SVGs are not a valid image source.");
-const dataUrlsNotValid = localize('dataUrlsNotValid', "Data URLs are not a valid image source.");
-const relativeUrlRequiresHttpsRepository = localize('relativeUrlRequiresHttpsRepository', "Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
-const relativeIconUrlRequiresHttpsRepository = localize('relativeIconUrlRequiresHttpsRepository', "An icon requires a repository with HTTPS protocol to be specified in this package.json.");
-const relativeBadgeUrlRequiresHttpsRepository = localize('relativeBadgeUrlRequiresHttpsRepository', "Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
-const apiProposalNotListed = localize('apiProposalNotListed', "This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
+const httpsRequired = l10n.t("Images must use the HTTPS protocol.");
+const svgsNotValid = l10n.t("SVGs are not a valid image source.");
+const embeddedSvgsNotValid = l10n.t("Embedded SVGs are not a valid image source.");
+const dataUrlsNotValid = l10n.t("Data URLs are not a valid image source.");
+const relativeUrlRequiresHttpsRepository = l10n.t("Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
+const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
+const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
+const bumpEngineForImplicitActivationEvents = l10n.t("This activation event can be removed for extensions targeting engine version ^1.75 as VS Code will generate these automatically from your package.json contribution declarations.");
+const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
+const parsingErrorHeader = l10n.t("Error parsing the when-clause:");
 
 enum Context {
 	ICON,
@@ -48,6 +53,8 @@ interface PackageJsonInfo {
 	isExtension: boolean;
 	hasHttpsRepository: boolean;
 	repository: Uri;
+	implicitActivationEvents: Set<string> | undefined;
+	engineVersion: INormalizedVersion | null;
 }
 
 export class ExtensionLinter {
@@ -59,7 +66,7 @@ export class ExtensionLinter {
 	private folderToPackageJsonInfo: Record<string, PackageJsonInfo> = {};
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
-	private timer: NodeJS.Timer | undefined;
+	private timer: NodeJS.Timeout | undefined;
 	private markdownIt: MarkdownItType.MarkdownIt | undefined;
 	private parse5: typeof import('parse5') | undefined;
 
@@ -103,22 +110,24 @@ export class ExtensionLinter {
 	}
 
 	private async lint() {
-		this.lintPackageJson();
-		await this.lintReadme();
+		await Promise.all([
+			this.lintPackageJson(),
+			this.lintReadme()
+		]);
 	}
 
-	private lintPackageJson() {
-		this.packageJsonQ.forEach(document => {
+	private async lintPackageJson() {
+		for (const document of Array.from(this.packageJsonQ)) {
 			this.packageJsonQ.delete(document);
 			if (document.isClosed) {
-				return;
+				continue;
 			}
 
 			const diagnostics: Diagnostic[] = [];
 
 			const tree = parseTree(document.getText());
 			const info = this.readPackageJsonInfo(this.getUriFolder(document.uri), tree);
-			if (info.isExtension) {
+			if (tree && info.isExtension) {
 
 				const icon = findNodeAtLocation(tree, ['icon']);
 				if (icon && icon.type === 'string') {
@@ -148,17 +157,123 @@ export class ExtensionLinter {
 						}
 					}
 				}
+				const activationEventsNode = findNodeAtLocation(tree, ['activationEvents']);
+				if (activationEventsNode?.type === 'array' && activationEventsNode.children) {
+					for (const activationEventNode of activationEventsNode.children) {
+						const activationEvent = getNodeValue(activationEventNode);
+						const isImplicitActivationSupported = info.engineVersion && info.engineVersion?.majorBase >= 1 && info.engineVersion?.minorBase >= 75;
+						// Redundant Implicit Activation
+						if (info.implicitActivationEvents?.has(activationEvent) && redundantImplicitActivationEventPrefixes.some((prefix) => activationEvent.startsWith(prefix))) {
+							const start = document.positionAt(activationEventNode.offset);
+							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
+							const message = isImplicitActivationSupported ? redundantImplicitActivationEvent : bumpEngineForImplicitActivationEvents;
+							diagnostics.push(new Diagnostic(new Range(start, end), message, isImplicitActivationSupported ? DiagnosticSeverity.Warning : DiagnosticSeverity.Information));
+						}
 
+						// Reserved Implicit Activation
+						for (const implicitActivationEventPrefix of reservedImplicitActivationEventPrefixes) {
+							if (isImplicitActivationSupported && activationEvent.startsWith(implicitActivationEventPrefix)) {
+								const start = document.positionAt(activationEventNode.offset);
+								const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
+								diagnostics.push(new Diagnostic(new Range(start, end), implicitActivationEvent, DiagnosticSeverity.Error));
+							}
+						}
+
+						// Star activation
+						if (activationEvent === '*') {
+							const start = document.positionAt(activationEventNode.offset);
+							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
+							const diagnostic = new Diagnostic(new Range(start, end), starActivation, DiagnosticSeverity.Information);
+							diagnostic.code = {
+								value: 'star-activation',
+								target: Uri.parse('https://code.visualstudio.com/api/references/activation-events#Start-up'),
+							};
+							diagnostics.push(diagnostic);
+						}
+					}
+				}
+
+				const whenClauseLinting = await this.lintWhenClauses(findNodeAtLocation(tree, ['contributes']), document);
+				diagnostics.push(...whenClauseLinting);
 			}
 			this.diagnosticsCollection.set(document.uri, diagnostics);
-		});
+		}
+	}
+
+	/** lints `when` and `enablement` clauses */
+	private async lintWhenClauses(contributesNode: JsonNode | undefined, document: TextDocument): Promise<Diagnostic[]> {
+		if (!contributesNode) {
+			return [];
+		}
+
+		const whenClauses: JsonNode[] = [];
+
+		function findWhens(node: JsonNode | undefined, clauseName: string) {
+			if (node) {
+				switch (node.type) {
+					case 'property':
+						if (node.children && node.children.length === 2) {
+							const key = node.children[0];
+							const value = node.children[1];
+							switch (value.type) {
+								case 'string':
+									if (key.value === clauseName && typeof value.value === 'string' /* careful: `.value` MUST be a string 1) because a when/enablement clause is string; so also, type cast to string below is safe */) {
+										whenClauses.push(value);
+									}
+								case 'object':
+								case 'array':
+									findWhens(value, clauseName);
+							}
+						}
+						break;
+					case 'object':
+					case 'array':
+						if (node.children) {
+							node.children.forEach(n => findWhens(n, clauseName));
+						}
+				}
+			}
+		}
+
+		[
+			findNodeAtLocation(contributesNode, ['menus']),
+			findNodeAtLocation(contributesNode, ['views']),
+			findNodeAtLocation(contributesNode, ['viewsWelcome']),
+			findNodeAtLocation(contributesNode, ['keybindings']),
+		].forEach(n => findWhens(n, 'when'));
+
+		findWhens(findNodeAtLocation(contributesNode, ['commands']), 'enablement');
+
+		const parseResults = await commands.executeCommand<{ errorMessage: string; offset: number; length: number }[][]>('_validateWhenClauses', whenClauses.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
+
+		const diagnostics: Diagnostic[] = [];
+		for (let i = 0; i < parseResults.length; ++i) {
+			const whenClauseJSONNode = whenClauses[i];
+
+			const jsonStringScanner = new JsonStringScanner(document.getText(), whenClauseJSONNode.offset + 1);
+
+			for (const error of parseResults[i]) {
+				const realOffset = jsonStringScanner.getOffsetInEncoded(error.offset);
+				const realOffsetEnd = jsonStringScanner.getOffsetInEncoded(error.offset + error.length);
+				const start = document.positionAt(realOffset /* +1 to account for the quote (I think) */);
+				const end = document.positionAt(realOffsetEnd);
+				const errMsg = `${parsingErrorHeader}\n\n${error.errorMessage}`;
+				const diagnostic = new Diagnostic(new Range(start, end), errMsg, DiagnosticSeverity.Error);
+				diagnostic.code = {
+					value: 'See docs',
+					target: Uri.parse('https://code.visualstudio.com/api/references/when-clause-contexts'),
+				};
+				diagnostics.push(diagnostic);
+			}
+		}
+		return diagnostics;
 	}
 
 	private async lintReadme() {
-		for (const document of Array.from(this.readmeQ)) {
+		for (const document of this.readmeQ) {
 			this.readmeQ.delete(document);
 			if (document.isClosed) {
-				return;
+				continue;
 			}
 
 			const folder = this.getUriFolder(document.uri);
@@ -278,12 +393,17 @@ export class ExtensionLinter {
 
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode | undefined) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
+		const parsedEngineVersion = engine?.type === 'string' ? normalizeVersion(parseVersion(engine.value)) : null;
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
 		const uri = repo && parseUri(repo.value);
+		const activationEvents = tree && parseImplicitActivationEvents(tree);
+
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
 			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https'),
-			repository: uri!
+			repository: uri!,
+			implicitActivationEvents: activationEvents,
+			engineVersion: parsedEngineVersion
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
@@ -300,8 +420,8 @@ export class ExtensionLinter {
 		}
 		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
 		try {
-			const document = await workspace.openTextDocument(file);
-			return parseTree(document.getText());
+			const fileContents = await workspace.fs.readFile(file); // #174888
+			return parseTree(Buffer.from(fileContents).toString('utf-8'));
 		} catch (err) {
 			return undefined;
 		}
@@ -336,11 +456,10 @@ export class ExtensionLinter {
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!hasScheme && !info.hasHttpsRepository) {
+		if (!hasScheme && !info.hasHttpsRepository && context !== Context.ICON) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
-			let message = (() => {
+			const message = (() => {
 				switch (context) {
-					case Context.ICON: return relativeIconUrlRequiresHttpsRepository;
 					case Context.BADGE: return relativeBadgeUrlRequiresHttpsRepository;
 					default: return relativeUrlRequiresHttpsRepository;
 				}
@@ -367,7 +486,7 @@ export class ExtensionLinter {
 
 function parseUri(src: string, base?: string, retry: boolean = true): Uri | null {
 	try {
-		let url = new URL(src, base);
+		const url = new URL(src, base);
 		return Uri.parse(url.toString());
 	} catch (err) {
 		if (retry) {
@@ -376,4 +495,104 @@ function parseUri(src: string, base?: string, retry: boolean = true): Uri | null
 			return null;
 		}
 	}
+}
+
+function parseImplicitActivationEvents(tree: JsonNode): Set<string> {
+	const activationEvents = new Set<string>();
+
+	// commands
+	const commands = findNodeAtLocation(tree, ['contributes', 'commands']);
+	commands?.children?.forEach(child => {
+		const command = findNodeAtLocation(child, ['command']);
+		if (command && command.type === 'string') {
+			activationEvents.add(`onCommand:${command.value}`);
+		}
+	});
+
+	// authenticationProviders
+	const authenticationProviders = findNodeAtLocation(tree, ['contributes', 'authentication']);
+	authenticationProviders?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onAuthenticationRequest:${id.value}`);
+		}
+	});
+
+	// languages
+	const languageContributions = findNodeAtLocation(tree, ['contributes', 'languages']);
+	languageContributions?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		const configuration = findNodeAtLocation(child, ['configuration']);
+		if (id && id.type === 'string' && configuration && configuration.type === 'string') {
+			activationEvents.add(`onLanguage:${id.value}`);
+		}
+	});
+
+	// customEditors
+	const customEditors = findNodeAtLocation(tree, ['contributes', 'customEditors']);
+	customEditors?.children?.forEach(child => {
+		const viewType = findNodeAtLocation(child, ['viewType']);
+		if (viewType && viewType.type === 'string') {
+			activationEvents.add(`onCustomEditor:${viewType.value}`);
+		}
+	});
+
+	// views
+	const viewContributions = findNodeAtLocation(tree, ['contributes', 'views']);
+	viewContributions?.children?.forEach(viewContribution => {
+		const views = viewContribution.children?.find((node) => node.type === 'array');
+		views?.children?.forEach(view => {
+			const id = findNodeAtLocation(view, ['id']);
+			if (id && id.type === 'string') {
+				activationEvents.add(`onView:${id.value}`);
+			}
+		});
+	});
+
+	// walkthroughs
+	const walkthroughs = findNodeAtLocation(tree, ['contributes', 'walkthroughs']);
+	walkthroughs?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onWalkthrough:${id.value}`);
+		}
+	});
+
+	// notebookRenderers
+	const notebookRenderers = findNodeAtLocation(tree, ['contributes', 'notebookRenderer']);
+	notebookRenderers?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onRenderer:${id.value}`);
+		}
+	});
+
+	// terminalProfiles
+	const terminalProfiles = findNodeAtLocation(tree, ['contributes', 'terminal', 'profiles']);
+	terminalProfiles?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onTerminalProfile:${id.value}`);
+		}
+	});
+
+	// terminalQuickFixes
+	const terminalQuickFixes = findNodeAtLocation(tree, ['contributes', 'terminal', 'quickFixes']);
+	terminalQuickFixes?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onTerminalQuickFixRequest:${id.value}`);
+		}
+	});
+
+	// tasks
+	const tasks = findNodeAtLocation(tree, ['contributes', 'taskDefinitions']);
+	tasks?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['type']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onTaskType:${id.value}`);
+		}
+	});
+
+	return activationEvents;
 }

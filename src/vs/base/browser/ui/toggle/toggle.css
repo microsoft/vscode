@@ -16,7 +16,6 @@
 	box-sizing:	border-box;
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 }
 
 .monaco-custom-toggle:hover {
@@ -48,6 +47,19 @@
 	padding: 0px;
 	opacity: 1;
 	background-size: 16px !important;
+}
+
+.monaco-action-bar .checkbox-action-item {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-action-bar .checkbox-action-item > .monaco-custom-toggle.monaco-checkbox {
+	margin-right: 4px;
+}
+
+.monaco-action-bar .checkbox-action-item > .checkbox-label {
+	font-size: 12px;
 }
 
 /* hide check when unchecked */

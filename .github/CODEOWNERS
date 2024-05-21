@@ -1,0 +1,3 @@
+# ensure the API police is aware of changes to the vscode-dts file
+# this is only about the final API, not about proposed API changes
+src/vscode-dts/vscode.d.ts @jrieken @mjbvz

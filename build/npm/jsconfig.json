@@ -4,7 +4,7 @@
 		"lib": [
 			"ES2020"
 		],
-		"module": "node12",
+		"module": "node16",
 		"checkJs": true,
 		"noEmit": true
 	}

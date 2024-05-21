@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CancellationToken {
 
@@ -129,9 +129,7 @@ export class CancellationTokenSource {
 		if (cancel) {
 			this.cancel();
 		}
-		if (this._parentListener) {
-			this._parentListener.dispose();
-		}
+		this._parentListener?.dispose();
 		if (!this._token) {
 			// ensure to initialize with an empty token if we had none
 			this._token = CancellationToken.None;
@@ -141,4 +139,10 @@ export class CancellationTokenSource {
 			this._token.dispose();
 		}
 	}
+}
+
+export function cancelOnDispose(store: DisposableStore): CancellationToken {
+	const source = new CancellationTokenSource();
+	store.add({ dispose() { source.cancel(); } });
+	return source.token;
 }

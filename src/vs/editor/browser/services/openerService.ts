@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
+import { matchesScheme, matchesSomeScheme, Schemas } from 'vs/base/common/network';
 import { normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
-import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
+import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
@@ -25,15 +26,25 @@ class CommandOpener implements IOpener {
 		if (!matchesScheme(target, Schemas.command)) {
 			return false;
 		}
+
 		if (!options?.allowCommands) {
 			// silently ignore commands when command-links are disabled, also
-			// surpress other openers by returning TRUE
+			// suppress other openers by returning TRUE
 			return true;
 		}
-		// run command or bail out if command isn't known
+
 		if (typeof target === 'string') {
 			target = URI.parse(target);
 		}
+
+		if (Array.isArray(options.allowCommands)) {
+			// Only allow specific commands
+			if (!options.allowCommands.includes(target.path)) {
+				// Suppress other openers by returning TRUE
+				return true;
+			}
+		}
+
 		// execute as command
 		let args: any = [];
 		try {
@@ -112,7 +123,7 @@ export class OpenerService implements IOpenerService {
 				if (matchesSomeScheme(href, Schemas.http, Schemas.https)) {
 					dom.windowOpenNoOpener(href);
 				} else {
-					window.location.href = href;
+					mainWindow.location.href = href;
 				}
 				return true;
 			}
@@ -163,7 +174,7 @@ export class OpenerService implements IOpenerService {
 		// validate against the original URI that this URI resolves to, if one exists
 		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target;
 		for (const validator of this._validators) {
-			if (!(await validator.shouldOpen(validationTarget))) {
+			if (!(await validator.shouldOpen(validationTarget, options))) {
 				return false;
 			}
 		}

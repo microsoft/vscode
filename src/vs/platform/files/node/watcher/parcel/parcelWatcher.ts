@@ -4,56 +4,138 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as parcelWatcher from '@parcel/watcher';
-import { existsSync, unlinkSync } from 'fs';
+import { existsSync, statSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
-import { DeferredPromise, RunOnceScheduler, ThrottledWorker } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
+import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
-import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
-import { ParsedPattern, patternsEquals } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { Emitter, Event } from 'vs/base/common/event';
+import { randomPath, isEqual, isEqualOrParent } from 'vs/base/common/extpath';
+import { GLOBSTAR, patternsEquals } from 'vs/base/common/glob';
+import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
+import { dirname, normalize } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { rtrim } from 'vs/base/common/strings';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered } from 'vs/platform/files/common/watcher';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
-export interface IParcelWatcherInstance {
+export class ParcelWatcherInstance extends Disposable {
 
-	/**
-	 * Signals when the watcher is ready to watch.
-	 */
-	readonly ready: Promise<unknown>;
+	private readonly _onDidStop = this._register(new Emitter<{ joinRestart?: Promise<void> }>());
+	readonly onDidStop = this._onDidStop.event;
 
-	/**
-	 * The watch request associated to the watcher.
-	 */
-	readonly request: IRecursiveWatchRequest;
+	private readonly _onDidFail = this._register(new Emitter<void>());
+	readonly onDidFail = this._onDidFail.event;
 
-	/**
-	 * How often this watcher has been restarted in case of an unexpected
-	 * shutdown.
-	 */
-	readonly restarts: number;
+	private didFail = false;
+	get failed(): boolean { return this.didFail; }
 
-	/**
-	 * The cancellation token associated with the lifecycle of the watcher.
-	 */
-	readonly token: CancellationToken;
+	private didStop = false;
+	get stopped(): boolean { return this.didStop; }
 
-	/**
-	 * Stops and disposes the watcher. This operation is async to await
-	 * unsubscribe call in Parcel.
-	 */
-	stop(): Promise<void>;
+	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
+
+	private readonly subscriptions = new Map<string, Set<(change: IFileChange) => void>>();
+
+	constructor(
+		/**
+		 * Signals when the watcher is ready to watch.
+		 */
+		readonly ready: Promise<unknown>,
+		readonly request: IRecursiveWatchRequest,
+		/**
+		 * How often this watcher has been restarted in case of an unexpected
+		 * shutdown.
+		 */
+		readonly restarts: number,
+		/**
+		 * The cancellation token associated with the lifecycle of the watcher.
+		 */
+		readonly token: CancellationToken,
+		/**
+		 * An event aggregator to coalesce events and reduce duplicates.
+		 */
+		readonly worker: RunOnceWorker<IFileChange>,
+		private readonly stopFn: () => Promise<void>
+	) {
+		super();
+
+		this._register(toDisposable(() => this.subscriptions.clear()));
+	}
+
+	subscribe(path: string, callback: (change: IFileChange) => void): IDisposable {
+		path = URI.file(path).fsPath; // make sure to store the path in `fsPath` form to match it with events later
+
+		let subscriptions = this.subscriptions.get(path);
+		if (!subscriptions) {
+			subscriptions = new Set();
+			this.subscriptions.set(path, subscriptions);
+		}
+
+		subscriptions.add(callback);
+
+		return toDisposable(() => {
+			const subscriptions = this.subscriptions.get(path);
+			if (subscriptions) {
+				subscriptions.delete(callback);
+
+				if (subscriptions.size === 0) {
+					this.subscriptions.delete(path);
+				}
+			}
+		});
+	}
+
+	get subscriptionsCount(): number {
+		return this.subscriptions.size;
+	}
+
+	notifyFileChange(path: string, change: IFileChange): void {
+		const subscriptions = this.subscriptions.get(path);
+		if (subscriptions) {
+			for (const subscription of subscriptions) {
+				subscription(change);
+			}
+		}
+	}
+
+	notifyWatchFailed(): void {
+		this.didFail = true;
+
+		this._onDidFail.fire();
+	}
+
+	include(path: string): boolean {
+		if (!this.includes || this.includes.length === 0) {
+			return true; // no specific includes defined, include all
+		}
+
+		return this.includes.some(include => include(path));
+	}
+
+	exclude(path: string): boolean {
+		return Boolean(this.excludes?.some(exclude => exclude(path)));
+	}
+
+	async stop(joinRestart: Promise<void> | undefined): Promise<void> {
+		this.didStop = true;
+
+		try {
+			await this.stopFn();
+		} finally {
+			this._onDidStop.fire({ joinRestart });
+			this.dispose();
+		}
+	}
 }
 
-export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
+export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithSubscribe {
 
 	private static readonly MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE = new Map<parcelWatcher.EventType, number>(
 		[
@@ -63,43 +145,36 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		]
 	);
 
-	private static readonly GLOB_MARKERS = {
-		Star: '*',
-		GlobStar: '**',
-		GlobStarPosix: '**/**',
-		GlobStarWindows: '**\\**',
-		GlobStarPathStartPosix: '**/',
-		GlobStarPathEndPosix: '/**',
-		StarPathEndPosix: '/*',
-		GlobStarPathStartWindows: '**\\',
-		GlobStarPathEndWindows: '\\**'
-	};
-
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
-
-	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
-
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage = this._onDidLogMessage.event;
 
 	private readonly _onDidError = this._register(new Emitter<string>());
 	readonly onDidError = this._onDidError.event;
 
-	protected readonly watchers = new Map<string, IParcelWatcherInstance>();
+	readonly watchers = new Set<ParcelWatcherInstance>();
+
+	// A delay for collecting file changes from Parcel
+	// before collecting them for coalescing and emitting.
+	// Parcel internally uses 50ms as delay, so we use 75ms,
+	// to schedule sufficiently after Parcel.
+	//
+	// Note: since Parcel 2.0.7, the very first event is
+	// emitted without delay if no events occured over a
+	// duration of 500ms. But we always want to aggregate
+	// events to apply our coleasing logic.
+	//
+	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
 	// Reduce likelyhood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
-	private readonly throttledFileChangesWorker = new ThrottledWorker<IDiskFileChange>(
+	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
 		{
 			maxWorkChunkSize: 500,	// only process up to 500 changes at once before...
 			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
 			maxBufferedWork: 30000 	// ...but never buffering more than 30000 events in memory
 		},
 		events => this._onDidChangeFile.fire(events)
-	);
+	));
 
-	private verboseLogging = false;
 	private enospcErrorLogged = false;
 
 	constructor() {
@@ -115,50 +190,39 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		process.on('unhandledRejection', error => this.onUnexpectedError(error));
 	}
 
-	async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
+	protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
 
 		// Figure out duplicates to remove from the requests
-		const normalizedRequests = this.normalizeRequests(requests);
+		requests = this.removeDuplicateRequests(requests);
 
-		// Gather paths that we should start watching
-		const requestsToStartWatching = normalizedRequests.filter(request => {
-			const watcher = this.watchers.get(request.path);
-			if (!watcher) {
-				return true; // not yet watching that path
+		// Figure out which watchers to start and which to stop
+		const requestsToStart: IRecursiveWatchRequest[] = [];
+		const watchersToStop = new Set(Array.from(this.watchers));
+		for (const request of requests) {
+			const watcher = this.findWatcher(request);
+			if (watcher && patternsEquals(watcher.request.excludes, request.excludes) && patternsEquals(watcher.request.includes, request.includes) && watcher.request.pollingInterval === request.pollingInterval) {
+				watchersToStop.delete(watcher); // keep watcher
+			} else {
+				requestsToStart.push(request); // start watching
 			}
-
-			// Re-watch path if excludes/includes have changed or polling interval
-			return !patternsEquals(watcher.request.excludes, request.excludes) || !patternsEquals(watcher.request.includes, request.includes) || watcher.request.pollingInterval !== request.pollingInterval;
-		});
-
-		// Gather paths that we should stop watching
-		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
-			return !normalizedRequests.find(normalizedRequest => {
-				return normalizedRequest.path === request.path &&
-					patternsEquals(normalizedRequest.excludes, request.excludes) &&
-					patternsEquals(normalizedRequest.includes, request.includes) &&
-					normalizedRequest.pollingInterval === request.pollingInterval;
-
-			});
-		}).map(({ request }) => request.path);
-
-		// Logging
-
-		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? request.includes : '<all>'})`).join(',')}`);
 		}
 
-		if (pathsToStopWatching.length) {
-			this.trace(`Request to stop watching: ${pathsToStopWatching.join(',')}`);
+		// Logging
+		if (requestsToStart.length) {
+			this.trace(`Request to start watching: ${requestsToStart.map(request => this.requestToString(request)).join(',')}`);
+		}
+
+		if (watchersToStop.size) {
+			this.trace(`Request to stop watching: ${Array.from(watchersToStop).map(watcher => this.requestToString(watcher.request)).join(',')}`);
 		}
 
 		// Stop watching as instructed
-		for (const pathToStopWatching of pathsToStopWatching) {
-			await this.stopWatching(pathToStopWatching);
+		for (const watcher of watchersToStop) {
+			await this.stopWatching(watcher);
 		}
 
 		// Start watching as instructed
-		for (const request of requestsToStartWatching) {
+		for (const request of requestsToStart) {
 			if (request.pollingInterval) {
 				this.startPolling(request, request.pollingInterval);
 			} else {
@@ -167,93 +231,22 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	protected toExcludePaths(path: string, excludes: string[] | undefined): string[] | undefined {
-		if (!Array.isArray(excludes)) {
-			return undefined;
-		}
+	private findWatcher(request: IRecursiveWatchRequest): ParcelWatcherInstance | undefined {
+		for (const watcher of this.watchers) {
 
-		const excludePaths = new Set<string>();
-
-		// Parcel watcher currently does not support glob patterns
-		// for native exclusions. As long as that is the case, try
-		// to convert exclude patterns into absolute paths that the
-		// watcher supports natively to reduce the overhead at the
-		// level of the file watcher as much as possible.
-		// Refs: https://github.com/parcel-bundler/watcher/issues/64
-		for (const exclude of excludes) {
-			const isGlob = exclude.includes(ParcelWatcher.GLOB_MARKERS.Star);
-
-			// Glob pattern: check for typical patterns and convert
-			let normalizedExclude: string | undefined = undefined;
-			if (isGlob) {
-
-				// Examples: **, **/**, **\**
-				if (
-					exclude === ParcelWatcher.GLOB_MARKERS.GlobStar ||
-					exclude === ParcelWatcher.GLOB_MARKERS.GlobStarPosix ||
-					exclude === ParcelWatcher.GLOB_MARKERS.GlobStarWindows
-				) {
-					normalizedExclude = path;
-				}
-
-				// Examples:
-				// - **/node_modules/**
-				// - **/.git/objects/**
-				// - **/build-folder
-				// - output/**
-				else {
-					const startsWithGlobStar = exclude.startsWith(ParcelWatcher.GLOB_MARKERS.GlobStarPathStartPosix) || exclude.startsWith(ParcelWatcher.GLOB_MARKERS.GlobStarPathStartWindows);
-					const endsWithGlobStar = exclude.endsWith(ParcelWatcher.GLOB_MARKERS.GlobStarPathEndPosix) || exclude.endsWith(ParcelWatcher.GLOB_MARKERS.GlobStarPathEndWindows);
-					if (startsWithGlobStar || endsWithGlobStar) {
-						if (startsWithGlobStar && endsWithGlobStar) {
-							normalizedExclude = exclude.substring(ParcelWatcher.GLOB_MARKERS.GlobStarPathStartPosix.length, exclude.length - ParcelWatcher.GLOB_MARKERS.GlobStarPathEndPosix.length);
-						} else if (startsWithGlobStar) {
-							normalizedExclude = exclude.substring(ParcelWatcher.GLOB_MARKERS.GlobStarPathStartPosix.length);
-						} else {
-							normalizedExclude = exclude.substring(0, exclude.length - ParcelWatcher.GLOB_MARKERS.GlobStarPathEndPosix.length);
-						}
-					}
-
-					// Support even more glob patterns on Linux where we know
-					// that each folder requires a file handle to watch.
-					// Examples:
-					// - node_modules/* (full form: **/node_modules/*/**)
-					if (isLinux && normalizedExclude) {
-						const endsWithStar = normalizedExclude?.endsWith(ParcelWatcher.GLOB_MARKERS.StarPathEndPosix);
-						if (endsWithStar) {
-							normalizedExclude = normalizedExclude.substring(0, normalizedExclude.length - ParcelWatcher.GLOB_MARKERS.StarPathEndPosix.length);
-						}
-					}
+			// Requests or watchers with correlation always match on that
+			if (this.isCorrelated(request) || this.isCorrelated(watcher.request)) {
+				if (watcher.request.correlationId === request.correlationId) {
+					return watcher;
 				}
 			}
 
-			// Not a glob pattern, take as is
+			// Non-correlated requests or watchers match on path
 			else {
-				normalizedExclude = exclude;
-			}
-
-			if (!normalizedExclude || normalizedExclude.includes(ParcelWatcher.GLOB_MARKERS.Star)) {
-				continue; // skip for parcel (will be applied later by our glob matching)
-			}
-
-			// Absolute path: normalize to watched path and
-			// exclude if not a parent of it otherwise.
-			if (isAbsolute(normalizedExclude)) {
-				if (!isEqualOrParent(normalizedExclude, path, !isLinux)) {
-					continue; // exclude points to path outside of watched folder, ignore
+				if (isEqual(watcher.request.path, request.path, !isLinux /* ignorecase */)) {
+					return watcher;
 				}
-
-				// convert to relative path to ensure we
-				// get the correct path casing going forward
-				normalizedExclude = normalizedExclude.substr(path.length);
 			}
-
-			// Finally take as relative path joined to watched path
-			excludePaths.add(rtrim(join(path, normalizedExclude), sep));
-		}
-
-		if (excludePaths.size > 0) {
-			return Array.from(excludePaths);
 		}
 
 		return undefined;
@@ -267,29 +260,28 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		const snapshotFile = randomPath(tmpdir(), 'vscode-watcher-snapshot');
 
 		// Remember as watcher instance
-		const watcher: IParcelWatcherInstance = {
+		const watcher: ParcelWatcherInstance = new ParcelWatcherInstance(
+			instance.p,
 			request,
-			ready: instance.p,
 			restarts,
-			token: cts.token,
-			stop: async () => {
+			cts.token,
+			new RunOnceWorker<IFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
+			async () => {
 				cts.dispose(true);
+
+				watcher.worker.flush();
+				watcher.worker.dispose();
+
 				pollingWatcher.dispose();
 				unlinkSync(snapshotFile);
 			}
-		};
-		this.watchers.set(request.path, watcher);
+		);
+		this.watchers.add(watcher);
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		// Warm up exclude/include patterns for usage
-		const excludePatterns = parseWatcherPatterns(request.path, request.excludes);
-		const includePatterns = request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined;
-
-		const ignore = this.toExcludePaths(realPath, watcher.request.excludes);
-
-		this.trace(`Started watching: '${realPath}' with polling interval '${pollingInterval}' and native excludes '${ignore?.join(', ')}'`);
+		this.trace(`Started watching: '${realPath}' with polling interval '${pollingInterval}'`);
 
 		let counter = 0;
 
@@ -302,18 +294,18 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 			// We already ran before, check for events since
 			if (counter > 1) {
-				const parcelEvents = await parcelWatcher.getEventsSince(realPath, snapshotFile, { ignore, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+				const parcelEvents = await parcelWatcher.getEventsSince(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 				if (cts.token.isCancellationRequested) {
 					return;
 				}
 
 				// Handle & emit events
-				this.onParcelEvents(parcelEvents, watcher, excludePatterns, includePatterns, realPathDiffers, realPathLength);
+				this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
 			}
 
 			// Store a snapshot of files to the snapshot file
-			await parcelWatcher.writeSnapshot(realPath, snapshotFile, { ignore, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+			await parcelWatcher.writeSnapshot(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 			// Signal we are ready now when the first snapshot was written
 			if (counter === 1) {
@@ -336,28 +328,27 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		const instance = new DeferredPromise<parcelWatcher.AsyncSubscription | undefined>();
 
 		// Remember as watcher instance
-		const watcher: IParcelWatcherInstance = {
+		const watcher: ParcelWatcherInstance = new ParcelWatcherInstance(
+			instance.p,
 			request,
-			ready: instance.p,
 			restarts,
-			token: cts.token,
-			stop: async () => {
+			cts.token,
+			new RunOnceWorker<IFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
+			async () => {
 				cts.dispose(true);
+
+				watcher.worker.flush();
+				watcher.worker.dispose();
 
 				const watcherInstance = await instance.p;
 				await watcherInstance?.unsubscribe();
 			}
-		};
-		this.watchers.set(request.path, watcher);
+		);
+		this.watchers.add(watcher);
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		// Warm up exclude/include patterns for usage
-		const excludePatterns = parseWatcherPatterns(request.path, request.excludes);
-		const includePatterns = request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined;
-
-		const ignore = this.toExcludePaths(realPath, watcher.request.excludes);
 		parcelWatcher.subscribe(realPath, (error, parcelEvents) => {
 			if (watcher.token.isCancellationRequested) {
 				return; // return early when disposed
@@ -372,96 +363,96 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			}
 
 			// Handle & emit events
-			this.onParcelEvents(parcelEvents, watcher, excludePatterns, includePatterns, realPathDiffers, realPathLength);
+			this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
 		}, {
 			backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
-			ignore
+			ignore: watcher.request.excludes
 		}).then(parcelWatcher => {
-			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}' and native excludes '${ignore?.join(', ')}'`);
+			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
 
 			instance.complete(parcelWatcher);
 		}).catch(error => {
 			this.onUnexpectedError(error, watcher);
 
 			instance.complete(undefined);
+
+			watcher.notifyWatchFailed();
+			this._onDidWatchFail.fire(request);
 		});
 	}
 
-	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: IParcelWatcherInstance, excludes: ParsedPattern[], includes: ParsedPattern[] | undefined, realPathDiffers: boolean, realPathLength: number): void {
+	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: ParcelWatcherInstance, realPathDiffers: boolean, realPathLength: number): void {
 		if (parcelEvents.length === 0) {
 			return;
 		}
 
 		// Normalize events: handle NFC normalization and symlinks
 		// It is important to do this before checking for includes
-		// and excludes to check on the original path.
-		const { events: normalizedEvents, rootDeleted } = this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
+		// to check on the original path.
+		this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
 
-		// Check for excludes
-		const includedEvents = this.handleExcludeIncludes(normalizedEvents, excludes, includes);
+		// Check for includes
+		const includedEvents = this.handleIncludes(watcher, parcelEvents);
 
-		// Coalesce events: merge events of same kind
-		const coalescedEvents = coalesceEvents(includedEvents);
-
-		// Filter events: check for specific events we want to exclude
-		const filteredEvents = this.filterEvents(coalescedEvents, watcher.request, rootDeleted);
-
-		// Broadcast to clients
-		this.emitEvents(filteredEvents);
-
-		// Handle root path delete if confirmed from coalesced events
-		if (rootDeleted && coalescedEvents.some(event => event.path === watcher.request.path && event.type === FileChangeType.DELETED)) {
-			this.onWatchedPathDeleted(watcher);
+		// Add to event aggregator for later processing
+		for (const includedEvent of includedEvents) {
+			watcher.worker.work(includedEvent);
 		}
 	}
 
-	private handleExcludeIncludes(parcelEvents: parcelWatcher.Event[], excludes: ParsedPattern[], includes: ParsedPattern[] | undefined): IDiskFileChange[] {
-		const events: IDiskFileChange[] = [];
+	private handleIncludes(watcher: ParcelWatcherInstance, parcelEvents: parcelWatcher.Event[]): IFileChange[] {
+		const events: IFileChange[] = [];
 
 		for (const { path, type: parcelEventType } of parcelEvents) {
 			const type = ParcelWatcher.MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE.get(parcelEventType)!;
 			if (this.verboseLogging) {
-				this.trace(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
+				this.traceWithCorrelation(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`, watcher.request);
 			}
 
-			// Add to buffer unless excluded or not included (not if explicitly disabled)
-			if (excludes.some(exclude => exclude(path))) {
+			// Apply include filter if any
+			if (!watcher.include(path)) {
 				if (this.verboseLogging) {
-					this.trace(` >> ignored (excluded) ${path}`);
-				}
-			} else if (includes && includes.length > 0 && !includes.some(include => include(path))) {
-				if (this.verboseLogging) {
-					this.trace(` >> ignored (not included) ${path}`);
+					this.traceWithCorrelation(` >> ignored (not included) ${path}`, watcher.request);
 				}
 			} else {
-				events.push({ type, path });
+				events.push({ type, resource: URI.file(path), cId: watcher.request.correlationId });
 			}
 		}
 
 		return events;
 	}
 
-	private emitEvents(events: IDiskFileChange[]): void {
+	private handleParcelEvents(parcelEvents: IFileChange[], watcher: ParcelWatcherInstance): void {
+
+		// Coalesce events: merge events of same kind
+		const coalescedEvents = coalesceEvents(parcelEvents);
+
+		// Filter events: check for specific events we want to exclude
+		const { events: filteredEvents, rootDeleted } = this.filterEvents(coalescedEvents, watcher);
+
+		// Broadcast to clients
+		this.emitEvents(filteredEvents, watcher);
+
+		// Handle root path deletes
+		if (rootDeleted) {
+			this.onWatchedPathDeleted(watcher);
+		}
+	}
+
+	private emitEvents(events: IFileChange[], watcher: ParcelWatcherInstance): void {
 		if (events.length === 0) {
 			return;
 		}
 
-		// Logging
-		if (this.verboseLogging) {
-			for (const event of events) {
-				this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-			}
-		}
-
 		// Broadcast to clients via throttler
-		const worked = this.throttledFileChangesWorker.work(events);
+		const worked = this.throttledFileChangesEmitter.work(events);
 
 		// Logging
 		if (!worked) {
-			this.warn(`started ignoring events due to too many file change events at once (incoming: ${events.length}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			this.warn(`started ignoring events due to too many file change events at once (incoming: ${events.length}, most recent change: ${events[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 		} else {
-			if (this.throttledFileChangesWorker.pending > 0) {
-				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesWorker.pending}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			if (this.throttledFileChangesEmitter.pending > 0) {
+				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${events[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`, watcher);
 			}
 		}
 	}
@@ -496,9 +487,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return { realPath, realPathDiffers, realPathLength };
 	}
 
-	private normalizeEvents(events: parcelWatcher.Event[], request: IRecursiveWatchRequest, realPathDiffers: boolean, realPathLength: number): { events: parcelWatcher.Event[]; rootDeleted: boolean } {
-		let rootDeleted = false;
-
+	private normalizeEvents(events: parcelWatcher.Event[], request: IRecursiveWatchRequest, realPathDiffers: boolean, realPathLength: number): void {
 		for (const event of events) {
 
 			// Mac uses NFD unicode form on disk, but we want NFC
@@ -518,67 +507,107 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			if (realPathDiffers) {
 				event.path = request.path + event.path.substr(realPathLength);
 			}
-
-			// Check for root deleted
-			if (event.path === request.path && event.type === 'delete') {
-				rootDeleted = true;
-			}
 		}
-
-		return { events, rootDeleted };
 	}
 
-	private filterEvents(events: IDiskFileChange[], request: IRecursiveWatchRequest, rootDeleted: boolean): IDiskFileChange[] {
-		if (!rootDeleted) {
-			return events;
-		}
+	private filterEvents(events: IFileChange[], watcher: ParcelWatcherInstance): { events: IFileChange[]; rootDeleted?: boolean } {
+		const filteredEvents: IFileChange[] = [];
+		let rootDeleted = false;
 
-		return events.filter(event => {
-			if (event.path === request.path && event.type === FileChangeType.DELETED) {
+		const filter = this.isCorrelated(watcher.request) ? watcher.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
+		for (const event of events) {
+
+			// Emit to instance subscriptions if any before filtering
+			if (watcher.subscriptionsCount > 0) {
+				watcher.notifyFileChange(event.resource.fsPath, event);
+			}
+
+			// Filtering
+			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
+			if (
+				isFiltered(event, filter) ||
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
 				// can happen e.g. in case of network connectivity
 				// issues
 				// (https://github.com/microsoft/vscode/issues/136673)
-				return false;
+				//
+				// Update 2024: with the new correlated events, we
+				// really do not want to skip over file events any
+				// more, so we only ignore this event for non-correlated
+				// watch requests.
+				(rootDeleted && !this.isCorrelated(watcher.request))
+			) {
+				if (this.verboseLogging) {
+					this.traceWithCorrelation(` >> ignored (filtered) ${event.resource.fsPath}`, watcher.request);
+				}
+
+				continue;
 			}
 
-			return true;
-		});
+			// Logging
+			this.traceEvent(event, watcher.request);
+
+			filteredEvents.push(event);
+		}
+
+		return { events: filteredEvents, rootDeleted };
 	}
 
-	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {
+	private onWatchedPathDeleted(watcher: ParcelWatcherInstance): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
+		let legacyMonitored = false;
+		if (!this.isCorrelated(watcher.request)) {
+			// Do monitoring of the request path parent unless this request
+			// can be handled via suspend/resume in the super class
+			legacyMonitored = this.legacyMonitorRequest(watcher);
+		}
+
+		if (!legacyMonitored) {
+			watcher.notifyWatchFailed();
+			this._onDidWatchFail.fire(watcher.request);
+		}
+	}
+
+	private legacyMonitorRequest(watcher: ParcelWatcherInstance): boolean {
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
-			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false }, changes => {
+			this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
+
+			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false, correlationId: watcher.request.correlationId }, undefined, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}
 
 				// Watcher path came back! Restart watching...
-				for (const { path, type } of changes) {
-					if (path === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
-						this.warn('Watcher restarts because watched path got created again', watcher);
+				for (const { resource, type } of changes) {
+					if (isEqual(resource.fsPath, watcher.request.path, !isLinux) && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
+						if (this.isPathValid(watcher.request.path)) {
+							this.warn('Watcher restarts because watched path got created again', watcher);
 
-						// Stop watching that parent folder
-						nodeWatcher.dispose();
+							// Stop watching that parent folder
+							nodeWatcher.dispose();
 
-						// Restart the file watching
-						this.restartWatching(watcher);
+							// Restart the file watching
+							this.restartWatching(watcher);
 
-						break;
+							break;
+						}
 					}
 				}
-			}, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+			}, undefined, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 			// Make sure to stop watching when the watcher is disposed
 			watcher.token.onCancellationRequested(() => nodeWatcher.dispose());
+
+			return true;
 		}
+
+		return false;
 	}
 
-	private onUnexpectedError(error: unknown, watcher?: IParcelWatcherInstance): void {
+	private onUnexpectedError(error: unknown, watcher?: ParcelWatcherInstance): void {
 		const msg = toErrorMessage(error);
 
 		// Specially handle ENOSPC errors that can happen when
@@ -604,15 +633,15 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	async stop(): Promise<void> {
-		for (const [path] of this.watchers) {
-			await this.stopWatching(path);
-		}
+	override async stop(): Promise<void> {
+		await super.stop();
 
-		this.watchers.clear();
+		for (const watcher of this.watchers) {
+			await this.stopWatching(watcher);
+		}
 	}
 
-	protected restartWatching(watcher: IParcelWatcherInstance, delay = 800): void {
+	protected restartWatching(watcher: ParcelWatcherInstance, delay = 800): void {
 
 		// Restart watcher delayed to accomodate for
 		// changes on disk that have triggered the
@@ -622,15 +651,21 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				return; // return early when disposed
 			}
 
-			// Await the watcher having stopped, as this is
-			// needed to properly re-watch the same path
-			await this.stopWatching(watcher.request.path);
+			const restartPromise = new DeferredPromise<void>();
+			try {
 
-			// Start watcher again counting the restarts
-			if (watcher.request.pollingInterval) {
-				this.startPolling(watcher.request, watcher.request.pollingInterval, watcher.restarts + 1);
-			} else {
-				this.startWatching(watcher.request, watcher.restarts + 1);
+				// Await the watcher having stopped, as this is
+				// needed to properly re-watch the same path
+				await this.stopWatching(watcher, restartPromise.p);
+
+				// Start watcher again counting the restarts
+				if (watcher.request.pollingInterval) {
+					this.startPolling(watcher.request, watcher.request.pollingInterval, watcher.restarts + 1);
+				} else {
+					this.startWatching(watcher.request, watcher.restarts + 1);
+				}
+			} finally {
+				restartPromise.complete();
 			}
 		}, delay);
 
@@ -638,75 +673,168 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		watcher.token.onCancellationRequested(() => scheduler.dispose());
 	}
 
-	private async stopWatching(path: string): Promise<void> {
-		const watcher = this.watchers.get(path);
-		if (watcher) {
-			this.trace(`stopping file watcher on ${watcher.request.path}`);
+	private async stopWatching(watcher: ParcelWatcherInstance, joinRestart?: Promise<void>): Promise<void> {
+		this.trace(`stopping file watcher`, watcher);
 
-			this.watchers.delete(path);
+		this.watchers.delete(watcher);
 
-			try {
-				await watcher.stop();
-			} catch (error) {
-				this.error(`Unexpected error stopping watcher: ${toErrorMessage(error)}`, watcher);
-			}
+		try {
+			await watcher.stop(joinRestart);
+		} catch (error) {
+			this.error(`Unexpected error stopping watcher: ${toErrorMessage(error)}`, watcher);
 		}
 	}
 
-	protected normalizeRequests(requests: IRecursiveWatchRequest[]): IRecursiveWatchRequest[] {
-		const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
+	protected removeDuplicateRequests(requests: IRecursiveWatchRequest[], validatePaths = true): IRecursiveWatchRequest[] {
 
 		// Sort requests by path length to have shortest first
 		// to have a way to prevent children to be watched if
 		// parents exist.
 		requests.sort((requestA, requestB) => requestA.path.length - requestB.path.length);
 
-		// Only consider requests for watching that are not
-		// a child of an existing request path to prevent
-		// duplication.
-		//
-		// However, allow explicit requests to watch folders
-		// that are symbolic links because the Parcel watcher
-		// does not allow to recursively watch symbolic links.
+		// Ignore requests for the same paths that have the same correlation
+		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, IRecursiveWatchRequest>>();
 		for (const request of requests) {
-			if (requestTrie.findSubstr(request.path)) {
-				try {
-					const realpath = realpathSync(request.path);
-					if (realpath === request.path) {
-						this.trace(`ignoring a path for watching who's parent is already watched: ${request.path}`);
-
-						continue; // path is not a symbolic link or similar
-					}
-				} catch (error) {
-					continue; // invalid path - ignore from watching
-				}
+			if (request.excludes.includes(GLOBSTAR)) {
+				continue; // path is ignored entirely (via `**` glob exclude)
 			}
 
-			requestTrie.set(request.path, request);
+			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
+
+			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
+			if (!requestsForCorrelation) {
+				requestsForCorrelation = new Map<string, IRecursiveWatchRequest>();
+				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
+			}
+
+			if (requestsForCorrelation.has(path)) {
+				this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
+			}
+
+			requestsForCorrelation.set(path, request);
 		}
 
-		return Array.from(requestTrie).map(([, request]) => request);
+		const normalizedRequests: IRecursiveWatchRequest[] = [];
+
+		for (const requestsForCorrelation of mapCorrelationtoRequests.values()) {
+
+			// Only consider requests for watching that are not
+			// a child of an existing request path to prevent
+			// duplication. In addition, drop any request where
+			// everything is excluded (via `**` glob).
+			//
+			// However, allow explicit requests to watch folders
+			// that are symbolic links because the Parcel watcher
+			// does not allow to recursively watch symbolic links.
+
+			const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
+
+			for (const request of requestsForCorrelation.values()) {
+
+				// Check for overlapping requests
+				if (requestTrie.findSubstr(request.path)) {
+					try {
+						const realpath = realpathSync(request.path);
+						if (realpath === request.path) {
+							this.trace(`ignoring a request for watching who's parent is already watched: ${this.requestToString(request)}`);
+
+							continue;
+						}
+					} catch (error) {
+						this.trace(`ignoring a request for watching who's realpath failed to resolve: ${this.requestToString(request)} (error: ${error})`);
+
+						this._onDidWatchFail.fire(request);
+
+						continue;
+					}
+				}
+
+				// Check for invalid paths
+				if (validatePaths && !this.isPathValid(request.path)) {
+					this._onDidWatchFail.fire(request);
+
+					continue;
+				}
+
+				requestTrie.set(request.path, request);
+			}
+
+			normalizedRequests.push(...Array.from(requestTrie).map(([, request]) => request));
+		}
+
+		return normalizedRequests;
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
+	private isPathValid(path: string): boolean {
+		try {
+			const stat = statSync(path);
+			if (!stat.isDirectory()) {
+				this.trace(`ignoring a path for watching that is a file and not a folder: ${path}`);
+
+				return false;
+			}
+		} catch (error) {
+			this.trace(`ignoring a path for watching who's stat info failed to resolve: ${path} (error: ${error})`);
+
+			return false;
+		}
+
+		return true;
 	}
 
-	private trace(message: string) {
+	subscribe(path: string, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined {
+		for (const watcher of this.watchers) {
+			if (watcher.failed) {
+				continue; // watcher has already failed
+			}
+
+			if (!isEqualOrParent(path, watcher.request.path, !isLinux)) {
+				continue; // watcher does not consider this path
+			}
+
+			if (
+				watcher.exclude(path) ||
+				!watcher.include(path)
+			) {
+				continue; // parcel instance does not consider this path
+			}
+
+			const disposables = new DisposableStore();
+
+			disposables.add(Event.once(watcher.onDidStop)(async e => {
+				await e.joinRestart; // if we are restarting, await that so that we can possibly reuse this watcher again
+				if (disposables.isDisposed) {
+					return;
+				}
+
+				callback(true /* error */);
+			}));
+			disposables.add(Event.once(watcher.onDidFail)(() => callback(true /* error */)));
+			disposables.add(watcher.subscribe(path, change => callback(null, change)));
+
+			return disposables;
+		}
+
+		return undefined;
+	}
+
+	protected trace(message: string, watcher?: ParcelWatcherInstance): void {
 		if (this.verboseLogging) {
-			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message) });
+			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message, watcher) });
 		}
 	}
 
-	private warn(message: string, watcher?: IParcelWatcherInstance) {
+	protected warn(message: string, watcher?: ParcelWatcherInstance) {
 		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher) });
 	}
 
-	private error(message: string, watcher: IParcelWatcherInstance | undefined) {
+	private error(message: string, watcher?: ParcelWatcherInstance) {
 		this._onDidLogMessage.fire({ type: 'error', message: this.toMessage(message, watcher) });
 	}
 
-	private toMessage(message: string, watcher?: IParcelWatcherInstance): string {
+	private toMessage(message: string, watcher?: ParcelWatcherInstance): string {
 		return watcher ? `[File Watcher (parcel)] ${message} (path: ${watcher.request.path})` : `[File Watcher (parcel)] ${message}`;
 	}
+
+	protected get recursiveWatcher() { return this; }
 }

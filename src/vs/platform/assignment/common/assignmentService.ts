@@ -9,18 +9,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
-
-class NullAssignmentServiceTelemetry implements IExperimentationTelemetry {
-	constructor() { }
-
-	setSharedProperty(name: string, value: string): void {
-		// noop due to lack of telemetry service
-	}
-
-	postEvent(eventName: string, props: Map<string, string>): void {
-		// noop due to lack of telemetry service
-	}
-}
+import { importAMDNodeModule } from 'vs/amdX';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export abstract class BaseAssignmentService implements IAssignmentService {
 	_serviceBrand: undefined;
@@ -33,14 +23,15 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 	}
 
 	constructor(
-		private readonly getMachineId: () => Promise<string>,
+		private readonly machineId: string,
 		protected readonly configurationService: IConfigurationService,
 		protected readonly productService: IProductService,
+		protected readonly environmentService: IEnvironmentService,
 		protected telemetry: IExperimentationTelemetry,
 		private keyValueStorage?: IKeyValueStorage
 	) {
-
-		if (productService.tasConfig && this.experimentsEnabled && getTelemetryLevel(this.configurationService) === TelemetryLevel.USAGE) {
+		const isTesting = environmentService.extensionTestsLocationURI !== undefined;
+		if (!isTesting && productService.tasConfig && this.experimentsEnabled && getTelemetryLevel(this.configurationService) === TelemetryLevel.USAGE) {
 			this.tasClient = this.setupTASClient();
 		}
 
@@ -84,22 +75,24 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 	}
 
 	private async setupTASClient(): Promise<TASClient> {
-		const targetPopulation = this.productService.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders;
-		const machineId = await this.getMachineId();
+
+		const targetPopulation = this.productService.quality === 'stable' ?
+			TargetPopulation.Public : (this.productService.quality === 'exploration' ?
+				TargetPopulation.Exploration : TargetPopulation.Insiders);
+
 		const filterProvider = new AssignmentFilterProvider(
 			this.productService.version,
 			this.productService.nameLong,
-			machineId,
+			this.machineId,
 			targetPopulation
 		);
 
 		const tasConfig = this.productService.tasConfig!;
-		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
+		const tasClient = new (await importAMDNodeModule<typeof import('tas-client-umd')>('tas-client-umd', 'lib/tas-client-umd.js')).ExperimentationService({
 			filterProviders: [filterProvider],
 			telemetry: this.telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
 			keyValueStorage: this.keyValueStorage,
-			featuresTelemetryPropertyName: tasConfig.featuresTelemetryPropertyName,
 			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
 			telemetryEventName: tasConfig.telemetryEventName,
 			endpoint: tasConfig.endpoint,
@@ -110,14 +103,5 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 		tasClient.initialFetch.then(() => this.networkInitialized = true);
 
 		return tasClient;
-	}
-}
-
-export class AssignmentService extends BaseAssignmentService {
-	constructor(
-		machineId: string,
-		configurationService: IConfigurationService,
-		productService: IProductService) {
-		super(() => Promise.resolve(machineId), configurationService, productService, new NullAssignmentServiceTelemetry());
 	}
 }

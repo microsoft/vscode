@@ -3,26 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { AbstractMessageLogger, DEFAULT_LOG_LEVEL, ILogger, log, LogLevel } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;
-	args: any[];
+	message: string;
 }
 
-function getLogFunction(logger: ILogger, level: LogLevel): Function {
-	switch (level) {
-		case LogLevel.Trace: return logger.trace;
-		case LogLevel.Debug: return logger.debug;
-		case LogLevel.Info: return logger.info;
-		case LogLevel.Warning: return logger.warn;
-		case LogLevel.Error: return logger.error;
-		case LogLevel.Critical: return logger.critical;
-		default: throw new Error('Invalid log level');
-	}
-}
-
-export class BufferLogService extends AbstractLogger implements ILogService {
+export class BufferLogger extends AbstractMessageLogger {
 
 	declare readonly _serviceBrand: undefined;
 	private buffer: ILog[] = [];
@@ -32,65 +20,34 @@ export class BufferLogService extends AbstractLogger implements ILogService {
 		super();
 		this.setLevel(logLevel);
 		this._register(this.onDidChangeLogLevel(level => {
-			if (this._logger) {
-				this._logger.setLevel(level);
-			}
+			this._logger?.setLevel(level);
 		}));
 	}
 
 	set logger(logger: ILogger) {
 		this._logger = logger;
 
-		for (const { level, args } of this.buffer) {
-			const fn = getLogFunction(logger, level);
-			fn.apply(logger, args);
+		for (const { level, message } of this.buffer) {
+			log(logger, level, message);
 		}
 
 		this.buffer = [];
 	}
 
-	private _log(level: LogLevel, ...args: any[]): void {
+	protected log(level: LogLevel, message: string): void {
 		if (this._logger) {
-			const fn = getLogFunction(this._logger, level);
-			fn.apply(this._logger, args);
+			log(this._logger, level, message);
 		} else if (this.getLevel() <= level) {
-			this.buffer.push({ level, args });
+			this.buffer.push({ level, message });
 		}
-	}
-
-	trace(message: string, ...args: any[]): void {
-		this._log(LogLevel.Trace, message, ...args);
-	}
-
-	debug(message: string, ...args: any[]): void {
-		this._log(LogLevel.Debug, message, ...args);
-	}
-
-	info(message: string, ...args: any[]): void {
-		this._log(LogLevel.Info, message, ...args);
-	}
-
-	warn(message: string, ...args: any[]): void {
-		this._log(LogLevel.Warning, message, ...args);
-	}
-
-	error(message: string | Error, ...args: any[]): void {
-		this._log(LogLevel.Error, message, ...args);
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		this._log(LogLevel.Critical, message, ...args);
 	}
 
 	override dispose(): void {
-		if (this._logger) {
-			this._logger.dispose();
-		}
+		this._logger?.dispose();
+		super.dispose();
 	}
 
-	flush(): void {
-		if (this._logger) {
-			this._logger.flush();
-		}
+	override flush(): void {
+		this._logger?.flush();
 	}
 }

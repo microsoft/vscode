@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBuiltInExtensions = void 0;
+exports.getExtensionStream = getExtensionStream;
+exports.getBuiltInExtensions = getBuiltInExtensions;
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -44,6 +45,20 @@ function isUpToDate(extension) {
         return false;
     }
 }
+function getExtensionDownloadStream(extension) {
+    const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
+    return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension))
+        .pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+}
+function getExtensionStream(extension) {
+    // if the extension exists on disk, use those files instead of downloading anew
+    if (isUpToDate(extension)) {
+        log('[extensions]', `${extension.name}@${extension.version} up to date`, ansiColors.green('✔︎'));
+        return vfs.src(['**'], { cwd: getExtensionPath(extension), dot: true })
+            .pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+    }
+    return getExtensionDownloadStream(extension);
+}
 function syncMarketplaceExtension(extension) {
     const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
     const source = ansiColors.blue(galleryServiceUrl ? '[marketplace]' : '[github]');
@@ -52,8 +67,7 @@ function syncMarketplaceExtension(extension) {
         return es.readArray([]);
     }
     rimraf.sync(getExtensionPath(extension));
-    return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension))
-        .pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`))
+    return getExtensionDownloadStream(extension)
         .pipe(vfs.dest('.build/builtInExtensions'))
         .on('end', () => log(source, extension.name, ansiColors.green('✔︎')));
 }
@@ -97,12 +111,12 @@ function writeControlFile(control) {
     fs.writeFileSync(controlFilePath, JSON.stringify(control, null, 2));
 }
 function getBuiltInExtensions() {
-    log('Syncronizing built-in extensions...');
+    log('Synchronizing built-in extensions...');
     log(`You can manage built-in extensions with the ${ansiColors.cyan('--builtin')} flag`);
     const control = readControlFile();
     const streams = [];
     for (const extension of [...builtInExtensions, ...webBuiltInExtensions]) {
-        let controlState = control[extension.name] || 'marketplace';
+        const controlState = control[extension.name] || 'marketplace';
         control[extension.name] = controlState;
         streams.push(syncExtension(extension, controlState));
     }
@@ -113,10 +127,10 @@ function getBuiltInExtensions() {
             .on('end', resolve);
     });
 }
-exports.getBuiltInExtensions = getBuiltInExtensions;
 if (require.main === module) {
     getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
         console.error(err);
         process.exit(1);
     });
 }
+//# sourceMappingURL=builtInExtensions.js.map

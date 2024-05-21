@@ -8,14 +8,15 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IRecorded, IRecordedCompositionEvent, IRecordedEvent, IRecordedInputEvent, IRecordedKeyboardEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
+import { mainWindow } from 'vs/base/browser/window';
 
 (() => {
 
-	const startButton = <HTMLButtonElement>document.getElementById('startRecording')!;
-	const endButton = <HTMLButtonElement>document.getElementById('endRecording')!;
+	const startButton = <HTMLButtonElement>mainWindow.document.getElementById('startRecording')!;
+	const endButton = <HTMLButtonElement>mainWindow.document.getElementById('endRecording')!;
 
 	let inputarea: HTMLTextAreaElement;
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 	let originTimeStamp = 0;
 	let recorded: IRecorded = {
 		env: null!,
@@ -90,7 +91,7 @@ import * as platform from 'vs/base/common/platform';
 
 	function startTest() {
 		inputarea = document.createElement('textarea');
-		document.body.appendChild(inputarea);
+		mainWindow.document.body.appendChild(inputarea);
 		inputarea.focus();
 		disposables.add(toDisposable(() => {
 			inputarea.remove();

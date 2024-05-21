@@ -24,8 +24,6 @@ import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/com
 
 export class CursorsController extends Disposable {
 
-	public static readonly MAX_CURSOR_COUNT = 10000;
-
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
 	private readonly _viewModel: ICursorSimpleModel;
@@ -117,8 +115,9 @@ export class CursorsController extends Disposable {
 
 	public setStates(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
 		let reachedMaxCursorCount = false;
-		if (states !== null && states.length > CursorsController.MAX_CURSOR_COUNT) {
-			states = states.slice(0, CursorsController.MAX_CURSOR_COUNT);
+		const multiCursorLimit = this.context.cursorConfig.multiCursorLimit;
+		if (states !== null && states.length > multiCursorLimit) {
+			states = states.slice(0, multiCursorLimit);
 			reachedMaxCursorCount = true;
 		}
 
@@ -137,7 +136,7 @@ export class CursorsController extends Disposable {
 		this._columnSelectData = columnSelectData;
 	}
 
-	public revealPrimary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, minimalReveal: boolean, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	public revealAll(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, minimalReveal: boolean, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		const viewPositions = this._cursors.getViewPositions();
 
 		let revealViewRange: Range | null = null;
@@ -149,6 +148,12 @@ export class CursorsController extends Disposable {
 		}
 
 		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, minimalReveal, revealViewRange, revealViewSelections, verticalType, revealHorizontal, scrollType));
+	}
+
+	public revealPrimary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, minimalReveal: boolean, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+		const primaryCursor = this._cursors.getPrimaryCursor();
+		const revealViewSelections = [primaryCursor.viewState.selection];
+		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, minimalReveal, null, revealViewSelections, verticalType, revealHorizontal, scrollType));
 	}
 
 	public saveState(): editorCommon.ICursorState[] {
@@ -213,7 +218,7 @@ export class CursorsController extends Disposable {
 		}
 
 		this.setStates(eventsCollector, 'restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
-		this.revealPrimary(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
+		this.revealAll(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
 	}
 
 	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, event: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
@@ -253,7 +258,7 @@ export class CursorsController extends Disposable {
 				if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
 					const cursorState = CursorState.fromModelSelections(e.resultingSelection);
 					if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
-						this.revealPrimary(eventsCollector, 'modelChange', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+						this.revealAll(eventsCollector, 'modelChange', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 					}
 				} else {
 					const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
@@ -403,7 +408,7 @@ export class CursorsController extends Disposable {
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		eventsCollector.emitViewEvent(new ViewCursorStateChangedEvent(viewSelections, selections));
+		eventsCollector.emitViewEvent(new ViewCursorStateChangedEvent(viewSelections, selections, reason));
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -520,7 +525,7 @@ export class CursorsController extends Disposable {
 		this._cursors.startTrackingSelections();
 		this._validateAutoClosedActions();
 		if (this._emitStateChangedIfNecessary(eventsCollector, source, cursorChangeReason, oldState, false)) {
-			this.revealPrimary(eventsCollector, source, false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+			this.revealAll(eventsCollector, source, false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
 	}
 
@@ -832,7 +837,7 @@ class CommandExecutor {
 
 		// Extract losing cursors
 		const losingCursors: number[] = [];
-		for (let losingCursorIndex in loserCursorsMap) {
+		for (const losingCursorIndex in loserCursorsMap) {
 			if (loserCursorsMap.hasOwnProperty(losingCursorIndex)) {
 				losingCursors.push(parseInt(losingCursorIndex, 10));
 			}

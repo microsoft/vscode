@@ -6,8 +6,8 @@
 import * as nls from 'vs/nls';
 import { Range } from 'vs/editor/common/core/range';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
@@ -29,8 +29,8 @@ class StartDebugTextMate extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.startDebugTextMate',
-			title: { value: nls.localize('startDebugTextMate', "Start Text Mate Syntax Grammar Logging"), original: 'Start Text Mate Syntax Grammar Logging' },
-			category: CATEGORIES.Developer,
+			title: nls.localize2('startDebugTextMate', "Start TextMate Syntax Grammar Logging"),
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -52,7 +52,7 @@ class StartDebugTextMate extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		const textMateService = accessor.get(ITextMateService);
+		const textMateService = accessor.get(ITextMateTokenizationService);
 		const modelService = accessor.get(IModelService);
 		const editorService = accessor.get(IEditorService);
 		const codeEditorService = accessor.get(ICodeEditorService);

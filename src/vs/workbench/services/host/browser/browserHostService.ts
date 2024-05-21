@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
-import { pathsToEditors } from 'vs/workbench/common/editor';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/window/common/window';
+import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
+import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
+import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, detectFullscreen, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -35,46 +36,10 @@ import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/work
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-
-/**
- * A workspace to open in the workbench can either be:
- * - a workspace file with 0-N folders (via `workspaceUri`)
- * - a single folder (via `folderUri`)
- * - empty (via `undefined`)
- */
-export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | undefined;
-
-export interface IWorkspaceProvider {
-
-	/**
-	 * The initial workspace to open.
-	 */
-	readonly workspace: IWorkspace;
-
-	/**
-	 * Arbitrary payload from the `IWorkspaceProvider.open` call.
-	 */
-	readonly payload?: object;
-
-	/**
-	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
-	 */
-	readonly trusted: boolean | undefined;
-
-	/**
-	 * Asks to open a workspace in the current or a new window.
-	 *
-	 * @param workspace the workspace to open.
-	 * @param options optional options for the workspace to open.
-	 * - `reuse`: whether to open inside the current window or a new window
-	 * - `payload`: arbitrary payload that should be made available
-	 * to the opening window via the `IWorkspaceProvider.payload` property.
-	 * @param payload optional payload to send to the workspace to open.
-	 *
-	 * @returns true if successfully opened, false otherwise.
-	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
-}
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { coalesce } from 'vs/base/common/arrays';
+import { mainWindow, isAuxiliaryWindow } from 'vs/base/browser/window';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 
 enum HostShutdownReason {
 
@@ -112,7 +77,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
@@ -176,32 +142,88 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	@memoize
 	get onDidChangeFocus(): Event<boolean> {
-		const focusTracker = this._register(trackFocus(window));
-		const onVisibilityChange = this._register(new DomEmitter(window.document, 'visibilitychange'));
+		const emitter = this._register(new Emitter<boolean>());
 
-		return Event.latch(Event.any(
-			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-			Event.map(focusTracker.onDidBlur, () => this.hasFocus),
-			Event.map(onVisibilityChange.event, () => this.hasFocus)
-		));
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			const focusTracker = disposables.add(trackFocus(window));
+			const visibilityTracker = disposables.add(new DomEmitter(window.document, 'visibilitychange'));
+
+			Event.any(
+				Event.map(focusTracker.onDidFocus, () => this.hasFocus, disposables),
+				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
+				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
+				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, disposables),
+			)(focus => emitter.fire(focus));
+		}, { window: mainWindow, disposables: this._store }));
+
+		return Event.latch(emitter.event, undefined, this._store);
 	}
 
 	get hasFocus(): boolean {
-		return document.hasFocus();
+		return getActiveDocument().hasFocus();
 	}
 
 	async hadLastFocus(): Promise<boolean> {
 		return true;
 	}
 
-	async focus(): Promise<void> {
-		window.focus();
+	async focus(targetWindow: Window): Promise<void> {
+		targetWindow.focus();
 	}
 
 	//#endregion
 
 
 	//#region Window
+
+	@memoize
+	get onDidChangeActiveWindow(): Event<number> {
+		const emitter = this._register(new Emitter<number>());
+
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			const windowId = getWindowId(window);
+
+			// Emit via focus tracking
+			const focusTracker = disposables.add(trackFocus(window));
+			disposables.add(focusTracker.onDidFocus(() => emitter.fire(windowId)));
+
+			// Emit via interval: immediately when opening an auxiliary window,
+			// it is possible that document focus has not yet changed, so we
+			// poll for a while to ensure we catch the event.
+			if (isAuxiliaryWindow(window)) {
+				disposables.add(disposableWindowInterval(window, () => {
+					const hasFocus = window.document.hasFocus();
+					if (hasFocus) {
+						emitter.fire(windowId);
+					}
+
+					return hasFocus;
+				}, 100, 20));
+			}
+		}, { window: mainWindow, disposables: this._store }));
+
+		return Event.latch(emitter.event, undefined, this._store);
+	}
+
+	@memoize
+	get onDidChangeFullScreen(): Event<{ windowId: number; fullscreen: boolean }> {
+		const emitter = this._register(new Emitter<{ windowId: number; fullscreen: boolean }>());
+
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			const windowId = getWindowId(window);
+			const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
+
+			// Fullscreen (Browser)
+			for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
+				disposables.add(addDisposableListener(window.document, event, () => emitter.fire({ windowId, fullscreen: !!detectFullscreen(window) })));
+			}
+
+			// Fullscreen (Native)
+			disposables.add(addDisposableThrottledListener(viewport, EventType.RESIZE, () => emitter.fire({ windowId, fullscreen: !!detectFullscreen(window) }), undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
+		}, { window: mainWindow, disposables: this._store }));
+
+		return emitter.event;
+	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -214,7 +236,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		const payload = this.preservePayload();
+		const payload = this.preservePayload(false /* not an empty window */);
 		const fileOpenables: IFileToOpen[] = [];
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
@@ -254,10 +276,40 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.withServices(async accessor => {
 				const editorService = accessor.get(IEditorService);
 
+				// Support mergeMode
+				if (options?.mergeMode && fileOpenables.length === 4) {
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
+					if (editors.length !== 4 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1]) || !isResourceEditorInput(editors[2]) || !isResourceEditorInput(editors[3])) {
+						return; // invalid resources
+					}
+
+					// Same Window: open via editor service in current window
+					if (this.shouldReuse(options, true /* file */)) {
+						editorService.openEditor({
+							input1: { resource: editors[0].resource },
+							input2: { resource: editors[1].resource },
+							base: { resource: editors[2].resource },
+							result: { resource: editors[3].resource },
+							options: { pinned: true }
+						});
+					}
+
+					// New Window: open into empty window
+					else {
+						const environment = new Map<string, string>();
+						environment.set('mergeFile1', editors[0].resource.toString());
+						environment.set('mergeFile2', editors[1].resource.toString());
+						environment.set('mergeFileBase', editors[2].resource.toString());
+						environment.set('mergeFileResult', editors[3].resource.toString());
+
+						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+					}
+				}
+
 				// Support diffMode
-				if (options?.diffMode && fileOpenables.length === 2) {
-					const editors = await pathsToEditors(fileOpenables, this.fileService);
-					if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
+				else if (options?.diffMode && fileOpenables.length === 2) {
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
+					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources
 					}
 
@@ -301,7 +353,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								openables = [openable];
 							}
 
-							editorService.openEditors(await pathsToEditors(openables, this.fileService), undefined, { validateTrust: true });
+							editorService.openEditors(coalesce(await pathsToEditors(openables, this.fileService, this.logService)), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window
@@ -341,13 +393,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.instantiationService.invokeFunction(accessor => fn(accessor));
 	}
 
-	private preservePayload(): Array<unknown> | undefined {
+	private preservePayload(isEmptyWindow: boolean): Array<unknown> | undefined {
 
 		// Selectively copy payload: for now only extension debugging properties are considered
-		let newPayload: Array<unknown> | undefined = undefined;
-		if (this.environmentService.extensionDevelopmentLocationURI) {
-			newPayload = new Array();
-
+		const newPayload: Array<unknown> = new Array();
+		if (!isEmptyWindow && this.environmentService.extensionDevelopmentLocationURI) {
 			newPayload.push(['extensionDevelopmentPath', this.environmentService.extensionDevelopmentLocationURI.toString()]);
 
 			if (this.environmentService.debugExtensionHost.debugId) {
@@ -359,16 +409,20 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		return newPayload;
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+			newPayload.push(['lastActiveProfile', this.userDataProfileService.currentProfile.id]);
+		}
+
+		return newPayload.length ? newPayload : undefined;
 	}
 
 	private getRecentLabel(openable: IWindowOpenable): string {
 		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: Verbosity.LONG });
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
+			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: Verbosity.LONG });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);
@@ -391,7 +445,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
+		return this.doOpen(undefined, {
+			reuse: options?.forceReuseWindow,
+			payload: this.preservePayload(true /* empty window */)
+		});
 	}
 
 	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<void> {
@@ -418,19 +475,23 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		const opened = await this.workspaceProvider.open(workspace, options);
 		if (!opened) {
-			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 1 });
-			if (showResult.choice === 0) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Warning,
+				message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
+			});
+			if (confirmed) {
 				await this.workspaceProvider.open(workspace, options);
 			}
 		}
 	}
 
-	async toggleFullScreen(): Promise<void> {
-		const target = this.layoutService.container;
+	async toggleFullScreen(targetWindow: Window): Promise<void> {
+		const target = this.layoutService.getContainer(targetWindow);
 
 		// Chromium
-		if (document.fullscreen !== undefined) {
-			if (!document.fullscreen) {
+		if (targetWindow.document.fullscreen !== undefined) {
+			if (!targetWindow.document.fullscreen) {
 				try {
 					return await target.requestFullscreen();
 				} catch (error) {
@@ -438,7 +499,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			} else {
 				try {
-					return await document.exitFullscreen();
+					return await targetWindow.document.exitFullscreen();
 				} catch (error) {
 					this.logService.warn('toggleFullScreen(): exitFullscreen failed');
 				}
@@ -446,17 +507,25 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		// Safari and Edge 14 are all using webkit prefix
-		if ((<any>document).webkitIsFullScreen !== undefined) {
+		if ((<any>targetWindow.document).webkitIsFullScreen !== undefined) {
 			try {
-				if (!(<any>document).webkitIsFullScreen) {
+				if (!(<any>targetWindow.document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
 				} else {
-					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+					(<any>targetWindow.document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 				}
 			} catch {
 				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
 			}
 		}
+	}
+
+	async moveTop(targetWindow: Window): Promise<void> {
+		// There seems to be no API to bring a window to front in browsers
+	}
+
+	async getCursorScreenPoint(): Promise<undefined> {
+		return undefined;
 	}
 
 	//#endregion
@@ -470,13 +539,23 @@ export class BrowserHostService extends Disposable implements IHostService {
 	async reload(): Promise<void> {
 		await this.handleExpectedShutdown(ShutdownReason.RELOAD);
 
-		window.location.reload();
+		mainWindow.location.reload();
 	}
 
 	async close(): Promise<void> {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
-		window.close();
+		mainWindow.close();
+	}
+
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		const previousShutdownReason = this.shutdownReason;
+		try {
+			this.shutdownReason = HostShutdownReason.Api;
+			return await expectedShutdownTask();
+		} finally {
+			this.shutdownReason = previousShutdownReason;
+		}
 	}
 
 	private async handleExpectedShutdown(reason: ShutdownReason): Promise<void> {
@@ -493,4 +572,4 @@ export class BrowserHostService extends Disposable implements IHostService {
 	//#endregion
 }
 
-registerSingleton(IHostService, BrowserHostService, true);
+registerSingleton(IHostService, BrowserHostService, InstantiationType.Delayed);

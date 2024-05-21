@@ -46,6 +46,8 @@ export class ViewportData {
 
 	private readonly _model: IViewModel;
 
+	public readonly lineHeight: number;
+
 	constructor(
 		selections: Selection[],
 		partialData: IPartialViewLinesViewportData,
@@ -57,6 +59,7 @@ export class ViewportData {
 		this.endLineNumber = partialData.endLineNumber | 0;
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
 		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
+		this.lineHeight = partialData.lineHeight | 0;
 		this.whitespaceViewportData = whitespaceViewportData;
 
 		this._model = model;
@@ -70,7 +73,7 @@ export class ViewportData {
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
-		return this._model.getViewLineRenderingData(this.visibleRange, lineNumber);
+		return this._model.getViewportViewLineRenderingData(this.visibleRange, lineNumber);
 	}
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {

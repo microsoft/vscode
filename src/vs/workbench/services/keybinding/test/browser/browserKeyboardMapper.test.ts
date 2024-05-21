@@ -14,11 +14,14 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
+	constructor(configurationService: IConfigurationService, notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
 		// super(notificationService, storageService, commandService);
-		super();
+		super(configurationService);
 
 		const keymapInfos: IKeymapInfo[] = KeyboardLayoutContribution.INSTANCE.layoutInfos;
 		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
@@ -33,12 +36,27 @@ class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 }
 
 suite('keyboard layout loader', () => {
-	let instantiationService: TestInstantiationService = new TestInstantiationService();
-	let notitifcationService = instantiationService.stub(INotificationService, new TestNotificationService());
-	let storageService = instantiationService.stub(IStorageService, new TestStorageService());
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+	let instantiationService: TestInstantiationService;
+	let instance: TestKeyboardMapperFactory;
 
-	let commandService = instantiationService.stub(ICommandService, {});
-	let instance = new TestKeyboardMapperFactory(notitifcationService, storageService, commandService);
+	setup(() => {
+		instantiationService = new TestInstantiationService();
+		const storageService = new TestStorageService();
+		const notitifcationService = instantiationService.stub(INotificationService, new TestNotificationService());
+		const configurationService = instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const commandService = instantiationService.stub(ICommandService, {});
+
+		ds.add(instantiationService);
+		ds.add(storageService);
+
+		instance = new TestKeyboardMapperFactory(configurationService, notitifcationService, storageService, commandService);
+		ds.add(instance);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
+	});
 
 	test('load default US keyboard layout', () => {
 		assert.notStrictEqual(instance.activeKeyboardLayout, null);

@@ -5,19 +5,17 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 /**
  * The editor model is the heavyweight counterpart of editor input. Depending on the editor input, it
  * resolves from a file system retrieve content and may allow for saving it back or reverting it.
  * Editor models are typically cached for some while because they are expensive to construct.
  */
-export class EditorModel extends Disposable implements IEditorModel {
+export class EditorModel extends Disposable {
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private disposed = false;
 	private resolved = false;
 
 	/**
@@ -38,14 +36,13 @@ export class EditorModel extends Disposable implements IEditorModel {
 	 * Find out if this model has been disposed.
 	 */
 	isDisposed(): boolean {
-		return this.disposed;
+		return this._store.isDisposed;
 	}
 
 	/**
 	 * Subclasses should implement to free resources that have been claimed through loading.
 	 */
 	override dispose(): void {
-		this.disposed = true;
 		this._onWillDispose.fire();
 
 		super.dispose();

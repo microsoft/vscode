@@ -67,6 +67,10 @@
 	justify-content: flex-end;
 }
 
+.scm-view .monaco-editor .selected-text {
+	border-radius: 0;
+}
+
 /**
  * The following rules are very specific because of inline drop down menus
  * https://github.com/microsoft/vscode/issues/101410
@@ -75,13 +79,17 @@
 	padding-left: 4px;
 	display: flex;
 	align-items: center;
-	min-width: 16px;
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) {
+	min-width: 20px;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
 	display: flex;
 	align-items: center;
+	line-height: 16px;
 	overflow: hidden;
 }
 
@@ -98,16 +106,116 @@
 	flex-grow: 1;
 }
 
+.scm-view .scm-provider > .status > .monaco-action-bar > .actions-container {
+	border-color: var(--vscode-sideBar-border);
+}
+
 .scm-view .monaco-list-row {
 	line-height: 22px;
 }
 
+.scm-view .monaco-list-row .history,
+.scm-view .monaco-list-row .history-item-group,
 .scm-view .monaco-list-row .resource-group {
 	display: flex;
 	height: 100%;
 	align-items: center;
 }
 
+.scm-view .monaco-list-row .history-item-group .monaco-icon-label,
+.scm-view .monaco-list-row .history-item .monaco-icon-label {
+	flex-grow: 1;
+	align-items: center;
+}
+
+.scm-view .monaco-list-row .history-item {
+	display: flex;
+	align-items: center;
+}
+
+.scm-view .monaco-list-row .history-item .stats-container {
+	display: flex;
+	font-size: 11px;
+	line-height: 11px;
+	margin-left: 6px;
+	gap: 4px;
+}
+
+.scm-view .monaco-list-row .history-item .stats-container {
+	min-height: 18px;
+	padding: 0 4px;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-scm-historyItemStatisticsBorder);
+}
+
+.scm-view .monaco-list-row.focused .history-item .stats-container,
+.scm-view .monaco-list-row.selected .history-item .stats-container {
+	border: 1px solid var(--vscode-scm-historyItemSelectedStatisticsBorder);
+}
+
+.scm-view .monaco-list-row .history-item .stats-container > .files-label,
+.scm-view .monaco-list-row .history-item .stats-container > .insertions-label,
+.scm-view .monaco-list-row .history-item .stats-container > .deletions-label {
+	display: flex;
+	align-items: center;
+	opacity: 0.75;
+}
+
+.scm-view .monaco-list-row .history-item .stats-container > .insertions-label {
+	color: var(--vscode-scm-historyItemAdditionsForeground);
+}
+
+.scm-view .monaco-list-row .history-item .stats-container > .deletions-label {
+	color: var(--vscode-scm-historyItemDeletionsForeground);
+}
+
+.scm-view .monaco-list-row .history-item .stats-container.hidden,
+.scm-view .monaco-list-row .history-item .stats-container > .insertions-label.hidden,
+.scm-view .monaco-list-row .history-item .stats-container > .deletions-label.hidden {
+	display: none;
+}
+
+.scm-view .monaco-list-row .history-item-group .monaco-icon-label .icon-container,
+.scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
+	display: flex;
+	padding-right: 4px;
+}
+
+.scm-view .monaco-list-row .history-item .monaco-icon-label .avatar {
+	width: 14px;
+	height: 14px;
+	border-radius: 14px;
+}
+
+.scm-view .monaco-list-row .separator-container {
+	display: flex;
+	align-items: center;
+	padding-left: 11px;
+}
+
+.scm-view .monaco-list-row .separator-container .label-name {
+	font-size: 10px;
+}
+
+.scm-view .monaco-list-row.focused .separator-container .label-name,
+.scm-view .monaco-list-row.selected .separator-container .label-name {
+	color: var(--vscode-foreground);
+}
+
+.scm-view .monaco-list-row .separator-container .separator {
+	display: flex;
+	flex-grow: 1;
+	height: 0;
+	margin-left: 6px;
+	border-top: 1px solid var(--vscode-sideBar-border);
+}
+
+.scm-view .monaco-list-row .separator-container .actions {
+	padding-left: 6px;
+}
+
+.scm-view .monaco-list-row .history > .name,
+.scm-view .monaco-list-row .history-item-group > .name,
 .scm-view .monaco-list-row .resource-group > .name {
 	flex: 1;
 	overflow: hidden;
@@ -137,7 +245,7 @@
 	height: 100%;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
-	margin-right: 8px;
+	margin-left: 5px;
 }
 
 .scm-view .monaco-list-row .resource > .decoration-icon.codicon {
@@ -150,19 +258,25 @@
 }
 
 .scm-view .monaco-list .monaco-list-row .resource-group > .actions,
-.scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
+.scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions,
+.scm-view .monaco-list .monaco-list-row .separator-container > .actions,
+.scm-view .monaco-list .monaco-list-row .history-item-group > .actions,
+.scm-view .monaco-list .monaco-list-row .history-item > .actions {
 	display: none;
 	max-width: fit-content;
-	max-width: -moz-fit-content;
 }
 
 .scm-view .monaco-list .monaco-list-row:hover .resource-group > .actions,
-.scm-view .monaco-list .monaco-list-row.selected .resource-group > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .resource-group > .actions,
 .scm-view .monaco-list .monaco-list-row:hover .resource > .name > .monaco-icon-label > .actions,
-.scm-view .monaco-list .monaco-list-row.selected .resource > .name > .monaco-icon-label > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .resource > .name > .monaco-icon-label > .actions,
-.scm-view .monaco-list:not(.selection-multiple) .monaco-list-row .resource:hover > .actions {
+.scm-view .monaco-list:not(.selection-multiple) .monaco-list-row .resource:hover > .actions,
+.scm-view .monaco-list .monaco-list-row:hover .separator-container > .actions,
+.scm-view .monaco-list .monaco-list-row.focused .separator-container > .actions,
+.scm-view .monaco-list .monaco-list-row:hover .history-item-group > .actions,
+.scm-view .monaco-list .monaco-list-row.focused .history-item-group > .actions,
+.scm-view .monaco-list .monaco-list-row:hover .history-item > .actions,
+.scm-view .monaco-list .monaco-list-row.focused .history-item > .actions {
 	display: block;
 }
 
@@ -173,9 +287,17 @@
 	background: transparent !important;
 }
 
+.scm-view .monaco-list .monaco-list-row.cursor-default {
+	cursor: default;
+}
+
 .scm-view.show-actions .scm-provider > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .scm-input > .scm-editor > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
-.scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
+.scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .separator-container > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .history-item-group > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .history-item > .actions {
 	display: block;
 }
 
@@ -185,16 +307,44 @@
 
 .scm-view .scm-input {
 	height: 100%;
+	display: flex;
+	align-items: center;
 	padding-left: 11px;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-toolbar {
+	padding: 1px 3px 1px 1px;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.hidden {
+	display: none;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.scroll-decoration {
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-toolbar .action-label.codicon.codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.scm-view .scm-editor-container .monaco-editor {
+	border-radius: 2px;
+}
+
+.scm-view .scm-editor-container .monaco-editor .focused .selected-text {
+	background-color: var(--vscode-editor-selectionBackground);
 }
 
 .scm-view .scm-editor {
 	box-sizing: border-box;
 	width: 100%;
-	height: 100%;
 	display: flex;
-	flex-direction: column;
-	justify-content: center;
+	align-items: flex-start;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-input-background);
+	border-radius: 2px;
 }
 
 .scm-view .button-container {
@@ -204,52 +354,95 @@
 	align-items: center;
 }
 
-.scm-view .button-container > .monaco-description-button {
-	flex-direction: row;
-	flex-wrap: wrap;
-	height: 30px;
-	padding: 0 4px;
-	overflow: hidden;
-}
-
-.scm-view .button-container > .monaco-description-button > .monaco-button-label {
-	flex-grow: 1;
-	width: 0;
-	overflow: hidden;
-}
-
-.scm-view .button-container > .monaco-description-button > .monaco-button-description {
-	flex-basis: 100%;
-}
-
-.scm-view .button-container > .monaco-description-button > .monaco-button-label,
-.scm-view .button-container > .monaco-description-button > .monaco-button-description {
-	font-style: inherit;
-	padding: 4px 0;
-}
-
 .scm-view .button-container .codicon.codicon-cloud-upload,
 .scm-view .button-container .codicon.codicon-sync {
-	line-height: 22px;
-	margin: 0 0.4em 0 0;
+	margin: 0 4px 0 0;
 }
 
 .scm-view .button-container .codicon.codicon-arrow-up,
 .scm-view .button-container .codicon.codicon-arrow-down {
-	line-height: 22px;
 	font-size: small !important;
-	margin: 0 0.2em 0 0;
+	margin: 0 4px 0 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown {
+	flex-grow: 1;
+	overflow: hidden;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button {
+	display:flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	min-width: 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .scm-view .scm-editor.hidden {
 	display: none;
 }
 
-.scm-view .scm-editor-container {
-	position: relative;
-	box-sizing: border-box;
-	padding: 1px;
+.monaco-workbench .part.panel .scm-view .scm-editor-container {
+	outline: 1px solid var(--vscode-panelInput-border);
+}
+
+.scm-view .scm-editor.synthetic-focus,
+.monaco-workbench .part.panel .scm-view .scm-editor.synthetic-focus {
+	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+.scm-view .scm-editor.validation-info {
+	outline: 1px solid var(--vscode-inputValidation-infoBorder) !important;
+	outline-offset: -1px;
+}
+
+.scm-view .scm-editor.validation-warning {
+	outline: 1px solid var(--vscode-inputValidation-warningBorder) !important;
+	outline-offset: -1px;
+}
+
+.scm-view .scm-editor.validation-error {
+	outline: 1px solid var(--vscode-inputValidation-errorBorder) !important;
+	outline-offset: -1px;
+}
+
+.scm-editor-validation-container {
+	display: flex;
+	box-sizing: border-box;
+	border-width: 1px;
+	border-style: solid;
+	border-top: none;
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
+	padding: 2px;
+}
+
+.scm-editor-validation-container.validation-info {
+	background-color: var(--vscode-inputValidation-infoBackground);
+	border-color: var(--vscode-inputValidation-infoBorder);
+	color: var(--vscode-inputValidation-infoForeground);
+}
+
+.scm-editor-validation-container.validation-warning {
+	background-color: var(--vscode-inputValidation-warningBackground);
+	border-color: var(--vscode-inputValidation-warningBorder);
+	color: var(--vscode-inputValidation-warningForeground);
+}
+
+.scm-editor-validation-container.validation-error {
+	background-color: var(--vscode-inputValidation-errorBackground);
+	border-color: var(--vscode-inputValidation-errorBorder);
+	color: var(--vscode-inputValidation-errorForeground);
 }
 
 .scm-editor-validation {
@@ -257,9 +450,8 @@
 	font-size: 0.9em;
 	padding: 1px 3px;
 	display: block;
-	border-width: 1px;
-	border-style: solid;
-	border-top: none;
+	border-style: none;
+	flex: auto;
 }
 
 .scm-editor-validation p {
@@ -268,20 +460,31 @@
 }
 
 .scm-editor-validation a {
+	color: var(--vscode-textLink-foreground);
 	-webkit-user-select: none;
 	user-select: none;
+}
+
+.scm-editor-validation a:active,
+.scm-editor-validation a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.scm-editor-validation-actions {
+	align-self: start;
+	margin-top: 1px;
 }
 
 .scm-view .scm-editor-placeholder {
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;
-	padding: 2px 4px 3px 4px;
+	padding: 2px 6px;
 	box-sizing: border-box;
-	width: 100%;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	color: var(--vscode-input-placeholderForeground);
 }
 
 .scm-view .scm-editor-placeholder.hidden {
@@ -290,8 +493,16 @@
 
 .scm-view .scm-editor-container .monaco-editor-background,
 .scm-view .scm-editor-container .monaco-editor,
-.scm-view .scm-editor-container .mtk1 {
+.scm-view .scm-editor-container .monaco-editor .margin,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor .margin,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor .monaco-editor-background {
 	color: inherit;
+	background-color: var(--vscode-input-background);
+}
+
+.scm-view .scm-editor-container .mtk1 {
+	color: var(--vscode-input-foreground);
 }
 
 /* Repositories */

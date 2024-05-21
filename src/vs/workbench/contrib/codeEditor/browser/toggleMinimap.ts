@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class ToggleMinimapAction extends Action2 {
@@ -18,17 +18,16 @@ export class ToggleMinimapAction extends Action2 {
 		super({
 			id: ToggleMinimapAction.ID,
 			title: {
-				value: localize('toggleMinimap', "Toggle Minimap"),
-				original: 'Toggle Minimap',
-				mnemonicTitle: localize({ key: 'miShowMinimap', comment: ['&& denotes a mnemonic'] }, "Show &&Minimap")
+				...localize2('toggleMinimap', "Toggle Minimap"),
+				mnemonicTitle: localize({ key: 'miMinimap', comment: ['&& denotes a mnemonic'] }, "&&Minimap"),
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.editor.minimap.enabled', true),
 			menu: {
-				id: MenuId.MenubarViewMenu,
-				group: '5_editor',
-				order: 2
+				id: MenuId.MenubarAppearanceMenu,
+				group: '4_editor',
+				order: 1
 			}
 		});
 	}

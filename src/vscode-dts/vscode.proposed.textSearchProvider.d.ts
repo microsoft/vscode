@@ -142,7 +142,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents the severiry of a TextSearchComplete message.
+	 * Represents the severity of a TextSearchComplete message.
 	 */
 	export enum TextSearchCompleteMessageType {
 		Information = 1,

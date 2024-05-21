@@ -3,19 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals } from 'vs/base/common/platform';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { COI } from 'vs/base/common/network';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 
-const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+const ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+
+export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Worker {
+	if (!blobUrl.startsWith('blob:')) {
+		throw new URIError('Not a blob-url: ' + blobUrl);
+	}
+	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, options);
+}
 
 function getWorker(label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
-	if (globals.MonacoEnvironment) {
-		if (typeof globals.MonacoEnvironment.getWorker === 'function') {
-			return globals.MonacoEnvironment.getWorker('workerMain.js', label);
+	interface IMonacoEnvironment {
+		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
+		getWorkerUrl?(moduleId: string, label: string): string;
+	}
+	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	if (monacoEnvironment) {
+		if (typeof monacoEnvironment.getWorker === 'function') {
+			return monacoEnvironment.getWorker('workerMain.js', label);
 		}
-		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
-			const workerUrl = <string>globals.MonacoEnvironment.getWorkerUrl('workerMain.js', label);
+		if (typeof monacoEnvironment.getWorkerUrl === 'function') {
+			const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', label);
 			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 		}
 	}
@@ -32,16 +47,30 @@ function getWorker(label: string): Worker | Promise<Worker> {
 
 // ESM-comment-begin
 export function getWorkerBootstrapUrl(scriptPath: string, label: string): string {
-	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, self.origin.length) !== self.origin) {
+	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
 		const myPath = 'vs/base/worker/defaultWorkerFactory.js';
 		const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = self.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
+		const js = `/*${label}*/globalThis.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
 		const blob = new Blob([js], { type: 'application/javascript' });
 		return URL.createObjectURL(blob);
 	}
-	return scriptPath + '#' + label;
+
+	const start = scriptPath.lastIndexOf('?');
+	const end = scriptPath.lastIndexOf('#', start);
+	const params = start > 0
+		? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
+		: new URLSearchParams();
+
+	COI.addSearchParam(params, true, true);
+	const search = params.toString();
+
+	if (!search) {
+		return `${scriptPath}#${label}`;
+	} else {
+		return `${scriptPath}?${params.toString()}#${label}`;
+	}
 }
 // ESM-comment-end
 
@@ -56,13 +85,16 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
  * A worker that uses HTML5 web workers so that is has
  * its own global scope and its own thread.
  */
-class WebWorker implements IWorker {
+class WebWorker extends Disposable implements IWorker {
 
-	private id: number;
+	private readonly id: number;
+	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
 	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+		super();
 		this.id = id;
+		this.label = label;
 		const workerOrPromise = getWorker(label);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
@@ -79,6 +111,15 @@ class WebWorker implements IWorker {
 				w.addEventListener('error', onErrorCallback);
 			}
 		});
+		this._register(toDisposable(() => {
+			this.worker?.then(w => {
+				w.onmessage = null;
+				w.onmessageerror = null;
+				w.removeEventListener('error', onErrorCallback);
+				w.terminate();
+			});
+			this.worker = null;
+		}));
 	}
 
 	public getId(): number {
@@ -86,17 +127,17 @@ class WebWorker implements IWorker {
 	}
 
 	public postMessage(message: any, transfer: Transferable[]): void {
-		if (this.worker) {
-			this.worker.then(w => w.postMessage(message, transfer));
-		}
+		this.worker?.then(w => {
+			try {
+				w.postMessage(message, transfer);
+			} catch (err) {
+				onUnexpectedError(err);
+				onUnexpectedError(new Error(`FAILED to post message to '${this.label}'-worker`, { cause: err }));
+			}
+		});
 	}
 
-	public dispose(): void {
-		if (this.worker) {
-			this.worker.then(w => w.terminate());
-		}
-		this.worker = null;
-	}
+
 }
 
 export class DefaultWorkerFactory implements IWorkerFactory {
@@ -112,7 +153,7 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 	}
 
 	public create(moduleId: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
-		let workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
+		const workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
 
 		if (this._webWorkerFailedBeforeError) {
 			throw this._webWorkerFailedBeforeError;

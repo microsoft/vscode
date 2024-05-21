@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const path = require("path");
@@ -38,3 +38,4 @@ function findNodeModulesFiles(location, inNodeModules, result) {
 const result = [];
 findNodeModulesFiles('', false, result);
 fs.writeFileSync(process.argv[2], result.join('\n') + '\n');
+//# sourceMappingURL=listNodeModules.js.map

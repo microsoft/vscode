@@ -8,7 +8,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./hover';
+import 'vs/css!./hoverWidget';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -66,21 +67,8 @@ export class HoverAction extends Disposable {
 		const label = dom.append(this.action, $('span'));
 		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(this.actionContainer);
-		}));
-
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_UP, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter)) {
-				e.stopPropagation();
-				e.preventDefault();
-				actionOptions.run(this.actionContainer);
-			}
-		}));
-
+		this._store.add(new ClickAction(this.actionContainer, actionOptions.run));
+		this._store.add(new KeyDownAction(this.actionContainer, actionOptions.run, [KeyCode.Enter, KeyCode.Space]));
 		this.setEnabled(true);
 	}
 
@@ -92,5 +80,34 @@ export class HoverAction extends Disposable {
 			this.actionContainer.classList.add('disabled');
 			this.actionContainer.setAttribute('aria-disabled', 'true');
 		}
+	}
+}
+
+export function getHoverAccessibleViewHint(shouldHaveHint?: boolean, keybinding?: string | null): string | undefined {
+	return shouldHaveHint && keybinding ? localize('acessibleViewHint', "Inspect this in the accessible view with {0}.", keybinding) : shouldHaveHint ? localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.") : '';
+}
+
+export class ClickAction extends Disposable {
+	constructor(container: HTMLElement, run: (container: HTMLElement) => void) {
+		super();
+		this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => {
+			e.stopPropagation();
+			e.preventDefault();
+			run(container);
+		}));
+	}
+}
+
+export class KeyDownAction extends Disposable {
+	constructor(container: HTMLElement, run: (container: HTMLElement) => void, keyCodes: KeyCode[]) {
+		super();
+		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (keyCodes.some(keyCode => event.equals(keyCode))) {
+				e.stopPropagation();
+				e.preventDefault();
+				run(container);
+			}
+		}));
 	}
 }

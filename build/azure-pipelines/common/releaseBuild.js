@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const identity_1 = require("@azure/identity");
 const cosmos_1 = require("@azure/cosmos");
@@ -28,25 +28,30 @@ async function getConfig(client, quality) {
     }
     return res.resources[0];
 }
-async function main() {
-    const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
+async function main(force) {
+    const commit = getEnv('BUILD_SOURCEVERSION');
     const quality = getEnv('VSCODE_QUALITY');
     const aadCredentials = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
     const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], aadCredentials });
-    const config = await getConfig(client, quality);
-    console.log('Quality config:', config);
-    if (config.frozen) {
-        console.log(`Skipping release because quality ${quality} is frozen.`);
-        return;
+    if (!force) {
+        const config = await getConfig(client, quality);
+        console.log('Quality config:', config);
+        if (config.frozen) {
+            console.log(`Skipping release because quality ${quality} is frozen.`);
+            return;
+        }
     }
     console.log(`Releasing build ${commit}...`);
     const scripts = client.database('builds').container(quality).scripts;
     await (0, retry_1.retry)(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
 }
-main().then(() => {
+const [, , force] = process.argv;
+console.log(process.argv);
+main(/^true$/i.test(force)).then(() => {
     console.log('Build successfully released');
     process.exit(0);
 }, err => {
     console.error(err);
     process.exit(1);
 });
+//# sourceMappingURL=releaseBuild.js.map

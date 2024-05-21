@@ -9,26 +9,25 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Constants } from 'vs/base/common/uint';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorState } from 'vs/editor/common/cursorCommon';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
 import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { overviewRulerSelectionHighlightForeground, minimapSelectionOccurrenceHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { getSelectionHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
@@ -173,7 +172,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		}
 
 		for (let i = selection.startLineNumber; i < selection.endLineNumber; i++) {
-			let currentLineMaxColumn = model.getLineMaxColumn(i);
+			const currentLineMaxColumn = model.getLineMaxColumn(i);
 			result.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
 		}
 		if (selection.endColumn > 1) {
@@ -190,7 +189,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		const selections = editor.getSelections();
 		const viewModel = editor._getViewModel();
 		const previousCursorState = viewModel.getCursorStates();
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
 
 		if (newSelections.length > 0) {
@@ -219,7 +218,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 		const selections = editor.getSelections();
 		const lineCount = editor.getModel().getLineCount();
 
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
@@ -251,7 +250,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 
 		const selections = editor.getSelections();
 
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		for (let i = selections[0].startLineNumber; i >= 1; i--) {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
@@ -570,7 +569,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
 				if (!selectionsContainSameText) {
 					const model = this._editor.getModel();
-					let resultingSelections: Selection[] = [];
+					const resultingSelections: Selection[] = [];
 					for (let i = 0, len = allSelections.length; i < len; i++) {
 						resultingSelections[i] = this._expandEmptyToWord(model, allSelections[i]);
 					}
@@ -669,14 +668,18 @@ export abstract class MultiCursorSelectionControllerAction extends EditorAction 
 		if (!multiCursorController) {
 			return;
 		}
-		const findController = CommonFindController.get(editor);
-		if (!findController) {
-			return;
-		}
 		const viewModel = editor._getViewModel();
 		if (viewModel) {
 			const previousCursorState = viewModel.getCursorStates();
-			this._run(multiCursorController, findController);
+			const findController = CommonFindController.get(editor);
+			if (findController) {
+				this._run(multiCursorController, findController);
+			} else {
+				const newFindController = accessor.get(IInstantiationService).createInstance(CommonFindController, editor);
+				this._run(multiCursorController, newFindController);
+				newFindController.dispose();
+			}
+
 			announceCursorChange(previousCursorState, viewModel.getCursorStates());
 		}
 	}
@@ -846,7 +849,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
-	private decorations: string[];
+	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState | null;
 
@@ -857,7 +860,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		super();
 		this.editor = editor;
 		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
-		this.decorations = [];
+		this._decorations = editor.createDecorationsCollection();
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
@@ -900,6 +903,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				this._update();
 			}));
 		}
+		this.updateSoon.schedule();
 	}
 
 	private _update(): void {
@@ -986,7 +990,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = newState;
 
 		if (!this.state) {
-			this.decorations = this.editor.deltaDecorations(this.decorations, []);
+			this._decorations.clear();
 			return;
 		}
 
@@ -1033,37 +1037,17 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		const hasFindOccurrences = this._languageFeaturesService.documentHighlightProvider.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const occurrenceHighlighting: boolean = this.editor.getOption(EditorOption.occurrencesHighlight) !== 'off';
+		const hasSemanticHighlights = this._languageFeaturesService.documentHighlightProvider.has(model) && occurrenceHighlighting;
 		const decorations = matches.map(r => {
 			return {
 				range: r,
-				// Show in overviewRuler only if model has no semantic highlighting
-				options: (hasFindOccurrences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
+				options: getSelectionHighlightDecorationOptions(hasSemanticHighlights)
 			};
 		});
 
-		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
+		this._decorations.set(decorations);
 	}
-
-	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
-		description: 'selection-highlight-overview',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
-		minimap: {
-			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
-			position: MinimapPosition.Inline
-		},
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			position: OverviewRulerLane.Center
-		}
-	});
-
-	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
-		description: 'selection-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
-	});
 
 	public override dispose(): void {
 		this._setState(null);
@@ -1096,7 +1080,7 @@ export class FocusNextCursor extends EditorAction {
 		super({
 			id: 'editor.action.focusNextCursor',
 			label: nls.localize('mutlicursor.focusNextCursor', "Focus Next Cursor"),
-			description: {
+			metadata: {
 				description: nls.localize('mutlicursor.focusNextCursor.description', "Focuses the next cursor"),
 				args: [],
 			},
@@ -1135,7 +1119,7 @@ export class FocusPreviousCursor extends EditorAction {
 		super({
 			id: 'editor.action.focusPreviousCursor',
 			label: nls.localize('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
-			description: {
+			metadata: {
 				description: nls.localize('mutlicursor.focusPreviousCursor.description', "Focuses the previous cursor"),
 				args: [],
 			},
@@ -1169,8 +1153,8 @@ export class FocusPreviousCursor extends EditorAction {
 	}
 }
 
-registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
+registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController, EditorContributionInstantiation.Lazy);
+registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter, EditorContributionInstantiation.AfterFirstRender);
 
 registerEditorAction(InsertCursorAbove);
 registerEditorAction(InsertCursorBelow);

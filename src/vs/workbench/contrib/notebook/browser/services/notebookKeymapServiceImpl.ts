@@ -22,13 +22,12 @@ import { distinct } from 'vs/base/common/arrays';
 function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
-	const onDidInstallExtensions = Event.chain(extensionService.onDidInstallExtensions)
-		.filter(e => e.some(({ operation }) => operation === InstallOperation.Install))
-		.map(e => e.map(({ identifier }) => identifier))
-		.event;
+	const onDidInstallExtensions = Event.chain(extensionService.onDidInstallExtensions, $ =>
+		$.filter(e => e.some(({ operation }) => operation === InstallOperation.Install))
+			.map(e => e.map(({ identifier }) => identifier))
+	);
 	return Event.debounce<IExtensionIdentifier[], IExtensionIdentifier[]>(Event.any(
-		Event.chain(Event.any(onDidInstallExtensions, Event.map(extensionService.onDidUninstallExtension, e => [e.identifier])))
-			.event,
+		Event.any(onDidInstallExtensions, Event.map(extensionService.onDidUninstallExtension, e => [e.identifier])),
 		Event.map(extensionEnablementService.onEnablementChanged, extensions => extensions.map(e => e.identifier))
 	), (result: IExtensionIdentifier[] | undefined, identifiers: IExtensionIdentifier[]) => {
 		result = result || (identifiers.length ? [identifiers[0]] : []);
@@ -60,7 +59,7 @@ export class NotebookKeymapService extends Disposable implements INotebookKeymap
 		super();
 
 		this.notebookKeymapMemento = new Memento('notebookKeymap', storageService);
-		this.notebookKeymap = this.notebookKeymapMemento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.notebookKeymap = this.notebookKeymapMemento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 
 		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
 		this._register(this.instantiationService.invokeFunction(onExtensionChanged)((identifiers => {

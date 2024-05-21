@@ -5,13 +5,14 @@
 
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
 import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
+import { ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 
 type SerializedTree = { e: string; children?: SerializedTree[]; data?: string };
 
@@ -19,8 +20,8 @@ const element = document.createElement('div');
 element.style.height = '1000px';
 element.style.width = '200px';
 
-export class TestObjectTree<T> extends ObjectTree<T, any> {
-	constructor(serializer: (node: T) => string) {
+class TestObjectTree<T> extends ObjectTree<T, any> {
+	constructor(serializer: (node: T) => string, sorter?: ITreeSorter<T>) {
 		super(
 			'test',
 			element,
@@ -30,17 +31,25 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 			},
 			[
 				{
-					disposeTemplate: () => undefined,
-					renderElement: (node, _index, container: HTMLElement) => {
-						Object.assign(container.dataset, node.element);
-						container.textContent = `${node.depth}:${serializer(node.element)}`;
+					disposeTemplate: ({ store }) => store.dispose(),
+					renderElement: ({ depth, element }, _index, { container, store }) => {
+						const render = () => {
+							container.textContent = `${depth}:${serializer(element)}`;
+							Object.assign(container.dataset, element);
+						};
+						render();
+
+						if (element instanceof TestItemTreeElement) {
+							store.add(element.onChange(render));
+						}
 					},
-					renderTemplate: c => c,
+					disposeElement: (_el, _index, { store }) => store.clear(),
+					renderTemplate: container => ({ container, store: new DisposableStore() }),
 					templateId: 'default'
-				}
+				} satisfies ITreeRenderer<T, any, { store: DisposableStore; container: HTMLElement }>
 			],
 			{
-				sorter: {
+				sorter: sorter ?? {
 					compare: (a, b) => serializer(a).localeCompare(serializer(b))
 				}
 			}
@@ -55,7 +64,7 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 	public getRendered(getProperty?: string) {
 		const elements = element.querySelectorAll<HTMLElement>('.monaco-tl-contents');
 		const sorted = [...elements].sort((a, b) => pos(a) - pos(b));
-		let chain: SerializedTree[] = [{ e: '', children: [] }];
+		const chain: SerializedTree[] = [{ e: '', children: [] }];
 		for (const element of sorted) {
 			const [depthStr, label] = element.textContent!.split(':');
 			const depth = Number(depthStr);
@@ -74,6 +83,24 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 
 const pos = (element: Element) => Number(element.parentElement!.parentElement!.getAttribute('aria-posinset'));
 
+
+class ByLabelTreeSorter implements ITreeSorter<TestExplorerTreeElement> {
+	public compare(a: TestExplorerTreeElement, b: TestExplorerTreeElement): number {
+		if (a instanceof TestTreeErrorMessage || b instanceof TestTreeErrorMessage) {
+			return (a instanceof TestTreeErrorMessage ? -1 : 0) + (b instanceof TestTreeErrorMessage ? 1 : 0);
+		}
+
+		if (a instanceof TestItemTreeElement && b instanceof TestItemTreeElement && a.test.item.uri && b.test.item.uri && a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
+			const delta = a.test.item.range.startLineNumber - b.test.item.range.startLineNumber;
+			if (delta !== 0) {
+				return delta;
+			}
+		}
+
+		return (a.test.item.sortText || a.test.item.label).localeCompare(b.test.item.sortText || b.test.item.label);
+	}
+}
+
 // names are hard
 export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjection> extends Disposable {
 	private readonly onDiff = this._register(new Emitter<TestsDiff>());
@@ -85,9 +112,9 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	constructor(makeTree: (listener: ITestService) => T, public readonly c = testStubs.nested()) {
 		super();
 		this._register(c);
-		this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */));
+		this._register(this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */)));
 
-		const collection = new MainThreadTestCollection((testId, levels) => {
+		const collection = new MainThreadTestCollection({ asCanonicalUri: u => u }, (testId, levels) => {
 			this.c.expand(testId, levels);
 			if (!this.isProcessingDiff) {
 				this.onDiff.fire(this.c.collectDiff());
@@ -100,7 +127,8 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 			collection,
 			onDidProcessDiff: this.onDiff.event,
 		} as any));
-		this.tree = this._register(new TestObjectTree(t => 'label' in t ? t.label : t.message.toString()));
+		const sorter = new ByLabelTreeSorter();
+		this.tree = this._register(new TestObjectTree(t => 'test' in t ? t.test.item.label : t.message.toString(), sorter));
 		this._register(this.tree.onDidChangeCollapseState(evt => {
 			if (evt.node.element instanceof TestItemTreeElement) {
 				this.projection.expandElement(evt.node.element, evt.deep ? Infinity : 0);

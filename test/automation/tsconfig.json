@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"module": "commonjs",
-		"target": "es2017",
+		"target": "es2020",
 		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,
@@ -9,7 +9,7 @@
 		"sourceMap": true,
 		"declaration": true,
 		"lib": [
-			"es2016",
+			"esnext", // for #201187
 			"dom"
 		]
 	},

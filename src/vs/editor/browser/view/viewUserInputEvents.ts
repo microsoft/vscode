@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { IEditorMouseEvent, IMouseTarget, IMouseTargetViewZoneData, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { Position } from 'vs/editor/common/core/position';
 
 export interface EventCallback<T> {
 	(event: T): void;
@@ -33,69 +34,47 @@ export class ViewUserInputEvents {
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {
-		if (this.onKeyDown) {
-			this.onKeyDown(e);
-		}
+		this.onKeyDown?.(e);
 	}
 
 	public emitKeyUp(e: IKeyboardEvent): void {
-		if (this.onKeyUp) {
-			this.onKeyUp(e);
-		}
+		this.onKeyUp?.(e);
 	}
 
 	public emitContextMenu(e: IEditorMouseEvent): void {
-		if (this.onContextMenu) {
-			this.onContextMenu(this._convertViewToModelMouseEvent(e));
-		}
+		this.onContextMenu?.(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseMove(e: IEditorMouseEvent): void {
-		if (this.onMouseMove) {
-			this.onMouseMove(this._convertViewToModelMouseEvent(e));
-		}
+		this.onMouseMove?.(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
-		if (this.onMouseLeave) {
-			this.onMouseLeave(this._convertViewToModelMouseEvent(e));
-		}
+		this.onMouseLeave?.(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
-		if (this.onMouseDown) {
-			this.onMouseDown(this._convertViewToModelMouseEvent(e));
-		}
+		this.onMouseDown?.(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
-		if (this.onMouseUp) {
-			this.onMouseUp(this._convertViewToModelMouseEvent(e));
-		}
+		this.onMouseUp?.(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseDrag(e: IEditorMouseEvent): void {
-		if (this.onMouseDrag) {
-			this.onMouseDrag(this._convertViewToModelMouseEvent(e));
-		}
+		this.onMouseDrag?.(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
-		if (this.onMouseDrop) {
-			this.onMouseDrop(this._convertViewToModelMouseEvent(e));
-		}
+		this.onMouseDrop?.(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseDropCanceled(): void {
-		if (this.onMouseDropCanceled) {
-			this.onMouseDropCanceled();
-		}
+		this.onMouseDropCanceled?.();
 	}
 
 	public emitMouseWheel(e: IMouseWheelEvent): void {
-		if (this.onMouseWheel) {
-			this.onMouseWheel(e);
-		}
+		this.onMouseWheel?.(e);
 	}
 
 	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent;
@@ -122,6 +101,19 @@ export class ViewUserInputEvents {
 		if (result.range) {
 			result.range = coordinatesConverter.convertViewRangeToModelRange(result.range);
 		}
+		if (result.type === MouseTargetType.GUTTER_VIEW_ZONE || result.type === MouseTargetType.CONTENT_VIEW_ZONE) {
+			result.detail = this.convertViewToModelViewZoneData(result.detail, coordinatesConverter);
+		}
 		return result;
+	}
+
+	private static convertViewToModelViewZoneData(data: IMouseTargetViewZoneData, coordinatesConverter: ICoordinatesConverter): IMouseTargetViewZoneData {
+		return {
+			viewZoneId: data.viewZoneId,
+			positionBefore: data.positionBefore ? coordinatesConverter.convertViewPositionToModelPosition(data.positionBefore) : data.positionBefore,
+			positionAfter: data.positionAfter ? coordinatesConverter.convertViewPositionToModelPosition(data.positionAfter) : data.positionAfter,
+			position: coordinatesConverter.convertViewPositionToModelPosition(data.position),
+			afterLineNumber: coordinatesConverter.convertViewPositionToModelPosition(new Position(data.afterLineNumber, 1)).lineNumber,
+		};
 	}
 }

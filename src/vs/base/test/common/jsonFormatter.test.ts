@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as Formatter from 'vs/base/common/jsonFormatter';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('JSON - formatter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function format(content: string, expected: string, insertSpaces = true) {
 		let range: Formatter.Range | undefined = undefined;
@@ -20,7 +23,7 @@ suite('JSON - formatter', () => {
 
 		let lastEditOffset = content.length;
 		for (let i = edits.length - 1; i >= 0; i--) {
-			let edit = edits[i];
+			const edit = edits[i];
 			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length);
 			assert(typeof edit.content === 'string');
 			assert(lastEditOffset >= edit.offset + edit.length); // make sure all edits are ordered

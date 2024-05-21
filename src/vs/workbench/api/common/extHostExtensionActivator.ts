@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Barrier } from 'vs/base/common/async';
@@ -28,10 +28,10 @@ export interface IExtensionAPI {
 }
 
 export type ExtensionActivationTimesFragment = {
-	startup?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-	codeLoadingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-	activateCallTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-	activateResolvedTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	startup?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Activation occurred during startup' };
+	codeLoadingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time it took to load the extension\'s code' };
+	activateCallTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time it took to call activate' };
+	activateResolvedTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time it took for async-activation to finish' };
 };
 
 export class ExtensionActivationTimes {
@@ -150,7 +150,7 @@ export class HostExtension extends ActivatedExtension {
 	}
 }
 
-export class FailedExtension extends ActivatedExtension {
+class FailedExtension extends ActivatedExtension {
 	constructor(activationError: Error) {
 		super(true, activationError, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
@@ -166,10 +166,9 @@ type ActivationIdAndReason = { id: ExtensionIdentifier; reason: ExtensionActivat
 export class ExtensionsActivator implements IDisposable {
 
 	private readonly _registry: ExtensionDescriptionRegistry;
-	private readonly _resolvedExtensionsSet: Set<string>;
-	private readonly _externalExtensionsMap: Map<string, ExtensionIdentifier>;
+	private readonly _globalRegistry: ExtensionDescriptionRegistry;
 	private readonly _host: IExtensionsActivatorHost;
-	private readonly _operations: Map<string, ActivationOperation>;
+	private readonly _operations: ExtensionIdentifierMap<ActivationOperation>;
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
@@ -177,18 +176,14 @@ export class ExtensionsActivator implements IDisposable {
 
 	constructor(
 		registry: ExtensionDescriptionRegistry,
-		resolvedExtensions: ExtensionIdentifier[],
-		externalExtensions: ExtensionIdentifier[],
+		globalRegistry: ExtensionDescriptionRegistry,
 		host: IExtensionsActivatorHost,
 		@ILogService private readonly _logService: ILogService
 	) {
 		this._registry = registry;
-		this._resolvedExtensionsSet = new Set<string>();
-		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
-		this._externalExtensionsMap = new Map<string, ExtensionIdentifier>();
-		externalExtensions.forEach((extensionId) => this._externalExtensionsMap.set(ExtensionIdentifier.toKey(extensionId), extensionId));
+		this._globalRegistry = globalRegistry;
 		this._host = host;
-		this._operations = new Map<string, ActivationOperation>();
+		this._operations = new ExtensionIdentifierMap<ActivationOperation>();
 		this._alreadyActivatedEvents = Object.create(null);
 	}
 
@@ -198,13 +193,21 @@ export class ExtensionsActivator implements IDisposable {
 		}
 	}
 
+	public async waitForActivatingExtensions(): Promise<void> {
+		const res: Promise<boolean>[] = [];
+		for (const [_, op] of this._operations) {
+			res.push(op.wait());
+		}
+		await Promise.all(res);
+	}
+
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
-		const op = this._operations.get(ExtensionIdentifier.toKey(extensionId));
+		const op = this._operations.get(extensionId);
 		return Boolean(op && op.value);
 	}
 
 	public getActivatedExtension(extensionId: ExtensionIdentifier): ActivatedExtension {
-		const op = this._operations.get(ExtensionIdentifier.toKey(extensionId));
+		const op = this._operations.get(extensionId);
 		if (!op || !op.value) {
 			throw new Error(`Extension '${extensionId.value}' is not known or not activated`);
 		}
@@ -228,7 +231,7 @@ export class ExtensionsActivator implements IDisposable {
 	public activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		const desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
-			throw new Error(`Extension '${extensionId}' is not known`);
+			throw new Error(`Extension '${extensionId.value}' is not known`);
 		}
 		return this._activateExtensions([{ id: desc.identifier, reason }]);
 	}
@@ -245,11 +248,11 @@ export class ExtensionsActivator implements IDisposable {
 	 * We don't need to worry about dependency loops because they are handled by the registry.
 	 */
 	private _handleActivationRequest(currentActivation: ActivationIdAndReason): ActivationOperation {
-		if (this._operations.has(ExtensionIdentifier.toKey(currentActivation.id))) {
-			return this._operations.get(ExtensionIdentifier.toKey(currentActivation.id))!;
+		if (this._operations.has(currentActivation.id)) {
+			return this._operations.get(currentActivation.id)!;
 		}
 
-		if (this._externalExtensionsMap.has(ExtensionIdentifier.toKey(currentActivation.id))) {
+		if (this._isHostExtension(currentActivation.id)) {
 			return this._createAndSaveOperation(currentActivation, null, [], null);
 		}
 
@@ -270,21 +273,21 @@ export class ExtensionsActivator implements IDisposable {
 		const depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
 		for (const depId of depIds) {
 
-			if (this._resolvedExtensionsSet.has(ExtensionIdentifier.toKey(depId))) {
+			if (this._isResolvedExtension(depId)) {
 				// This dependency is already resolved
 				continue;
 			}
 
-			const dep = this._operations.get(ExtensionIdentifier.toKey(depId));
+			const dep = this._operations.get(depId);
 			if (dep) {
 				deps.push(dep);
 				continue;
 			}
 
-			if (this._externalExtensionsMap.has(ExtensionIdentifier.toKey(depId))) {
+			if (this._isHostExtension(depId)) {
 				// must first wait for the dependency to activate
 				deps.push(this._handleActivationRequest({
-					id: this._externalExtensionsMap.get(ExtensionIdentifier.toKey(depId))!,
+					id: this._globalRegistry.getExtensionDescription(depId)!.identifier,
 					reason: currentActivation.reason
 				}));
 				continue;
@@ -322,8 +325,21 @@ export class ExtensionsActivator implements IDisposable {
 
 	private _createAndSaveOperation(activation: ActivationIdAndReason, displayName: string | null | undefined, deps: ActivationOperation[], value: ActivatedExtension | null): ActivationOperation {
 		const operation = new ActivationOperation(activation.id, displayName, activation.reason, deps, value, this._host, this._logService);
-		this._operations.set(ExtensionIdentifier.toKey(activation.id), operation);
+		this._operations.set(activation.id, operation);
 		return operation;
+	}
+
+	private _isHostExtension(extensionId: ExtensionIdentifier | string): boolean {
+		return ExtensionDescriptionRegistry.isHostExtension(extensionId, this._registry, this._globalRegistry);
+	}
+
+	private _isResolvedExtension(extensionId: ExtensionIdentifier | string): boolean {
+		const extensionDescription = this._globalRegistry.getExtensionDescription(extensionId);
+		if (!extensionDescription) {
+			// unknown extension
+			return false;
+		}
+		return (!extensionDescription.main && !extensionDescription.browser);
 	}
 }
 

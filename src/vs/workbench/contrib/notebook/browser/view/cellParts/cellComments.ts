@@ -3,25 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
+import { coalesce } from 'vs/base/common/arrays';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { coalesce } from 'vs/base/common/arrays';
-import { peekViewBorder, peekViewResultsBackground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
+import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export class CellComments extends CellPart {
+export class CellComments extends CellContentPart {
 	private _initialized: boolean = false;
 	private _commentThreadWidget: CommentThreadWidget<ICellRange> | null = null;
 	private currentElement: CodeCellViewModel | undefined;
@@ -55,22 +53,24 @@ export class CellComments extends CellPart {
 		const info = await this._getCommentThreadForCell(element);
 
 		if (info) {
-			this._createCommentTheadWidget(info.owner, info.thread);
+			await this._createCommentTheadWidget(info.owner, info.thread);
 		}
 	}
 
-	private _createCommentTheadWidget(owner: string, commentThread: languages.CommentThread<ICellRange>) {
+	private async _createCommentTheadWidget(owner: string, commentThread: languages.CommentThread<ICellRange>) {
 		this._commentThreadWidget?.dispose();
 		this.commentTheadDisposables.clear();
 		this._commentThreadWidget = this.instantiationService.createInstance(
 			CommentThreadWidget,
 			this.container,
+			this.notebookEditor,
 			owner,
 			this.notebookEditor.textModel!.uri,
 			this.contextKeyService,
 			this.instantiationService,
 			commentThread,
-			null,
+			undefined,
+			undefined,
 			{
 				codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily
 			},
@@ -84,12 +84,12 @@ export class CellComments extends CellPart {
 
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 
-		this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
+		await this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight, true);
 		this._applyTheme();
 
 		this.commentTheadDisposables.add(this._commentThreadWidget.onDidResize(() => {
 			if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-				this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
+				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 			}
 		}));
 	}
@@ -99,33 +99,49 @@ export class CellComments extends CellPart {
 			if (this.currentElement) {
 				const info = await this._getCommentThreadForCell(this.currentElement);
 				if (!this._commentThreadWidget && info) {
-					this._createCommentTheadWidget(info.owner, info.thread);
+					await this._createCommentTheadWidget(info.owner, info.thread);
 					const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
 					this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
-
-					this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget!.container).height;
-
+					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget!.getDimensions().height);
 					return;
 				}
 
 				if (this._commentThreadWidget) {
-					if (info) {
-						this._commentThreadWidget.updateCommentThread(info.thread);
-						this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
-					} else {
+					if (!info) {
 						this._commentThreadWidget.dispose();
 						this.currentElement.commentHeight = 0;
+						return;
 					}
+					if (this._commentThreadWidget.commentThread === info.thread) {
+						this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
+						return;
+					}
+
+					await this._commentThreadWidget.updateCommentThread(info.thread);
+					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 				}
 			}
 		}));
+	}
+
+	private _calculateCommentThreadHeight(bodyHeight: number) {
+		const layoutInfo = this.notebookEditor.getLayoutInfo();
+
+		const headHeight = Math.ceil(layoutInfo.fontInfo.lineHeight * 1.2);
+		const lineHeight = layoutInfo.fontInfo.lineHeight;
+		const arrowHeight = Math.round(lineHeight / 3);
+		const frameThickness = Math.round(lineHeight / 9) * 2;
+
+		const computedHeight = headHeight + bodyHeight + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */;
+		return computedHeight;
+
 	}
 
 	private async _getCommentThreadForCell(element: ICellViewModel): Promise<{ thread: languages.CommentThread<ICellRange>; owner: string } | null> {
 		if (this.notebookEditor.hasModel()) {
 			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
 			if (commentInfos.length && commentInfos[0].threads.length) {
-				return { owner: commentInfos[0].owner, thread: commentInfos[0].threads[0] };
+				return { owner: commentInfos[0].uniqueOwner, thread: commentInfos[0].threads[0] };
 			}
 		}
 
@@ -138,7 +154,7 @@ export class CellComments extends CellPart {
 		this._commentThreadWidget?.applyTheme(theme, fontInfo);
 	}
 
-	protected override didRenderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
 			this.initialize(element);
@@ -149,7 +165,7 @@ export class CellComments extends CellPart {
 
 	override prepareLayout(): void {
 		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-			this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
+			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 		}
 	}
 
@@ -161,20 +177,3 @@ export class CellComments extends CellPart {
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const borderColor = theme.getColor(peekViewBorder);
-
-	if (borderColor) {
-		collector.addRule(`.cell-comment-container.review-widget { border-left: 1px solid ${borderColor}; border-right: 1px solid ${borderColor}; }`);
-		collector.addRule(`.cell-comment-container.review-widget > .head { border-top: 1px solid ${borderColor}; }`);
-		collector.addRule(`.cell-comment-container.review-widget > .body { border-bottom: 1px solid ${borderColor}; }`);
-	}
-
-	const peekViewBackground = theme.getColor(peekViewResultsBackground);
-	if (peekViewBackground) {
-		collector.addRule(
-			`.cell-comment-container.review-widget {` +
-			`	background-color: ${peekViewBackground};` +
-			`}`);
-	}
-});

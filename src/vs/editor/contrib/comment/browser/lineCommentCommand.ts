@@ -50,7 +50,7 @@ export const enum Type {
 export class LineCommentCommand implements ICommand {
 
 	private readonly _selection: Selection;
-	private readonly _tabSize: number;
+	private readonly _indentSize: number;
 	private readonly _type: Type;
 	private readonly _insertSpace: boolean;
 	private readonly _ignoreEmptyLines: boolean;
@@ -62,14 +62,14 @@ export class LineCommentCommand implements ICommand {
 	constructor(
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		selection: Selection,
-		tabSize: number,
+		indentSize: number,
 		type: Type,
 		insertSpace: boolean,
 		ignoreEmptyLines: boolean,
 		ignoreFirstLine?: boolean,
 	) {
 		this._selection = selection;
-		this._tabSize = tabSize;
+		this._indentSize = indentSize;
 		this._type = type;
 		this._insertSpace = insertSpace;
 		this._selectionId = null;
@@ -95,7 +95,7 @@ export class LineCommentCommand implements ICommand {
 			return null;
 		}
 
-		let lines: ILinePreflightData[] = [];
+		const lines: ILinePreflightData[] = [];
 		for (let i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
 			lines[i] = {
 				ignore: false,
@@ -209,7 +209,7 @@ export class LineCommentCommand implements ICommand {
 		if (data.shouldRemoveComments) {
 			ops = LineCommentCommand._createRemoveLineCommentsOperations(data.lines, s.startLineNumber);
 		} else {
-			LineCommentCommand._normalizeInsertionPoint(model, data.lines, s.startLineNumber, this._tabSize);
+			LineCommentCommand._normalizeInsertionPoint(model, data.lines, s.startLineNumber, this._indentSize);
 			ops = this._createAddLineCommentsOperations(data.lines, s.startLineNumber);
 		}
 
@@ -232,7 +232,7 @@ export class LineCommentCommand implements ICommand {
 		let startLineNumber = s.startLineNumber;
 		let endLineNumber = s.endLineNumber;
 
-		let startTokenAllowedBeforeColumn = endToken.length + Math.max(
+		const startTokenAllowedBeforeColumn = endToken.length + Math.max(
 			model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
 			s.startColumn
 		);
@@ -283,7 +283,7 @@ export class LineCommentCommand implements ICommand {
 	 */
 	private _executeBlockComment(model: ITextModel, builder: IEditOperationBuilder, s: Selection): void {
 		model.tokenization.tokenizeIfCheap(s.startLineNumber);
-		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
+		const languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
 		const config = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
@@ -381,7 +381,7 @@ export class LineCommentCommand implements ICommand {
 	 * Generate edit operations in the remove line comment case
 	 */
 	public static _createRemoveLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): ISingleEditOperation[] {
-		let res: ISingleEditOperation[] = [];
+		const res: ISingleEditOperation[] = [];
 
 		for (let i = 0, len = lines.length; i < len; i++) {
 			const lineData = lines[i];
@@ -403,7 +403,7 @@ export class LineCommentCommand implements ICommand {
 	 * Generate edit operations in the add line comment case
 	 */
 	private _createAddLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): ISingleEditOperation[] {
-		let res: ISingleEditOperation[] = [];
+		const res: ISingleEditOperation[] = [];
 		const afterCommentStr = this._insertSpace ? ' ' : '';
 
 
@@ -420,9 +420,9 @@ export class LineCommentCommand implements ICommand {
 		return res;
 	}
 
-	private static nextVisibleColumn(currentVisibleColumn: number, tabSize: number, isTab: boolean, columnSize: number): number {
+	private static nextVisibleColumn(currentVisibleColumn: number, indentSize: number, isTab: boolean, columnSize: number): number {
 		if (isTab) {
-			return currentVisibleColumn + (tabSize - (currentVisibleColumn % tabSize));
+			return currentVisibleColumn + (indentSize - (currentVisibleColumn % indentSize));
 		}
 		return currentVisibleColumn + columnSize;
 	}
@@ -430,7 +430,7 @@ export class LineCommentCommand implements ICommand {
 	/**
 	 * Adjust insertion points to have them vertically aligned in the add line comment case
 	 */
-	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, tabSize: number): void {
+	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, indentSize: number): void {
 		let minVisibleColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let j: number;
 		let lenJ: number;
@@ -444,7 +444,7 @@ export class LineCommentCommand implements ICommand {
 
 			let currentVisibleColumn = 0;
 			for (let j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
-				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
+				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, indentSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
 			}
 
 			if (currentVisibleColumn < minVisibleColumn) {
@@ -452,7 +452,7 @@ export class LineCommentCommand implements ICommand {
 			}
 		}
 
-		minVisibleColumn = Math.floor(minVisibleColumn / tabSize) * tabSize;
+		minVisibleColumn = Math.floor(minVisibleColumn / indentSize) * indentSize;
 
 		for (let i = 0, len = lines.length; i < len; i++) {
 			if (lines[i].ignore) {
@@ -463,7 +463,7 @@ export class LineCommentCommand implements ICommand {
 
 			let currentVisibleColumn = 0;
 			for (j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
-				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
+				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, indentSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
 			}
 
 			if (currentVisibleColumn > minVisibleColumn) {

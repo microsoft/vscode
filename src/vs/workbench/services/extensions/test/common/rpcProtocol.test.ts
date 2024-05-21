@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('RPCProtocol', () => {
+
+	let disposables: DisposableStore;
 
 	class MessagePassingProtocol implements IMessagePassingProtocol {
 		private _pair?: MessagePassingProtocol;
@@ -39,19 +43,27 @@ suite('RPCProtocol', () => {
 	}
 
 	setup(() => {
-		let a_protocol = new MessagePassingProtocol();
-		let b_protocol = new MessagePassingProtocol();
+		disposables = new DisposableStore();
+
+		const a_protocol = new MessagePassingProtocol();
+		const b_protocol = new MessagePassingProtocol();
 		a_protocol.setPair(b_protocol);
 		b_protocol.setPair(a_protocol);
 
-		let A = new RPCProtocol(a_protocol);
-		let B = new RPCProtocol(b_protocol);
+		const A = disposables.add(new RPCProtocol(a_protocol));
+		const B = disposables.add(new RPCProtocol(b_protocol));
 
 		const bIdentifier = new ProxyIdentifier<BClass>('bb');
 		const bInstance = new BClass();
 		B.set(bIdentifier, bInstance);
 		bProxy = A.getProxy(bIdentifier);
 	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('simple call', function (done) {
 		delegate = (a1: number, a2: number) => a1 + a2;
@@ -74,7 +86,7 @@ suite('RPCProtocol', () => {
 			assert.ok(a1 instanceof VSBuffer);
 			return a1.buffer[a2];
 		};
-		let b = VSBuffer.alloc(4);
+		const b = VSBuffer.alloc(4);
 		b.buffer[0] = 1;
 		b.buffer[1] = 2;
 		b.buffer[2] = 3;
@@ -87,7 +99,7 @@ suite('RPCProtocol', () => {
 
 	test('returning a buffer', function (done) {
 		delegate = (a1: number, a2: number) => {
-			let b = VSBuffer.alloc(4);
+			const b = VSBuffer.alloc(4);
 			b.buffer[0] = 1;
 			b.buffer[1] = 2;
 			b.buffer[2] = 3;
@@ -106,7 +118,7 @@ suite('RPCProtocol', () => {
 
 	test('cancelling a call via CancellationToken before', function (done) {
 		delegate = (a1: number, a2: number) => a1 + a2;
-		let p = bProxy.$m(4, CancellationToken.Cancelled);
+		const p = bProxy.$m(4, CancellationToken.Cancelled);
 		p.then((res: number) => {
 			assert.fail('should not receive result');
 		}, (err) => {
@@ -130,13 +142,14 @@ suite('RPCProtocol', () => {
 		// this is an implementation which, when cancellation is triggered, will return 7
 		delegate = (a1: number, token: CancellationToken) => {
 			return new Promise((resolve, reject) => {
-				token.onCancellationRequested((e) => {
+				const disposable = token.onCancellationRequested((e) => {
+					disposable.dispose();
 					resolve(7);
 				});
 			});
 		};
-		let tokenSource = new CancellationTokenSource();
-		let p = bProxy.$m(4, tokenSource.token);
+		const tokenSource = new CancellationTokenSource();
+		const p = bProxy.$m(4, tokenSource.token);
 		p.then((res: number) => {
 			assert.strictEqual(res, 7);
 		}, (err) => {
@@ -169,7 +182,7 @@ suite('RPCProtocol', () => {
 
 	test('issue #60450: Converting circular structure to JSON', function (done) {
 		delegate = (a1: number, a2: number) => {
-			let circular = <any>{};
+			const circular = <any>{};
 			circular.self = circular;
 			return circular;
 		};
@@ -204,7 +217,7 @@ suite('RPCProtocol', () => {
 	});
 
 	test('issue #81424: SerializeRequest should throw if an argument can not be serialized', () => {
-		let badObject = {};
+		const badObject = {};
 		(<any>badObject).loop = badObject;
 
 		assert.throws(() => {

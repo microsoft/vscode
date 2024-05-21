@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Action } from 'vs/base/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {
 	typeId,
 	name: localize('editorWalkThrough.title', "Editor Playground"),
-	resource: FileAccess.asBrowserUri('./vs_code_editor_walkthrough.md', require)
+	resource: FileAccess.asBrowserUri('vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.md')
 		.with({
 			scheme: Schemas.walkThrough,
 			query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough' })
@@ -26,23 +26,29 @@ const inputOptions: WalkThroughInputOptions = {
 	telemetryFrom: 'walkThrough'
 };
 
-export class EditorWalkThroughAction extends Action {
+export class EditorWalkThroughAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.showInteractivePlayground';
-	public static readonly LABEL = localize('editorWalkThrough', "Interactive Editor Playground");
+	public static readonly LABEL = localize2('editorWalkThrough', 'Interactive Editor Playground');
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: EditorWalkThroughAction.ID,
+			title: EditorWalkThroughAction.LABEL,
+			category: Categories.Help,
+			f1: true,
+			metadata: {
+				description: localize2('editorWalkThroughMetadata', "Opens an interactive playground for learning about the editor.")
+			}
+		});
 	}
 
-	public override run(): Promise<void> {
-		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
-		return this.editorService.openEditor(input, { pinned: true, override: EditorResolution.DISABLED })
+	public override run(serviceAccessor: ServicesAccessor): Promise<void> {
+		const editorService = serviceAccessor.get(IEditorService);
+		const instantiationService = serviceAccessor.get(IInstantiationService);
+		const input = instantiationService.createInstance(WalkThroughInput, inputOptions);
+		// TODO @lramos15 adopt the resolver here
+		return editorService.openEditor(input, { pinned: true })
 			.then(() => void (0));
 	}
 }

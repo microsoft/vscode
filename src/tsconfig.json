@@ -4,10 +4,10 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
+		"allowJs": true,
+		"resolveJsonModule": true,
 		"outDir": "../out/vs",
-		"target": "es2020",
 		"types": [
-			"keytar",
 			"mocha",
 			"semver",
 			"sinon",
@@ -23,8 +23,17 @@
 		]
 	},
 	"include": [
+		"./bootstrap.js",
+		"./bootstrap-amd.js",
+		"./bootstrap-fork.js",
+		"./bootstrap-node.js",
+		"./bootstrap-window.js",
+		"./cli.js",
+		"./main.js",
+		"./server-main.js",
+		"./server-cli.js",
 		"./typings",
-		"./vs",
+		"./vs/**/*.ts",
 		"vscode-dts/vscode.proposed.*.d.ts",
 		"vscode-dts/vscode.d.ts"
 	]

@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
 import * as extpath from 'vs/base/common/extpath';
 import { isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Paths', () => {
 
@@ -219,4 +220,6 @@ suite('Paths', () => {
 		const r4 = extpath.randomPath();
 		assert.ok(r4);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -1,0 +1,19 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 13
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 14
+      },
+      text: "/explain this",
+      kind: "text"
+    }
+  ],
+  text: "/explain this"
+}

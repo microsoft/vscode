@@ -55,7 +55,7 @@ export interface IConfigurationResolverService {
 	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
 }
 
-export interface PromptStringInputInfo {
+interface PromptStringInputInfo {
 	id: string;
 	type: 'promptString';
 	description: string;
@@ -63,7 +63,7 @@ export interface PromptStringInputInfo {
 	password?: boolean;
 }
 
-export interface PickStringInputInfo {
+interface PickStringInputInfo {
 	id: string;
 	type: 'pickString';
 	description: string;
@@ -71,7 +71,7 @@ export interface PickStringInputInfo {
 	default?: string;
 }
 
-export interface CommandInputInfo {
+interface CommandInputInfo {
 	id: string;
 	type: 'command';
 	command: string;
@@ -79,3 +79,40 @@ export interface CommandInputInfo {
 }
 
 export type ConfiguredInput = PromptStringInputInfo | PickStringInputInfo | CommandInputInfo;
+
+export enum VariableKind {
+	Unknown = 'unknown',
+
+	Env = 'env',
+	Config = 'config',
+	Command = 'command',
+	Input = 'input',
+	ExtensionInstallFolder = 'extensionInstallFolder',
+
+	WorkspaceFolder = 'workspaceFolder',
+	Cwd = 'cwd',
+	WorkspaceFolderBasename = 'workspaceFolderBasename',
+	UserHome = 'userHome',
+	LineNumber = 'lineNumber',
+	SelectedText = 'selectedText',
+	File = 'file',
+	FileWorkspaceFolder = 'fileWorkspaceFolder',
+	FileWorkspaceFolderBasename = 'fileWorkspaceFolderBasename',
+	RelativeFile = 'relativeFile',
+	RelativeFileDirname = 'relativeFileDirname',
+	FileDirname = 'fileDirname',
+	FileExtname = 'fileExtname',
+	FileBasename = 'fileBasename',
+	FileBasenameNoExtension = 'fileBasenameNoExtension',
+	FileDirnameBasename = 'fileDirnameBasename',
+	ExecPath = 'execPath',
+	ExecInstallFolder = 'execInstallFolder',
+	PathSeparator = 'pathSeparator',
+	PathSeparatorAlias = '/'
+}
+
+export class VariableError extends Error {
+	constructor(public readonly variable: VariableKind, message?: string) {
+		super(message);
+	}
+}

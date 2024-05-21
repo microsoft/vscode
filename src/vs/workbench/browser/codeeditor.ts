@@ -3,29 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IOverlayWidget, ICodeEditor, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
+import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { $, append, clearNode } from 'vs/base/browser/dom';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { AbstractFloatingClickMenu, FloatingClickWidget } from 'vs/platform/actions/browser/floatingMenu';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -47,8 +43,11 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 
 	removeHighlightRange() {
-		if (this.editor?.getModel() && this.rangeHighlightDecorationId) {
-			this.editor.deltaDecorations([this.rangeHighlightDecorationId], []);
+		if (this.editor && this.rangeHighlightDecorationId) {
+			const decorationId = this.rangeHighlightDecorationId;
+			this.editor.changeDecorations((accessor) => {
+				accessor.removeDecoration(decorationId);
+			});
 			this._onHighlightRemoved.fire();
 		}
 
@@ -132,40 +131,23 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 }
 
-export class FloatingClickWidget extends Widget implements IOverlayWidget {
-
-	private readonly _onClick = this._register(new Emitter<void>());
-	readonly onClick = this._onClick.event;
-
-	private _domNode: HTMLElement;
+export class FloatingEditorClickWidget extends FloatingClickWidget implements IOverlayWidget {
 
 	constructor(
 		private editor: ICodeEditor,
-		private label: string,
+		label: string,
 		keyBindingAction: string | null,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super();
-
-		this._domNode = $('.floating-click-widget');
-		this._domNode.style.padding = '10px';
-		this._domNode.style.cursor = 'pointer';
-
-		if (keyBindingAction) {
-			const keybinding = keybindingService.lookupKeybinding(keyBindingAction);
-			if (keybinding) {
-				this.label += ` (${keybinding.getLabel()})`;
-			}
-		}
+		super(
+			keyBindingAction && keybindingService.lookupKeybinding(keyBindingAction)
+				? `${label} (${keybindingService.lookupKeybinding(keyBindingAction)!.getLabel()})`
+				: label
+		);
 	}
 
 	getId(): string {
 		return 'editor.overlayWidget.floatingClickWidget';
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
 	}
 
 	getPosition(): IOverlayWidgetPosition {
@@ -174,131 +156,40 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		};
 	}
 
-	render() {
-		clearNode(this._domNode);
-
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
-			const backgroundColor = colors.buttonBackground ? colors.buttonBackground : colors.editorBackground;
-			if (backgroundColor) {
-				this._domNode.style.backgroundColor = backgroundColor.toString();
-			}
-
-			const foregroundColor = colors.buttonForeground ? colors.buttonForeground : colors.editorForeground;
-			if (foregroundColor) {
-				this._domNode.style.color = foregroundColor.toString();
-			}
-
-			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-			this._domNode.style.borderWidth = borderColor ? '1px' : '';
-			this._domNode.style.borderStyle = borderColor ? 'solid' : '';
-			this._domNode.style.borderColor = borderColor;
-		}));
-
-		append(this._domNode, $('')).textContent = this.label;
-
-		this.onclick(this._domNode, e => this._onClick.fire());
-
+	override render() {
+		super.render();
 		this.editor.addOverlayWidget(this);
 	}
 
 	override dispose(): void {
 		this.editor.removeOverlayWidget(this);
-
 		super.dispose();
 	}
+
 }
 
-export class OpenWorkspaceButtonContribution extends Disposable implements IEditorContribution {
-
-	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution | null {
-		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
-	}
-
-	public static readonly ID = 'editor.contrib.openWorkspaceButton';
-
-	private openWorkspaceButton: FloatingClickWidget | undefined;
+export class FloatingEditorClickMenu extends AbstractFloatingClickMenu implements IEditorContribution {
+	static readonly ID = 'editor.contrib.floatingClickMenu';
 
 	constructor(
-		private editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IFileService private readonly fileService: IFileService
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super();
-
-		this.update();
-		this.registerListeners();
+		super(MenuId.EditorContent, menuService, contextKeyService);
+		this.render();
 	}
 
-	private registerListeners(): void {
-		this._register(this.editor.onDidChangeModel(e => this.update()));
+	protected override createWidget(action: IAction): FloatingClickWidget {
+		return this.instantiationService.createInstance(FloatingEditorClickWidget, this.editor, action.label, action.id);
 	}
 
-	private update(): void {
-		if (!this.shouldShowButton(this.editor)) {
-			this.disposeOpenWorkspaceWidgetRenderer();
-			return;
-		}
-
-		this.createOpenWorkspaceWidgetRenderer();
+	protected override isVisible() {
+		return !(this.editor instanceof EmbeddedCodeEditorWidget) && this.editor?.hasModel() && !this.editor.getOption(EditorOption.inDiffEditor);
 	}
 
-	private shouldShowButton(editor: ICodeEditor): boolean {
-		const model = editor.getModel();
-		if (!model) {
-			return false; // we need a model
-		}
-
-		if (!hasWorkspaceFileExtension(model.uri)) {
-			return false; // we need a workspace file
-		}
-
-		if (!this.fileService.hasProvider(model.uri)) {
-			return false; // needs to be backed by a file service
-		}
-
-		if (isTemporaryWorkspace(this.contextService.getWorkspace())) {
-			return false; // unsupported in temporary workspaces
-		}
-
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const workspaceConfiguration = this.contextService.getWorkspace().configuration;
-			if (workspaceConfiguration && isEqual(workspaceConfiguration, model.uri)) {
-				return false; // already inside workspace
-			}
-		}
-
-		if (editor.getOption(EditorOption.inDiffEditor)) {
-			// in diff editor
-			return false;
-		}
-
-		return true;
-	}
-
-	private createOpenWorkspaceWidgetRenderer(): void {
-		if (!this.openWorkspaceButton) {
-			this.openWorkspaceButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, localize('openWorkspace', "Open Workspace"), null);
-			this._register(this.openWorkspaceButton.onClick(() => {
-				const model = this.editor.getModel();
-				if (model) {
-					this.hostService.openWindow([{ workspaceUri: model.uri }]);
-				}
-			}));
-
-			this.openWorkspaceButton.render();
-		}
-	}
-
-	private disposeOpenWorkspaceWidgetRenderer(): void {
-		dispose(this.openWorkspaceButton);
-		this.openWorkspaceButton = undefined;
-	}
-
-	override dispose(): void {
-		this.disposeOpenWorkspaceWidgetRenderer();
-
-		super.dispose();
+	protected override getActionArg(): unknown {
+		return this.editor.getModel()?.uri;
 	}
 }

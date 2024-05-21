@@ -5,14 +5,14 @@
 
 import 'vs/css!./bulkEdit';
 import { WorkbenchAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
+import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter, compareBulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperation, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -24,14 +24,9 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { basename, dirname } from 'vs/base/common/resources';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -39,6 +34,13 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Mutable } from 'vs/base/common/types';
+import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IMultiDiffEditorOptions, IMultiDiffResourceId } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
+import { IRange } from 'vs/editor/common/core/range';
+import { CachedFunction, LRUCachedFunction } from 'vs/base/common/cache';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const enum State {
 	Data = 'data',
@@ -48,6 +50,7 @@ const enum State {
 export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
+	static readonly Schema = 'vscode-bulkeditpreview-multieditor';
 
 	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
 	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
@@ -70,7 +73,6 @@ export class BulkEditPane extends ViewPane {
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
 
-
 	constructor(
 		options: IViewletViewOptions,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -78,10 +80,9 @@ export class BulkEditPane extends ViewPane {
 		@ILabelService private readonly _labelService: ILabelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IMenuService private readonly _menuService: IMenuService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -89,21 +90,29 @@ export class BulkEditPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super(
 			{ ...options, titleMenuId: MenuId.BulkEditTitle },
-			keybindingService, contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
+			keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService, hoverService
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
-		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(_contextKeyService);
-		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(_contextKeyService);
-		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
+		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
+		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
+		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
+		// telemetry
+		type BulkEditPaneOpened = {
+			owner: 'aiday-mar';
+			comment: 'Report when the bulk edit pane has been opened';
+		};
+		this.telemetryService.publicLog2<{}, BulkEditPaneOpened>('views.bulkEditPane');
 	}
 
 	override dispose(): void {
 		this._tree.dispose();
 		this._disposables.dispose();
+		super.dispose();
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -124,7 +133,7 @@ export class BulkEditPane extends ViewPane {
 		contentContainer.appendChild(treeContainer);
 
 		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
-		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.GLOBAL, true);
+		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
 		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 
 		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
@@ -144,7 +153,7 @@ export class BulkEditPane extends ViewPane {
 		);
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
-		this._disposables.add(this._tree.onDidOpen(e => this._openElementAsEditor(e)));
+		this._disposables.add(this._tree.onDidOpen(e => this._openElementInMultiDiffEditor(e)));
 
 		// buttons
 		const buttonsContainer = document.createElement('div');
@@ -153,11 +162,11 @@ export class BulkEditPane extends ViewPane {
 		const buttonBar = new ButtonBar(buttonsContainer);
 		this._disposables.add(buttonBar);
 
-		const btnConfirm = buttonBar.addButton({ supportIcons: true });
+		const btnConfirm = buttonBar.addButton({ supportIcons: true, ...defaultButtonStyles });
 		btnConfirm.label = localize('ok', 'Apply');
 		btnConfirm.onDidClick(() => this.accept(), this, this._disposables);
 
-		const btnCancel = buttonBar.addButton({ /* secondary: true */ });
+		const btnCancel = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
 		btnCancel.label = localize('cancel', 'Discard');
 		btnCancel.onDidClick(() => this.discard(), this, this._disposables);
 
@@ -264,7 +273,7 @@ export class BulkEditPane extends ViewPane {
 			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
 		}
 
-		this._dialogService.show(Severity.Warning, message).finally(() => this._done(false));
+		this._dialogService.warn(message).finally(() => this._done(false));
 	}
 
 	discard() {
@@ -272,9 +281,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _done(accept: boolean): void {
-		if (this._currentResolve) {
-			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
-		}
+		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 		this._currentInput = undefined;
 		this._setState(State.Message);
 		this._sessionDisposables.clear();
@@ -283,6 +290,8 @@ export class BulkEditPane extends ViewPane {
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
 		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
+			first.setChecked(!first.isChecked());
+		} else if (first instanceof CategoryElement) {
 			first.setChecked(!first.isChecked());
 		}
 	}
@@ -304,7 +313,7 @@ export class BulkEditPane extends ViewPane {
 		if (input) {
 
 			// (1) capture view state
-			let oldViewState = this._tree.getViewState();
+			const oldViewState = this._tree.getViewState();
 			this._treeViewStates.set(this._treeDataSource.groupByFile, oldViewState);
 
 			// (2) toggle and update
@@ -312,87 +321,103 @@ export class BulkEditPane extends ViewPane {
 			this._setTreeInput(input);
 
 			// (3) remember preference
-			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.PROFILE, StorageTarget.USER);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 		}
 	}
 
-	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
-		type Mutable<T> = {
-			-readonly [P in keyof T]: T[P]
-		};
+	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
 
-		let options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
+		const fileOperations = this._currentInput?.fileOperations;
+		if (!fileOperations) {
+			return;
+		}
+
+		let selection: IRange | undefined = undefined;
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
 			fileElement = e.element.parent;
-			options.selection = e.element.edit.textEdit.textEdit.range;
-
+			selection = e.element.edit.textEdit.textEdit.range;
 		} else if (e.element instanceof FileElement) {
 			fileElement = e.element;
-			options.selection = e.element.edit.textEdits[0]?.textEdit.textEdit.range;
-
+			selection = e.element.edit.textEdits[0]?.textEdit.textEdit.range;
 		} else {
 			// invalid event
 			return;
 		}
 
-		const previewUri = this._currentProvider!.asPreviewUri(fileElement.edit.uri);
-
-		if (fileElement.edit.type & BulkFileOperationType.Delete) {
-			// delete -> show single editor
-			this._editorService.openEditor({
-				label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
-				resource: previewUri,
-				options
-			});
-
-		} else {
-			// rename, create, edits -> show diff editr
-			let leftResource: URI | undefined;
-			try {
-				(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
-				leftResource = fileElement.edit.uri;
-			} catch {
-				leftResource = BulkEditPreviewProvider.emptyPreview;
+		const result = await this._computeResourceDiffEditorInputs.get(fileOperations);
+		const resourceId = await result.getResourceDiffEditorInputIdOfOperation(fileElement.edit);
+		const options: Mutable<IMultiDiffEditorOptions> = {
+			...e.editorOptions,
+			viewState: {
+				revealData: {
+					resource: resourceId,
+					range: selection,
+				}
 			}
-
-			let typeLabel: string | undefined;
-			if (fileElement.edit.type & BulkFileOperationType.Rename) {
-				typeLabel = localize('rename', "rename");
-			} else if (fileElement.edit.type & BulkFileOperationType.Create) {
-				typeLabel = localize('create', "create");
-			}
-
-			let label: string;
-			if (typeLabel) {
-				label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
-			} else {
-				label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
-			}
-
-			this._editorService.openEditor({
-				original: { resource: leftResource },
-				modified: { resource: previewUri },
-				label,
-				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
-				options
-			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-		}
+		};
+		const multiDiffSource = URI.from({ scheme: BulkEditPane.Schema });
+		const label = 'Refactor Preview';
+		this._editorService.openEditor({
+			multiDiffSource,
+			label,
+			options,
+			isTransient: true,
+			description: label,
+			resources: result.resources
+		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
+	private readonly _computeResourceDiffEditorInputs = new LRUCachedFunction(async (fileOperations: BulkFileOperation[]) => {
+		const computeDiffEditorInput = new CachedFunction<BulkFileOperation, Promise<IResourceDiffEditorInput>>(async (fileOperation) => {
+			const fileOperationUri = fileOperation.uri;
+			const previewUri = this._currentProvider!.asPreviewUri(fileOperationUri);
+			// delete
+			if (fileOperation.type & BulkFileOperationType.Delete) {
+				return {
+					original: { resource: URI.revive(previewUri) },
+					modified: { resource: undefined }
+				};
+
+			}
+			// rename, create, edits
+			else {
+				let leftResource: URI | undefined;
+				try {
+					(await this._textModelService.createModelReference(fileOperationUri)).dispose();
+					leftResource = fileOperationUri;
+				} catch {
+					leftResource = BulkEditPreviewProvider.emptyPreview;
+				}
+				return {
+					original: { resource: URI.revive(leftResource) },
+					modified: { resource: URI.revive(previewUri) }
+				};
+			}
+		});
+
+		const sortedFileOperations = fileOperations.slice().sort(compareBulkFileOperations);
+		const resources: IResourceDiffEditorInput[] = [];
+		for (const operation of sortedFileOperations) {
+			resources.push(await computeDiffEditorInput.get(operation));
+		}
+		const getResourceDiffEditorInputIdOfOperation = async (operation: BulkFileOperation): Promise<IMultiDiffResourceId> => {
+			const resource = await computeDiffEditorInput.get(operation);
+			return { original: resource.original.resource, modified: resource.modified.resource };
+		};
+		return {
+			resources,
+			getResourceDiffEditorInputIdOfOperation
+		};
+	});
+
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
-		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
-		const actions: IAction[] = [];
-		const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
-			getActions: () => actions,
-			getAnchor: () => e.anchor,
-			onHide: () => {
-				disposable.dispose();
-				menu.dispose();
-			}
+			menuId: MenuId.BulkEditContext,
+			contextKeyService: this.contextKeyService,
+			getAnchor: () => e.anchor
 		});
 	}
 }

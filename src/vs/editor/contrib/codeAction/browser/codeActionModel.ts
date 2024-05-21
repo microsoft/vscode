@@ -10,24 +10,26 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionSet, getCodeActions } from './codeAction';
-import { CodeActionTrigger } from './types';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
+import { getCodeActions } from './codeAction';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
-export type TriggeredCodeAction = undefined | {
+export const APPLY_FIX_ALL_COMMAND_ID = '_typescript.applyFixAllCodeAction';
+
+type TriggeredCodeAction = {
 	readonly selection: Selection;
 	readonly trigger: CodeActionTrigger;
-	readonly position: Position;
 };
 
 class CodeActionOracle extends Disposable {
@@ -37,60 +39,51 @@ class CodeActionOracle extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
-		private readonly _signalChange: (triggered: TriggeredCodeAction) => void,
+		private readonly _signalChange: (triggered: TriggeredCodeAction | undefined) => void,
 		private readonly _delay: number = 250,
 	) {
 		super();
 		this._register(this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)));
-		this._register(this._editor.onDidChangeCursorPosition(() => this._onCursorChange()));
+		this._register(this._editor.onDidChangeCursorPosition(() => this._tryAutoTrigger()));
 	}
 
-	public trigger(trigger: CodeActionTrigger): TriggeredCodeAction {
+	public trigger(trigger: CodeActionTrigger): void {
 		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
-		return this._createEventAndSignalChange(trigger, selection);
+		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
 
 	private _onMarkerChanges(resources: readonly URI[]): void {
 		const model = this._editor.getModel();
-		if (!model) {
-			return;
-		}
-
-		if (resources.some(resource => isEqual(resource, model.uri))) {
-			this._autoTriggerTimer.cancelAndSet(() => {
-				this.trigger({ type: CodeActionTriggerType.Auto });
-			}, this._delay);
+		if (model && resources.some(resource => isEqual(resource, model.uri))) {
+			this._tryAutoTrigger();
 		}
 	}
 
-	private _onCursorChange(): void {
+	private _tryAutoTrigger() {
 		this._autoTriggerTimer.cancelAndSet(() => {
-			this.trigger({ type: CodeActionTriggerType.Auto });
+			this.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		}, this._delay);
-	}
-
-	private _getRangeOfMarker(selection: Selection): Range | undefined {
-		const model = this._editor.getModel();
-		if (!model) {
-			return undefined;
-		}
-		for (const marker of this._markerService.read({ resource: model.uri })) {
-			const markerRange = model.validateRange(marker);
-			if (Range.intersectRanges(markerRange, selection)) {
-				return Range.lift(markerRange);
-			}
-		}
-
-		return undefined;
 	}
 
 	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
 		if (!this._editor.hasModel()) {
 			return undefined;
 		}
-		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
+		if (trigger.type === CodeActionTriggerType.Invoke) {
+			return selection;
+		}
+		const enabled = this._editor.getOption(EditorOption.lightbulb).enabled;
+		if (enabled === ShowLightbulbIconMode.Off) {
+			return undefined;
+		} else if (enabled === ShowLightbulbIconMode.On) {
+			return selection;
+		} else if (enabled === ShowLightbulbIconMode.OnCode) {
+			const isSelectionEmpty = selection.isEmpty();
+			if (!isSelectionEmpty) {
+				return selection;
+			}
+			const model = this._editor.getModel();
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
@@ -115,34 +108,11 @@ class CodeActionOracle extends Disposable {
 		}
 		return selection;
 	}
-
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TriggeredCodeAction {
-		const model = this._editor.getModel();
-		if (!selection || !model) {
-			// cancel
-			this._signalChange(undefined);
-			return undefined;
-		}
-
-		const markerRange = this._getRangeOfMarker(selection);
-		const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-
-		const e: TriggeredCodeAction = {
-			trigger,
-			selection,
-			position
-		};
-		this._signalChange(e);
-		return e;
-	}
 }
 
 export namespace CodeActionsState {
 
-	export const enum Type {
-		Empty,
-		Triggered,
-	}
+	export const enum Type { Empty, Triggered }
 
 	export const Empty = { type: Type.Empty } as const;
 
@@ -153,7 +123,6 @@ export namespace CodeActionsState {
 
 		constructor(
 			public readonly trigger: CodeActionTrigger,
-			public readonly rangeOrSelection: Range | Selection,
 			public readonly position: Position,
 			private readonly _cancellablePromise: CancelablePromise<CodeActionSet>,
 		) {
@@ -173,31 +142,36 @@ export namespace CodeActionsState {
 	export type State = typeof Empty | Triggered;
 }
 
-const emptyCodeActionSet: CodeActionSet = {
+const emptyCodeActionSet = Object.freeze<CodeActionSet>({
 	allActions: [],
 	validActions: [],
 	dispose: () => { },
 	documentation: [],
-	hasAutoFix: false
-};
+	hasAutoFix: false,
+	hasAIFix: false,
+	allAIFixes: false,
+});
+
 
 export class CodeActionModel extends Disposable {
 
 	private readonly _codeActionOracle = this._register(new MutableDisposable<CodeActionOracle>());
 	private _state: CodeActionsState.State = CodeActionsState.Empty;
+
 	private readonly _supportedCodeActions: IContextKey<string>;
 
 	private readonly _onDidChangeState = this._register(new Emitter<CodeActionsState.State>());
 	public readonly onDidChangeState = this._onDidChangeState.event;
 
-	#isDisposed = false;
+	private _disposed = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _registry: LanguageFeatureRegistry<CodeActionProvider>,
 		private readonly _markerService: IMarkerService,
 		contextKeyService: IContextKeyService,
-		private readonly _progressService?: IEditorProgressService
+		private readonly _progressService?: IEditorProgressService,
+		private readonly _configurationService?: IConfigurationService,
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
@@ -205,22 +179,31 @@ export class CodeActionModel extends Disposable {
 		this._register(this._editor.onDidChangeModel(() => this._update()));
 		this._register(this._editor.onDidChangeModelLanguage(() => this._update()));
 		this._register(this._registry.onDidChange(() => this._update()));
-
+		this._register(this._editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.lightbulb)) {
+				this._update();
+			}
+		}));
 		this._update();
 	}
 
 	override dispose(): void {
-		if (this.#isDisposed) {
+		if (this._disposed) {
 			return;
 		}
-		this.#isDisposed = true;
+		this._disposed = true;
 
 		super.dispose();
 		this.setState(CodeActionsState.Empty, true);
 	}
 
+	private _settingEnabledNearbyQuickfixes(): boolean {
+		const model = this._editor?.getModel();
+		return this._configurationService ? this._configurationService.getValue('editor.codeActionWidget.includeNearbyQuickFixes', { resource: model?.uri }) : false;
+	}
+
 	private _update(): void {
-		if (this.#isDisposed) {
+		if (this._disposed) {
 			return;
 		}
 
@@ -233,13 +216,7 @@ export class CodeActionModel extends Disposable {
 			&& this._registry.has(model)
 			&& !this._editor.getOption(EditorOption.readOnly)
 		) {
-			const supportedActions: string[] = [];
-			for (const provider of this._registry.all(model)) {
-				if (Array.isArray(provider.providedCodeActionKinds)) {
-					supportedActions.push(...provider.providedCodeActionKinds);
-				}
-			}
-
+			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
 			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
@@ -248,24 +225,130 @@ export class CodeActionModel extends Disposable {
 					return;
 				}
 
-				const actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
+				const startPosition = trigger.selection.getStartPosition();
+
+				const actions = createCancelablePromise(async token => {
+					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
+						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						const allCodeActions = [...codeActionSet.allActions];
+						if (token.isCancellationRequested) {
+							return emptyCodeActionSet;
+						}
+
+						// Search for quickfixes in the curret code action set.
+						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
+						const allMarkers = this._markerService.read({ resource: model.uri });
+						if (foundQuickfix) {
+							for (const action of codeActionSet.validActions) {
+								if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
+									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+								}
+							}
+							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+						} else if (!foundQuickfix) {
+							// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
+							if (allMarkers.length > 0) {
+								const currPosition = trigger.selection.getPosition();
+								let trackedPosition = currPosition;
+								let distance = Number.MAX_VALUE;
+								const currentActions = [...codeActionSet.validActions];
+
+								for (const marker of allMarkers) {
+									const col = marker.endColumn;
+									const row = marker.endLineNumber;
+									const startRow = marker.startLineNumber;
+
+									// Found quickfix on the same line and check relative distance to other markers
+									if ((row === currPosition.lineNumber || startRow === currPosition.lineNumber)) {
+										trackedPosition = new Position(row, col);
+										const newCodeActionTrigger: CodeActionTrigger = {
+											type: trigger.trigger.type,
+											triggerAction: trigger.trigger.triggerAction,
+											filter: { include: trigger.trigger.filter?.include ? trigger.trigger.filter?.include : CodeActionKind.QuickFix },
+											autoApply: trigger.trigger.autoApply,
+											context: { notAvailableMessage: trigger.trigger.context?.notAvailableMessage || '', position: trackedPosition }
+										};
+
+										const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
+										const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
+
+										if (actionsAtMarker.validActions.length !== 0) {
+											for (const action of actionsAtMarker.validActions) {
+												if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
+													action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+												}
+											}
+
+											if (codeActionSet.allActions.length === 0) {
+												allCodeActions.push(...actionsAtMarker.allActions);
+											}
+
+											// Already filtered through to only get quickfixes, so no need to filter again.
+											if (Math.abs(currPosition.column - col) < distance) {
+												currentActions.unshift(...actionsAtMarker.validActions);
+											} else {
+												currentActions.push(...actionsAtMarker.validActions);
+											}
+										}
+										distance = Math.abs(currPosition.column - col);
+									}
+								}
+								const filteredActions = currentActions.filter((action, index, self) =>
+									self.findIndex((a) => a.action.title === action.action.title) === index);
+
+								filteredActions.sort((a, b) => {
+									if (a.action.isPreferred && !b.action.isPreferred) {
+										return -1;
+									} else if (!a.action.isPreferred && b.action.isPreferred) {
+										return 1;
+									} else if (a.action.isAI && !b.action.isAI) {
+										return 1;
+									} else if (!a.action.isAI && b.action.isAI) {
+										return -1;
+									} else {
+										return 0;
+									}
+								});
+
+								// Only retriggers if actually found quickfix on the same line as cursor
+								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+							}
+						}
+					}
+					// temporarilly hiding here as this is enabled/disabled behind a setting.
+					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+				});
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
+				const newState = new CodeActionsState.Triggered(trigger.trigger, startPosition, actions);
+				let isManualToAutoTransition = false;
+				if (this._state.type === CodeActionsState.Type.Triggered) {
+					// Check if the current state is manual and the new state is automatic
+					isManualToAutoTransition = this._state.trigger.type === CodeActionTriggerType.Invoke &&
+						newState.type === CodeActionsState.Type.Triggered &&
+						newState.trigger.type === CodeActionTriggerType.Auto &&
+						this._state.position !== newState.position;
+				}
 
-				this.setState(new CodeActionsState.Triggered(trigger.trigger, trigger.selection, trigger.position, actions));
-
+				// Do not trigger state if current state is manual and incoming state is automatic
+				if (!isManualToAutoTransition) {
+					this.setState(newState);
+				} else {
+					// Reset the new state after getting code actions back.
+					setTimeout(() => {
+						this.setState(newState);
+					}, 500);
+				}
 			}, undefined);
-			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto });
+			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();
 		}
 	}
 
 	public trigger(trigger: CodeActionTrigger) {
-		if (this._codeActionOracle.value) {
-			this._codeActionOracle.value.trigger(trigger);
-		}
+		this._codeActionOracle.value?.trigger(trigger);
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {
@@ -280,7 +363,7 @@ export class CodeActionModel extends Disposable {
 
 		this._state = newState;
 
-		if (!skipNotify && !this.#isDisposed) {
+		if (!skipNotify && !this._disposed) {
 			this._onDidChangeState.fire(newState);
 		}
 	}

@@ -1,16 +1,18 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const es = require("event-stream");
 const vfs = require("vinyl-fs");
 const merge = require("gulp-merge-json");
 const gzip = require("gulp-gzip");
 const identity_1 = require("@azure/identity");
+const path = require("path");
+const fs_1 = require("fs");
 const azure = require('gulp-azure-storage');
-const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
+const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
 function main() {
     return new Promise((c, e) => {
@@ -18,8 +20,8 @@ function main() {
             .pipe(merge({
             fileName: 'combined.nls.metadata.json',
             jsonSpace: '',
+            concatArrays: true,
             edit: (parsedJson, file) => {
-                let key;
                 if (file.base === 'out-vscode-web-min') {
                     return { vscode: parsedJson };
                 }
@@ -63,7 +65,11 @@ function main() {
                         break;
                     }
                 }
-                key = 'vscode.' + file.relative.split('/')[0];
+                // Get extension id and use that as the key
+                const folderPath = path.join(file.base, file.relative.split('/')[0]);
+                const manifest = (0, fs_1.readFileSync)(path.join(folderPath, 'package.json'), 'utf-8');
+                const manifestJson = JSON.parse(manifest);
+                const key = manifestJson.publisher + '.' + manifestJson.name;
                 return { [key]: parsedJson };
             },
         }))
@@ -93,3 +99,4 @@ main().catch(err => {
     console.error(err);
     process.exit(1);
 });
+//# sourceMappingURL=upload-nlsmetadata.js.map

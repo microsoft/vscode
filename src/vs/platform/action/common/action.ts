@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriDto } from 'vs/base/common/uri';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Categories } from './actionCommonCategories';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 
 export interface ILocalizedString {
 
@@ -21,6 +22,13 @@ export interface ILocalizedString {
 	original: string;
 }
 
+export function isLocalizedString(thing: any): thing is ILocalizedString {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.original === 'string'
+		&& typeof thing.value === 'string';
+}
+
 export interface ICommandActionTitle extends ILocalizedString {
 
 	/**
@@ -31,16 +39,63 @@ export interface ICommandActionTitle extends ILocalizedString {
 
 export type Icon = { dark?: URI; light?: URI } | ThemeIcon;
 
+export interface ICommandActionToggleInfo {
+
+	/**
+	 * The condition that marks the action as toggled.
+	 */
+	condition: ContextKeyExpression;
+
+	icon?: Icon;
+
+	tooltip?: string;
+
+	/**
+	 * The title that goes well with a a check mark, e.g "(check) Line Numbers" vs "Toggle Line Numbers"
+	 */
+	title?: string;
+
+	/**
+	 * Like title but with a mnemonic designation.
+	 */
+	mnemonicTitle?: string;
+}
+
+export function isICommandActionToggleInfo(thing: ContextKeyExpression | ICommandActionToggleInfo | undefined): thing is ICommandActionToggleInfo {
+	return thing ? (<ICommandActionToggleInfo>thing).condition !== undefined : false;
+}
+
+export interface ICommandActionSource {
+	readonly id: string;
+	readonly title: string;
+}
+
 export interface ICommandAction {
 	id: string;
 	title: string | ICommandActionTitle;
 	shortTitle?: string | ICommandActionTitle;
-	category?: string | ILocalizedString;
+	/**
+	 * Metadata about this command, used for:
+	 * - API commands
+	 * - when showing keybindings that have no other UX
+	 * - when searching for commands in the Command Palette
+	 */
+	metadata?: ICommandMetadata;
+	category?: keyof typeof Categories | ILocalizedString | string;
 	tooltip?: string | ILocalizedString;
 	icon?: Icon;
-	source?: string;
+	source?: ICommandActionSource;
+	/**
+	 * Precondition controls enablement (for example for a menu item, show
+	 * it in grey or for a command, do not allow to invoke it)
+	 */
 	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression | { condition: ContextKeyExpression; icon?: Icon; tooltip?: string; title?: string | ILocalizedString };
+
+	/**
+	 * The action is a toggle action. Define the context key expression that reflects its toggle-state
+	 * or define toggle-info including an icon and a title that goes well with a checkmark.
+	 */
+	toggled?: ContextKeyExpression | ICommandActionToggleInfo;
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;

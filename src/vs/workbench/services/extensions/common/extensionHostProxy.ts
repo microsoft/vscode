@@ -34,7 +34,6 @@ export interface IExtensionHostProxy {
 	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null>;
 	startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	extensionTestsExecute(): Promise<number>;
-	extensionTestsExit(code: number): Promise<void>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;

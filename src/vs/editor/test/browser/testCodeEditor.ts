@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { mock } from 'vs/base/test/common/mock';
+import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { View } from 'vs/editor/browser/view';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -29,8 +30,9 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { TestEditorWorkerService } from 'vs/editor/test/common/services/testEditorWorkerService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -39,15 +41,18 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { BrandedService, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { NullOpenerService } from 'vs/platform/opener/test/common/nullOpenerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -64,7 +69,7 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected override _createConfiguration(isSimpleWidget: boolean, options: Readonly<IEditorConstructionOptions>): EditorConfiguration {
+	protected override _createConfiguration(isSimpleWidget: boolean, contextMenuId: MenuId, options: Readonly<TestCodeEditorCreationOptions>): EditorConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected override _createView(viewModel: ViewModel): [View, boolean] {
@@ -86,7 +91,7 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	}
 	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: new (editor: ICodeEditor, ...services: BrandedService[]) => T): T {
 		const r: T = this._instantiationService.createInstance(ctor, this);
-		this._contributions[id] = r;
+		this._contributions.set(id, r);
 		return r;
 	}
 	public registerDisposable(disposable: IDisposable): void {
@@ -96,6 +101,8 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 class TestEditorDomElement {
 	parentElement: IContextKeyServiceTarget | null = null;
+	ownerDocument = document;
+	document = document;
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }
@@ -110,6 +117,10 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	 * Defaults to true.
 	 */
 	hasTextFocus?: boolean;
+	/**
+	 * Env configuration
+	 */
+	envConfig?: ITestEnvConfiguration;
 }
 
 export interface TestCodeEditorInstantiationOptions extends TestCodeEditorCreationOptions {
@@ -117,6 +128,15 @@ export interface TestCodeEditorInstantiationOptions extends TestCodeEditorCreati
 	 * Services to use.
 	 */
 	serviceCollection?: ServiceCollection;
+}
+
+export interface ITestEnvConfiguration {
+	extraEditorClassName?: string;
+	outerWidth?: number;
+	outerHeight?: number;
+	emptySelectionClipboard?: boolean;
+	pixelRatio?: number;
+	accessibilitySupport?: AccessibilitySupport;
 }
 
 export function withTestCodeEditor(text: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => void): void {
@@ -173,6 +193,7 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	};
 
 	define(IAccessibilityService, TestAccessibilityService);
+	define(IKeybindingService, MockKeybindingService);
 	define(IClipboardService, TestClipboardService);
 	define(IEditorWorkerService, TestEditorWorkerService);
 	defineInstance(IOpenerService, NullOpenerService);
@@ -190,10 +211,15 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
+	define(IEnvironmentService, class extends mock<IEnvironmentService>() {
+		declare readonly _serviceBrand: undefined;
+		override isBuilt: boolean = true;
+		override isExtensionDevelopment: boolean = false;
+	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
 
-	const instantiationService = new TestInstantiationService(services, true);
+	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = services.get(id);

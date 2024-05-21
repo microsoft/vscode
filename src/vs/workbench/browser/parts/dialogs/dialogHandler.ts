@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInput, IDialogHandler, ICustomDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IAsyncPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
 import { Dialog, IDialogResult } from 'vs/base/browser/ui/dialog/dialog';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachDialogStyler } from 'vs/platform/theme/common/styler';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
@@ -19,9 +17,11 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { fromNow } from 'vs/base/common/date';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
-export class BrowserDialogHandler implements IDialogHandler {
+export class BrowserDialogHandler extends AbstractDialogHandler {
 
 	private static readonly ALLOWABLE_COMMANDS = [
 		'copy',
@@ -32,113 +32,47 @@ export class BrowserDialogHandler implements IDialogHandler {
 		'editor.action.clipboardPasteAction'
 	];
 
-	private readonly markdownRenderer: MarkdownRenderer;
+	private readonly markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		super();
+	}
+
+	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
+		this.logService.trace('DialogService#prompt', prompt.message);
+
+		const buttons = this.getPromptButtons(prompt);
+
+		const { button, checkboxChecked } = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
+
+		return this.getPromptResult(prompt, button, checkboxChecked);
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
-		const buttons: string[] = [];
-		if (confirmation.primaryButton) {
-			buttons.push(confirmation.primaryButton);
-		} else {
-			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
-		}
+		const buttons = this.getConfirmationButtons(confirmation);
 
-		if (confirmation.secondaryButton) {
-			buttons.push(confirmation.secondaryButton);
-		} else if (typeof confirmation.secondaryButton === 'undefined') {
-			buttons.push(localize('cancelButton', "Cancel"));
-		}
+		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined);
 
-		const result = await this.doShow(confirmation.type, confirmation.message, buttons, confirmation.detail, 1, confirmation.checkbox);
-
-		return { confirmed: result.button === 0, checkboxChecked: result.checkboxChecked };
+		return { confirmed: button === 0, checkboxChecked };
 	}
 
-	private getDialogType(severity: Severity): DialogType {
-		return (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
-	}
+	async input(input: IInput): Promise<IInputResult> {
+		this.logService.trace('DialogService#input', input.message);
 
-	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
-		this.logService.trace('DialogService#show', message);
+		const buttons = this.getInputButtons(input);
 
-		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
+		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs, typeof input.custom === 'object' ? input.custom : undefined);
 
-		return {
-			choice: result.button,
-			checkboxChecked: result.checkboxChecked
-		};
-	}
-
-	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInput[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
-		const dialogDisposables = new DisposableStore();
-
-		const renderBody = customOptions ? (parent: HTMLElement) => {
-			parent.classList.add(...(customOptions.classes || []));
-			customOptions.markdownDetails?.forEach(markdownDetail => {
-				const result = this.markdownRenderer.render(markdownDetail.markdown);
-				parent.appendChild(result.element);
-				result.element.classList.add(...(markdownDetail.classes || []));
-				dialogDisposables.add(result);
-			});
-		} : undefined;
-
-		const dialog = new Dialog(
-			this.layoutService.container,
-			message,
-			buttons,
-			{
-				detail,
-				cancelId,
-				type,
-				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-					if (resolved?.commandId) {
-						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
-							EventHelper.stop(event, true);
-						}
-					}
-				},
-				renderBody,
-				icon: customOptions?.icon,
-				disableCloseAction: customOptions?.disableCloseAction,
-				buttonDetails: customOptions?.buttonDetails,
-				checkboxLabel: checkbox?.label,
-				checkboxChecked: checkbox?.checked,
-				inputs
-			});
-
-		dialogDisposables.add(dialog);
-		dialogDisposables.add(attachDialogStyler(dialog, this.themeService));
-
-		const result = await dialog.show();
-		dialogDisposables.dispose();
-
-		return result;
-	}
-
-	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
-		this.logService.trace('DialogService#input', message);
-
-		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, inputs);
-
-		return {
-			choice: result.button,
-			checkboxChecked: result.checkboxChecked,
-			values: result.values
-		};
+		return { confirmed: button === 0, checkboxChecked, values };
 	}
 
 	async about(): Promise<void> {
@@ -155,11 +89,70 @@ export class BrowserDialogHandler implements IDialogHandler {
 		const detail = detailString(true);
 		const detailToCopy = detailString(false);
 
+		const { button } = await this.doShow(
+			Severity.Info,
+			this.productService.nameLong,
+			[
+				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
+				localize('ok', "OK")
+			],
+			detail,
+			1
+		);
 
-		const { choice } = await this.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail, cancelId: 1 });
-
-		if (choice === 0) {
+		if (button === 0) {
 			this.clipboardService.writeText(detailToCopy);
 		}
+	}
+
+	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
+		const dialogDisposables = new DisposableStore();
+
+		const renderBody = customOptions ? (parent: HTMLElement) => {
+			parent.classList.add(...(customOptions.classes || []));
+			customOptions.markdownDetails?.forEach(markdownDetail => {
+				const result = this.markdownRenderer.render(markdownDetail.markdown);
+				parent.appendChild(result.element);
+				result.element.classList.add(...(markdownDetail.classes || []));
+				dialogDisposables.add(result);
+			});
+		} : undefined;
+
+		const dialog = new Dialog(
+			this.layoutService.activeContainer,
+			message,
+			buttons,
+			{
+				detail,
+				cancelId,
+				type: this.getDialogType(type),
+				keyEventProcessor: (event: StandardKeyboardEvent) => {
+					const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
+					if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
+						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
+							EventHelper.stop(event, true);
+						}
+					}
+				},
+				renderBody,
+				icon: customOptions?.icon,
+				disableCloseAction: customOptions?.disableCloseAction,
+				buttonDetails: customOptions?.buttonDetails,
+				checkboxLabel: checkbox?.label,
+				checkboxChecked: checkbox?.checked,
+				inputs,
+				buttonStyles: defaultButtonStyles,
+				checkboxStyles: defaultCheckboxStyles,
+				inputBoxStyles: defaultInputBoxStyles,
+				dialogStyles: defaultDialogStyles
+			}
+		);
+
+		dialogDisposables.add(dialog);
+
+		const result = await dialog.show();
+		dialogDisposables.dispose();
+
+		return result;
 	}
 }

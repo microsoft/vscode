@@ -62,7 +62,7 @@ export class SearchParams {
 			canUseSimpleSearch = this.matchCase;
 		}
 
-		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators) : null, canUseSimpleSearch ? this.searchString : null);
+		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators, []) : null, canUseSimpleSearch ? this.searchString : null);
 	}
 }
 
@@ -73,6 +73,10 @@ export function isMultilineRegexSource(searchString: string): boolean {
 
 	for (let i = 0, len = searchString.length; i < len; i++) {
 		const chCode = searchString.charCodeAt(i);
+
+		if (chCode === CharCode.LineFeed) {
+			return true;
+		}
 
 		if (chCode === CharCode.Backslash) {
 
@@ -307,7 +311,7 @@ export class TextModelSearch {
 		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)), EndOfLinePreference.LF);
 		const lfCounter = (model.getEOL() === '\r\n' ? new LineFeedCounter(text) : null);
 		searcher.reset(searchStart.column - 1);
-		let m = searcher.next(text);
+		const m = searcher.next(text);
 		if (m) {
 			return createFindMatch(
 				this._getMultilineMatchRange(model, deltaOffset, text, lfCounter, m.index, m[0]),

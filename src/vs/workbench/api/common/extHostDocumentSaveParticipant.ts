@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, WorkspaceEditType, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
 import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -15,6 +15,7 @@ import type * as vscode from 'vscode';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 type Listener = [Function, any, IExtensionDescription];
 
@@ -55,7 +56,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 		const results: boolean[] = [];
 		try {
-			for (let listener of [...this._callbacks]) { // copy to prevent concurrent modifications
+			for (const listener of [...this._callbacks]) { // copy to prevent concurrent modifications
 				if (didTimeout) {
 					// timeout - no more listeners
 					break;
@@ -146,12 +147,12 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
 					for (const { newText, newEol, range } of value) {
 						dto.edits.push({
-							_type: WorkspaceEditType.Text,
 							resource: document.uri,
-							edit: {
+							versionId: undefined,
+							textEdit: {
 								range: range && Range.from(range),
 								text: newText,
-								eol: newEol && EndOfLine.from(newEol)
+								eol: newEol && EndOfLine.from(newEol),
 							}
 						});
 					}
@@ -165,7 +166,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			}
 
 			if (version === document.version) {
-				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
+				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers(dto));
 			}
 
 			return Promise.reject(new Error('concurrent_edits'));

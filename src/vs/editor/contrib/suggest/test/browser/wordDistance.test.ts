@@ -26,11 +26,12 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { NullLogService } from 'vs/platform/log/common/log';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('suggest, word distance', function () {
 
 	let distance: WordDistance;
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 
 	setup(async function () {
 		const languageId = 'bracketMode';
@@ -53,14 +54,14 @@ suite('suggest, word distance', function () {
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });
 
-		let modelService = new class extends mock<IModelService>() {
+		const modelService = new class extends mock<IModelService>() {
 			override onModelRemoved = Event.None;
 			override getModel(uri: URI) {
 				return uri.toString() === model.uri.toString() ? model : null;
 			}
 		};
 
-		let service = new class extends EditorWorkerService {
+		const service = new class extends EditorWorkerService {
 
 			private _worker = new EditorSimpleWorker(new class extends mock<IEditorWorkerHost>() { }, null);
 
@@ -88,6 +89,8 @@ suite('suggest, word distance', function () {
 		disposables.clear();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {
 		const suggestion: languages.CompletionItem = {
 			label,
@@ -99,6 +102,7 @@ suite('suggest, word distance', function () {
 			suggestions: [suggestion]
 		};
 		const provider: languages.CompletionItemProvider = {
+			_debugDisplayName: 'test',
 			provideCompletionItems(): any {
 				return;
 			}

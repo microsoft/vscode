@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import type * as vscode from 'vscode';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto, ITypeHierarchyItemDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 import * as languages from 'vs/editor/common/languages';
-import * as search from 'vs/workbench/contrib/search/common/search';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ICallHierarchyItemDto, IIncomingCallDto, IInlineValueContextDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IRange } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
+import * as search from 'vs/workbench/contrib/search/common/search';
+import type * as vscode from 'vscode';
 
 //#region --- NEW world
 
@@ -139,17 +140,17 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.prepareCallHierarchy', '_executePrepareCallHierarchy', 'Prepare call hierarchy at a position inside a document',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<ICallHierarchyItemDto[], types.CallHierarchyItem[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyItem.to))
+		new ApiCommandResult<ICallHierarchyItemDto[], types.CallHierarchyItem[]>('A promise that resolves to an array of CallHierarchyItem-instances', v => v.map(typeConverters.CallHierarchyItem.to))
 	),
 	new ApiCommand(
 		'vscode.provideIncomingCalls', '_executeProvideIncomingCalls', 'Compute incoming calls for an item',
 		[ApiCommandArgument.CallHierarchyItem],
-		new ApiCommandResult<IIncomingCallDto[], types.CallHierarchyIncomingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyIncomingCall.to))
+		new ApiCommandResult<IIncomingCallDto[], types.CallHierarchyIncomingCall[]>('A promise that resolves to an array of CallHierarchyIncomingCall-instances', v => v.map(typeConverters.CallHierarchyIncomingCall.to))
 	),
 	new ApiCommand(
 		'vscode.provideOutgoingCalls', '_executeProvideOutgoingCalls', 'Compute outgoing calls for an item',
 		[ApiCommandArgument.CallHierarchyItem],
-		new ApiCommandResult<IOutgoingCallDto[], types.CallHierarchyOutgoingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyOutgoingCall.to))
+		new ApiCommandResult<IOutgoingCallDto[], types.CallHierarchyOutgoingCall[]>('A promise that resolves to an array of CallHierarchyOutgoingCall-instances', v => v.map(typeConverters.CallHierarchyOutgoingCall.to))
 	),
 	// --- rename
 	new ApiCommand(
@@ -338,6 +339,18 @@ const newCommands: ApiCommand[] = [
 			return result.map(typeConverters.InlayHint.to.bind(undefined, converter));
 		})
 	),
+	// --- folding
+	new ApiCommand(
+		'vscode.executeFoldingRangeProvider', '_executeFoldingRangeProvider', 'Execute folding range provider',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<languages.FoldingRange[] | undefined, vscode.FoldingRange[] | undefined>('A promise that resolves to an array of FoldingRange objects', (result, args) => {
+			if (result) {
+				return result.map(typeConverters.FoldingRange.to);
+			}
+			return undefined;
+		})
+	),
+
 	// --- notebooks
 	new ApiCommand(
 		'vscode.resolveNotebookContentProviders', '_resolveNotebookContentProvider', 'Resolve Notebook Content Providers',
@@ -372,7 +385,11 @@ const newCommands: ApiCommand[] = [
 	// --- debug support
 	new ApiCommand(
 		'vscode.executeInlineValueProvider', '_executeInlineValueProvider', 'Execute inline value provider',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
+		[
+			ApiCommandArgument.Uri,
+			ApiCommandArgument.Range,
+			new ApiCommandArgument<types.InlineValueContext, IInlineValueContextDto>('context', 'An InlineValueContext', v => v && typeof v.frameId === 'number' && v.stoppedLocation instanceof types.Range, v => typeConverters.InlineValueContext.from(v))
+		],
 		new ApiCommandResult<languages.InlineValue[], vscode.InlineValue[]>('A promise that resolves to an array of InlineValue objects', result => {
 			return result.map(typeConverters.InlineValue.to);
 		})
@@ -394,7 +411,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.openWith', '_workbench.openWith', 'Opens the provided resource with a specific editor.',
 		[
 			ApiCommandArgument.Uri.with('resource', 'Resource to open'),
-			ApiCommandArgument.String.with('viewId', 'Custom editor view id or \'default\' to use VS Code\'s default editor'),
+			ApiCommandArgument.String.with('viewId', 'Custom editor view id. This should be the viewType string for custom editors or the notebookType string for notebooks. Use \'default\' to use VS Code\'s default text editor'),
 			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [vscode.ViewColumn?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'number' || typeof v === 'object',
 				v => !v ? v : typeof v === 'number' ? [typeConverters.ViewColumn.from(v), undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)],
@@ -415,29 +432,123 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.changes', '_workbench.changes', 'Opens a list of resources in the changes editor to compare their contents.',
+		[
+			ApiCommandArgument.String.with('title', 'Human readable title for the changes editor'),
+			new ApiCommandArgument<[URI, URI?, URI?][]>('resourceList', 'List of resources to compare',
+				resources => {
+					for (const resource of resources) {
+						if (resource.length !== 3) {
+							return false;
+						}
+
+						const [label, left, right] = resource;
+						if (!URI.isUri(label) ||
+							(!URI.isUri(left) && left !== undefined && left !== null) ||
+							(!URI.isUri(right) && right !== undefined && right !== null)) {
+							return false;
+						}
+					}
+
+					return true;
+				},
+				v => v)
+		],
+		ApiCommandResult.Void
+	),
 	// --- type hierarchy
 	new ApiCommand(
 		'vscode.prepareTypeHierarchy', '_executePrepareTypeHierarchy', 'Prepare type hierarchy at a position inside a document',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A promise that resolves to an array of TypeHierarchyItem-instances', v => v.map(typeConverters.TypeHierarchyItem.to))
 	),
 	new ApiCommand(
 		'vscode.provideSupertypes', '_executeProvideSupertypes', 'Compute supertypes for an item',
 		[ApiCommandArgument.TypeHierarchyItem],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A promise that resolves to an array of TypeHierarchyItem-instances', v => v.map(typeConverters.TypeHierarchyItem.to))
 	),
 	new ApiCommand(
 		'vscode.provideSubtypes', '_executeProvideSubtypes', 'Compute subtypes for an item',
 		[ApiCommandArgument.TypeHierarchyItem],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A promise that resolves to an array of TypeHierarchyItem-instances', v => v.map(typeConverters.TypeHierarchyItem.to))
 	),
 	// --- testing
 	new ApiCommand(
 		'vscode.revealTestInExplorer', '_revealTestInExplorer', 'Reveals a test instance in the explorer',
 		[ApiCommandArgument.TestItem],
 		ApiCommandResult.Void
+	),
+	// --- continue edit session
+	new ApiCommand(
+		'vscode.experimental.editSession.continue', '_workbench.editSessions.actions.continueEditSession', 'Continue the current edit session in a different workspace',
+		[ApiCommandArgument.Uri.with('workspaceUri', 'The target workspace to continue the current edit session in')],
+		ApiCommandResult.Void
+	),
+	// --- context keys
+	new ApiCommand(
+		'setContext', '_setContext', 'Set a custom context key value that can be used in when clauses.',
+		[
+			ApiCommandArgument.String.with('name', 'The context key name'),
+			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
+		],
+		ApiCommandResult.Void
+	),
+	// --- mapped edits
+	new ApiCommand(
+		'vscode.executeMappedEditsProvider', '_executeMappedEditsProvider', 'Execute Mapped Edits Provider',
+		[
+			ApiCommandArgument.Uri,
+			ApiCommandArgument.StringArray,
+			new ApiCommandArgument(
+				'MappedEditsContext',
+				'Mapped Edits Context',
+				(v: unknown) => typeConverters.MappedEditsContext.is(v),
+				(v: vscode.MappedEditsContext) => typeConverters.MappedEditsContext.from(v)
+			)
+		],
+		new ApiCommandResult<IWorkspaceEditDto | null, vscode.WorkspaceEdit | null>(
+			'A promise that resolves to a workspace edit or null',
+			(value) => {
+				return value ? typeConverters.WorkspaceEdit.to(value) : null;
+			})
+	),
+	// --- inline chat
+	new ApiCommand(
+		'vscode.editorChat.start', 'inlineChat.start', 'Invoke a new editor chat session',
+		[new ApiCommandArgument<InlineChatEditorApiArg | undefined, InlineChatRunOptions | undefined>('Run arguments', '', _v => true, v => {
+
+			if (!v) {
+				return undefined;
+			}
+
+			return {
+				initialRange: v.initialRange ? typeConverters.Range.from(v.initialRange) : undefined,
+				initialSelection: types.Selection.isSelection(v.initialSelection) ? typeConverters.Selection.from(v.initialSelection) : undefined,
+				message: v.message,
+				autoSend: v.autoSend,
+				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+			};
+		})],
+		ApiCommandResult.Void
 	)
 ];
+
+type InlineChatEditorApiArg = {
+	initialRange?: vscode.Range;
+	initialSelection?: vscode.Selection;
+	message?: string;
+	autoSend?: boolean;
+	position?: vscode.Position;
+};
+
+type InlineChatRunOptions = {
+	initialRange?: IRange;
+	initialSelection?: ISelection;
+	message?: string;
+	autoSend?: boolean;
+	position?: IPosition;
+};
 
 //#endregion
 
@@ -447,9 +558,15 @@ const newCommands: ApiCommand[] = [
 export class ExtHostApiCommands {
 
 	static register(commands: ExtHostCommands) {
+
 		newCommands.forEach(commands.registerApiCommand, commands);
+
+		this._registerValidateWhenClausesCommand(commands);
 	}
 
+	private static _registerValidateWhenClausesCommand(commands: ExtHostCommands) {
+		commands.registerCommand(false, '_validateWhenClauses', validateWhenClauses);
+	}
 }
 
 function tryMapWith<T, R>(f: (x: T) => R) {

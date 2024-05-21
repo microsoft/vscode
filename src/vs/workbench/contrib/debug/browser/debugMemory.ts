@@ -7,9 +7,9 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { assertNever } from 'vs/base/common/types';
+import { assertNever } from 'vs/base/common/assert';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, IFileOpenOptions, FilePermission, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileOpenOptions, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions, createFileSystemProviderError } from 'vs/platform/files/common/files';
 import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryInvalidationEvent, IMemoryRegion, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const rangeRe = /range=([0-9]+):([0-9]+)/;
@@ -31,7 +31,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 		| FileSystemProviderCapabilities.FileOpenReadWriteClose;
 
 	constructor(private readonly debugService: IDebugService) {
-		debugService.onDidEndSession(session => {
+		debugService.onDidEndSession(({ session }) => {
 			for (const [fd, memory] of this.fdMemory) {
 				if (memory.session === session) {
 					this.close(fd);
@@ -83,22 +83,22 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 
 	/** @inheritdoc */
 	public mkdir(): never {
-		throw new FileSystemProviderError(`Not allowed`, FileSystemProviderErrorCode.NoPermissions);
+		throw createFileSystemProviderError(`Not allowed`, FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	/** @inheritdoc */
 	public readdir(): never {
-		throw new FileSystemProviderError(`Not allowed`, FileSystemProviderErrorCode.NoPermissions);
+		throw createFileSystemProviderError(`Not allowed`, FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	/** @inheritdoc */
 	public delete(): never {
-		throw new FileSystemProviderError(`Not allowed`, FileSystemProviderErrorCode.NoPermissions);
+		throw createFileSystemProviderError(`Not allowed`, FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	/** @inheritdoc */
 	public rename(): never {
-		throw new FileSystemProviderError(`Not allowed`, FileSystemProviderErrorCode.NoPermissions);
+		throw createFileSystemProviderError(`Not allowed`, FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	/** @inheritdoc */
@@ -125,7 +125,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 	public async writeFile(resource: URI, content: Uint8Array) {
 		const { offset } = this.parseUri(resource);
 		if (!offset) {
-			throw new FileSystemProviderError(`Range must be present to read a file`, FileSystemProviderErrorCode.FileNotFound);
+			throw createFileSystemProviderError(`Range must be present to read a file`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		const fd = await this.open(resource, { create: false });
@@ -141,7 +141,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 	public async readFile(resource: URI) {
 		const { offset } = this.parseUri(resource);
 		if (!offset) {
-			throw new FileSystemProviderError(`Range must be present to read a file`, FileSystemProviderErrorCode.FileNotFound);
+			throw createFileSystemProviderError(`Range must be present to read a file`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		const data = new Uint8Array(offset.toOffset - offset.fromOffset);
@@ -159,7 +159,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 	public async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		const memory = this.fdMemory.get(fd);
 		if (!memory) {
-			throw new FileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
+			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
 		}
 
 		const ranges = await memory.region.read(pos, length);
@@ -172,7 +172,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 					if (readSoFar > 0) {
 						return readSoFar;
 					} else {
-						throw new FileSystemProviderError(range.error, FileSystemProviderErrorCode.Unknown);
+						throw createFileSystemProviderError(range.error, FileSystemProviderErrorCode.Unknown);
 					}
 				case MemoryRangeType.Valid: {
 					const start = Math.max(0, pos - range.offset);
@@ -193,7 +193,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 	public write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		const memory = this.fdMemory.get(fd);
 		if (!memory) {
-			throw new FileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
+			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
 		}
 
 		return memory.region.write(pos, VSBuffer.wrap(data).slice(offset, offset + length));
@@ -201,12 +201,12 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 
 	protected parseUri(uri: URI) {
 		if (uri.scheme !== DEBUG_MEMORY_SCHEME) {
-			throw new FileSystemProviderError(`Cannot open file with scheme ${uri.scheme}`, FileSystemProviderErrorCode.FileNotFound);
+			throw createFileSystemProviderError(`Cannot open file with scheme ${uri.scheme}`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		const session = this.debugService.getModel().getSession(uri.authority);
 		if (!session) {
-			throw new FileSystemProviderError(`Debug session not found`, FileSystemProviderErrorCode.FileNotFound);
+			throw createFileSystemProviderError(`Debug session not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		let offset: { fromOffset: number; toOffset: number } | undefined;

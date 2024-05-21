@@ -155,14 +155,10 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 
 			switch (message.type) {
 				case 'event':
-					if (this.eventCallback) {
-						this.eventCallback(<DebugProtocol.Event>message);
-					}
+					this.eventCallback?.(<DebugProtocol.Event>message);
 					break;
 				case 'request':
-					if (this.requestCallback) {
-						this.requestCallback(<DebugProtocol.Request>message);
-					}
+					this.requestCallback?.(<DebugProtocol.Request>message);
 					break;
 				case 'response': {
 					const response = <DebugProtocol.Response>message;

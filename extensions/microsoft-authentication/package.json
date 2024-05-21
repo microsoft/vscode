@@ -12,9 +12,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onAuthenticationRequest:microsoft"
-  ],
+  "activationEvents": [],
   "enabledApiProposals": [
     "idToken"
   ],
@@ -33,10 +31,74 @@
       {
         "label": "Microsoft",
         "id": "microsoft"
+      },
+      {
+        "label": "Microsoft Sovereign Cloud",
+        "id": "microsoft-sovereign-cloud"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Microsoft Sovereign Cloud",
+        "properties": {
+          "microsoft-sovereign-cloud.environment": {
+            "type": "string",
+            "markdownDescription": "%microsoft-sovereign-cloud.environment.description%",
+            "enum": [
+              "ChinaCloud",
+              "USGovernment",
+              "custom"
+            ],
+            "enumDescriptions": [
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.AzureChinaCloud%",
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.AzureUSGovernment%",
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.custom%"
+            ]
+          },
+          "microsoft-sovereign-cloud.customEnvironment": {
+            "type": "object",
+            "additionalProperties": true,
+            "markdownDescription": "%microsoft-sovereign-cloud.customEnvironment.description%",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.name.description%"
+              },
+              "portalUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.portalUrl.description%"
+              },
+              "managementEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.managementEndpointUrl.description%"
+              },
+              "resourceManagerEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.resourceManagerEndpointUrl.description%"
+              },
+              "activeDirectoryEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.activeDirectoryEndpointUrl.description%"
+              },
+              "activeDirectoryResourceId": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.activeDirectoryResourceId.description%"
+              }
+            },
+            "required": [
+              "name",
+              "portalUrl",
+              "managementEndpointUrl",
+              "resourceManagerEndpointUrl",
+              "activeDirectoryEndpointUrl",
+              "activeDirectoryResourceId"
+            ]
+          }
+        }
       }
     ]
   },
-  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "aiKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
   "main": "./out/extension.js",
   "browser": "./dist/browser/extension.js",
   "scripts": {
@@ -47,21 +109,16 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "20.x",
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",
     "@types/uuid": "8.0.0"
   },
   "dependencies": {
-    "buffer": "^5.6.0",
     "node-fetch": "2.6.7",
-    "randombytes": "~2.1.0",
-    "sha.js": "2.4.11",
-    "stream": "0.0.2",
-    "uuid": "^8.2.0",
-    "@vscode/extension-telemetry": "0.4.10",
-    "vscode-nls": "^5.0.0"
+    "@azure/ms-rest-azure-env": "^2.0.0",
+    "@vscode/extension-telemetry": "^0.9.0"
   },
   "repository": {
     "type": "git",

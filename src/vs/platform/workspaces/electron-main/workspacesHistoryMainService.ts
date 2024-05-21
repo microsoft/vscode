@@ -7,7 +7,7 @@ import { app, JumpListCategory, JumpListItem } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
+import { normalizeDriveLetter, splitRecentLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -19,11 +19,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { ResourceMap } from 'vs/base/common/map';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -34,9 +35,9 @@ export interface IWorkspacesHistoryMainService {
 	readonly onDidChangeRecentlyOpened: CommonEvent<void>;
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	getRecentlyOpened(include?: ICodeWindow): Promise<IRecentlyOpened>;
+	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	removeRecentlyOpened(paths: URI[]): Promise<void>;
-	clearRecentlyOpened(): Promise<void>;
+	clearRecentlyOpened(options?: { confirm?: boolean }): Promise<void>;
 }
 
 export class WorkspacesHistoryMainService extends Disposable implements IWorkspacesHistoryMainService {
@@ -54,7 +55,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
 
@@ -63,8 +65,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private registerListeners(): void {
 
-		// Install window jump list after opening window
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
+		// Install window jump list delayed after opening window
+		// because perf measurements have shown this to be slow
+		this.lifecycleMainService.when(LifecycleMainPhase.Eventually).then(() => this.handleWindowsJumpList());
 
 		// Add to history when entering workspace
 		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace, remoteAuthority: event.window.remoteAuthority }])));
@@ -73,28 +76,28 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	//#region Workspaces History
 
 	async addRecentlyOpened(recentToAdd: IRecent[]): Promise<void> {
-		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
-		const files: IRecentFile[] = [];
+		let workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
+		let files: IRecentFile[] = [];
 
-		for (let recent of recentToAdd) {
+		for (const recent of recentToAdd) {
 
 			// Workspace
 			if (isRecentWorkspace(recent)) {
-				if (!this.workspacesManagementMainService.isUntitledWorkspace(recent.workspace) && this.indexOfWorkspace(workspaces, recent.workspace) === -1) {
+				if (!this.workspacesManagementMainService.isUntitledWorkspace(recent.workspace) && !this.containsWorkspace(workspaces, recent.workspace)) {
 					workspaces.push(recent);
 				}
 			}
 
 			// Folder
 			else if (isRecentFolder(recent)) {
-				if (this.indexOfFolder(workspaces, recent.folderUri) === -1) {
+				if (!this.containsFolder(workspaces, recent.folderUri)) {
 					workspaces.push(recent);
 				}
 			}
 
 			// File
 			else {
-				const alreadyExistsInHistory = this.indexOfFile(files, recent.fileUri) >= 0;
+				const alreadyExistsInHistory = this.containsFile(files, recent.fileUri);
 				const shouldBeFiltered = recent.fileUri.scheme === Schemas.file && WorkspacesHistoryMainService.COMMON_FILES_FILTER.indexOf(basename(recent.fileUri)) >= 0;
 
 				if (!alreadyExistsInHistory && !shouldBeFiltered) {
@@ -108,7 +111,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			}
 		}
 
-		await this.addEntriesFromStorage(workspaces, files);
+		const mergedEntries = await this.mergeEntriesFromStorage({ workspaces, files });
+		workspaces = mergedEntries.workspaces;
+		files = mergedEntries.files;
 
 		if (workspaces.length > WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
 			workspaces.length = WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
@@ -154,7 +159,24 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 	}
 
-	async clearRecentlyOpened(): Promise<void> {
+	async clearRecentlyOpened(options?: { confirm?: boolean }): Promise<void> {
+		if (options?.confirm) {
+			const { response } = await this.dialogMainService.showMessageBox({
+				type: 'warning',
+				buttons: [
+					localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+				],
+				message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
+				detail: localize('confirmClearDetail', "This action is irreversible!"),
+				cancelId: 1
+			});
+
+			if (response !== 0) {
+				return;
+			}
+		}
+
 		await this.saveRecentlyOpened({ workspaces: [], files: [] });
 		app.clearRecentDocuments();
 
@@ -162,68 +184,65 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._onDidChangeRecentlyOpened.fire();
 	}
 
-	async getRecentlyOpened(include?: ICodeWindow): Promise<IRecentlyOpened> {
-		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
-		const files: IRecentFile[] = [];
-
-		// Add current workspace to beginning if set
-		if (include) {
-			const currentWorkspace = include.config?.workspace;
-			if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesManagementMainService.isUntitledWorkspace(currentWorkspace)) {
-				workspaces.push({ workspace: currentWorkspace, remoteAuthority: include.remoteAuthority });
-			} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
-				workspaces.push({ folderUri: currentWorkspace.uri, remoteAuthority: include.remoteAuthority });
-			}
-		}
-
-		// Add currently files to open to the beginning if any
-		const currentFiles = include?.config?.filesToOpenOrCreate;
-		if (currentFiles) {
-			for (let currentFile of currentFiles) {
-				const fileUri = currentFile.fileUri;
-				if (fileUri && this.indexOfFile(files, fileUri) === -1) {
-					files.push({ fileUri });
-				}
-			}
-		}
-
-		await this.addEntriesFromStorage(workspaces, files);
-
-		return { workspaces, files };
+	async getRecentlyOpened(): Promise<IRecentlyOpened> {
+		return this.mergeEntriesFromStorage();
 	}
 
-	private async addEntriesFromStorage(workspaces: Array<IRecentFolder | IRecentWorkspace>, files: IRecentFile[]): Promise<void> {
+	private async mergeEntriesFromStorage(existingEntries?: IRecentlyOpened): Promise<IRecentlyOpened> {
 
-		// Get from storage
-		let recents = await this.getRecentlyOpenedFromStorage();
-		for (let recent of recents.workspaces) {
-			let index = isRecentFolder(recent) ? this.indexOfFolder(workspaces, recent.folderUri) : this.indexOfWorkspace(workspaces, recent.workspace);
-			if (index >= 0) {
-				workspaces[index].label = workspaces[index].label || recent.label;
-			} else {
-				workspaces.push(recent);
+		// Build maps for more efficient lookup of existing entries that
+		// are passed in by storing based on workspace/file identifier
+
+		const mapWorkspaceIdToWorkspace = new ResourceMap<IRecentFolder | IRecentWorkspace>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		if (existingEntries?.workspaces) {
+			for (const workspace of existingEntries.workspaces) {
+				mapWorkspaceIdToWorkspace.set(this.location(workspace), workspace);
 			}
 		}
 
-		for (let recent of recents.files) {
-			let index = this.indexOfFile(files, recent.fileUri);
-			if (index >= 0) {
-				files[index].label = files[index].label || recent.label;
-			} else {
-				files.push(recent);
+		const mapFileIdToFile = new ResourceMap<IRecentFile>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		if (existingEntries?.files) {
+			for (const file of existingEntries.files) {
+				mapFileIdToFile.set(this.location(file), file);
 			}
 		}
+
+		// Merge in entries from storage, preserving existing known entries
+
+		const recentFromStorage = await this.getRecentlyOpenedFromStorage();
+		for (const recentWorkspaceFromStorage of recentFromStorage.workspaces) {
+			const existingRecentWorkspace = mapWorkspaceIdToWorkspace.get(this.location(recentWorkspaceFromStorage));
+			if (existingRecentWorkspace) {
+				existingRecentWorkspace.label = existingRecentWorkspace.label ?? recentWorkspaceFromStorage.label;
+			} else {
+				mapWorkspaceIdToWorkspace.set(this.location(recentWorkspaceFromStorage), recentWorkspaceFromStorage);
+			}
+		}
+
+		for (const recentFileFromStorage of recentFromStorage.files) {
+			const existingRecentFile = mapFileIdToFile.get(this.location(recentFileFromStorage));
+			if (existingRecentFile) {
+				existingRecentFile.label = existingRecentFile.label ?? recentFileFromStorage.label;
+			} else {
+				mapFileIdToFile.set(this.location(recentFileFromStorage), recentFileFromStorage);
+			}
+		}
+
+		return {
+			workspaces: [...mapWorkspaceIdToWorkspace.values()],
+			files: [...mapFileIdToFile.values()]
+		};
 	}
 
 	private async getRecentlyOpenedFromStorage(): Promise<IRecentlyOpened> {
 
 		// Wait for global storage to be ready
-		await this.globalStorageMainService.whenReady;
+		await this.applicationStorageMainService.whenReady;
 
 		let storedRecentlyOpened: object | undefined = undefined;
 
 		// First try with storage service
-		const storedRecentlyOpenedRaw = this.globalStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.GLOBAL);
+		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION);
 		if (typeof storedRecentlyOpenedRaw === 'string') {
 			try {
 				storedRecentlyOpened = JSON.parse(storedRecentlyOpenedRaw);
@@ -238,10 +257,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private async saveRecentlyOpened(recent: IRecentlyOpened): Promise<void> {
 
 		// Wait for global storage to be ready
-		await this.globalStorageMainService.whenReady;
+		await this.applicationStorageMainService.whenReady;
 
 		// Store in global storage (but do not sync since this is mainly local paths)
-		this.globalStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	private location(recent: IRecent): URI {
@@ -256,16 +275,16 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		return recent.workspace.configPath;
 	}
 
-	private indexOfWorkspace(recents: IRecent[], candidate: IWorkspaceIdentifier): number {
-		return recents.findIndex(recent => isRecentWorkspace(recent) && recent.workspace.id === candidate.id);
+	private containsWorkspace(recents: IRecent[], candidate: IWorkspaceIdentifier): boolean {
+		return !!recents.find(recent => isRecentWorkspace(recent) && recent.workspace.id === candidate.id);
 	}
 
-	private indexOfFolder(recents: IRecent[], candidate: URI): number {
-		return recents.findIndex(recent => isRecentFolder(recent) && extUriBiasedIgnorePathCase.isEqual(recent.folderUri, candidate));
+	private containsFolder(recents: IRecent[], candidate: URI): boolean {
+		return !!recents.find(recent => isRecentFolder(recent) && extUriBiasedIgnorePathCase.isEqual(recent.folderUri, candidate));
 	}
 
-	private indexOfFile(recents: IRecentFile[], candidate: URI): number {
-		return recents.findIndex(recent => extUriBiasedIgnorePathCase.isEqual(recent.fileUri, candidate));
+	private containsFile(recents: IRecentFile[], candidate: URI): boolean {
+		return !!recents.find(recent => extUriBiasedIgnorePathCase.isEqual(recent.fileUri, candidate));
 	}
 
 	//#endregion
@@ -281,7 +300,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
 		'COMMIT_EDITMSG',
-		'MERGE_MSG'
+		'MERGE_MSG',
+		'git-rebase-todo'
 	];
 
 	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
@@ -325,8 +345,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/microsoft/vscode/issues/15052
-			let toRemove: URI[] = [];
-			for (let item of app.getJumpListSettings().removedItems) {
+			const toRemove: URI[] = [];
+			for (const item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
 				if (args) {
 					const match = /^--(folder|file)-uri\s+"([^"]+)"$/.exec(args);
@@ -377,7 +397,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		});
 
 		try {
-			app.setJumpList(jumpList);
+			const res = app.setJumpList(jumpList);
+			if (res && res !== 'ok') {
+				this.logService.warn(`updateWindowsJumpList#setJumpList unexpected result: ${res}`);
+			}
 		} catch (error) {
 			this.logService.warn('updateWindowsJumpList#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
@@ -387,7 +410,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		// Prefer recent label
 		if (recentLabel) {
-			return { title: splitName(recentLabel).name, description: recentLabel };
+			return { title: splitRecentLabel(recentLabel).name, description: recentLabel };
 		}
 
 		// Single Folder

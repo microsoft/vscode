@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { runWhenIdle } from 'vs/base/common/async';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { LRUCache } from 'vs/base/common/map';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeLens, CodeLensList, CodeLensProvider } from 'vs/editor/common/languages';
 import { CodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { mainWindow } from 'vs/base/browser/window';
+import { runWhenWindowIdle } from 'vs/base/browser/dom';
 
 export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
 
@@ -52,7 +53,7 @@ export class CodeLensCache implements ICodeLensCache {
 
 		// remove old data
 		const oldkey = 'codelens/cache';
-		runWhenIdle(() => storageService.remove(oldkey, StorageScope.WORKSPACE));
+		runWhenWindowIdle(mainWindow, () => storageService.remove(oldkey, StorageScope.WORKSPACE));
 
 		// restore lens data on start
 		const key = 'codelens/cache2';
@@ -60,7 +61,7 @@ export class CodeLensCache implements ICodeLensCache {
 		this._deserialize(raw);
 
 		// store lens data on shutdown
-		once(storageService.onWillSaveState)(e => {
+		Event.once(storageService.onWillSaveState)(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				storageService.store(key, this._serialize(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
@@ -129,4 +130,4 @@ export class CodeLensCache implements ICodeLensCache {
 	}
 }
 
-registerSingleton(ICodeLensCache, CodeLensCache);
+registerSingleton(ICodeLensCache, CodeLensCache, InstantiationType.Delayed);

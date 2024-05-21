@@ -5,11 +5,55 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
+
+export interface IEditorCloseHandler {
+
+	/**
+	 * If `true`, will call into the `confirm` method to ask for confirmation
+	 * before closing the editor.
+	 */
+	showConfirm(): boolean;
+
+	/**
+	 * Allows an editor to control what should happen when the editor
+	 * (or a list of editor of the same kind) is being closed.
+	 *
+	 * By default a file specific dialog will open if the editor is
+	 * dirty and not in the process of saving.
+	 *
+	 * If the editor is not dealing with files or another condition
+	 * should be used besides dirty state, this method should be
+	 * implemented to show a different dialog.
+	 *
+	 * @param editors All editors of the same kind that are being closed. Should be used
+	 * to show a combined dialog.
+	 */
+	confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+}
+
+export interface IUntypedEditorOptions {
+
+	/**
+	 * Implementations should try to preserve as much
+	 * view state as possible from the typed input based
+	 * on the group the editor is opened.
+	 */
+	readonly preserveViewState?: GroupIdentifier;
+
+	/**
+	 * Implementations should preserve the original
+	 * resource of the typed input and not alter
+	 * it.
+	 */
+	readonly preserveResource?: boolean;
+}
 
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
@@ -43,7 +87,11 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private disposed: boolean = false;
+	/**
+	 * Optional: subclasses can override to implement
+	 * custom confirmation on close behavior.
+	 */
+	readonly closeHandler?: IEditorCloseHandler;
 
 	/**
 	 * Unique type identifier for this input. Every editor input of the
@@ -93,6 +141,10 @@ export abstract class EditorInput extends AbstractEditorInput {
 		return (this.capabilities & capability) !== 0;
 	}
 
+	isReadonly(): boolean | IMarkdownString {
+		return this.hasCapability(EditorInputCapabilities.Readonly);
+	}
+
 	/**
 	 * Returns the display name of this input.
 	 */
@@ -129,6 +181,14 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Returns the icon which represents this editor input.
+	 * If undefined, the default icon will be used.
+	 */
+	getIcon(): ThemeIcon | undefined {
+		return undefined;
+	}
+
+	/**
 	 * Returns a descriptor suitable for telemetry events.
 	 *
 	 * Subclasses should extend if they can contribute.
@@ -150,6 +210,13 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Returns if the input has unsaved changes.
+	 */
+	isModified(): boolean {
+		return this.isDirty();
+	}
+
+	/**
 	 * Returns if this input is currently being saved or soon to be
 	 * saved. Based on this assumption the editor may for example
 	 * decide to not signal the dirty state to the user assuming that
@@ -160,27 +227,16 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
-	 * Returns a type of `IEditorModel` that represents the resolved input.
+	 * Returns a type of `IDisposable` that represents the resolved input.
 	 * Subclasses should override to provide a meaningful model or return
 	 * `null` if the editor does not require a model.
+	 *
+	 * The `options` parameter are passed down from the editor when the
+	 * input is resolved as part of it.
 	 */
-	async resolve(): Promise<IEditorModel | null> {
+	async resolve(): Promise<IDisposable | null> {
 		return null;
 	}
-
-	/**
-	 * Optional: if this method is implemented, allows an editor to
-	 * control what should happen when the editor (or a list of editors
-	 * of the same kind) is dirty and there is an intent to close it.
-	 *
-	 * By default a file specific dialog will open. If the editor is
-	 * not dealing with files, this method should be implemented to
-	 * show a different dialog.
-	 *
-	 * @param editors if more than one editor is closed, will pass in
-	 * each editor of the same kind to be able to show a combined dialog.
-	 */
-	confirm?(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
 
 	/**
 	 * Saves the editor. The provided groupId helps implementors
@@ -233,6 +289,19 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Indicates if this editor can be moved to another group. By default
+	 * editors can freely be moved around groups. If an editor cannot be
+	 * moved, a message should be returned to show to the user.
+	 *
+	 * @returns `true` if the editor can be moved to the target group, or
+	 * a string with a message to show to the user if the editor cannot be
+	 * moved.
+	 */
+	canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		return true;
+	}
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -245,12 +314,9 @@ export abstract class EditorInput extends AbstractEditorInput {
 		// Untyped inputs: go into properties
 		const otherInputEditorId = otherInput.options?.override;
 
-		if (this.editorId === undefined) {
-			return false; // untyped inputs can only match for editors that have adopted `editorId`
-		}
-
-		if (this.editorId !== otherInputEditorId) {
-			return false; // untyped input uses another `editorId`
+		// If the overrides are both defined and don't match that means they're separate inputs
+		if (this.editorId !== otherInputEditorId && otherInputEditorId !== undefined && this.editorId !== undefined) {
+			return false;
 		}
 
 		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput));
@@ -273,13 +339,8 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * editor input into a form that it can be restored.
 	 *
 	 * May return `undefined` if an untyped representation is not supported.
-	 *
-	 * @param options additional configuration for the expected return type.
-	 * When `preserveViewState` is provided, implementations should try to
-	 * preserve as much view state as possible from the typed input based on
-	 * the group the editor is opened.
 	 */
-	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined {
+	toUntyped(options?: IUntypedEditorOptions): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 
@@ -287,12 +348,11 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean {
-		return this.disposed;
+		return this._store.isDisposed;
 	}
 
 	override dispose(): void {
-		if (!this.disposed) {
-			this.disposed = true;
+		if (!this.isDisposed()) {
 			this._onWillDispose.fire();
 		}
 

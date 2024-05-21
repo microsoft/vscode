@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { IdleValue, Limiter } from 'vs/base/common/async';
+import { GlobalIdleValue, Limiter } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
@@ -37,7 +37,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 
 	private readonly limiter = this._register(new Limiter(MAX_PARALLEL_HISTORY_IO_OPS));
 
-	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
+	private readonly resourceExcludeMatcher = this._register(new GlobalIdleValue(() => {
 		const matcher = this._register(new ResourceGlobMatcher(
 			root => this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES, { resource: root }),
 			event => event.affectsConfiguration(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES),
@@ -193,7 +193,8 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 	private shouldTrackHistory(resource: URI, stat: IFileStatWithMetadata): boolean {
 		if (
 			resource.scheme !== this.pathService.defaultUriScheme && 	// track history for all workspace resources
-			resource.scheme !== Schemas.vscodeUserData					// track history for all settings
+			resource.scheme !== Schemas.vscodeUserData &&				// track history for all settings
+			resource.scheme !== Schemas.inMemory	 					// track history for tests that use in-memory
 		) {
 			return false; // do not support unknown resources
 		}

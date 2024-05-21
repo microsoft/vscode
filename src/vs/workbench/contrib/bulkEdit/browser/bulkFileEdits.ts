@@ -18,6 +18,7 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { tail } from 'vs/base/common/arrays';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { Schemas } from 'vs/base/common/network';
 
 interface IFileOperation {
 	uris: URI[];
@@ -51,7 +52,7 @@ class RenameOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return this._edits.map(edit => [edit.newUri, edit.oldUri]).flat();
+		return this._edits.flatMap(edit => [edit.newUri, edit.oldUri]);
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
@@ -105,7 +106,7 @@ class CopyOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return this._edits.map(edit => [edit.newUri, edit.oldUri]).flat();
+		return this._edits.flatMap(edit => [edit.newUri, edit.oldUri]);
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
@@ -173,6 +174,9 @@ class CreateOperation implements IFileOperation {
 		const undoes: DeleteEdit[] = [];
 
 		for (const edit of this._edits) {
+			if (edit.newUri.scheme === Schemas.untitled) {
+				continue; // ignore, will be handled by a later edit
+			}
 			if (edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 				continue; // not overwriting, but ignoring, and the target file exists
 			}
@@ -256,7 +260,7 @@ class DeleteOperation implements IFileOperation {
 				try {
 					fileContent = await this._fileService.readFile(edit.oldUri);
 				} catch (err) {
-					this._logService.critical(err);
+					this._logService.error(err);
 				}
 			}
 			if (fileContent !== undefined) {
@@ -293,7 +297,7 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 		readonly operations: IFileOperation[],
 		readonly confirmBeforeUndo: boolean
 	) {
-		this.resources = operations.map(op => op.uris).flat();
+		this.resources = operations.flatMap(op => op.uris);
 	}
 
 	async undo(): Promise<void> {
@@ -345,7 +349,7 @@ export class BulkFileEdits {
 			} else if (!edit.newResource && edit.oldResource) {
 				edits.push(new DeleteEdit(edit.oldResource, edit.options ?? {}, false));
 			} else if (edit.newResource && !edit.oldResource) {
-				edits.push(new CreateEdit(edit.newResource, edit.options ?? {}, undefined));
+				edits.push(new CreateEdit(edit.newResource, edit.options ?? {}, await edit.options.contents));
 			}
 		}
 
@@ -359,14 +363,14 @@ export class BulkFileEdits {
 		for (let i = 1; i < edits.length; i++) {
 			const edit = edits[i];
 			const lastGroup = tail(groups);
-			if (lastGroup[0].type === edit.type) {
+			if (lastGroup?.[0].type === edit.type) {
 				lastGroup.push(edit);
 			} else {
 				groups.push([edit]);
 			}
 		}
 
-		for (let group of groups) {
+		for (const group of groups) {
 
 			if (this._token.isCancellationRequested) {
 				break;

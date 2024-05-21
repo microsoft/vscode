@@ -5,27 +5,30 @@
 
 import * as assert from 'assert';
 import { range } from 'vs/base/common/arrays';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
 import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workbench - Test Result Storage', () => {
 	let storage: InMemoryResultStorage;
+	let ds: DisposableStore;
 
-	const makeResult = (addMessage?: string) => {
-		const t = new LiveTestResult(
+	const makeResult = (taskName = 't') => {
+		const t = ds.add(new LiveTestResult(
 			'',
-			emptyOutputController(),
 			true,
-			{ targets: [] }
-		);
+			{ targets: [] },
+			NullTelemetryService,
+		));
 
-		t.addTask({ id: 't', name: undefined, running: true });
-		const tests = testStubs.nested();
+		t.addTask({ id: taskName, name: undefined, running: true });
+		const tests = ds.add(testStubs.nested());
 		tests.expand(tests.root.id, Infinity);
 		t.addTestChainToRun('ctrlId', [
 			tests.root.toTestItem(),
@@ -33,15 +36,6 @@ suite('Workbench - Test Result Storage', () => {
 			tests.root.children.get('id-a')!.children.get('id-aa')!.toTestItem(),
 		]);
 
-		if (addMessage) {
-			t.appendMessage(new TestId(['ctrlId', 'id-a']).toString(), 't', {
-				message: addMessage,
-				actual: undefined,
-				expected: undefined,
-				location: undefined,
-				type: 0,
-			});
-		}
 		t.markComplete();
 		return t;
 	};
@@ -50,8 +44,17 @@ suite('Workbench - Test Result Storage', () => {
 		assert.deepStrictEqual((await storage.read()).map(r => r.id), stored.map(s => s.id));
 
 	setup(async () => {
-		storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
+		ds = new DisposableStore();
+		storage = ds.add(new InMemoryResultStorage({
+			asCanonicalUri(uri) {
+				return uri;
+			},
+		} as IUriIdentityService, ds.add(new TestStorageService()), new NullLogService()));
 	});
+
+	teardown(() => ds.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('stores a single result', async () => {
 		const r = range(5).map(() => makeResult());

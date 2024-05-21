@@ -39,7 +39,7 @@ export class CopyLinesCommand implements ICommand {
 			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
 		}
 
-		let sourceLines: string[] = [];
+		const sourceLines: string[] = [];
 		for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
 			sourceLines.push(model.getLineContent(i));
 		}

@@ -8,7 +8,7 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe.skip('Notebooks', () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/140575
+	describe.skip('Notebooks', () => { // https://github.com/microsoft/vscode/issues/140575
 
 		// Shared before/after handling
 		installAllHandlers(logger);
@@ -25,7 +25,7 @@ export function setup(logger: Logger) {
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
-		it.skip('inserts/edits code cell', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139672
+		it('inserts/edits code cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
@@ -34,7 +34,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.stopEditingCell();
 		});
 
-		it.skip('inserts/edits markdown cell', async function () {
+		it('inserts/edits markdown cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();

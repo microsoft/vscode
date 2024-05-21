@@ -16,9 +16,10 @@ import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bro
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/wordSelections';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class StaticLanguageSelector implements ILanguageSelection {
 	readonly onDidChange: Event<string> = Event.None;
@@ -40,7 +41,7 @@ suite('SmartSelect', () => {
 	const languageId = 'mockJSMode';
 	let disposables: DisposableStore;
 	let modelService: IModelService;
-	let providers = new LanguageFeatureRegistry<SelectionRangeProvider>();
+	const providers = new LanguageFeatureRegistry<SelectionRangeProvider>();
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -64,12 +65,14 @@ suite('SmartSelect', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
-		let uri = URI.file('test.js');
-		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(languageId), uri);
-		let [actual] = await provideSelectionRanges(providers, model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
-		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
-		let desiredStr = ranges.reverse().map(r => String(r));
+		const uri = URI.file('test.js');
+		const model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(languageId), uri);
+		const [actual] = await provideSelectionRanges(providers, model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace, selectSubwords: true }, CancellationToken.None);
+		const actualStr = actual.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
+		const desiredStr = ranges.reverse().map(r => String(r));
 
 		assert.deepStrictEqual(actualStr, desiredStr, `\nA: ${actualStr} VS \nE: ${desiredStr}`);
 		modelService.destroyModel(uri);
@@ -210,19 +213,19 @@ suite('SmartSelect', () => {
 	// -- bracket selections
 
 	async function assertRanges(provider: SelectionRangeProvider, value: string, ...expected: IRange[]): Promise<void> {
-		let index = value.indexOf('|');
-		value = value.replace('|', '');
+		const index = value.indexOf('|');
+		value = value.replace('|', ''); // CodeQL [SM02383] js/incomplete-sanitization this is purpose only the first | character
 
-		let model = modelService.createModel(value, new StaticLanguageSelector(languageId), URI.parse('fake:lang'));
-		let pos = model.getPositionAt(index);
-		let all = await provider.provideSelectionRanges(model, [pos], CancellationToken.None);
-		let ranges = all![0];
+		const model = modelService.createModel(value, new StaticLanguageSelector(languageId), URI.parse('fake:lang'));
+		const pos = model.getPositionAt(index);
+		const all = await provider.provideSelectionRanges(model, [pos], CancellationToken.None);
+		const ranges = all![0];
 
 		modelService.destroyModel(model.uri);
 
-		assert.strictEqual(expected.length, ranges!.length);
-		for (const range of ranges!) {
-			let exp = expected.shift() || null;
+		assert.strictEqual(expected.length, ranges.length);
+		for (const range of ranges) {
+			const exp = expected.shift() || null;
 			assert.ok(Range.equalsRange(range.range, exp), `A=${range.range} <> E=${exp}`);
 		}
 	}
@@ -289,6 +292,24 @@ suite('SmartSelect', () => {
 
 		await assertRanges(new WordSelectionRangeProvider(), 'f|oo-Ba',
 			new Range(1, 1, 1, 4),
+			new Range(1, 1, 1, 7),
+			new Range(1, 1, 1, 7),
+		);
+	});
+
+	test('in-word ranges with selectSubwords=false', async () => {
+
+		await assertRanges(new WordSelectionRangeProvider(false), 'f|ooBar',
+			new Range(1, 1, 1, 7),
+			new Range(1, 1, 1, 7),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(false), 'f|oo_Ba',
+			new Range(1, 1, 1, 7),
+			new Range(1, 1, 1, 7),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(false), 'f|oo-Ba',
 			new Range(1, 1, 1, 7),
 			new Range(1, 1, 1, 7),
 		);

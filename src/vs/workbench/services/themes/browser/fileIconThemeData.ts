@@ -12,8 +12,9 @@ import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -99,7 +100,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 
 	static fromStorageData(storageService: IStorageService): FileIconThemeData | undefined {
-		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.PROFILE);
 		if (!input) {
 			return undefined;
 		}
@@ -146,7 +147,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
-		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 
@@ -172,6 +173,8 @@ interface IconsAssociation {
 	folderExpanded?: string;
 	rootFolder?: string;
 	rootFolderExpanded?: string;
+	rootFolderNames?: { [folderName: string]: string };
+	rootFolderNamesExpanded?: { [folderName: string]: string };
 	folderNames?: { [folderName: string]: string };
 	folderNamesExpanded?: { [folderName: string]: string };
 	fileExtensions?: { [extension: string]: string };
@@ -305,6 +308,23 @@ export class FileIconThemeLoader {
 						const name = handleParentFolder(key.toLowerCase(), selectors);
 						selectors.push(`.${escapeCSS(name)}-name-folder-icon`);
 						addSelector(`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
+						result.hasFolderIcons = true;
+					}
+				}
+
+				const rootFolderNames = associations.rootFolderNames;
+				if (rootFolderNames) {
+					for (const key in rootFolderNames) {
+						const name = key.toLowerCase();
+						addSelector(`${qualifier} .${escapeCSS(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNames[key]);
+						result.hasFolderIcons = true;
+					}
+				}
+				const rootFolderNamesExpanded = associations.rootFolderNamesExpanded;
+				if (rootFolderNamesExpanded) {
+					for (const key in rootFolderNamesExpanded) {
+						const name = key.toLowerCase();
+						addSelector(`${qualifier} ${expanded} .${escapeCSS(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNamesExpanded[key]);
 						result.hasFolderIcons = true;
 					}
 				}
@@ -446,5 +466,5 @@ function handleParentFolder(key: string, selectors: string[]): string {
 
 function escapeCSS(str: string) {
 	str = str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
-	return window.CSS.escape(str);
+	return mainWindow.CSS.escape(str);
 }

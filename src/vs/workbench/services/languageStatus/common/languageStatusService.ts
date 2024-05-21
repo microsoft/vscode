@@ -13,7 +13,7 @@ import { Command } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface ILanguageStatus {
@@ -21,7 +21,7 @@ export interface ILanguageStatus {
 	readonly name: string;
 	readonly selector: LanguageSelector;
 	readonly severity: Severity;
-	readonly label: string;
+	readonly label: string | { value: string; shortValue: string };
 	readonly detail: string;
 	readonly busy: boolean;
 	readonly source: string;
@@ -73,4 +73,4 @@ class LanguageStatusServiceImpl implements ILanguageStatusService {
 	}
 }
 
-registerSingleton(ILanguageStatusService, LanguageStatusServiceImpl, true);
+registerSingleton(ILanguageStatusService, LanguageStatusServiceImpl, InstantiationType.Delayed);

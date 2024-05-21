@@ -9,6 +9,7 @@ import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
 	readonly element: T;
@@ -17,7 +18,7 @@ interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
 
 function resolve<T>(treeElement: ICompressedTreeElement<T>): IResolvedCompressedTreeElement<T> {
 	const result: any = { element: treeElement.element };
-	const children = [...Iterable.map(Iterable.from(treeElement.children), resolve)];
+	const children = Array.from(Iterable.from(treeElement.children), resolve);
 
 	if (treeElement.incompressible) {
 		result.incompressible = true;
@@ -31,6 +32,8 @@ function resolve<T>(treeElement: ICompressedTreeElement<T>): IResolvedCompressed
 }
 
 suite('CompressedObjectTree', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('compress & decompress', function () {
 

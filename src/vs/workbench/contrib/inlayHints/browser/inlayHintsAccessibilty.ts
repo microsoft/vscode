@@ -8,18 +8,18 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InlayHintItem, asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Link } from 'vs/platform/opener/browser/link';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 
 export class InlayHintsAccessibility implements IEditorContribution {
@@ -35,12 +35,12 @@ export class InlayHintsAccessibility implements IEditorContribution {
 	private readonly _ariaElement: HTMLSpanElement;
 	private readonly _ctxIsReading: IContextKey<boolean>;
 
-	private _sessionDispoosables = new DisposableStore();
+	private readonly _sessionDispoosables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		this._ariaElement = document.createElement('span');
@@ -80,7 +80,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 		const cts = new CancellationTokenSource();
 		this._sessionDispoosables.add(cts);
 
-		for (let hint of hints) {
+		for (const hint of hints) {
 			await hint.resolve(cts.token);
 		}
 
@@ -116,7 +116,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 			if (typeof label === 'string') {
 				em.innerText = label;
 			} else {
-				for (let part of label) {
+				for (const part of label) {
 					if (part.command) {
 						const link = this._instaService.createInstance(Link, em,
 							{ href: asCommandLink(part.command), label: part.label, title: part.command.title },
@@ -156,7 +156,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 		const line = this._editor.getPosition().lineNumber;
 		const hints = InlayHintsController.get(this._editor)?.getInlayHintsForLine(line);
 		if (!hints || hints.length === 0) {
-			this._audioCueService.playAudioCue(AudioCue.noInlayHints);
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.noInlayHints);
 		} else {
 			this._read(line, hints);
 		}
@@ -174,7 +174,7 @@ registerAction2(class StartReadHints extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlayHints.startReadingLineWithHint',
-			title: localize('read.title', 'Read Line With Inline Hints'),
+			title: localize2('read.title', "Read Line With Inline Hints"),
 			precondition: EditorContextKeys.hasInlayHintsProvider,
 			f1: true
 		});
@@ -182,9 +182,7 @@ registerAction2(class StartReadHints extends EditorAction2 {
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		const ctrl = InlayHintsAccessibility.get(editor);
-		if (ctrl) {
-			ctrl.startInlayHintsReading();
-		}
+		ctrl?.startInlayHintsReading();
 	}
 });
 
@@ -193,7 +191,7 @@ registerAction2(class StopReadHints extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlayHints.stopReadingLineWithHint',
-			title: localize('stop.title', 'Stop Inlay Hints Reading'),
+			title: localize2('stop.title', "Stop Inlay Hints Reading"),
 			precondition: InlayHintsAccessibility.IsReading,
 			f1: true,
 			keybinding: {
@@ -205,10 +203,8 @@ registerAction2(class StopReadHints extends EditorAction2 {
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		const ctrl = InlayHintsAccessibility.get(editor);
-		if (ctrl) {
-			ctrl.stopInlayHintsReading();
-		}
+		ctrl?.stopInlayHintsReading();
 	}
 });
 
-registerEditorContribution(InlayHintsAccessibility.ID, InlayHintsAccessibility);
+registerEditorContribution(InlayHintsAccessibility.ID, InlayHintsAccessibility, EditorContributionInstantiation.Lazy);

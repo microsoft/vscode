@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INewUntitledTextEditorOptions, IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { Schemas } from 'vs/base/common/network';
@@ -22,13 +22,25 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const ITextEditorService = createDecorator<ITextEditorService>('textEditorService');
 
 export interface ITextEditorService {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * @deprecated this method should not be used, rather consider using
+	 * `IEditorResolverService` instead with `DEFAULT_EDITOR_ASSOCIATION.id`.
+	 */
+	createTextEditor(input: IUntypedEditorInput): EditorInput;
+
+	/**
+	 * @deprecated this method should not be used, rather consider using
+	 * `IEditorResolverService` instead with `DEFAULT_EDITOR_ASSOCIATION.id`.
+	 */
+	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
 
 	/**
 	 * A way to create text editor inputs from an untyped editor input. Depending
@@ -39,8 +51,8 @@ export interface ITextEditorService {
 	 *
 	 * @param input the untyped editor input to create a typed input from
 	 */
-	createTextEditor(input: IUntypedEditorInput): EditorInput;
-	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
+	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
+	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
 }
 
 export class TextEditorService extends Disposable implements ITextEditorService {
@@ -75,28 +87,41 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			editor => ({ editor: this.createTextEditor(editor) }),
-			untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
-			diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			{
+				createEditorInput: editor => ({ editor: this.createTextEditor(editor) }),
+				createUntitledEditorInput: untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
+				createDiffEditorInput: diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			}
 		));
+	}
+
+	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
+	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
+	async resolveTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): Promise<EditorInput | IFileEditorInput> {
+		return this.createTextEditor(input);
 	}
 
 	createTextEditor(input: IUntypedEditorInput): EditorInput;
 	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
 	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): EditorInput | IFileEditorInput {
 
+		// Merge Editor Not Supported (we fallback to showing the result only)
+		if (isResourceMergeEditorInput(input)) {
+			return this.createTextEditor(input.result);
+		}
+
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
-			const original = this.createTextEditor({ ...input.original });
-			const modified = this.createTextEditor({ ...input.modified });
+			const original = this.createTextEditor(input.original);
+			const modified = this.createTextEditor(input.modified);
 
 			return this.instantiationService.createInstance(DiffEditorInput, input.label, input.description, original, modified, undefined);
 		}
 
 		// Side by Side Editor Support
 		if (isResourceSideBySideEditorInput(input)) {
-			const primary = this.createTextEditor({ ...input.primary });
-			const secondary = this.createTextEditor({ ...input.secondary });
+			const primary = this.createTextEditor(input.primary);
+			const secondary = this.createTextEditor(input.secondary);
 
 			return this.instantiationService.createInstance(SideBySideEditorInput, input.label, input.description, secondary, primary);
 		}
@@ -121,20 +146,7 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				untitledModel = this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
 			}
 
-			return this.createOrGetCached(untitledModel.resource, () => {
-
-				// Factory function for new untitled editor
-				const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
-
-				// We dispose the untitled model once the editor
-				// is being disposed. Even though we may have not
-				// created the model initially, the lifecycle for
-				// untitled is tightly coupled with the editor
-				// lifecycle for now.
-				Event.once(input.onWillDispose)(() => untitledModel.dispose());
-
-				return input;
-			});
+			return this.createOrGetCached(untitledModel.resource, () => this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel));
 		}
 
 		// Text File/Resource Editor Support
@@ -227,9 +239,7 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 		// Return early if already cached
 		let input = this.editorInputCache.get(resource);
 		if (input) {
-			if (cachedFn) {
-				cachedFn(input);
-			}
+			cachedFn?.(input);
 
 			return input;
 		}
@@ -243,4 +253,4 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 	}
 }
 
-registerSingleton(ITextEditorService, TextEditorService, false /* do not change: https://github.com/microsoft/vscode/issues/137675 */);
+registerSingleton(ITextEditorService, TextEditorService, InstantiationType.Eager /* do not change: https://github.com/microsoft/vscode/issues/137675 */);

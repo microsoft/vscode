@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 // @ts-check
 const path = require("path");
@@ -53,3 +53,4 @@ if (require.main === module) {
         process.exit(1);
     });
 }
+//# sourceMappingURL=preLaunch.js.map

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ColorId, ITokenPresentation, TokenMetadata } from 'vs/editor/common/languages';
+import { ColorId, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
  * A token on a line.
@@ -121,7 +121,7 @@ export class TestLineTokenFactory {
 	public static inflateArr(tokens: Uint32Array): TestLineToken[] {
 		const tokensCount = (tokens.length >>> 1);
 
-		let result: TestLineToken[] = new Array<TestLineToken>(tokensCount);
+		const result: TestLineToken[] = new Array<TestLineToken>(tokensCount);
 		for (let i = 0; i < tokensCount; i++) {
 			const endOffset = tokens[i << 1];
 			const metadata = tokens[(i << 1) + 1];

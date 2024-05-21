@@ -3,77 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IntervalTimer } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { URI } from 'vs/base/common/uri';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as nls from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtensionHostKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
+import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as nls from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 
-export interface IExtensionHostManager {
-	readonly extensionHostId: string;
-	readonly kind: ExtensionHostKind;
-	readonly onDidExit: Event<[number, string | null]>;
-	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
-	dispose(): void;
-	ready(): Promise<void>;
-	representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean;
-	deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
-	containsExtension(extensionId: ExtensionIdentifier): boolean;
-	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
-	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
-	activationEventIsDone(activationEvent: string): boolean;
-	getInspectPort(tryEnableInspector: boolean): Promise<number>;
-	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
-	/**
-	 * Returns `null` if no resolver for `remoteAuthority` is found.
-	 */
-	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null>;
-	start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void>;
-	extensionTestsExecute(): Promise<number>;
-	extensionTestsSendExit(exitCode: number): Promise<void>;
-	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
-}
-
-export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHostId: string, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[], internalExtensionService: IInternalExtensionService): IExtensionHostManager {
-	if (extensionHost.lazyStart && isInitialStart && initialActivationEvents.length === 0) {
-		return instantiationService.createInstance(LazyStartExtensionHostManager, extensionHostId, extensionHost, internalExtensionService);
-	}
-	return instantiationService.createInstance(ExtensionHostManager, extensionHostId, extensionHost, initialActivationEvents, internalExtensionService);
-}
-
-export type ExtensionHostStartupClassification = {
-	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+type ExtensionHostStartupClassification = {
+	owner: 'alexdima';
+	comment: 'The startup state of the extension host';
+	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time reported by Date.now().' };
+	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The action: starting, success or error.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension host kind: LocalProcess, LocalWebWorker or Remote.' };
+	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error name.' };
+	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error stack.' };
 };
 
-export type ExtensionHostStartupEvent = {
+type ExtensionHostStartupEvent = {
 	time: number;
 	action: 'starting' | 'success' | 'error';
 	kind: string;
@@ -82,7 +55,7 @@ export type ExtensionHostStartupEvent = {
 	errorStack?: string;
 };
 
-class ExtensionHostManager extends Disposable implements IExtensionHostManager {
+export class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 	public readonly onDidExit: Event<[number, string | null]>;
 
@@ -100,12 +73,23 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private _proxy: Promise<IExtensionHostProxy | null> | null;
 	private _hasStarted = false;
 
+	public get pid(): number | null {
+		return this._extensionHost.pid;
+	}
+
 	public get kind(): ExtensionHostKind {
 		return this._extensionHost.runningLocation.kind;
 	}
 
+	public get startup(): ExtensionHostStartup {
+		return this._extensionHost.startup;
+	}
+
+	public get friendyName(): string {
+		return friendlyExtHostName(this.kind, this.pid);
+	}
+
 	constructor(
-		public readonly extensionHostId: string,
 		extensionHost: IExtensionHost,
 		initialActivationEvents: string[],
 		private readonly _internalExtensionService: IInternalExtensionService,
@@ -130,7 +114,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		};
 		this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', startingTelemetryEvent);
 
-		this._proxy = this._extensionHost.start()!.then(
+		this._proxy = this._extensionHost.start().then(
 			(protocol) => {
 				this._hasStarted = true;
 
@@ -142,7 +126,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				};
 				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', successTelemetryEvent);
 
-				return this._createExtensionHostCustomers(protocol);
+				return this._createExtensionHostCustomers(this.kind, protocol);
 			},
 			(err) => {
 				this._logService.error(`Error received from starting extension host (kind: ${extensionHostKindToString(this.kind)})`);
@@ -164,7 +148,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				if (err && err.stack) {
 					failureTelemetryEvent.errorStack = err.stack;
 				}
-				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent, true);
+				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent);
 
 				return null;
 			}
@@ -222,7 +206,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 		let sum = 0;
 		for (let i = 0; i < COUNT; i++) {
-			const sw = StopWatch.create(true);
+			const sw = StopWatch.create();
 			await proxy.test_latency(i);
 			sw.stop();
 			sum += sw.elapsed();
@@ -237,12 +221,12 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private async _measureUp(proxy: IExtensionHostProxy): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let buff = VSBuffer.alloc(SIZE);
-		let value = Math.ceil(Math.random() * 256);
+		const buff = VSBuffer.alloc(SIZE);
+		const value = Math.ceil(Math.random() * 256);
 		for (let i = 0; i < buff.byteLength; i++) {
 			buff.writeUInt8(i, value);
 		}
-		const sw = StopWatch.create(true);
+		const sw = StopWatch.create();
 		await proxy.test_up(buff);
 		sw.stop();
 		return ExtensionHostManager._convert(SIZE, sw.elapsed());
@@ -251,17 +235,19 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private async _measureDown(proxy: IExtensionHostProxy): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		const sw = StopWatch.create(true);
+		const sw = StopWatch.create();
 		await proxy.test_down(SIZE);
 		sw.stop();
 		return ExtensionHostManager._convert(SIZE, sw.elapsed());
 	}
 
-	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): IExtensionHostProxy {
+	private _createExtensionHostCustomers(kind: ExtensionHostKind, protocol: IMessagePassingProtocol): IExtensionHostProxy {
 
 		let logger: IRPCProtocolLogger | null = null;
 		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
-			logger = new RPCLogger();
+			logger = new RPCLogger(kind);
+		} else if (TelemetryRPCLogger.isEnabled()) {
+			logger = new TelemetryRPCLogger(this._telemetryService);
 		}
 
 		this._rpcProtocol = new RPCProtocol(protocol, logger);
@@ -292,16 +278,27 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
 		for (let i = 0, len = namedCustomers.length; i < len; i++) {
 			const [id, ctor] = namedCustomers[i];
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
-			this._rpcProtocol.set(id, instance);
+			try {
+				const instance = this._instantiationService.createInstance(ctor, extHostContext);
+				this._customers.push(instance);
+				this._rpcProtocol.set(id, instance);
+			} catch (err) {
+				this._logService.error(`Cannot instantiate named customer: '${id.sid}'`);
+				this._logService.error(err);
+				errors.onUnexpectedError(err);
+			}
 		}
 
 		// Customers
 		const customers = ExtHostCustomersRegistry.getCustomers();
 		for (const ctor of customers) {
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
+			try {
+				const instance = this._instantiationService.createInstance(ctor, extHostContext);
+				this._customers.push(instance);
+			} catch (err) {
+				this._logService.error(err);
+				errors.onUnexpectedError(err);
+			}
 		}
 
 		if (!extensionHostProxy) {
@@ -347,26 +344,40 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			// i.e. the extension host could not be started
 			return;
 		}
+
+		if (!this._extensionHost.extensions!.containsActivationEvent(activationEvent)) {
+			this._resolvedActivationEvents.add(activationEvent);
+			return;
+		}
+
 		await proxy.activateByEvent(activationEvent, activationKind);
 		this._resolvedActivationEvents.add(activationEvent);
 	}
 
-	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined> {
 		if (this._extensionHost) {
 			if (tryEnableInspector) {
 				await this._extensionHost.enableInspectPort();
 			}
-			let port = this._extensionHost.getInspectPort();
+			const port = this._extensionHost.getInspectPort();
 			if (port) {
 				return port;
 			}
 		}
-		return 0;
+
+		return undefined;
 	}
 
 	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+		const sw = StopWatch.create(false);
+		const prefix = () => `[${extensionHostKindToString(this._extensionHost.runningLocation.kind)}${this._extensionHost.runningLocation.affinity}][resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)},${resolveAttempt})][${sw.elapsed()}ms] `;
+		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
+		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
+
+		logInfo(`obtaining proxy...`);
 		const proxy = await this._proxy;
 		if (!proxy) {
+			logError(`no proxy`);
 			return {
 				type: 'error',
 				error: {
@@ -376,10 +387,21 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				}
 			};
 		}
-
+		logInfo(`invoking...`);
+		const intervalLogger = new IntervalTimer();
 		try {
-			return proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+			intervalLogger.cancelAndSet(() => logInfo('waiting...'), 1000);
+			const resolverResult = await proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+			intervalLogger.dispose();
+			if (resolverResult.type === 'ok') {
+				logInfo(`returned ${resolverResult.value.authority.connectTo}`);
+			} else {
+				logError(`returned an error`, resolverResult.error);
+			}
+			return resolverResult;
 		} catch (err) {
+			intervalLogger.dispose();
+			logError(`returned an error`, err);
 			return {
 				type: 'error',
 				error: {
@@ -399,12 +421,12 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return proxy.getCanonicalURI(remoteAuthority, uri);
 	}
 
-	public async start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
+	public async start(extensionRegistryVersionId: number, allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
 		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
-		const deltaExtensions = this._extensionHost.extensions.set(allExtensions, myExtensions);
+		const deltaExtensions = this._extensionHost.extensions!.set(extensionRegistryVersionId, allExtensions, myExtensions);
 		return proxy.startExtensionHost(deltaExtensions);
 	}
 
@@ -416,35 +438,25 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return proxy.extensionTestsExecute();
 	}
 
-	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		const proxy = await this._proxy;
-		if (!proxy) {
-			return;
-		}
-		// This method does not wait for the actual RPC to be confirmed
-		// It waits for the socket to drain (i.e. the message has been sent)
-		// It also times out after 5s in case drain takes too long
-		proxy.extensionTestsExit(exitCode);
-		if (this._rpcProtocol) {
-			await Promise.race([this._rpcProtocol.drain(), timeout(5000)]);
-		}
-	}
-
 	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
 		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
 
-	public async deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+	public async deltaExtensions(incomingExtensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
-		this._extensionHost.extensions.delta(extensionsDelta);
-		return proxy.deltaExtensions(extensionsDelta);
+		const outgoingExtensionsDelta = this._extensionHost.extensions!.delta(incomingExtensionsDelta);
+		if (!outgoingExtensionsDelta) {
+			// The extension host already has this version of the extensions.
+			return;
+		}
+		return proxy.deltaExtensions(outgoingExtensionsDelta);
 	}
 
 	public containsExtension(extensionId: ExtensionIdentifier): boolean {
-		return this._extensionHost.extensions.containsExtension(extensionId);
+		return this._extensionHost.extensions?.containsExtension(extensionId) ?? false;
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
@@ -457,167 +469,11 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 }
 
-/**
- * Waits until `start()` and only if it has extensions proceeds to really start.
- */
-class LazyStartExtensionHostManager extends Disposable implements IExtensionHostManager {
-
-	public readonly onDidExit: Event<[number, string | null]>;
-	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
-	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
-
-	private readonly _extensionHost: IExtensionHost;
-	private _startCalled: Barrier;
-	private _actual: ExtensionHostManager | null;
-	private _lazyStartExtensions: ExtensionHostExtensions | null;
-
-	public get kind(): ExtensionHostKind {
-		return this._extensionHost.runningLocation.kind;
+export function friendlyExtHostName(kind: ExtensionHostKind, pid: number | null) {
+	if (pid) {
+		return `${extensionHostKindToString(kind)} pid: ${pid}`;
 	}
-
-	constructor(
-		public readonly extensionHostId: string,
-		extensionHost: IExtensionHost,
-		private readonly _internalExtensionService: IInternalExtensionService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
-	) {
-		super();
-		this._extensionHost = extensionHost;
-		this.onDidExit = extensionHost.onExit;
-		this._startCalled = new Barrier();
-		this._actual = null;
-		this._lazyStartExtensions = null;
-	}
-
-	private _createActual(reason: string): ExtensionHostManager {
-		this._logService.info(`Creating lazy extension host: ${reason}`);
-		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this.extensionHostId, this._extensionHost, [], this._internalExtensionService));
-		this._register(this._actual.onDidChangeResponsiveState((e) => this._onDidChangeResponsiveState.fire(e)));
-		return this._actual;
-	}
-
-	private async _getOrCreateActualAndStart(reason: string): Promise<ExtensionHostManager> {
-		if (this._actual) {
-			// already created/started
-			return this._actual;
-		}
-		const actual = this._createActual(reason);
-		await actual.start([], []);
-		return actual;
-	}
-
-	public async ready(): Promise<void> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			await this._actual.ready();
-		}
-	}
-	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
-		return this._extensionHost.runningLocation.equals(runningLocation);
-	}
-	public async deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.deltaExtensions(extensionsDelta);
-		}
-		this._lazyStartExtensions!.delta(extensionsDelta);
-		if (extensionsDelta.myToAdd.length > 0) {
-			const actual = this._createActual(`contains ${extensionsDelta.myToAdd.length} new extension(s) (installed or enabled): ${extensionsDelta.myToAdd.map(extId => extId.value)}`);
-			const { toAdd, myToAdd } = this._lazyStartExtensions!.toDelta();
-			actual.start(toAdd, myToAdd);
-			return;
-		}
-	}
-	public containsExtension(extensionId: ExtensionIdentifier): boolean {
-		return this._extensionHost.extensions.containsExtension(extensionId);
-	}
-	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.activate(extension, reason);
-		}
-		return false;
-	}
-	public async activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
-		if (activationKind === ActivationKind.Immediate) {
-			// this is an immediate request, so we cannot wait for start to be called
-			if (this._actual) {
-				return this._actual.activateByEvent(activationEvent, activationKind);
-			}
-			return;
-		}
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.activateByEvent(activationEvent, activationKind);
-		}
-	}
-	public activationEventIsDone(activationEvent: string): boolean {
-		if (!this._startCalled.isOpen()) {
-			return false;
-		}
-		if (this._actual) {
-			return this._actual.activationEventIsDone(activationEvent);
-		}
-		return true;
-	}
-	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.getInspectPort(tryEnableInspector);
-		}
-		return 0;
-	}
-	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.resolveAuthority(remoteAuthority, resolveAttempt);
-		}
-		return {
-			type: 'error',
-			error: {
-				message: `Cannot resolve authority`,
-				code: RemoteAuthorityResolverErrorCode.Unknown,
-				detail: undefined
-			}
-		};
-	}
-	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.getCanonicalURI(remoteAuthority, uri);
-		}
-		throw new Error(`Cannot resolve canonical URI`);
-	}
-	public async start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
-		if (myExtensions.length > 0) {
-			// there are actual extensions, so let's launch the extension host
-			const actual = this._createActual(`contains ${myExtensions.length} extension(s): ${myExtensions.map(extId => extId.value)}.`);
-			const result = actual.start(allExtensions, myExtensions);
-			this._startCalled.open();
-			return result;
-		}
-		// there are no actual extensions running, store extensions in `this._lazyStartExtensions`
-		this._lazyStartExtensions = new ExtensionHostExtensions();
-		this._lazyStartExtensions.set(allExtensions, myExtensions);
-		this._startCalled.open();
-	}
-	public async extensionTestsExecute(): Promise<number> {
-		await this._startCalled.wait();
-		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
-		return actual.extensionTestsExecute();
-	}
-	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		await this._startCalled.wait();
-		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
-		return actual.extensionTestsSendExit(exitCode);
-	}
-	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.setRemoteEnvironment(env);
-		}
-	}
+	return `${extensionHostKindToString(kind)}`;
 }
 
 const colorTables = [
@@ -630,7 +486,7 @@ function prettyWithoutArrays(data: any): any {
 		return data;
 	}
 	if (data && typeof data === 'object' && typeof data.toString === 'function') {
-		let result = data.toString();
+		const result = data.toString();
 		if (result !== '[object Object]') {
 			return result;
 		}
@@ -650,12 +506,16 @@ class RPCLogger implements IRPCProtocolLogger {
 	private _totalIncoming = 0;
 	private _totalOutgoing = 0;
 
+	constructor(
+		private readonly _kind: ExtensionHostKind
+	) { }
+
 	private _log(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
 		data = pretty(data);
 
 		const colorTable = colorTables[initiator];
 		const color = LOG_USE_COLORS ? colorTable[req % colorTable.length] : '#000000';
-		let args = [`%c[${direction}]%c[${String(totalLength).padStart(7)}]%c[len: ${String(msgLength).padStart(5)}]%c${String(req).padStart(5)} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
+		let args = [`%c[${extensionHostKindToString(this._kind)}][${direction}]%c[${String(totalLength).padStart(7)}]%c[len: ${String(msgLength).padStart(5)}]%c${String(req).padStart(5)} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
 		if (/\($/.test(str)) {
 			args = args.concat(data);
 			args.push(')');
@@ -676,6 +536,62 @@ class RPCLogger implements IRPCProtocolLogger {
 	}
 }
 
+interface RPCTelemetryData {
+	type: string;
+	length: number;
+}
+
+type RPCTelemetryDataClassification = {
+	owner: 'jrieken';
+	comment: 'Insights about RPC message sizes';
+	type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the RPC message' };
+	length: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The byte-length of the RPC message' };
+};
+
+class TelemetryRPCLogger implements IRPCProtocolLogger {
+
+	static isEnabled(): boolean {
+		// this will be a very high frequency event, so we only log a small percentage of them
+		return Math.trunc(Math.random() * 1000) < 0.5;
+	}
+
+	private readonly _pendingRequests = new Map<number, string>();
+
+	constructor(@ITelemetryService private readonly _telemetryService: ITelemetryService) { }
+
+	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string): void {
+
+		if (initiator === RequestInitiator.LocalSide && /^receiveReply(Err)?:/.test(str)) {
+			// log the size of reply messages
+			const requestStr = this._pendingRequests.get(req) ?? 'unknown_reply';
+			this._pendingRequests.delete(req);
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.incoming', {
+				type: `${str} ${requestStr}`,
+				length: msgLength
+			});
+		}
+
+		if (initiator === RequestInitiator.OtherSide && /^receiveRequest /.test(str)) {
+			// incoming request
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.incoming', {
+				type: `${str}`,
+				length: msgLength
+			});
+		}
+	}
+
+	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string): void {
+
+		if (initiator === RequestInitiator.LocalSide && str.startsWith('request: ')) {
+			this._pendingRequests.set(req, str);
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.outgoing', {
+				type: str,
+				length: msgLength
+			});
+		}
+	}
+}
+
 interface ExtHostLatencyResult {
 	remoteAuthority: string | null;
 	up: number;
@@ -687,7 +603,7 @@ interface ExtHostLatencyProvider {
 	measure(): Promise<ExtHostLatencyResult | null>;
 }
 
-let providers: ExtHostLatencyProvider[] = [];
+const providers: ExtHostLatencyProvider[] = [];
 function registerLatencyTestProvider(provider: ExtHostLatencyProvider): IDisposable {
 	providers.push(provider);
 	return {
@@ -711,11 +627,8 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.measureExtHostLatency',
-			title: {
-				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
-				original: 'Measure Extension Host Latency'
-			},
-			category: CATEGORIES.Developer,
+			title: nls.localize2('measureExtHostLatency', "Measure Extension Host Latency"),
+			category: Categories.Developer,
 			f1: true
 		});
 	}

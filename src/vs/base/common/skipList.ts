@@ -44,6 +44,7 @@ export class SkipList<K, V> implements Map<K, V> {
 
 	clear(): void {
 		this._header = <any>new Node(this._maxLevel, NIL, NIL);
+		this._size = 0;
 	}
 
 	has(key: K): boolean {
@@ -135,7 +136,7 @@ export class SkipList<K, V> implements Map<K, V> {
 	}
 
 	private static _insert<K, V>(list: SkipList<K, V>, searchKey: K, value: V, comparator: Comparator<K>) {
-		let update: Node<K, V>[] = [];
+		const update: Node<K, V>[] = [];
 		let x = list._header;
 		for (let i = list._level - 1; i >= 0; i--) {
 			while (x.forward[i] && comparator(x.forward[i].key, searchKey) < 0) {
@@ -150,7 +151,7 @@ export class SkipList<K, V> implements Map<K, V> {
 			return false;
 		} else {
 			// insert
-			let lvl = SkipList._randomLevel(list);
+			const lvl = SkipList._randomLevel(list);
 			if (lvl > list._level) {
 				for (let i = list._level; i < lvl; i++) {
 					update[i] = list._header;
@@ -175,7 +176,7 @@ export class SkipList<K, V> implements Map<K, V> {
 	}
 
 	private static _delete<K, V>(list: SkipList<K, V>, searchKey: K, comparator: Comparator<K>) {
-		let update: Node<K, V>[] = [];
+		const update: Node<K, V>[] = [];
 		let x = list._header;
 		for (let i = list._level - 1; i >= 0; i--) {
 			while (x.forward[i] && comparator(x.forward[i].key, searchKey) < 0) {

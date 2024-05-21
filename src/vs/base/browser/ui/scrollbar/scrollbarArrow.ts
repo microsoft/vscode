@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GlobalPointerMoveMonitor, standardPointerMoveMerger } from 'vs/base/browser/globalPointerMoveMonitor';
+import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
+import { TimeoutTimer } from 'vs/base/common/async';
+import { ThemeIcon } from 'vs/base/common/themables';
 import * as dom from 'vs/base/browser/dom';
 
 /**
@@ -17,7 +17,7 @@ export const ARROW_IMG_SIZE = 11;
 export interface ScrollbarArrowOptions {
 	onActivate: () => void;
 	className: string;
-	icon: Codicon;
+	icon: ThemeIcon;
 
 	bgWidth: number;
 	bgHeight: number;
@@ -33,7 +33,7 @@ export class ScrollbarArrow extends Widget {
 	private _onActivate: () => void;
 	public bgDomNode: HTMLElement;
 	public domNode: HTMLElement;
-	private _pointerdownRepeatTimer: IntervalTimer;
+	private _pointerdownRepeatTimer: dom.WindowIntervalTimer;
 	private _pointerdownScheduleRepeatTimer: TimeoutTimer;
 	private _pointerMoveMonitor: GlobalPointerMoveMonitor;
 
@@ -61,7 +61,7 @@ export class ScrollbarArrow extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = opts.className;
-		this.domNode.classList.add(...opts.icon.classNamesArray);
+		this.domNode.classList.add(...ThemeIcon.asClassNameArray(opts.icon));
 
 		this.domNode.style.position = 'absolute';
 		this.domNode.style.width = ARROW_IMG_SIZE + 'px';
@@ -83,7 +83,7 @@ export class ScrollbarArrow extends Widget {
 		this._register(dom.addStandardDisposableListener(this.bgDomNode, dom.EventType.POINTER_DOWN, (e) => this._arrowPointerDown(e)));
 		this._register(dom.addStandardDisposableListener(this.domNode, dom.EventType.POINTER_DOWN, (e) => this._arrowPointerDown(e)));
 
-		this._pointerdownRepeatTimer = this._register(new IntervalTimer());
+		this._pointerdownRepeatTimer = this._register(new dom.WindowIntervalTimer());
 		this._pointerdownScheduleRepeatTimer = this._register(new TimeoutTimer());
 	}
 
@@ -92,7 +92,7 @@ export class ScrollbarArrow extends Widget {
 			return;
 		}
 		const scheduleRepeater = () => {
-			this._pointerdownRepeatTimer.cancelAndSet(() => this._onActivate(), 1000 / 24);
+			this._pointerdownRepeatTimer.cancelAndSet(() => this._onActivate(), 1000 / 24, dom.getWindow(e));
 		};
 
 		this._onActivate();
@@ -103,7 +103,6 @@ export class ScrollbarArrow extends Widget {
 			e.target,
 			e.pointerId,
 			e.buttons,
-			standardPointerMoveMerger,
 			(pointerMoveData) => { /* Intentional empty */ },
 			() => {
 				this._pointerdownRepeatTimer.cancel();

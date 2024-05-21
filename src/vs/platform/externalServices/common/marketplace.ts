@@ -10,17 +10,30 @@ import { getServiceMachineId } from 'vs/platform/externalServices/common/service
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 
-export async function resolveMarketplaceHeaders(version: string, productService: IProductService, environmentService: IEnvironmentService, configurationService: IConfigurationService, fileService: IFileService, storageService: IStorageService | undefined): Promise<IHeaders> {
+export async function resolveMarketplaceHeaders(version: string,
+	productService: IProductService,
+	environmentService: IEnvironmentService,
+	configurationService: IConfigurationService,
+	fileService: IFileService,
+	storageService: IStorageService | undefined,
+	telemetryService: ITelemetryService): Promise<IHeaders> {
+
 	const headers: IHeaders = {
 		'X-Market-Client-Id': `VSCode ${version}`,
 		'User-Agent': `VSCode ${version} (${productService.nameShort})`
 	};
-	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
+
 	if (supportsTelemetry(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {
-		headers['X-Market-User-Id'] = uuid;
+		const serviceMachineId = await getServiceMachineId(environmentService, fileService, storageService);
+		headers['X-Market-User-Id'] = serviceMachineId;
+		// Send machineId as VSCode-SessionId so we can correlate telemetry events across different services
+		// machineId can be undefined sometimes (eg: when launching from CLI), so send serviceMachineId instead otherwise
+		// Marketplace will reject the request if there is no VSCode-SessionId header
+		headers['VSCode-SessionId'] = telemetryService.machineId || serviceMachineId;
 	}
+
 	return headers;
 }

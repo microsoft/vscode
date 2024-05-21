@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IThemable } from 'vs/base/common/styler';
 import 'vs/css!./table';
 
 // TODO@joao
@@ -116,7 +117,7 @@ function asListVirtualDelegate<TRow>(delegate: ITableVirtualDelegate<TRow>): ILi
 	};
 }
 
-class ColumnHeader<TRow, TCell> implements IView {
+class ColumnHeader<TRow, TCell> extends Disposable implements IView {
 
 	readonly element: HTMLElement;
 
@@ -128,7 +129,13 @@ class ColumnHeader<TRow, TCell> implements IView {
 	readonly onDidLayout = this._onDidLayout.event;
 
 	constructor(readonly column: ITableColumn<TRow, TCell>, private index: number) {
-		this.element = $('.monaco-table-th', { 'data-col-index': index, title: column.tooltip }, column.label);
+		super();
+
+		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.label);
+
+		if (column.tooltip) {
+			this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, column.tooltip));
+		}
 	}
 
 	layout(size: number): void {
@@ -140,7 +147,7 @@ export interface ITableOptions<TRow> extends IListOptions<TRow> { }
 export interface ITableOptionsUpdate extends IListOptionsUpdate { }
 export interface ITableStyles extends IListStyles { }
 
-export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
+export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 	private static InstanceCount = 0;
 	readonly domId = `table_id_${++Table.InstanceCount}`;
@@ -192,7 +199,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 	) {
 		this.domNode = append(container, $(`.monaco-table.${this.domId}`));
 
-		const headers = columns.map((c, i) => new ColumnHeader(c, i));
+		const headers = columns.map((c, i) => this.disposables.add(new ColumnHeader(c, i)));
 		const descriptor: ISplitViewDescriptor = {
 			size: headers.reduce((a, b) => a + b.column.weight, 0),
 			views: headers.map(view => ({ size: view.column.weight, view }))
@@ -221,14 +228,14 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		}, null, this.disposables);
 
 		this.styleElement = createStyleSheet(this.domNode);
-		this.style({});
+		this.style(unthemedListStyles);
 	}
 
 	updateOptions(options: ITableOptionsUpdate): void {
 		this.list.updateOptions(options);
 	}
 
-	splice(start: number, deleteCount: number, elements: TRow[] = []): void {
+	splice(start: number, deleteCount: number, elements: readonly TRow[] = []): void {
 		this.list.splice(start, deleteCount, elements);
 	}
 
@@ -265,8 +272,8 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.layout(listHeight, width);
 	}
 
-	toggleKeyboardNavigation(): void {
-		this.list.toggleKeyboardNavigation();
+	triggerTypeNavigation(): void {
+		this.list.triggerTypeNavigation();
 	}
 
 	style(styles: ITableStyles): void {
@@ -339,6 +346,10 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 	getFocusedElements(): TRow[] {
 		return this.list.getFocusedElements();
+	}
+
+	getRelativeTop(index: number): number | null {
+		return this.list.getRelativeTop(index);
 	}
 
 	reveal(index: number, relativeTop?: number): void {

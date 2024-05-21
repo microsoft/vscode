@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { createValidator, getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 
 suite('Preferences Validation', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	class Tester {
 		private validator: (value: any) => string | null;
 
@@ -27,7 +30,7 @@ suite('Preferences Validation', () => {
 					(message: string) => {
 						const actual = this.validator(input);
 						assert.ok(actual);
-						assert(actual!.indexOf(message) > -1,
+						assert(actual.indexOf(message) > -1,
 							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
 					}
 			};
@@ -321,6 +324,12 @@ suite('Preferences Validation', () => {
 			urls.rejects('hellohel').withMessage('err: must be friendly');
 			urls.accepts('hellohello');
 		}
+		{
+			const unicodePattern = new Tester({ type: 'string', pattern: '^[\\p{L}\\d_. -]*$', minLength: 3 });
+			unicodePattern.accepts('_autoload');
+			unicodePattern.rejects('#hash');
+			unicodePattern.rejects('');
+		}
 	});
 
 	test('custom error messages are shown', () => {
@@ -348,7 +357,7 @@ suite('Preferences Validation', () => {
 					(message: string) => {
 						const actual = this.validator(input);
 						assert.ok(actual);
-						assert(actual!.indexOf(message) > -1,
+						assert(actual.indexOf(message) > -1,
 							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
 					}
 			};
@@ -435,6 +444,13 @@ suite('Preferences Validation', () => {
 
 		arr.accepts(['hello']);
 		arr.rejects(['a']).withMessage(`Value 'a' must match regex`);
+	});
+
+	test('Unicode pattern', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string', pattern: '^[\\p{L}\\d_. -]*$' } });
+
+		arr.accepts(['hello', 'world']);
+		arr.rejects(['hello', '#world']).withMessage(`Value '#world' must match regex`);
 	});
 
 	test('pattern with error message', () => {

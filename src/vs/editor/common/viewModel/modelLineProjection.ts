@@ -193,7 +193,7 @@ class ModelLineProjection implements IModelLineProjection {
 						if (options.inlineClassName) {
 							const offset = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
 							const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
-							const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections);
+							const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections);
 							if (start !== end) {
 								inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!));
 							}
@@ -455,7 +455,7 @@ class HiddenModelLineProjection implements IModelLineProjection {
 	}
 }
 
-let _spaces: string[] = [''];
+const _spaces: string[] = [''];
 function spaces(count: number): string {
 	if (count >= _spaces.length) {
 		for (let i = 1; i <= count; i++) {

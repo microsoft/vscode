@@ -3,45 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { VSBuffer } from 'vs/base/common/buffer';
-import Severity from 'vs/base/common/severity';
-import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { basename, isEqual } from 'vs/base/common/resources';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { URI } from 'vs/base/common/uri';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
+import { DragAndDropObserver, EventType, addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Mimes } from 'vs/base/common/mime';
-import { isWeb, isWindows } from 'vs/base/common/platform';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { addDisposableListener, DragAndDropObserver, EventType } from 'vs/base/browser/dom';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Emitter } from 'vs/base/common/event';
-import { coalesce } from 'vs/base/common/arrays';
-import { parse, stringify } from 'vs/base/common/marshalling';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IDataTransfer } from 'vs/editor/common/dnd';
-import { extractSelection } from 'vs/platform/opener/common/opener';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { DeferredPromise } from 'vs/base/common/async';
+import { coalesce } from 'vs/base/common/arrays';
+import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton } from 'vs/base/common/lifecycle';
+import { stringify } from 'vs/base/common/marshalling';
+import { Mimes } from 'vs/base/common/mime';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { isWindows } from 'vs/base/common/platform';
+import { basename, isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat, LocalSelectionTransfer, createDraggedEditorInputFromRawResourcesData, extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { extractSelection } from 'vs/platform/opener/common/opener';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { mainWindow } from 'vs/base/browser/window';
+import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
 
 //#region Editor / Resources DND
 
@@ -55,130 +50,7 @@ export class DraggedEditorGroupIdentifier {
 	constructor(readonly identifier: GroupIdentifier) { }
 }
 
-export class DraggedTreeItemsIdentifier {
-
-	constructor(readonly identifier: string) { }
-}
-
-export const CodeDataTransfers = {
-	EDITORS: 'CodeEditors',
-	FILES: 'CodeFiles'
-};
-
-export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
-	resource: URI | undefined;
-
-	/**
-	 * A hint that the source of the dragged editor input
-	 * might not be the application but some external tool.
-	 */
-	isExternal?: boolean;
-
-	/**
-	 * Whether we probe for the dropped editor to be a workspace
-	 * (i.e. code-workspace file or even a folder), allowing to
-	 * open it as workspace instead of opening as editor.
-	 */
-	allowWorkspaceOpen?: boolean;
-}
-
-export async function extractEditorsDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
-	const editors: IDraggedResourceEditorInput[] = [];
-	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
-
-		// Data Transfer: Code Editors
-		const rawEditorsData = e.dataTransfer.getData(CodeDataTransfers.EDITORS);
-		if (rawEditorsData) {
-			try {
-				editors.push(...parse(rawEditorsData));
-			} catch (error) {
-				// Invalid transfer
-			}
-		}
-
-		// Data Transfer: Resources
-		else {
-			try {
-				const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
-				editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
-			} catch (error) {
-				// Invalid transfer
-			}
-		}
-
-		// Check for native file transfer
-		if (e.dataTransfer?.files) {
-			for (let i = 0; i < e.dataTransfer.files.length; i++) {
-				const file = e.dataTransfer.files[i];
-				if (file?.path /* Electron only */) {
-					try {
-						editors.push({ resource: URI.file(file.path), isExternal: true, allowWorkspaceOpen: true });
-					} catch (error) {
-						// Invalid URI
-					}
-				}
-			}
-		}
-
-		// Check for CodeFiles transfer
-		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
-		if (rawCodeFiles) {
-			try {
-				const codeFiles: string[] = JSON.parse(rawCodeFiles);
-				for (const codeFile of codeFiles) {
-					editors.push({ resource: URI.file(codeFile), isExternal: true, allowWorkspaceOpen: true });
-				}
-			} catch (error) {
-				// Invalid transfer
-			}
-		}
-
-		// Web: Check for file transfer
-		if (isWeb && containsDragType(e, DataTransfers.FILES)) {
-			const files = e.dataTransfer.items;
-			if (files) {
-				const instantiationService = accessor.get(IInstantiationService);
-				const filesData = await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e));
-				for (const fileData of filesData) {
-					editors.push({ resource: fileData.resource, contents: fileData.contents?.toString(), isExternal: true, allowWorkspaceOpen: fileData.isDirectory });
-				}
-			}
-		}
-
-		// Workbench contributions
-		const contributions = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution).getAll();
-		for (const contribution of contributions) {
-			const data = e.dataTransfer.getData(contribution.dataFormatKey);
-			if (data) {
-				try {
-					editors.push(...contribution.getEditorInputs(data));
-				} catch (error) {
-					// Invalid transfer
-				}
-			}
-		}
-	}
-
-	return editors;
-}
-
-function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string | undefined): IDraggedResourceEditorInput[] {
-	const editors: IDraggedResourceEditorInput[] = [];
-
-	if (rawResourcesData) {
-		const resourcesRaw: string[] = JSON.parse(rawResourcesData);
-		for (const resourceRaw of resourcesRaw) {
-			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
-				const { selection, uri } = extractSelection(URI.parse(resourceRaw));
-				editors.push({ resource: uri, options: { selection } });
-			}
-		}
-	}
-
-	return editors;
-}
-
-export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
+export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	const resourcesKey = Mimes.uriList.toLowerCase();
 
@@ -186,7 +58,7 @@ export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<
 	if (dataTransfer.has(resourcesKey)) {
 		try {
 			const asString = await dataTransfer.get(resourcesKey)?.asString();
-			const rawResourcesData = JSON.stringify(asString?.split('\\n').filter(value => !value.startsWith('#')));
+			const rawResourcesData = JSON.stringify(UriList.parse(asString ?? ''));
 			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 		} catch (error) {
 			// Invalid transfer
@@ -194,126 +66,6 @@ export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<
 	}
 
 	return editors;
-}
-
-export function convertResourceUrlsToUriList(resourceUrls: string): string {
-	const asJson: URI[] = JSON.parse(resourceUrls);
-	return asJson.map(uri => uri.toString()).join('\n');
-}
-
-interface IFileTransferData {
-	resource: URI;
-	isDirectory?: boolean;
-	contents?: VSBuffer;
-}
-
-async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent): Promise<IFileTransferData[]> {
-
-	// Try to extract via `FileSystemHandle`
-	if (WebFileSystemAccess.supported(window)) {
-		const items = event.dataTransfer?.items;
-		if (items) {
-			return extractFileTransferData(accessor, items);
-		}
-	}
-
-	// Try to extract via `FileList`
-	const files = event.dataTransfer?.files;
-	if (!files) {
-		return [];
-	}
-
-	return extractFileListData(accessor, files);
-}
-
-async function extractFileTransferData(accessor: ServicesAccessor, items: DataTransferItemList): Promise<IFileTransferData[]> {
-	const fileSystemProvider = accessor.get(IFileService).getProvider(Schemas.file);
-	if (!(fileSystemProvider instanceof HTMLFileSystemProvider)) {
-		return []; // only supported when running in web
-	}
-
-	const results: DeferredPromise<IFileTransferData | undefined>[] = [];
-
-	for (let i = 0; i < items.length; i++) {
-		const file = items[i];
-		if (file) {
-			const result = new DeferredPromise<IFileTransferData | undefined>();
-			results.push(result);
-
-			(async () => {
-				try {
-					const handle = await file.getAsFileSystemHandle();
-					if (!handle) {
-						result.complete(undefined);
-						return;
-					}
-
-					if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
-						result.complete({
-							resource: await fileSystemProvider.registerFileHandle(handle),
-							isDirectory: false
-						});
-					} else if (WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
-						result.complete({
-							resource: await fileSystemProvider.registerDirectoryHandle(handle),
-							isDirectory: true
-						});
-					} else {
-						result.complete(undefined);
-					}
-				} catch (error) {
-					result.complete(undefined);
-				}
-			})();
-		}
-	}
-
-	return coalesce(await Promise.all(results.map(result => result.p)));
-}
-
-export async function extractFileListData(accessor: ServicesAccessor, files: FileList): Promise<IFileTransferData[]> {
-	const dialogService = accessor.get(IDialogService);
-
-	const results: DeferredPromise<IFileTransferData | undefined>[] = [];
-
-	for (let i = 0; i < files.length; i++) {
-		const file = files.item(i);
-		if (file) {
-
-			// Skip for very large files because this operation is unbuffered
-			if (file.size > 100 * ByteSize.MB) {
-				dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
-				continue;
-			}
-
-			const result = new DeferredPromise<IFileTransferData | undefined>();
-			results.push(result);
-
-			const reader = new FileReader();
-
-			reader.onerror = () => result.complete(undefined);
-			reader.onabort = () => result.complete(undefined);
-
-			reader.onload = async event => {
-				const name = file.name;
-				const loadResult = withNullAsUndefined(event.target?.result);
-				if (typeof name !== 'string' || typeof loadResult === 'undefined') {
-					result.complete(undefined);
-					return;
-				}
-
-				result.complete({
-					resource: URI.from({ scheme: Schemas.untitled, path: name }),
-					contents: typeof loadResult === 'string' ? VSBuffer.fromString(loadResult) : VSBuffer.wrap(new Uint8Array(loadResult))
-				});
-			};
-
-			// Start reading
-			reader.readAsArrayBuffer(file);
-		}
-	}
-
-	return coalesce(await Promise.all(results.map(result => result.p)));
 }
 
 export interface IResourcesDropHandlerOptions {
@@ -345,14 +97,14 @@ export class ResourcesDropHandler {
 	) {
 	}
 
-	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
-		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, event));
+	async handleDrop(event: DragEvent, targetWindow: Window, resolveTargetGroup?: () => IEditorGroup | undefined, afterDrop?: (targetGroup: IEditorGroup | undefined) => void, options?: IEditorOptions): Promise<void> {
+		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, event));
 		if (!editors.length) {
 			return;
 		}
 
 		// Make the window active to handle the drop properly within
-		await this.hostService.focus();
+		await this.hostService.focus(targetWindow);
 
 		// Check for workspace file / folder being dropped if we are allowed to do so
 		if (this.options.allowWorkspaceOpen) {
@@ -366,29 +118,25 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
-		// and only for resources that are outside of the currently opened workspace
 		const externalLocalFiles = coalesce(editors.filter(editor => editor.isExternal && editor.resource?.scheme === Schemas.file).map(editor => editor.resource));
 		if (externalLocalFiles.length) {
-			this.workspacesService.addRecentlyOpened(externalLocalFiles
-				.filter(resource => !this.contextService.isInsideWorkspace(resource))
-				.map(resource => ({ fileUri: resource }))
-			);
+			this.workspacesService.addRecentlyOpened(externalLocalFiles.map(resource => ({ fileUri: resource })));
 		}
 
 		// Open in Editor
-		const targetGroup = resolveTargetGroup();
+		const targetGroup = resolveTargetGroup?.();
 		await this.editorService.openEditors(editors.map(editor => ({
 			...editor,
 			resource: editor.resource,
 			options: {
 				...editor.options,
-				pinned: true,
-				index: targetIndex
+				...options,
+				pinned: true
 			}
 		})), targetGroup, { validateTrust: true });
 
 		// Finish with provided function
-		afterDrop(targetGroup);
+		afterDrop?.(targetGroup);
 	}
 
 	private async handleWorkspaceDrop(resources: URI[]): Promise<boolean> {
@@ -421,9 +169,6 @@ export class ResourcesDropHandler {
 			return false;
 		}
 
-		// Pass focus to window
-		this.hostService.focus();
-
 		// Open in separate windows if we drop workspaces or just one folder
 		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
 			await this.hostService.openWindow(toOpen);
@@ -434,7 +179,7 @@ export class ResourcesDropHandler {
 			await this.workspaceEditingService.addFolders(folderURIs);
 		}
 
-		// Finaly, enter untitled workspace when dropping >1 folders
+		// Finally, enter untitled workspace when dropping >1 folders
 		else {
 			await this.workspaceEditingService.createAndEnterWorkspace(folderURIs);
 		}
@@ -443,15 +188,10 @@ export class ResourcesDropHandler {
 	}
 }
 
-interface IResourceStat {
-	resource: URI;
-	isDirectory?: boolean;
-}
-
-export function fillEditorsDragData(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent): void {
+export function fillEditorsDragData(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void {
 	if (resourcesOrEditors.length === 0 || !event.dataTransfer) {
 		return;
 	}
@@ -478,22 +218,25 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 		return resourceOrEditor;
 	}));
+
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
+	if (!options?.disableStandardTransfer) {
 
-	// Text: allows to paste into text-capable areas
-	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
+		// Text: allows to paste into text-capable areas
+		const lineDelimiter = isWindows ? '\r\n' : '\n';
+		event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
 
-	// Download URL: enables support to drag a tab as file to desktop
-	// Requirements:
-	// - Chrome/Edge only
-	// - only a single file is supported
-	// - only file:/ resources are supported
-	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
-	if (firstFile) {
-		const firstFileUri = FileAccess.asFileUri(firstFile.resource); // enforce `file:` URIs
-		if (firstFileUri.scheme === Schemas.file) {
-			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
+		// Download URL: enables support to drag a tab as file to desktop
+		// Requirements:
+		// - Chrome/Edge only
+		// - only a single file is supported
+		// - only file:/ resources are supported
+		const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
+		if (firstFile) {
+			const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
+			if (firstFileUri.scheme === Schemas.file) {
+				event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
+			}
 		}
 	}
 
@@ -553,8 +296,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 						editor.encoding = textFileModel.getEncoding();
 					}
 
-					// contents (only if dirty)
-					if (typeof editor.contents !== 'string' && textFileModel.isDirty()) {
+					// contents (only if dirty and not too large)
+					if (typeof editor.contents !== 'string' && textFileModel.isDirty() && !textFileModel.textEditorModel.isTooLargeForHeapOperation()) {
 						editor.contents = textFileModel.textEditorModel.getValue();
 					}
 				}
@@ -586,119 +329,34 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	if (draggedEditors.length) {
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
-	}
-}
 
-//#endregion
-
-//#region DND contributions
-
-export interface IDragAndDropContributionRegistry {
-	/**
-	 * Registers a drag and drop contribution.
-	 */
-	register(contribution: IDragAndDropContribution): void;
-
-	/**
-	 * Returns all registered drag and drop contributions.
-	 */
-	getAll(): IterableIterator<IDragAndDropContribution>;
-}
-
-export interface IDragAndDropContribution {
-	readonly dataFormatKey: string;
-	getEditorInputs(data: string): IDraggedResourceEditorInput[];
-	setData(resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
-}
-
-class DragAndDropContributionRegistry implements IDragAndDropContributionRegistry {
-	private readonly _contributions = new Map<string, IDragAndDropContribution>();
-
-	register(contribution: IDragAndDropContribution): void {
-		if (this._contributions.has(contribution.dataFormatKey)) {
-			throw new Error(`A drag and drop contributiont with key '${contribution.dataFormatKey}' was already registered.`);
-		}
-		this._contributions.set(contribution.dataFormatKey, contribution);
-	}
-
-	getAll(): IterableIterator<IDragAndDropContribution> {
-		return this._contributions.values();
-	}
-}
-
-export const Extensions = {
-	DragAndDropContribution: 'workbench.contributions.dragAndDrop'
-};
-
-Registry.add(Extensions.DragAndDropContribution, new DragAndDropContributionRegistry());
-
-//#endregion
-
-//#region DND Utilities
-
-/**
- * A singleton to store transfer data during drag & drop operations that are only valid within the application.
- */
-export class LocalSelectionTransfer<T> {
-
-	private static readonly INSTANCE = new LocalSelectionTransfer();
-
-	private data?: T[];
-	private proto?: T;
-
-	private constructor() {
-		// protect against external instantiation
-	}
-
-	static getInstance<T>(): LocalSelectionTransfer<T> {
-		return LocalSelectionTransfer.INSTANCE as LocalSelectionTransfer<T>;
-	}
-
-	hasData(proto: T): boolean {
-		return proto && proto === this.proto;
-	}
-
-	clearData(proto: T): void {
-		if (this.hasData(proto)) {
-			this.proto = undefined;
-			this.data = undefined;
-		}
-	}
-
-	getData(proto: T): T[] | undefined {
-		if (this.hasData(proto)) {
-			return this.data;
+		// Add a URI list entry
+		const uriListEntries: URI[] = [];
+		for (const editor of draggedEditors) {
+			if (editor.resource) {
+				uriListEntries.push(editor.resource);
+			} else if (isResourceDiffEditorInput(editor)) {
+				if (editor.modified.resource) {
+					uriListEntries.push(editor.modified.resource);
+				}
+			} else if (isResourceSideBySideEditorInput(editor)) {
+				if (editor.primary.resource) {
+					uriListEntries.push(editor.primary.resource);
+				}
+			} else if (isResourceMergeEditorInput(editor)) {
+				uriListEntries.push(editor.result.resource);
+			}
 		}
 
-		return undefined;
-	}
-
-	setData(data: T[], proto: T): void {
-		if (proto) {
-			this.data = data;
-			this.proto = proto;
+		// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=239745, we can only set
+		// a single uri for the real `text/uri-list` type. Otherwise all uris end up joined together
+		// However we write the full uri-list to an internal type so that other parts of VS Code
+		// can use the full list.
+		if (!options?.disableStandardTransfer) {
+			event.dataTransfer.setData(Mimes.uriList, UriList.create(uriListEntries.slice(0, 1)));
 		}
+		event.dataTransfer.setData(DataTransfers.INTERNAL_URI_LIST, UriList.create(uriListEntries));
 	}
-}
-
-export function containsDragType(event: DragEvent, ...dragTypesToFind: string[]): boolean {
-	if (!event.dataTransfer) {
-		return false;
-	}
-
-	const dragTypes = event.dataTransfer.types;
-	const lowercaseDragTypes: string[] = [];
-	for (let i = 0; i < dragTypes.length; i++) {
-		lowercaseDragTypes.push(dragTypes[i].toLowerCase()); // somehow the types are lowercase
-	}
-
-	for (const dragType of dragTypesToFind) {
-		if (lowercaseDragTypes.indexOf(dragType.toLowerCase()) >= 0) {
-			return true;
-		}
-	}
-
-	return false;
 }
 
 //#endregion
@@ -773,6 +431,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	static get INSTANCE(): CompositeDragAndDropObserver {
 		if (!CompositeDragAndDropObserver.instance) {
 			CompositeDragAndDropObserver.instance = new CompositeDragAndDropObserver();
+			markAsSingleton(CompositeDragAndDropObserver.instance);
 		}
 
 		return CompositeDragAndDropObserver.instance;
@@ -814,23 +473,20 @@ export class CompositeDragAndDropObserver extends Disposable {
 	registerTarget(element: HTMLElement, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
 		const disposableStore = new DisposableStore();
 		disposableStore.add(new DragAndDropObserver(element, {
-			onDragEnd: e => {
-				// no-op
-			},
 			onDragEnter: e => {
 				e.preventDefault();
 
 				if (callbacks.onDragEnter) {
 					const data = this.readDragData('composite') || this.readDragData('view');
 					if (data) {
-						callbacks.onDragEnter({ eventData: e, dragAndDropData: data! });
+						callbacks.onDragEnter({ eventData: e, dragAndDropData: data });
 					}
 				}
 			},
 			onDragLeave: e => {
 				const data = this.readDragData('composite') || this.readDragData('view');
 				if (callbacks.onDragLeave && data) {
-					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragLeave({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDrop: e => {
@@ -840,10 +496,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
+					callbacks.onDrop({ eventData: e, dragAndDropData: data });
 
 					// Fire drag event in case drop handler destroys the dragged element
-					this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+					this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDragOver: e => {
@@ -855,7 +511,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDragOver({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragOver({ eventData: e, dragAndDropData: data });
 				}
 			}
 		}));
@@ -869,7 +525,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		if (callbacks.onDragEnd) {
 			this.onDragEnd.event(e => {
 				callbacks.onDragEnd!(e);
-			});
+			}, this, disposableStore);
 		}
 
 		return this._register(disposableStore);
@@ -880,16 +536,15 @@ export class CompositeDragAndDropObserver extends Disposable {
 
 		const disposableStore = new DisposableStore();
 
-		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
-			const { id, type } = draggedItemProvider();
-			this.writeDragData(id, type);
-
-			e.dataTransfer?.setDragImage(element, 0, 0);
-
-			this.onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
-		}));
-
 		disposableStore.add(new DragAndDropObserver(element, {
+			onDragStart: e => {
+				const { id, type } = draggedItemProvider();
+				this.writeDragData(id, type);
+
+				e.dataTransfer?.setDragImage(element, 0, 0);
+
+				this.onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
+			},
 			onDragEnd: e => {
 				const { type } = draggedItemProvider();
 				const data = this.readDragData(type);
@@ -897,7 +552,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+				this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 			},
 			onDragEnter: e => {
 				if (callbacks.onDragEnter) {
@@ -907,7 +562,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					}
 
 					if (data) {
-						callbacks.onDragEnter({ eventData: e, dragAndDropData: data! });
+						callbacks.onDragEnter({ eventData: e, dragAndDropData: data });
 					}
 				}
 			},
@@ -917,9 +572,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				if (callbacks.onDragLeave) {
-					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
-				}
+				callbacks.onDragLeave?.({ eventData: e, dragAndDropData: data });
 			},
 			onDrop: e => {
 				if (callbacks.onDrop) {
@@ -928,10 +581,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
+					callbacks.onDrop({ eventData: e, dragAndDropData: data });
 
 					// Fire drag event in case drop handler destroys the dragged element
-					this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+					this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDragOver: e => {
@@ -941,7 +594,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDragOver({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragOver({ eventData: e, dragAndDropData: data });
 				}
 			}
 		}));
@@ -1000,11 +653,78 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		return false;
 	}
 
-	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void { }
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void { }
+
+	dispose(): void { }
 }
 
 //#endregion
+
+class GlobalWindowDraggedOverTracker extends Disposable {
+
+	private static readonly CHANNEL_NAME = 'monaco-workbench-global-dragged-over';
+
+	private readonly broadcaster = this._register(new BroadcastDataChannel<boolean>(GlobalWindowDraggedOverTracker.CHANNEL_NAME));
+
+	constructor() {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window, EventType.DRAG_OVER, () => this.markDraggedOver(false), true));
+			disposables.add(addDisposableListener(window, EventType.DRAG_LEAVE, () => this.clearDraggedOver(false), true));
+		}, { window: mainWindow, disposables: this._store }));
+
+		this._register(this.broadcaster.onDidReceiveData(data => {
+			if (data === true) {
+				this.markDraggedOver(true);
+			} else {
+				this.clearDraggedOver(true);
+			}
+		}));
+	}
+
+	private draggedOver = false;
+	get isDraggedOver(): boolean { return this.draggedOver; }
+
+	private markDraggedOver(fromBroadcast: boolean): void {
+		if (this.draggedOver === true) {
+			return; // alrady marked
+		}
+
+		this.draggedOver = true;
+
+		if (!fromBroadcast) {
+			this.broadcaster.postData(true);
+		}
+	}
+
+	private clearDraggedOver(fromBroadcast: boolean): void {
+		if (this.draggedOver === false) {
+			return; // alrady cleared
+		}
+
+		this.draggedOver = false;
+
+		if (!fromBroadcast) {
+			this.broadcaster.postData(false);
+		}
+	}
+}
+
+const globalDraggedOverTracker = new GlobalWindowDraggedOverTracker();
+
+/**
+ * Returns whether the workbench is currently dragged over in any of
+ * the opened windows (main windows and auxiliary windows).
+ */
+export function isWindowDraggedOver(): boolean {
+	return globalDraggedOverTracker.isDraggedOver;
+}

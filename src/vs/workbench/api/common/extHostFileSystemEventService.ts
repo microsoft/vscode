@@ -12,12 +12,25 @@ import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, Sou
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileOperation } from 'vs/platform/files/common/files';
+import { FileChangeFilter, FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { Lazy } from 'vs/base/common/lazy';
+
+export interface FileSystemWatcherCreateOptions {
+	readonly correlate: boolean;
+
+	readonly ignoreCreateEvents?: boolean;
+	readonly ignoreChangeEvents?: boolean;
+	readonly ignoreDeleteEvents?: boolean;
+
+	readonly excludes?: string[];
+}
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
+
+	private readonly session = Math.random();
 
 	private readonly _onDidCreate = new Emitter<vscode.Uri>();
 	private readonly _onDidChange = new Emitter<vscode.Uri>();
@@ -38,17 +51,15 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		return Boolean(this._config & 0b100);
 	}
 
-	constructor(mainContext: IMainContext, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePatternDto, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
-		const watcherDisposable = this.ensureWatching(mainContext, extension, globPattern);
-
+	constructor(mainContext: IMainContext, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePatternDto, options?: FileSystemWatcherCreateOptions) {
 		this._config = 0;
-		if (ignoreCreateEvents) {
+		if (options?.ignoreCreateEvents) {
 			this._config += 0b001;
 		}
-		if (ignoreChangeEvents) {
+		if (options?.ignoreChangeEvents) {
 			this._config += 0b010;
 		}
-		if (ignoreDeleteEvents) {
+		if (options?.ignoreDeleteEvents) {
 			this._config += 0b100;
 		}
 
@@ -61,25 +72,38 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		// https://github.com/microsoft/vscode/issues/3025
 		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
 
+		// 1.84.x introduces new proposed API for a watcher to set exclude
+		// rules. In these cases, we turn the file watcher into correlation
+		// mode and ignore any event that does not match the correlation ID.
+		const excludeUncorrelatedEvents = options?.correlate;
+
 		const subscription = dispatcher(events => {
-			if (!ignoreCreateEvents) {
-				for (let created of events.created) {
+			if (typeof events.session === 'number' && events.session !== this.session) {
+				return; // ignore events from other file watchers that are in correlation mode
+			}
+
+			if (excludeUncorrelatedEvents && typeof events.session === 'undefined') {
+				return; // ignore events from other non-correlating file watcher when we are in correlation mode
+			}
+
+			if (!options?.ignoreCreateEvents) {
+				for (const created of events.created) {
 					const uri = URI.revive(created);
 					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidCreate.fire(uri);
 					}
 				}
 			}
-			if (!ignoreChangeEvents) {
-				for (let changed of events.changed) {
+			if (!options?.ignoreChangeEvents) {
+				for (const changed of events.changed) {
 					const uri = URI.revive(changed);
 					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidChange.fire(uri);
 					}
 				}
 			}
-			if (!ignoreDeleteEvents) {
-				for (let deleted of events.deleted) {
+			if (!options?.ignoreDeleteEvents) {
+				for (const deleted of events.deleted) {
 					const uri = URI.revive(deleted);
 					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidDelete.fire(uri);
@@ -88,27 +112,49 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			}
 		});
 
-		this._disposable = Disposable.from(watcherDisposable, this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+		this._disposable = Disposable.from(this.ensureWatching(mainContext, extension, globPattern, options, options?.correlate), this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
 	}
 
-	private ensureWatching(mainContext: IMainContext, extension: IExtensionDescription, globPattern: string | IRelativePatternDto): Disposable {
-		let disposable = Disposable.from();
+	private ensureWatching(mainContext: IMainContext, extension: IExtensionDescription, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions | undefined, correlate: boolean | undefined): Disposable {
+		const disposable = Disposable.from();
 
 		if (typeof globPattern === 'string') {
-			return disposable; // a pattern alone does not carry sufficient information to start watching anything
+			return disposable; // workspace is already watched by default, no need to watch again!
 		}
 
-		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+		if (options?.ignoreChangeEvents && options?.ignoreCreateEvents && options?.ignoreDeleteEvents) {
+			return disposable; // no need to watch if we ignore all events
+		}
+
+		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystemEventService);
 
 		let recursive = false;
 		if (globPattern.pattern.includes(GLOBSTAR) || globPattern.pattern.includes(GLOB_SPLIT)) {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		const session = Math.random();
-		proxy.$watch(extension.identifier.value, session, globPattern.baseUri, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
+		let filter: FileChangeFilter | undefined;
+		if (correlate) {
+			if (options?.ignoreChangeEvents || options?.ignoreCreateEvents || options?.ignoreDeleteEvents) {
+				filter = FileChangeFilter.UPDATED | FileChangeFilter.ADDED | FileChangeFilter.DELETED;
 
-		return Disposable.from({ dispose: () => proxy.$unwatch(session) });
+				if (options?.ignoreChangeEvents) {
+					filter &= ~FileChangeFilter.UPDATED;
+				}
+
+				if (options?.ignoreCreateEvents) {
+					filter &= ~FileChangeFilter.ADDED;
+				}
+
+				if (options?.ignoreDeleteEvents) {
+					filter &= ~FileChangeFilter.DELETED;
+				}
+			}
+		}
+
+		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [], filter }, Boolean(correlate));
+
+		return Disposable.from({ dispose: () => proxy.$unwatch(this.session) });
 	}
 
 	dispose() {
@@ -131,6 +177,22 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 interface IExtensionListener<E> {
 	extension: IExtensionDescription;
 	(e: E): any;
+}
+
+class LazyRevivedFileSystemEvents implements FileSystemEvents {
+
+	constructor(private readonly _events: FileSystemEvents) { }
+
+	readonly session = this._events.session;
+
+	private _created = new Lazy(() => this._events.created.map(URI.revive) as URI[]);
+	get created(): URI[] { return this._created.value; }
+
+	private _changed = new Lazy(() => this._events.changed.map(URI.revive) as URI[]);
+	get changed(): URI[] { return this._changed.value; }
+
+	private _deleted = new Lazy(() => this._events.deleted.map(URI.revive) as URI[]);
+	get deleted(): URI[] { return this._deleted.value; }
 }
 
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
@@ -158,14 +220,13 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	//--- file events
 
-	createFileSystemWatcher(workspace: IExtHostWorkspace, extension: IExtensionDescription, globPattern: vscode.GlobPattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
-		return new FileSystemWatcher(this._mainContext, workspace, extension, this._onFileSystemEvent.event, typeConverter.GlobPattern.from(globPattern), ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
+	createFileSystemWatcher(workspace: IExtHostWorkspace, extension: IExtensionDescription, globPattern: vscode.GlobPattern, options?: FileSystemWatcherCreateOptions): vscode.FileSystemWatcher {
+		return new FileSystemWatcher(this._mainContext, workspace, extension, this._onFileSystemEvent.event, typeConverter.GlobPattern.from(globPattern), options);
 	}
 
 	$onFileEvent(events: FileSystemEvents) {
-		this._onFileSystemEvent.fire(events);
+		this._onFileSystemEvent.fire(new LazyRevivedFileSystemEvents(events));
 	}
-
 
 	//--- file operations
 
@@ -223,14 +284,14 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: IWaitUntilData<E>, timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined> {
 
 		const extensionNames = new Set<string>();
-		const edits: WorkspaceEdit[] = [];
+		const edits: [IExtensionDescription, WorkspaceEdit][] = [];
 
-		await emitter.fireAsync(data, token, async (thenable, listener) => {
+		await emitter.fireAsync(data, token, async (thenable: Promise<unknown>, listener) => {
 			// ignore all results except for WorkspaceEdits. Those are stored in an array.
 			const now = Date.now();
 			const result = await Promise.resolve(thenable);
 			if (result instanceof WorkspaceEdit) {
-				edits.push(result);
+				edits.push([(<IExtensionListener<E>>listener).extension, result]);
 				extensionNames.add((<IExtensionListener<E>>listener).extension.displayName ?? (<IExtensionListener<E>>listener).extension.identifier.value);
 			}
 
@@ -249,8 +310,8 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 		// concat all WorkspaceEdits collected via waitUntil-call and send them over to the renderer
 		const dto: IWorkspaceEditDto = { edits: [] };
-		for (let edit of edits) {
-			let { edits } = typeConverter.WorkspaceEdit.from(edit, {
+		for (const [, edit] of edits) {
+			const { edits } = typeConverter.WorkspaceEdit.from(edit, {
 				getTextDocumentVersion: uri => this._extHostDocumentsAndEditors.getDocument(uri)?.version,
 				getNotebookDocumentVersion: () => undefined,
 			});

@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.20.0"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -67,6 +68,7 @@
           "meta.embedded.block.javascript": "javascript",
           "meta.embedded.block.json": "json",
           "meta.embedded.block.jsonc": "jsonc",
+          "meta.embedded.block.latex": "latex",
           "meta.embedded.block.less": "less",
           "meta.embedded.block.objc": "objc",
           "meta.embedded.block.scss": "scss",
@@ -80,7 +82,11 @@
           "meta.embedded.block.typescriptreact": "typescriptreact",
           "meta.embedded.block.csharp": "csharp",
           "meta.embedded.block.fsharp": "fsharp"
-        }
+        },
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
       }
     ],
     "snippets": [
@@ -91,8 +97,9 @@
     ],
     "configurationDefaults": {
       "[markdown]": {
-          "editor.unicodeHighlight.ambiguousCharacters": false,
-          "editor.unicodeHighlight.invisibleCharacters": false
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false
       }
     }
   },

@@ -4,6 +4,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.1",
+  "private": true,
   "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
@@ -12,39 +13,40 @@
   "categories": [
     "Other"
   ],
+  "enabledApiProposals": [
+    "terminalQuickFixProvider"
+  ],
   "scripts": {
-    "compile": "gulp compile-extension:npm",
-    "watch": "gulp watch-extension:npm"
+    "compile": "npx gulp compile-extension:npm",
+    "watch": "npx gulp watch-extension:npm"
   },
   "dependencies": {
-    "find-up": "^4.1.0",
+    "find-up": "^5.0.0",
     "find-yarn-workspace-root": "^2.0.0",
-    "jsonc-parser": "^2.2.1",
-    "minimatch": "^3.0.4",
-    "request-light": "^0.5.7",
-    "vscode-nls": "^5.0.0",
-    "which": "^2.0.2",
-    "which-pm": "^2.0.0"
+    "jsonc-parser": "^3.2.0",
+    "minimatch": "^5.1.6",
+    "request-light": "^0.7.0",
+    "which": "^4.0.0",
+    "which-pm": "^2.1.1",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@types/minimatch": "^3.0.3",
-    "@types/node": "16.x",
-    "@types/which": "^2.0.0"
-  },
-  "resolutions": {
-    "which-pm/load-yaml-file/**/argparse": "1.0.9"
+    "@types/minimatch": "^5.1.2",
+    "@types/node": "20.x",
+    "@types/which": "^3.0.0"
   },
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",
   "activationEvents": [
     "onTaskType:npm",
-    "onCommand:npm.runScriptFromFolder",
     "onLanguage:json",
-    "workspaceContains:package.json",
-    "onView:npm"
+    "workspaceContains:package.json"
   ],
   "capabilities": {
-    "virtualWorkspaces": false,
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "%virtualWorkspaces%"
+    },
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "%workspaceTrust%"
@@ -236,13 +238,15 @@
             "auto",
             "npm",
             "yarn",
-            "pnpm"
+            "pnpm",
+            "bun"
           ],
           "enumDescriptions": [
             "%config.npm.packageManager.auto%",
             "%config.npm.packageManager.npm%",
             "%config.npm.packageManager.yarn%",
-            "%config.npm.packageManager.pnpm%"
+            "%config.npm.packageManager.pnpm%",
+            "%config.npm.packageManager.bun%"
           ],
           "default": "auto",
           "description": "%config.npm.packageManager%"
@@ -298,6 +302,12 @@
           "tags": [
             "usesOnlineServices"
           ]
+        },
+        "npm.scriptHover": {
+          "type": "boolean",
+          "description": "%config.npm.scriptHover%",
+          "default": true,
+          "scope": "window"
         }
       }
     },
@@ -329,7 +339,20 @@
         },
         "when": "shellExecutionSupported"
       }
-    ]
+    ],
+    "terminalQuickFixes": [
+        {
+          "id": "ms-vscode.npm-command",
+          "commandLineMatcher": "npm",
+          "commandExitResult": "error",
+          "outputMatcher": {
+            "anchor": "bottom",
+            "length": 8,
+            "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
+            "offset": 2
+          }
+        }
+      ]
   },
   "repository": {
     "type": "git",

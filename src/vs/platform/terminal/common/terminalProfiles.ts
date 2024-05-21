@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from 'vs/platform/terminal/common/terminal';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
 	values: (string | null)[] | undefined;
@@ -59,7 +59,7 @@ function createProfileDescription(profile: ITerminalProfile): string {
 }
 
 function createExtensionProfileDescription(profile: IExtensionTerminalProfile): string {
-	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.title}\n- extensionIdenfifier: ${profile.extensionIdentifier}`;
+	const description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.title}\n- extensionIdentifier: ${profile.extensionIdentifier}`;
 	return description;
 }
 
@@ -83,29 +83,29 @@ export function terminalProfileArgsMatch(args1: string | string[] | undefined, a
 	return false;
 }
 
-export function terminalIconsEqual(iconOne?: TerminalIcon, iconTwo?: TerminalIcon): boolean {
-	if (!iconOne && !iconTwo) {
+export function terminalIconsEqual(a?: TerminalIcon, b?: TerminalIcon): boolean {
+	if (!a && !b) {
 		return true;
-	} else if (!iconOne || !iconTwo) {
+	} else if (!a || !b) {
 		return false;
 	}
 
-	if (ThemeIcon.isThemeIcon(iconOne) && ThemeIcon.isThemeIcon(iconTwo)) {
-		return iconOne.id === iconTwo.id && iconOne.color === iconTwo.color;
+	if (ThemeIcon.isThemeIcon(a) && ThemeIcon.isThemeIcon(b)) {
+		return a.id === b.id && a.color === b.color;
 	}
-	if (typeof iconOne === 'object' && iconOne && 'light' in iconOne && 'dark' in iconOne
-		&& typeof iconTwo === 'object' && iconTwo && 'light' in iconTwo && 'dark' in iconTwo) {
-		const castedIcon = (iconOne as { light: unknown; dark: unknown });
-		const castedIconTwo = (iconTwo as { light: unknown; dark: unknown });
-		if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))
-			&& (URI.isUri(castedIconTwo.light) || isUriComponents(castedIconTwo.light)) && (URI.isUri(castedIconTwo.dark) || isUriComponents(castedIconTwo.dark))) {
-			return castedIcon.light.path === castedIconTwo.light.path && castedIcon.dark.path === castedIconTwo.dark.path;
+	if (typeof a === 'object' && 'light' in a && 'dark' in a
+		&& typeof b === 'object' && 'light' in b && 'dark' in b) {
+		const castedA = (a as { light: unknown; dark: unknown });
+		const castedB = (b as { light: unknown; dark: unknown });
+		if ((URI.isUri(castedA.light) || isUriComponents(castedA.light)) && (URI.isUri(castedA.dark) || isUriComponents(castedA.dark))
+			&& (URI.isUri(castedB.light) || isUriComponents(castedB.light)) && (URI.isUri(castedB.dark) || isUriComponents(castedB.dark))) {
+			return castedA.light.path === castedB.light.path && castedA.dark.path === castedB.dark.path;
 		}
 	}
-	if ((URI.isUri(iconOne) && URI.isUri(iconTwo)) || (isUriComponents(iconOne) || isUriComponents(iconTwo))) {
-		const castedIcon = (iconOne as { scheme: unknown; path: unknown });
-		const castedIconTwo = (iconTwo as { scheme: unknown; path: unknown });
-		return castedIcon.path === castedIconTwo.path && castedIcon.scheme === castedIconTwo.scheme;
+	if ((URI.isUri(a) && URI.isUri(b)) || (isUriComponents(a) || isUriComponents(b))) {
+		const castedA = (a as { scheme: unknown; path: unknown });
+		const castedB = (b as { scheme: unknown; path: unknown });
+		return castedA.path === castedB.path && castedA.scheme === castedB.scheme;
 	}
 
 	return false;

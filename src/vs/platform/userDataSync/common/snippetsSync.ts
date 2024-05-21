@@ -15,9 +15,10 @@ import { FileOperationError, FileOperationResult, IFileContent, IFileService, IF
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { areSame, IMergeResult as ISnippetsMergeResult, merge } from 'vs/platform/userDataSync/common/snippetsMerge';
-import { Change, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, ISyncData, IUserDataSyncLocalStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISnippetsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
@@ -27,25 +28,31 @@ interface ISnippetsAcceptedResourcePreview extends IFileResourcePreview {
 	acceptResult: IAcceptResult;
 }
 
+export function parseSnippets(syncData: ISyncData): IStringDictionary<string> {
+	return JSON.parse(syncData.content);
+}
+
 export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	protected readonly version: number = 1;
 	private readonly snippetsFolder: URI;
 
 	constructor(
+		profile: IUserDataProfile,
+		collection: string | undefined,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
+		@IUserDataSyncLocalStoreService userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Snippets, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
-		this.snippetsFolder = environmentService.snippetsHome;
+		super({ syncResource: SyncResource.Snippets, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncLocalStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		this.snippetsFolder = profile.snippetsHome;
 		this._register(this.fileService.watch(environmentService.userRoamingDataHome));
 		this._register(this.fileService.watch(this.snippetsFolder));
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.affects(this.snippetsFolder))(() => this.triggerLocalChange()));
@@ -67,7 +74,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 
 		const mergeResult = merge(localSnippets, remoteSnippets, lastSyncSnippets);
-		return this.getResourcePreviews(mergeResult, local, remoteSnippets || {});
+		return this.getResourcePreviews(mergeResult, local, remoteSnippets || {}, lastSyncSnippets || {});
 	}
 
 	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
@@ -165,7 +172,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 
 	}
 
-	private getResourcePreviews(snippetsMergeResult: ISnippetsMergeResult, localFileContent: IStringDictionary<IFileContent>, remoteSnippets: IStringDictionary<string>): ISnippetsResourcePreview[] {
+	private getResourcePreviews(snippetsMergeResult: ISnippetsMergeResult, localFileContent: IStringDictionary<IFileContent>, remoteSnippets: IStringDictionary<string>, baseSnippets: IStringDictionary<string>): ISnippetsResourcePreview[] {
 		const resourcePreviews: Map<string, ISnippetsResourcePreview> = new Map<string, ISnippetsResourcePreview>();
 
 		/* Snippets added remotely -> add locally */
@@ -177,6 +184,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: Change.None,
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: null,
 				fileContent: null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				localContent: null,
@@ -198,10 +207,13 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				localChange: Change.Modified,
 				remoteChange: Change.None,
 			};
+			const localContent = localFileContent[key] ? localFileContent[key].value.toString() : null;
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] ?? null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key],
-				localContent: localFileContent[key].value.toString(),
+				localContent,
 				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
 				remoteContent: remoteSnippets[key],
 				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
@@ -220,10 +232,13 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				localChange: Change.Deleted,
 				remoteChange: Change.None,
 			};
+			const localContent = localFileContent[key] ? localFileContent[key].value.toString() : null;
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] ?? null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key],
-				localContent: localFileContent[key].value.toString(),
+				localContent,
 				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
 				remoteContent: null,
 				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
@@ -242,10 +257,13 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				localChange: Change.None,
 				remoteChange: Change.Added,
 			};
+			const localContent = localFileContent[key] ? localFileContent[key].value.toString() : null;
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] ?? null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key],
-				localContent: localFileContent[key].value.toString(),
+				localContent,
 				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
 				remoteContent: null,
 				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
@@ -264,10 +282,13 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				localChange: Change.None,
 				remoteChange: Change.Modified,
 			};
+			const localContent = localFileContent[key] ? localFileContent[key].value.toString() : null;
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] ?? null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key],
-				localContent: localFileContent[key].value.toString(),
+				localContent,
 				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
 				remoteContent: remoteSnippets[key],
 				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
@@ -287,6 +308,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: Change.Deleted,
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] ?? null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: null,
 				localContent: null,
@@ -303,15 +326,18 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		/* Snippets with conflicts */
 		for (const key of snippetsMergeResult.conflicts) {
 			const previewResult: IMergeResult = {
-				content: localFileContent[key] ? localFileContent[key].value.toString() : null,
+				content: baseSnippets[key] ?? null,
 				hasConflicts: true,
 				localChange: localFileContent[key] ? Change.Modified : Change.Added,
 				remoteChange: remoteSnippets[key] ? Change.Modified : Change.Added
 			};
+			const localContent = localFileContent[key] ? localFileContent[key].value.toString() : null;
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] ?? null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key] || null,
-				localContent: localFileContent[key] ? localFileContent[key].value.toString() : null,
+				localContent,
 				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
 				remoteContent: remoteSnippets[key] || null,
 				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
@@ -331,10 +357,13 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 					localChange: Change.None,
 					remoteChange: Change.None
 				};
+				const localContent = localFileContent[key] ? localFileContent[key].value.toString() : null;
 				resourcePreviews.set(key, {
+					baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+					baseContent: baseSnippets[key] ?? null,
 					localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 					fileContent: localFileContent[key] || null,
-					localContent: localFileContent[key] ? localFileContent[key].value.toString() : null,
+					localContent,
 					remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
 					remoteContent: remoteSnippets[key] || null,
 					previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
@@ -349,46 +378,13 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		return [...resourcePreviews.values()];
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		let content = await super.resolveContent(uri);
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				const snippets = this.parseSnippets(syncData);
-				const result = [];
-				for (const snippet of Object.keys(snippets)) {
-					const resource = this.extUri.joinPath(uri, snippet);
-					const comparableResource = this.extUri.joinPath(this.snippetsFolder, snippet);
-					const exists = await this.fileService.exists(comparableResource);
-					result.push({ resource, comparableResource: exists ? comparableResource : this.extUri.joinPath(this.syncPreviewFolder, snippet).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }) });
-				}
-				return result;
-			}
-		}
-		return [];
-	}
-
 	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }))
+			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' }))) {
 			return this.resolvePreviewContent(uri);
 		}
-
-		let content = await super.resolveContent(uri);
-		if (content) {
-			return content;
-		}
-
-		content = await super.resolveContent(this.extUri.dirname(uri));
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				const snippets = this.parseSnippets(syncData);
-				return snippets[this.extUri.basename(uri)] || null;
-			}
-		}
-
 		return null;
 	}
 
@@ -408,7 +404,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		const local: IStringDictionary<IFileContent> = {};
 		for (const resourcePreview of resourcePreviews) {
 			if (resourcePreview.fileContent) {
-				local[this.extUri.basename(resourcePreview.localResource!)] = resourcePreview.fileContent;
+				local[this.extUri.basename(resourcePreview.localResource)] = resourcePreview.fileContent;
 			}
 		}
 		await this.backupLocal(JSON.stringify(this.toSnippetsContents(local)));
@@ -417,7 +413,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	private async updateLocalSnippets(resourcePreviews: ISnippetsAcceptedResourcePreview[], force: boolean): Promise<void> {
 		for (const { fileContent, acceptResult, localResource, remoteResource, localChange } of resourcePreviews) {
 			if (localChange !== Change.None) {
-				const key = remoteResource ? this.extUri.basename(remoteResource) : this.extUri.basename(localResource!);
+				const key = remoteResource ? this.extUri.basename(remoteResource) : this.extUri.basename(localResource);
 				const resource = this.extUri.joinPath(this.snippetsFolder, key);
 
 				// Removed
@@ -450,7 +446,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 
 		for (const { acceptResult, localResource, remoteResource, remoteChange } of resourcePreviews) {
 			if (remoteChange !== Change.None) {
-				const key = localResource ? this.extUri.basename(localResource) : this.extUri.basename(remoteResource!);
+				const key = localResource ? this.extUri.basename(localResource) : this.extUri.basename(remoteResource);
 				if (remoteChange === Change.Deleted) {
 					delete newSnippets[key];
 				} else {
@@ -469,7 +465,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	}
 
 	private parseSnippets(syncData: ISyncData): IStringDictionary<string> {
-		return JSON.parse(syncData.content);
+		return parseSnippets(syncData);
 	}
 
 	private toSnippetsContents(snippetsFileContents: IStringDictionary<IFileContent>): IStringDictionary<string> {
@@ -510,14 +506,16 @@ export class SnippetsInitializer extends AbstractInitializer {
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Snippets, environmentService, logService, fileService, uriIdentityService);
+		super(SyncResource.Snippets, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+	protected async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
 		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
 		if (!remoteSnippets) {
 			this.logService.info('Skipping initializing snippets because remote snippets does not exist.');
@@ -533,7 +531,7 @@ export class SnippetsInitializer extends AbstractInitializer {
 		for (const key of Object.keys(remoteSnippets)) {
 			const content = remoteSnippets[key];
 			if (content) {
-				const resource = this.extUri.joinPath(this.environmentService.snippetsHome, key);
+				const resource = this.extUri.joinPath(this.userDataProfilesService.defaultProfile.snippetsHome, key);
 				await this.fileService.createFile(resource, VSBuffer.fromString(content));
 				this.logService.info('Created snippet', this.extUri.basename(resource));
 			}
@@ -544,7 +542,7 @@ export class SnippetsInitializer extends AbstractInitializer {
 
 	private async isEmpty(): Promise<boolean> {
 		try {
-			const stat = await this.fileService.resolve(this.environmentService.snippetsHome);
+			const stat = await this.fileService.resolve(this.userDataProfilesService.defaultProfile.snippetsHome);
 			return !stat.children?.length;
 		} catch (error) {
 			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;

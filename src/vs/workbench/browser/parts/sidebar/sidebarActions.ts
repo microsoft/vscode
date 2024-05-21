@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/sidebarpart';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
@@ -19,8 +19,8 @@ export class FocusSideBarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusSideBar',
-			title: { value: localize('focusSideBar', "Focus into Primary Side Bar"), original: 'Focus into Primary Side Bar' },
-			category: CATEGORIES.View,
+			title: localize2('focusSideBar', 'Focus into Primary Side Bar'),
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -37,14 +37,11 @@ export class FocusSideBarAction extends Action2 {
 		// Show side bar
 		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
-			return;
 		}
 
 		// Focus into active viewlet
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-		if (viewlet) {
-			viewlet.focus();
-		}
+		viewlet?.focus();
 	}
 }
 

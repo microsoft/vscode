@@ -5,11 +5,12 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 
 interface IStubEditorState {
 	model?: { uri?: URI; version?: number };
@@ -20,6 +21,8 @@ interface IStubEditorState {
 
 suite('Editor Core - Editor State', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const allFlags = (
 		CodeEditorStateFlag.Value
 		| CodeEditorStateFlag.Selection
@@ -28,12 +31,12 @@ suite('Editor Core - Editor State', () => {
 	);
 
 	test('empty editor state should be valid', () => {
-		let result = validate({}, {});
+		const result = validate({}, {});
 		assert.strictEqual(result, true);
 	});
 
 	test('different model URIs should be invalid', () => {
-		let result = validate(
+		const result = validate(
 			{ model: { uri: URI.parse('http://test1') } },
 			{ model: { uri: URI.parse('http://test2') } }
 		);
@@ -42,7 +45,7 @@ suite('Editor Core - Editor State', () => {
 	});
 
 	test('different model versions should be invalid', () => {
-		let result = validate(
+		const result = validate(
 			{ model: { version: 1 } },
 			{ model: { version: 2 } }
 		);
@@ -51,7 +54,7 @@ suite('Editor Core - Editor State', () => {
 	});
 
 	test('different positions should be invalid', () => {
-		let result = validate(
+		const result = validate(
 			{ position: new Position(1, 2) },
 			{ position: new Position(2, 3) }
 		);
@@ -60,7 +63,7 @@ suite('Editor Core - Editor State', () => {
 	});
 
 	test('different selections should be invalid', () => {
-		let result = validate(
+		const result = validate(
 			{ selection: new Selection(1, 2, 3, 4) },
 			{ selection: new Selection(5, 2, 3, 4) }
 		);
@@ -69,7 +72,7 @@ suite('Editor Core - Editor State', () => {
 	});
 
 	test('different scroll positions should be invalid', () => {
-		let result = validate(
+		const result = validate(
 			{ scroll: { left: 1, top: 2 } },
 			{ scroll: { left: 3, top: 2 } }
 		);
@@ -79,16 +82,16 @@ suite('Editor Core - Editor State', () => {
 
 
 	function validate(source: IStubEditorState, target: IStubEditorState) {
-		let sourceEditor = createEditor(source),
+		const sourceEditor = createEditor(source),
 			targetEditor = createEditor(target);
 
-		let result = new EditorState(sourceEditor, allFlags).validate(targetEditor);
+		const result = new EditorState(sourceEditor, allFlags).validate(targetEditor);
 
 		return result;
 	}
 
 	function createEditor({ model, position, selection, scroll }: IStubEditorState = {}): ICodeEditor {
-		let mappedModel = model ? { uri: model.uri ? model.uri : URI.parse('http://dummy.org'), getVersionId: () => model.version } : null;
+		const mappedModel = model ? { uri: model.uri ? model.uri : URI.parse('http://dummy.org'), getVersionId: () => model.version } : null;
 
 		return {
 			getModel: (): ITextModel => <any>mappedModel,

@@ -51,13 +51,13 @@ export class OneReference {
 
 		if (!preview) {
 			return localize(
-				'aria.oneReference', "symbol in {0} on line {1} at column {2}",
+				'aria.oneReference', "in {0} on line {1} at column {2}",
 				basename(this.uri), this.range.startLineNumber, this.range.startColumn
 			);
 		} else {
 			return localize(
-				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "symbol in {0} on line {1} at column {2}, {3}",
-				basename(this.uri), this.range.startLineNumber, this.range.startColumn, preview.value
+				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "{0} in {1} on line {2} at column {3}",
+				preview.value, basename(this.uri), this.range.startLineNumber, this.range.startColumn
 			);
 		}
 	}
@@ -129,7 +129,7 @@ export class FileReferences implements IDisposable {
 		if (this._previews.size !== 0) {
 			return this;
 		}
-		for (let child of this.children) {
+		for (const child of this.children) {
 			if (this._previews.has(child.uri)) {
 				continue;
 			}
@@ -164,7 +164,7 @@ export class ReferencesModel implements IDisposable {
 		links.sort(ReferencesModel._compareReferences);
 
 		let current: FileReferences | undefined;
-		for (let link of links) {
+		for (const link of links) {
 			if (!current || !extUri.isEqual(current.uri, link.uri, true)) {
 				// new group
 				current = new FileReferences(this, link.uri);
@@ -218,11 +218,11 @@ export class ReferencesModel implements IDisposable {
 
 	nextOrPreviousReference(reference: OneReference, next: boolean): OneReference {
 
-		let { parent } = reference;
+		const { parent } = reference;
 
 		let idx = parent.children.indexOf(reference);
-		let childCount = parent.children.length;
-		let groupCount = parent.parent.groups.length;
+		const childCount = parent.children.length;
+		const groupCount = parent.parent.groups.length;
 
 		if (groupCount === 1 || next && idx + 1 < childCount || !next && idx > 0) {
 			// cycling within one file

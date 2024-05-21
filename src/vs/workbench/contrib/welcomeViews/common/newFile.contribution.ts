@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promiseWithResolvers } from 'vs/base/common/async';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,13 +21,13 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const builtInSource = localize('Built-In', "Built-In");
-const category = localize('Create', "Create");
+const category: ILocalizedString = localize2('Create', 'Create');
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showNewFileEntries',
-			title: { value: localize('welcome.newFile', "New File..."), original: 'New File...' },
+			title: localize2('welcome.newFile', 'New File...'),
 			category,
 			f1: true,
 			keybinding: {
@@ -45,7 +47,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-type NewFileItem = { commandID: string; title: string; from: string; group: string };
+type NewFileItem = { commandID: string; title: string; from: string; group: string; commandArgs?: any };
 class NewFileTemplatesManager extends Disposable {
 	static Instance: NewFileTemplatesManager | undefined;
 
@@ -72,7 +74,7 @@ class NewFileTemplatesManager extends Disposable {
 		for (const [groupName, group] of this.menu.getActions({ renderShortTitle: true })) {
 			for (const action of group) {
 				if (action instanceof MenuItemAction) {
-					items.push({ commandID: action.item.id, from: action.item.source ?? builtInSource, title: action.label, group: groupName });
+					items.push({ commandID: action.item.id, from: action.item.source?.title ?? builtInSource, title: action.label, group: groupName });
 				}
 			}
 		}
@@ -94,14 +96,13 @@ class NewFileTemplatesManager extends Disposable {
 	}
 
 	private async selectNewEntry(entries: NewFileItem[]): Promise<boolean> {
-		let resolveResult: (res: boolean) => void;
-		const resultPromise = new Promise<boolean>(resolve => {
-			resolveResult = resolve;
-		});
+		const { promise: resultPromise, resolve: resolveResult } = promiseWithResolvers<boolean>();
 
 		const disposables = new DisposableStore();
 		const qp = this.quickInputService.createQuickPick();
-		qp.title = localize('createNew', "Create New...");
+		qp.title = localize('newFileTitle', "New File...");
+		qp.placeholder = localize('newFilePlaceholder', "Select File Type or Enter File Name...");
+		qp.sortByLabel = false;
 		qp.matchOnDetail = true;
 		qp.matchOnDescription = true;
 
@@ -162,12 +163,27 @@ class NewFileTemplatesManager extends Disposable {
 
 		disposables.add(this.menu.onDidChange(() => refreshQp(this.allEntries())));
 
+		disposables.add(qp.onDidChangeValue((val: string) => {
+			if (val === '') {
+				refreshQp(entries);
+				return;
+			}
+			const currentTextEntry: NewFileItem = {
+				commandID: 'workbench.action.files.newFile',
+				commandArgs: { languageId: undefined, viewType: undefined, fileName: val },
+				title: localize('miNewFileWithName', "Create New File ({0})", val),
+				group: 'file',
+				from: builtInSource,
+			};
+			refreshQp([currentTextEntry, ...entries]);
+		}));
+
 		disposables.add(qp.onDidAccept(async e => {
 			const selected = qp.selectedItems[0] as (IQuickPickItem & NewFileItem);
 			resolveResult(!!selected);
 
 			qp.hide();
-			if (selected) { await this.commandService.executeCommand(selected.commandID); }
+			if (selected) { await this.commandService.executeCommand(selected.commandID, selected.commandArgs); }
 		}));
 
 		disposables.add(qp.onDidHide(() => {

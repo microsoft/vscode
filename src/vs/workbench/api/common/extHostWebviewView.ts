@@ -8,11 +8,12 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewBadge } from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
+
+/* eslint-disable local/code-no-native-private */
 
 class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
@@ -21,7 +22,6 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
 	readonly #viewType: string;
 	readonly #webview: ExtHostWebview;
-	readonly #extension: IExtensionDescription;
 
 	#isDisposed = false;
 	#isVisible: boolean;
@@ -35,7 +35,6 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		viewType: string,
 		title: string | undefined,
 		webview: ExtHostWebview,
-		extension: IExtensionDescription,
 		isVisible: boolean,
 	) {
 		super();
@@ -45,7 +44,6 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		this.#handle = handle;
 		this.#proxy = proxy;
 		this.#webview = webview;
-		this.#extension = extension;
 		this.#isVisible = isVisible;
 	}
 
@@ -111,13 +109,11 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
 	public get badge(): vscode.ViewBadge | undefined {
 		this.assertNotDisposed();
-		checkProposedApiEnabled(this.#extension, 'badges');
 		return this.#badge;
 	}
 
 	public set badge(badge: vscode.ViewBadge | undefined) {
 		this.assertNotDisposed();
-		checkProposedApiEnabled(this.#extension, 'badges');
 
 		if (badge?.value === this.#badge?.value &&
 			badge?.tooltip === this.#badge?.tooltip) {
@@ -197,7 +193,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		const { provider, extension } = entry;
 
 		const webview = this._extHostWebview.createNewWebview(webviewHandle, { /* todo */ }, extension);
-		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, title, webview, extension, true);
+		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, title, webview, true);
 
 		this._webviewViews.set(webviewHandle, revivedView);
 

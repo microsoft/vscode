@@ -3,32 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { globals } from 'vs/base/common/platform';
 import BaseErrorTelemetry, { ErrorEvent } from 'vs/platform/telemetry/common/errorTelemetry';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
 	protected override installErrorListeners(): void {
-		let oldOnError: Function;
-		let that = this;
-		if (typeof globals.onerror === 'function') {
-			oldOnError = globals.onerror;
+		let oldOnError: OnErrorEventHandler;
+		const that = this;
+		if (typeof mainWindow.onerror === 'function') {
+			oldOnError = mainWindow.onerror;
 		}
-		globals.onerror = function (message: string, filename: string, line: number, column?: number, e?: any) {
-			that._onUncaughtError(message, filename, line, column, e);
-			if (oldOnError) {
-				oldOnError.apply(this, arguments);
-			}
+		mainWindow.onerror = function (message: Event | string, filename?: string, line?: number, column?: number, error?: Error) {
+			that._onUncaughtError(message as string, filename as string, line as number, column, error);
+			oldOnError?.apply(this, [message, filename, line, column, error]);
 		};
 		this._disposables.add(toDisposable(() => {
 			if (oldOnError) {
-				globals.onerror = oldOnError;
+				mainWindow.onerror = oldOnError;
 			}
 		}));
 	}
 
 	private _onUncaughtError(msg: string, file: string, line: number, column?: number, err?: any): void {
-		let data: ErrorEvent = {
+		const data: ErrorEvent = {
 			callstack: msg,
 			msg,
 			file,
@@ -37,7 +36,12 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 		};
 
 		if (err) {
-			let { name, message, stack } = err;
+			// If it's the no telemetry error it doesn't get logged
+			if (ErrorNoTelemetry.isErrorNoTelemetry(err)) {
+				return;
+			}
+
+			const { name, message, stack } = err;
 			data.uncaught_error_name = name;
 			if (message) {
 				data.uncaught_error_msg = message;

@@ -10,29 +10,31 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
+import { ServiceConfigurationProvider } from './configuration/configuration';
+import { DiagnosticLanguage, LanguageDescription } from './configuration/languageDescription';
+import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
-import * as Proto from './protocol';
-import * as PConst from './protocol.const';
+import { LogLevelMonitor } from './logging/logLevelMonitor';
+import { Logger } from './logging/logger';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { PluginManager } from './tsServer/plugins';
+import * as errorCodes from './tsServer/protocol/errorCodes';
+import * as Proto from './tsServer/protocol/protocol';
+import * as PConst from './tsServer/protocol/protocol.const';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
+import * as typeConverters from './typeConverters';
 import TypeScriptServiceClient from './typescriptServiceClient';
+import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
 import { IntellisenseStatus } from './ui/intellisenseStatus';
+import * as LargeProjectStatus from './ui/largeProjectStatus';
+import TypingsStatus, { AtaProgressReporter } from './ui/typingsStatus';
 import { VersionStatus } from './ui/versionStatus';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { coalesce } from './utils/arrays';
-import { ServiceConfigurationProvider } from './utils/configuration';
 import { Disposable } from './utils/dispose';
-import * as errorCodes from './utils/errorCodes';
-import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
-import * as LargeProjectStatus from './utils/largeProjectStatus';
-import { LogLevelMonitor } from './utils/logLevelMonitor';
-import { PluginManager } from './utils/plugins';
-import * as typeConverters from './utils/typeConverters';
-import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -72,6 +74,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			processFactory: TsServerProcessFactory;
 			activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 			serviceConfigurationProvider: ServiceConfigurationProvider;
+			experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
+			logger: Logger;
 		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
@@ -246,18 +250,14 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
 		// See https://github.com/microsoft/TypeScript/issues/10384
 		const body = event.body;
-		if (!body || !body.diagnostics || !body.configFile) {
+		if (!body?.diagnostics || !body.configFile) {
 			return;
 		}
 
 		this.findLanguage(this.client.toResource(body.configFile)).then(language => {
-			if (!language) {
-				return;
-			}
-
-			language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
+			language?.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
 				const range = tsDiag.start && tsDiag.end ? typeConverters.Range.fromTextSpan(tsDiag) : new vscode.Range(0, 0, 0, 1);
-				const diagnostic = new vscode.Diagnostic(range, body.diagnostics[0].text, this.getDiagnosticSeverity(tsDiag));
+				const diagnostic = new vscode.Diagnostic(range, tsDiag.text, this.getDiagnosticSeverity(tsDiag));
 				diagnostic.source = language.diagnosticSource;
 				return diagnostic;
 			}));

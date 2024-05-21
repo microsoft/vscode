@@ -9,25 +9,35 @@
 	display: flex;
 	flex-shrink: 1;
 	box-sizing: border-box;
-	height: 30px;
+	height: 100%;
 	overflow: hidden;
-	flex-wrap: wrap;
+}
+
+.menubar.overflow-menu-only {
+	width: 38px;
 }
 
 .fullscreen .menubar:not(.compact) {
 	margin: 0px;
-	padding: 0px 5px;
+	padding: 4px 5px;
 }
 
 .menubar > .menubar-menu-button {
+	display: flex;
 	align-items: center;
 	box-sizing: border-box;
-	padding: 0px 8px;
 	cursor: default;
 	-webkit-app-region: no-drag;
 	zoom: 1;
 	white-space: nowrap;
-	outline: 0;
+	outline: 0 !important;
+}
+
+.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
 }
 
 .menubar.compact {
@@ -39,6 +49,11 @@
 	width: 100%;
 	height: 100%;
 	padding: 0px;
+}
+
+.menubar-menu-title {
+	padding: 0px 8px;
+	border-radius: 5px;
 }
 
 .menubar .menubar-menu-items-holder {
@@ -62,8 +77,13 @@
 }
 
 .menubar .toolbar-toggle-more {
-	width: 20px;
-	height: 100%;
+	width: 22px;
+	height: 22px;
+	padding: 0 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	vertical-align: sub;
 }
 
 .menubar.compact .toolbar-toggle-more {
@@ -77,19 +97,16 @@
 	justify-content: center;
 }
 
-.menubar .toolbar-toggle-more {
-	padding: 0;
-	vertical-align: sub;
-}
-
+.menubar:not(.compact) .menubar-menu-button:first-child .toolbar-toggle-more::before,
 .menubar.compact .toolbar-toggle-more::before {
-	content: "\eb94" !important;
+	content: var(--vscode-icon-menu-content) !important;
+	font-family: var(--vscode-icon-menu-font-family) !important;
 }
 
 /* Match behavior of outline for activity bar icons */
-.menubar.compact > .menubar-menu-button.open,
-.menubar.compact > .menubar-menu-button:focus,
-.menubar.compact > .menubar-menu-button:hover {
+.menubar.compact > .menubar-menu-button.open .menubar-menu-title,
+.menubar.compact > .menubar-menu-button:focus .menubar-menu-title,
+.menubar.compact > .menubar-menu-button:hover .menubar-menu-title{
 	outline-width: 1px !important;
 	outline-offset: -8px !important;
 }

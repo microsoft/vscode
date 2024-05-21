@@ -17,8 +17,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IStorageMainOptions {
 
@@ -26,12 +28,12 @@ export interface IStorageMainOptions {
 	 * If enabled, storage will not persist to disk
 	 * but into memory.
 	 */
-	useInMemoryStorage?: boolean;
+	readonly useInMemoryStorage?: boolean;
 }
 
 /**
- * Provides access to global and workspace storage from the
- * electron-main side that is the owner of all storage connections.
+ * Provides access to application, profile and workspace storage from
+ * the electron-main side that is the owner of all storage connections.
  */
 export interface IStorageMain extends IDisposable {
 
@@ -63,6 +65,11 @@ export interface IStorageMain extends IDisposable {
 	readonly storage: IStorage;
 
 	/**
+	 * The file path of the underlying storage file if any.
+	 */
+	readonly path: string | undefined;
+
+	/**
 	 * Required call to ensure the service can be used.
 	 */
 	init(): Promise<void>;
@@ -86,18 +93,28 @@ export interface IStorageMain extends IDisposable {
 	delete(key: string): void;
 
 	/**
+	 * Whether the storage is using in-memory persistence or not.
+	 */
+	isInMemory(): boolean;
+
+	/**
+	 * Attempts to reduce the DB size via optimization commands if supported.
+	 */
+	optimize(): Promise<void>;
+
+	/**
 	 * Close the storage connection.
 	 */
 	close(): Promise<void>;
 }
 
 export interface IStorageChangeEvent {
-	key: string;
+	readonly key: string;
 }
 
 abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
-	private static readonly LOG_SLOW_CLOSE_THRESHOLD = 300;
+	private static readonly LOG_SLOW_CLOSE_THRESHOLD = 2000;
 
 	protected readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -105,7 +122,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
 	readonly onDidCloseStorage = this._onDidCloseStorage.event;
 
-	private _storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	private _storage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY })); // storage is in-memory until initialized
 	get storage(): IStorage { return this._storage; }
 
 	abstract get path(): string | undefined;
@@ -119,10 +136,13 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	constructor(
 		protected readonly logService: ILogService,
-		private readonly fileService: IFileService,
-		private readonly telemetryService: ITelemetryService
+		private readonly fileService: IFileService
 	) {
 		super();
+	}
+
+	isInMemory(): boolean {
+		return this._storage.isInMemory();
 	}
 
 	init(): Promise<void> {
@@ -135,7 +155,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 				try {
 
 					// Create storage via subclasses
-					const storage = await this.doCreate();
+					const storage = this._register(await this.doCreate());
 
 					// Replace our in-memory storage with the real
 					// once as soon as possible without awaiting
@@ -144,12 +164,12 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					this._storage = storage;
 
 					// Re-emit storage changes via event
-					this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
+					this._register(storage.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
 
 					// Await storage init
 					await this.doInit(storage);
 
-					// Ensure we track wether storage is new or not
+					// Ensure we track whether storage is new or not
 					const isNewStorage = storage.getBoolean(IS_NEW_KEY);
 					if (isNewStorage === undefined) {
 						storage.set(IS_NEW_KEY, true);
@@ -183,7 +203,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		return storage.init();
 	}
 
-	protected abstract doCreate(): Promise<IStorage>;
+	protected abstract doCreate(): Promise<Storage>;
 
 	get items(): Map<string, string> { return this._storage.items; }
 
@@ -199,6 +219,10 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	delete(key: string): Promise<void> {
 		return this._storage.delete(key);
+	}
+
+	optimize(): Promise<void> {
+		return this._storage.optimize();
 	}
 
 	async close(): Promise<void> {
@@ -232,26 +256,6 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 			const dbSize = (await this.fileService.stat(URI.file(this.path))).size;
 
 			this.logService.warn(`[storage main] detected slow close() operation: Time: ${watch.elapsed()}ms, DB size: ${dbSize}b, Large Keys: ${largestEntries}`);
-
-			type StorageSlowCloseClassification = {
-				duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time it took to close the DB in ms.' };
-				size: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The size of the DB in bytes.' };
-				largestEntries: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The 5 largest keys in the DB.' };
-				owner: 'bpasero';
-				comment: 'Used to gain insight into reasons a database may be slow. This is used to assist with further optimizations';
-			};
-
-			type StorageSlowCloseEvent = {
-				duration: number;
-				size: number;
-				largestEntries: string;
-			};
-
-			this.telemetryService.publicLog2<StorageSlowCloseEvent, StorageSlowCloseClassification>('storageSlowClose', {
-				duration: watch.elapsed(),
-				size: dbSize,
-				largestEntries
-			});
 		} catch (error) {
 			this.logService.error('[storage main] figuring out stats for slow DB on close() resulted in an error', error);
 		}
@@ -275,38 +279,61 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	}
 }
 
-export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
+class BaseProfileAwareStorageMain extends BaseStorageMain {
 
 	private static readonly STORAGE_NAME = 'state.vscdb';
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
+			return join(this.profile.globalStorageHome.with({ scheme: Schemas.file }).fsPath, BaseProfileAwareStorageMain.STORAGE_NAME);
 		}
 
 		return undefined;
 	}
 
 	constructor(
+		private readonly profile: IUserDataProfile,
 		private readonly options: IStorageMainOptions,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService,
-		fileService: IFileService,
-		telemetryService: ITelemetryService
+		fileService: IFileService
 	) {
-		super(logService, fileService, telemetryService);
+		super(logService, fileService);
 	}
 
-	protected async doCreate(): Promise<IStorage> {
+	protected async doCreate(): Promise<Storage> {
 		return new Storage(new SQLiteStorageDatabase(this.path ?? SQLiteStorageDatabase.IN_MEMORY_PATH, {
 			logging: this.createLoggingOptions()
-		}));
+		}), !this.path ? { hint: StorageHint.STORAGE_IN_MEMORY } : undefined);
+	}
+}
+
+export class ProfileStorageMain extends BaseProfileAwareStorageMain {
+
+	constructor(
+		profile: IUserDataProfile,
+		options: IStorageMainOptions,
+		logService: ILogService,
+		fileService: IFileService
+	) {
+		super(profile, options, logService, fileService);
+	}
+}
+
+export class ApplicationStorageMain extends BaseProfileAwareStorageMain {
+
+	constructor(
+		options: IStorageMainOptions,
+		userDataProfileService: IUserDataProfilesService,
+		logService: ILogService,
+		fileService: IFileService
+	) {
+		super(userDataProfileService.defaultProfile, options, logService, fileService);
 	}
 
 	protected override async doInit(storage: IStorage): Promise<void> {
 		await super.doInit(storage);
 
-		// Apply global telemetry values as part of the initialization
+		// Apply telemetry values as part of the application storage initialization
 		this.updateTelemetryState(storage);
 	}
 
@@ -328,36 +355,35 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	}
 }
 
-export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMain {
+export class WorkspaceStorageMain extends BaseStorageMain {
 
 	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static readonly WORKSPACE_META_NAME = 'workspace.json';
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
+			return join(this.environmentService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, this.workspace.id, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 		}
 
 		return undefined;
 	}
 
 	constructor(
-		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
+		private workspace: IAnyWorkspaceIdentifier,
 		private readonly options: IStorageMainOptions,
 		logService: ILogService,
 		private readonly environmentService: IEnvironmentService,
-		fileService: IFileService,
-		telemetryService: ITelemetryService
+		fileService: IFileService
 	) {
-		super(logService, fileService, telemetryService);
+		super(logService, fileService);
 	}
 
-	protected async doCreate(): Promise<IStorage> {
+	protected async doCreate(): Promise<Storage> {
 		const { storageFilePath, wasCreated } = await this.prepareWorkspaceStorageFolder();
 
 		return new Storage(new SQLiteStorageDatabase(storageFilePath, {
 			logging: this.createLoggingOptions()
-		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
+		}), { hint: this.options.useInMemoryStorage ? StorageHint.STORAGE_IN_MEMORY : wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
 	}
 
 	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string; wasCreated: boolean }> {
@@ -368,7 +394,7 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		}
 
 		// Otherwise, ensure the storage folder exists on disk
-		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id);
+		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, this.workspace.id);
 		const workspaceStorageDatabasePath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 
 		const storageExists = await Promises.exists(workspaceStorageFolderPath);
@@ -413,7 +439,7 @@ export class InMemoryStorageMain extends BaseStorageMain {
 		return undefined; // in-memory has no path
 	}
 
-	protected async doCreate(): Promise<IStorage> {
-		return new Storage(new InMemoryStorageDatabase());
+	protected async doCreate(): Promise<Storage> {
+		return new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY });
 	}
 }

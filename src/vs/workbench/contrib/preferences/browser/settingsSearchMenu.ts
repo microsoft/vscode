@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -10,13 +11,14 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
-import { EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 
 export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 	private readonly suggestController: SuggestController | null;
 
 	constructor(
 		action: IAction,
+		options: IActionViewItemOptions,
 		actionRunner: IActionRunner | undefined,
 		private readonly searchWidget: SuggestEnabledInput,
 		@IContextMenuService contextMenuService: IContextMenuService
@@ -25,6 +27,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			{ getActions: () => this.getActions() },
 			contextMenuService,
 			{
+				...options,
 				actionRunner,
 				classNames: action.class,
 				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
@@ -57,9 +60,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			tooltip,
 			class: undefined,
 			enabled: true,
-			checked: false,
-			run: () => { this.doSearchWidgetAction(queryToAppend, triggerSuggest); },
-			dispose: () => { }
+			run: () => { this.doSearchWidgetAction(queryToAppend, triggerSuggest); }
 		};
 	}
 
@@ -89,8 +90,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 					this.searchWidget.setValue(queryWithRemovedTags);
 				}
 				this.searchWidget.focus();
-			},
-			dispose: () => { }
+			}
 		};
 	}
 
@@ -135,6 +135,12 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				localize('onlineSettingsSearch', "Online services"),
 				localize('onlineSettingsSearchTooltip', "Show settings for online services"),
 				'@tag:usesOnlineServices'
+			),
+			this.createToggleAction(
+				'policySettingsSearch',
+				localize('policySettingsSearch', "Policy services"),
+				localize('policySettingsSearchTooltip', "Show settings for policy services"),
+				`@${POLICY_SETTING_TAG}`
 			)
 		];
 	}

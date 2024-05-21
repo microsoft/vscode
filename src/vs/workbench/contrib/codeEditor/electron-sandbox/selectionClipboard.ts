@@ -8,7 +8,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
@@ -16,11 +16,12 @@ import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { mainWindow } from 'vs/base/browser/window';
+import { Event } from 'vs/base/common/event';
+import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
@@ -37,11 +38,11 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 			}));
 
-			let setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
+			const setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
 				if (!editor.hasModel()) {
 					return;
 				}
-				let model = editor.getModel();
+				const model = editor.getModel();
 				let selections = editor.getSelections();
 				selections = selections.slice(0);
 				selections.sort(Range.compareRangesUsingStarts);
@@ -61,12 +62,12 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 					return;
 				}
 
-				let result: string[] = [];
+				const result: string[] = [];
 				for (const sel of selections) {
 					result.push(model.getValueInRange(sel, EndOfLinePreference.TextDefined));
 				}
 
-				let textToCopy = result.join(model.getEOL());
+				const textToCopy = result.join(model.getEOL());
 				clipboardService.writeText(textToCopy, 'selection');
 			}, 100));
 
@@ -89,12 +90,17 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 	}
 }
 
-class SelectionClipboardPastePreventer implements IWorkbenchContribution {
+class LinuxSelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.linuxSelectionClipboardPastePreventer';
+
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		if (platform.isLinux) {
-			document.addEventListener('mouseup', (e) => {
+		super();
+
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window.document, 'mouseup', e => {
 				if (e.button === 1) {
 					// middle button
 					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
@@ -104,8 +110,8 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 						e.preventDefault();
 					}
 				}
-			});
-		}
+			}));
+		}, { window: mainWindow, disposables: this._store }));
 	}
 }
 
@@ -134,8 +140,8 @@ class PasteSelectionClipboardAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
+registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard, EditorContributionInstantiation.Eager); // eager because it needs to listen to selection change events
 if (platform.isLinux) {
+	registerWorkbenchContribution2(LinuxSelectionClipboardPastePreventer.ID, LinuxSelectionClipboardPastePreventer, WorkbenchPhase.BlockRestore); // eager because it listens to mouse-up events globally
 	registerEditorAction(PasteSelectionClipboardAction);
 }

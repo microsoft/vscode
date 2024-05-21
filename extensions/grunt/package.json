@@ -4,6 +4,7 @@
   "description": "Extension to add Grunt capabilities to VS Code.",
   "displayName": "Grunt support for VS Code",
   "version": "1.0.0",
+  "private": true,
   "icon": "images/grunt.png",
   "license": "MIT",
   "engines": {
@@ -16,11 +17,9 @@
     "compile": "gulp compile-extension:grunt",
     "watch": "gulp watch-extension:grunt"
   },
-  "dependencies": {
-    "vscode-nls": "^4.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "20.x"
   },
   "main": "./out/main",
   "activationEvents": [

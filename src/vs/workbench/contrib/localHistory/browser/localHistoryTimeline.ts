@@ -20,18 +20,18 @@ import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMPARE_WITH_FILE_LABEL, toDiffEditorArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getVirtualWorkspaceAuthority } from 'vs/platform/workspace/common/virtualWorkspace';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
-	private static readonly ID = 'timeline.localHistory';
+	static readonly ID = 'workbench.contrib.localHistoryTimeline';
 
 	private static readonly LOCAL_HISTORY_ENABLED_SETTINGS_KEY = 'workbench.localHistory.enabled';
 
-	readonly id = LocalHistoryTimeline.ID;
+	readonly id = 'timeline.localHistory';
 
 	readonly label = localize('localHistory', "Local History");
 
@@ -96,7 +96,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
-			id: LocalHistoryTimeline.ID,
+			id: this.id,
 			uri: entry?.workingCopy.resource,
 			reset: true // there is no other way to indicate that items might have been replaced/removed
 		});
@@ -142,7 +142,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		}
 
 		return {
-			source: LocalHistoryTimeline.ID,
+			source: this.id,
 			items
 		};
 	}
@@ -151,8 +151,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		return {
 			handle: entry.id,
 			label: SaveSourceRegistry.getSourceLabel(entry.source),
-			tooltip: new MarkdownString(`$(history) ${LOCAL_HISTORY_DATE_FORMATTER.value.format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
-			source: LocalHistoryTimeline.ID,
+			tooltip: new MarkdownString(`$(history) ${getLocalHistoryDateFormatter().format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
+			source: this.id,
 			timestamp: entry.timestamp,
 			themeIcon: LOCAL_HISTORY_ICON_ENTRY,
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,

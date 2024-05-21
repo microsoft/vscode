@@ -18,6 +18,8 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtHostConfiguration', function () {
 
@@ -30,7 +32,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function createExtHostWorkspace(): ExtHostWorkspace {
-		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService());
+		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService(), new class extends mock<IURITransformerService>() { });
 	}
 
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
@@ -42,13 +44,17 @@ suite('ExtHostConfiguration', function () {
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
 		return {
-			defaults: new ConfigurationModel(contents),
-			user: new ConfigurationModel(contents),
-			workspace: new ConfigurationModel(),
+			defaults: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
+			policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+			application: ConfigurationModel.createEmptyModel(new NullLogService()),
+			user: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
+			workspace: ConfigurationModel.createEmptyModel(new NullLogService()),
 			folders: [],
 			configurationScopes: []
 		};
 	}
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
 		const extHostConfig = createExtHostConfiguration({
@@ -248,7 +254,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		});
 
-		let testObject: any = all.getConfiguration();
+		const testObject: any = all.getConfiguration();
 
 		try {
 			testObject['get'] = null;
@@ -278,13 +284,15 @@ suite('ExtHostConfiguration', function () {
 					'editor': {
 						'wordWrap': 'off'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
-				workspace: new ConfigurationModel({}, []),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				workspace: new ConfigurationModel({}, [], [], undefined, new NullLogService()),
 				folders: [],
 				configurationScopes: []
 			},
@@ -311,7 +319,7 @@ suite('ExtHostConfiguration', function () {
 			'editor': {
 				'wordWrap': 'bounded'
 			}
-		}, ['editor.wordWrap']);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService());
 		folders.push([workspaceUri, workspace]);
 		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
@@ -327,12 +335,14 @@ suite('ExtHostConfiguration', function () {
 					'editor': {
 						'wordWrap': 'off'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				workspace,
 				folders,
 				configurationScopes: []
@@ -370,7 +380,7 @@ suite('ExtHostConfiguration', function () {
 			'editor': {
 				'wordWrap': 'bounded'
 			}
-		}, ['editor.wordWrap']);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService());
 
 		const firstRoot = URI.file('foo1');
 		const secondRoot = URI.file('foo2');
@@ -381,13 +391,13 @@ suite('ExtHostConfiguration', function () {
 				'wordWrap': 'off',
 				'lineNumbers': 'relative'
 			}
-		}, ['editor.wordWrap'])]);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService())]);
 		folders.push([secondRoot, new ConfigurationModel({
 			'editor': {
 				'wordWrap': 'on'
 			}
-		}, ['editor.wordWrap'])]);
-		folders.push([thirdRoot, new ConfigurationModel({}, [])]);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService())]);
+		folders.push([thirdRoot, new ConfigurationModel({}, [], [], undefined, new NullLogService())]);
 
 		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
@@ -404,12 +414,14 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'off',
 						'lineNumbers': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				workspace,
 				folders,
 				configurationScopes: []
@@ -508,6 +520,8 @@ suite('ExtHostConfiguration', function () {
 						'editor.wordWrap': 'bounded',
 					}
 				}),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: toConfigurationModel({
 					'editor.wordWrap': 'bounded',
 					'[typescript]': {
@@ -549,23 +563,58 @@ suite('ExtHostConfiguration', function () {
 		assert.deepStrictEqual(actual.languageIds, ['markdown', 'typescript']);
 	});
 
+	test('application is not set in inspect', () => {
 
-	test('getConfiguration vs get', function () {
+		const testObject = new ExtHostConfigProvider(
+			new class extends mock<MainThreadConfigurationShape>() { },
+			createExtHostWorkspace(),
+			{
+				defaults: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'off',
+						'lineNumbers': 'on',
+						'fontSize': '12px'
+					}
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'on'
+					}
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				user: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'auto',
+						'lineNumbers': 'off'
+					}
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				workspace: new ConfigurationModel({}, [], [], undefined, new NullLogService()),
+				folders: [],
+				configurationScopes: []
+			},
+			new NullLogService()
+		);
 
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
-				'config4': 38
-			}
-		});
+		let actual = testObject.getConfiguration().inspect('editor.wordWrap')!;
+		assert.strictEqual(actual.defaultValue, 'off');
+		assert.strictEqual(actual.globalValue, 'auto');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(testObject.getConfiguration().get('editor.wordWrap'), 'auto');
 
-		let config = all.getConfiguration('farboo.config0');
-		assert.strictEqual(config.get(''), undefined);
-		assert.strictEqual(config.has(''), false);
+		actual = testObject.getConfiguration().inspect('editor.lineNumbers')!;
+		assert.strictEqual(actual.defaultValue, 'on');
+		assert.strictEqual(actual.globalValue, 'off');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(testObject.getConfiguration().get('editor.lineNumbers'), 'off');
 
-		config = all.getConfiguration('farboo');
-		assert.strictEqual(config.get('config0'), true);
-		assert.strictEqual(config.has('config0'), true);
+		actual = testObject.getConfiguration().inspect('editor.fontSize')!;
+		assert.strictEqual(actual.defaultValue, '12px');
+		assert.strictEqual(actual.globalValue, undefined);
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(testObject.getConfiguration().get('editor.fontSize'), '12px');
 	});
 
 	test('getConfiguration vs get', function () {
@@ -609,7 +658,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		}, shape);
 
-		let config = allConfig.getConfiguration('foo');
+		const config = allConfig.getConfiguration('foo');
 		config.update('bar', 42);
 
 		assert.strictEqual(shape.lastArgs[0], null);
@@ -696,7 +745,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		});
 		const configEventData: IConfigurationChange = { keys: ['farboo.updatedConfig', 'farboo.newConfig'], overrides: [] };
-		testObject.onDidChangeConfiguration(e => {
+		store.add(testObject.onDidChangeConfiguration(e => {
 
 			assert.deepStrictEqual(testObject.getConfiguration().get('farboo'), {
 				'config': false,
@@ -720,9 +769,19 @@ suite('ExtHostConfiguration', function () {
 			assert.ok(!e.affectsConfiguration('farboo.config', workspaceFolder.uri));
 			assert.ok(!e.affectsConfiguration('farboo.config', URI.file('any')));
 			done();
-		});
+		}));
 
 		testObject.$acceptConfigurationChanged(newConfigData, configEventData);
+	});
+
+	test('get return instance of array value', function () {
+		const testObject = createExtHostConfiguration({ 'far': { 'boo': [] } });
+
+		const value: string[] = testObject.getConfiguration().get('far.boo', []);
+		value.push('a');
+
+		const actual = testObject.getConfiguration().get('far.boo', []);
+		assert.deepStrictEqual(actual, []);
 	});
 
 	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {
@@ -730,7 +789,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function toConfigurationModel(obj: any): ConfigurationModel {
-		const parser = new ConfigurationModelParser('test');
+		const parser = new ConfigurationModelParser('test', new NullLogService());
 		parser.parse(JSON.stringify(obj));
 		return parser.configurationModel;
 	}

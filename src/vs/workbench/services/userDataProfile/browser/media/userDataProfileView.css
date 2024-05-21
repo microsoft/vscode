@@ -1,0 +1,129 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.profile-view-tree-container .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions {
+	display: inherit;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-message-container {
+	display: flex;
+	padding: 13px 20px 0px 20px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-message-container p {
+	margin-block-start: 0em;
+	margin-block-end: 0em;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-message-container a {
+	color: var(--vscode-textLink-foreground)
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-message-container a:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-message-container a:active {
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-message-container.hide {
+	display: none;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container {
+	display: flex;
+	flex-direction: column;
+	padding: 13px 20px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button,
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown {
+	margin-block-start: 13px;
+	margin-inline-start: 0px;
+	margin-inline-end: 0px;
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown {
+	width: 100%;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown > .monaco-dropdown-button {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+.profile-edit-widget {
+	padding: 4px 6px 0px 11px;
+}
+
+.profile-edit-widget > .profile-icon-container {
+	display: flex;
+	margin-bottom: 8px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon {
+	cursor: pointer;
+	padding: 3px;
+	border-radius: 5px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon.codicon{
+	font-size: 18px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon:hover {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.profile-edit-widget > .profile-type-container {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon-label,
+.profile-edit-widget > .profile-type-container > .profile-type-create-label {
+	width: 90px;
+	display: inline-flex;
+	align-items: center;
+}
+
+.profile-edit-widget > .profile-icon-container:only-child > .profile-icon-label {
+	width: 45px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon-id {
+	display: inline-flex;
+	align-items: center;
+	margin-left: 5px;
+	opacity: .8;
+	font-size: 0.9em;
+}
+
+.profile-edit-widget > .profile-type-container > .profile-type-select-container {
+	overflow: hidden;
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.profile-edit-widget > .profile-type-container > .profile-type-select-container > .monaco-select-box {
+	cursor: pointer;
+	line-height: 17px;
+	padding: 2px 23px 2px 8px;
+	border-radius: 2px;
+}

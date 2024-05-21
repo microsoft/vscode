@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as arrays from 'vs/base/common/arrays';
 import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { EditorTheme } from 'vs/editor/common/editorTheme';
-import { VerticalRevealType } from 'vs/editor/common/viewEvents';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/modelLineProjectionData';
+import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -28,6 +29,8 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	readonly cursorConfig: CursorConfiguration;
 
+	readonly glyphLanes: IGlyphMarginLanesModel;
+
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
 
@@ -35,17 +38,21 @@ export interface IViewModel extends ICursorSimpleModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
-	tokenizeViewport(): void;
+	visibleLinesStabilized(): void;
 	setHasFocus(hasFocus: boolean): void;
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
+	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
-	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+
+	getHiddenAreas(): Range[];
 
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
@@ -59,6 +66,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[];
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	modifyPosition(position: Position, offset: number): Position;
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
@@ -78,6 +87,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;
+	revealAllCursors(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealTopMostCursor(source: string | null | undefined): void;
 	revealBottomMostCursor(source: string | null | undefined): void;
@@ -87,6 +97,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	//#region viewLayout
 	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
 	//#endregion
+
+	batchEvents(callback: () => void): void;
 }
 
 export interface IViewLayout {
@@ -108,6 +120,7 @@ export interface IViewLayout {
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
 
 	setMaxLineWidth(maxLineWidth: number): void;
+	setOverlayWidgetsMinWidth(overlayWidgetsMinWidth: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
@@ -117,7 +130,8 @@ export interface IViewLayout {
 	isInTopPadding(verticalOffset: number): boolean;
 	isInBottomPadding(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
+	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**
@@ -133,7 +147,7 @@ export interface IEditorWhitespace {
 }
 
 /**
- * An accessor that allows for whtiespace to be added, removed or changed in bulk.
+ * An accessor that allows for whitespace to be added, removed or changed in bulk.
  */
 export interface IWhitespaceChangeAccessor {
 	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;
@@ -170,6 +184,11 @@ export interface IPartialViewLinesViewportData {
 	 * The last completely visible line number.
 	 */
 	readonly completelyVisibleEndLineNumber: number;
+
+	/**
+	 * The height of a line.
+	 */
+	readonly lineHeight: number;
 }
 
 export interface IViewWhitespaceViewportData {
@@ -203,7 +222,11 @@ export interface ICoordinatesConverter {
 	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
 	// Model -> View conversion and related methods
-	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position;
+	/**
+	 * @param allowZeroLineNumber Should it return 0 when there are hidden lines at the top and the position is in the hidden area?
+	 * @param belowHiddenRanges When the model position is in a hidden area, should it return the first view position after or before?
+	 */
+	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position;
 	/**
 	 * @param affinity Only has an effect if the range is empty.
 	*/
@@ -421,7 +444,7 @@ export class OverviewRulerDecorationsGroup {
 		public readonly data: number[]
 	) { }
 
-	public static cmp(a: OverviewRulerDecorationsGroup, b: OverviewRulerDecorationsGroup): number {
+	public static compareByRenderingProps(a: OverviewRulerDecorationsGroup, b: OverviewRulerDecorationsGroup): number {
 		if (a.zIndex === b.zIndex) {
 			if (a.color < b.color) {
 				return -1;
@@ -432,5 +455,17 @@ export class OverviewRulerDecorationsGroup {
 			return 0;
 		}
 		return a.zIndex - b.zIndex;
+	}
+
+	public static equals(a: OverviewRulerDecorationsGroup, b: OverviewRulerDecorationsGroup): boolean {
+		return (
+			a.color === b.color
+			&& a.zIndex === b.zIndex
+			&& arrays.equals(a.data, b.data)
+		);
+	}
+
+	public static equalsArr(a: OverviewRulerDecorationsGroup[], b: OverviewRulerDecorationsGroup[]): boolean {
+		return arrays.equals(a, b, OverviewRulerDecorationsGroup.equals);
 	}
 }

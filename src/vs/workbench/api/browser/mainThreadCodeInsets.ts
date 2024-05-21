@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -43,7 +44,7 @@ class EditorWebviewZone implements IViewZone {
 		this.heightInLines = height;
 
 		editor.changeViewZones(accessor => this._id = accessor.addZone(this));
-		webview.mountTo(this.domNode);
+		webview.mountTo(this.domNode, getWindow(editor.getDomNode()));
 	}
 
 	dispose(): void {
@@ -89,9 +90,14 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const disposables = new DisposableStore();
 
-		const webview = this._webviewService.createWebviewElement('mainThreadCodeInsets_' + handle, {
-			enableFindWidget: false,
-		}, reviveWebviewContentOptions(options), { id: extensionId, location: URI.revive(extensionLocation) });
+		const webview = this._webviewService.createWebviewElement({
+			title: undefined,
+			options: {
+				enableFindWidget: false,
+			},
+			contentOptions: reviveWebviewContentOptions(options),
+			extension: { id: extensionId, location: URI.revive(extensionLocation) }
+		});
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
 
@@ -118,7 +124,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 	$setHtml(handle: number, value: string): void {
 		const inset = this.getInset(handle);
-		inset.webview.html = value;
+		inset.webview.setHtml(value);
 	}
 
 	$setOptions(handle: number, options: IWebviewContentOptions): void {

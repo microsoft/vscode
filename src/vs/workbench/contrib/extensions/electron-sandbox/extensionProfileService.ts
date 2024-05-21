@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionHostProfile, ProfileSession, IExtensionService, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { disposableWindowInterval } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { randomPort } from 'vs/base/common/ports';
+import * as nls from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionHostProfile, IExtensionService, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-sandbox/extensionHostProfiler';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -31,7 +34,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	private readonly _onDidChangeLastProfile: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeLastProfile: Event<void> = this._onDidChangeLastProfile.event;
 
-	private readonly _unresponsiveProfiles = new Map<string, IExtensionHostProfile>();
+	private readonly _unresponsiveProfiles = new ExtensionIdentifierMap<IExtensionHostProfile>();
 	private _profile: IExtensionHostProfile | null;
 	private _profileSession: ProfileSession | null;
 	private _state: ProfileSessionState = ProfileSessionState.None;
@@ -91,12 +94,10 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			};
 
 			const timeStarted = Date.now();
-			const handle = setInterval(() => {
-				if (this.profilingStatusBarIndicator) {
-					this.profilingStatusBarIndicator.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
-				}
+			const handle = disposableWindowInterval(mainWindow, () => {
+				this.profilingStatusBarIndicator?.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
 			}, 1000);
-			this.profilingStatusBarIndicatorLabelUpdater.value = toDisposable(() => clearInterval(handle));
+			this.profilingStatusBarIndicatorLabelUpdater.value = handle;
 
 			if (!this.profilingStatusBarIndicator) {
 				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, 'status.profiler', StatusbarAlignment.RIGHT);
@@ -123,8 +124,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this._productService.nameLong),
-				primaryButton: nls.localize('restart3', "&&Restart"),
-				secondaryButton: nls.localize('cancel', "&&Cancel")
+				primaryButton: nls.localize({ key: 'restart3', comment: ['&& denotes a mnemonic'] }, "&&Restart")
 			}).then(res => {
 				if (res.confirmed) {
 					this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
@@ -139,7 +139,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		this._setState(ProfileSessionState.Starting);
 
-		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPorts[0]).start().then((value) => {
+		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPorts[0].host, inspectPorts[0].port).start().then((value) => {
 			this._profileSession = value;
 			this._setState(ProfileSessionState.Running);
 		}, (err) => {
@@ -170,11 +170,11 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	}
 
 	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined {
-		return this._unresponsiveProfiles.get(ExtensionIdentifier.toKey(extensionId));
+		return this._unresponsiveProfiles.get(extensionId);
 	}
 
 	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void {
-		this._unresponsiveProfiles.set(ExtensionIdentifier.toKey(extensionId), profile);
+		this._unresponsiveProfiles.set(extensionId, profile);
 		this._setLastProfile(profile);
 	}
 

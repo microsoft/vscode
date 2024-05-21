@@ -8,6 +8,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import * as assert from 'assert';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface IBeginningState {
 	startOrder: string[];
@@ -35,7 +36,7 @@ async function testCellDnd(beginning: IBeginningState, dragAction: IDragAction, 
 			editor.setFocus({ start: beginning.focus, end: beginning.focus + 1 });
 			performCellDropEdits(editor, viewModel.cellAt(dragAction.dragIdx)!, dragAction.direction, viewModel.cellAt(dragAction.dragOverIdx)!);
 
-			for (let i in end.endOrder) {
+			for (const i in end.endOrder) {
 				assert.equal(viewModel.viewCells[i].getText(), end.endOrder[i]);
 			}
 
@@ -46,6 +47,8 @@ async function testCellDnd(beginning: IBeginningState, dragAction: IDragAction, 
 }
 
 suite('cellDND', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('drag 1 cell', async () => {
 		await testCellDnd(
 			{

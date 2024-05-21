@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const ShowCurrentReleaseNotesActionId = 'update.showCurrentReleaseNotes';
-export const CheckForVSCodeUpdateActionId = 'update.checkForVSCodeUpdate';
+export const ShowCurrentReleaseNotesFromCurrentFileActionId = 'developer.showCurrentFileAsReleaseNotes';

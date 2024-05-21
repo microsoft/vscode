@@ -75,7 +75,7 @@ export async function getWorkspaceSymbols(query: string, token: CancellationToke
 			if (!value) {
 				return;
 			}
-			for (let symbol of value) {
+			for (const symbol of value) {
 				all.push(new WorkspaceSymbolItem(symbol, provider));
 			}
 		} catch (err) {
@@ -148,8 +148,8 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 	return resources as URI[];
 }
 
-// Supports patterns of <path><#|:|(><line><#|:|,><col?>
-const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?\s*$/;
+// Supports patterns of <path><#|:|(><line><#|:|,><col?><:?>
+const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?:?\s*$/;
 
 export interface IFilterAndRange {
 	filter: string;
@@ -157,7 +157,11 @@ export interface IFilterAndRange {
 }
 
 export function extractRangeFromFilter(filter: string, unless?: string[]): IFilterAndRange | undefined {
-	if (!filter || unless?.some(value => filter.indexOf(value) !== -1)) {
+	// Ignore when the unless character not the first character or is before the line colon pattern
+	if (!filter || unless?.some(value => {
+		const unlessCharPos = filter.indexOf(value);
+		return unlessCharPos === 0 || unlessCharPos > 0 && !LINE_COLON_PATTERN.test(filter.substring(unlessCharPos + 1));
+	})) {
 		return undefined;
 	}
 
@@ -218,3 +222,8 @@ export enum SearchUIState {
 }
 
 export const SearchStateKey = new RawContextKey<SearchUIState>('searchState', SearchUIState.Idle);
+
+export interface NotebookPriorityInfo {
+	isFromSettings: boolean;
+	filenamePatterns: string[];
+}

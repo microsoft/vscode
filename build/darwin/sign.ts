@@ -3,18 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import * as codesign from 'electron-osx-sign';
+import * as fs from 'fs';
 import * as path from 'path';
-import * as util from '../lib/util';
-import * as product from '../../product.json';
+import * as codesign from 'electron-osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
 
-async function main(): Promise<void> {
-	const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+const root = path.dirname(path.dirname(__dirname));
+
+function getElectronVersion(): string {
+	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
+	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
+	return target;
+}
+
+async function main(buildDir?: string): Promise<void> {
 	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 	const arch = process.env['VSCODE_ARCH'];
+	const identity = process.env['CODESIGN_IDENTITY'];
 
 	if (!buildDir) {
 		throw new Error('$AGENT_BUILDDIRECTORY not set');
@@ -24,6 +29,7 @@ async function main(): Promise<void> {
 		throw new Error('$AGENT_TEMPDIRECTORY not set');
 	}
 
+	const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 	const baseDir = path.dirname(__dirname);
 	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
 	const appName = product.nameLong + '.app';
@@ -31,6 +37,7 @@ async function main(): Promise<void> {
 	const helperAppBaseName = product.nameShort;
 	const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
 	const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
+	const pluginHelperAppName = helperAppBaseName + ' Helper (Plugin).app';
 	const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
 
 	const defaultOpts: codesign.SignOptions = {
@@ -42,8 +49,8 @@ async function main(): Promise<void> {
 		'pre-auto-entitlements': false,
 		'pre-embed-provisioning-profile': false,
 		keychain: path.join(tempDir, 'buildagent.keychain'),
-		version: util.getElectronVersion(),
-		identity: '99FM488X57',
+		version: getElectronVersion(),
+		identity,
 		'gatekeeper-assess': false
 	};
 
@@ -52,7 +59,8 @@ async function main(): Promise<void> {
 		// TODO(deepak1556): Incorrectly declared type in electron-osx-sign
 		ignore: (filePath: string) => {
 			return filePath.includes(gpuHelperAppName) ||
-				filePath.includes(rendererHelperAppName);
+				filePath.includes(rendererHelperAppName) ||
+				filePath.includes(pluginHelperAppName);
 		}
 	};
 
@@ -68,6 +76,13 @@ async function main(): Promise<void> {
 		app: path.join(appFrameworkPath, rendererHelperAppName),
 		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
 		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
+	};
+
+	const pluginHelperOpts: codesign.SignOptions = {
+		...defaultOpts,
+		app: path.join(appFrameworkPath, pluginHelperAppName),
+		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
+		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
 	};
 
 	// Only overwrite plist entries for x64 and arm64 builds,
@@ -98,11 +113,12 @@ async function main(): Promise<void> {
 
 	await codesign.signAsync(gpuHelperOpts);
 	await codesign.signAsync(rendererHelperOpts);
+	await codesign.signAsync(pluginHelperOpts);
 	await codesign.signAsync(appOpts as any);
 }
 
 if (require.main === module) {
-	main().catch(err => {
+	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);
 	});

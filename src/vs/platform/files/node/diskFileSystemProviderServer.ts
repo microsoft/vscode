@@ -102,7 +102,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		const cts = new CancellationTokenSource();
 
 		const emitter = new Emitter<ReadableStreamEventPayload<VSBuffer>>({
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 
 				// Ensure to cancel the read operation when there is no more
 				// listener on the other side to prevent unneeded work.
@@ -211,10 +211,10 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		// we create a `SessionFileWatcher` and a `Emitter` for that session.
 
 		const emitter = new Emitter<IFileChange[] | string>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				this.sessionToWatcher.set(sessionId, this.createSessionFileWatcher(uriTransformer, emitter));
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				dispose(this.sessionToWatcher.get(sessionId));
 				this.sessionToWatcher.delete(sessionId);
 			}
@@ -292,7 +292,8 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 			sessionEmitter.fire(
 				events.map(e => ({
 					resource: this.uriTransformer.transformOutgoingURI(e.resource),
-					type: e.type
+					type: e.type,
+					cId: e.cId
 				}))
 			);
 		}));
@@ -324,11 +325,11 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	}
 
 	override dispose(): void {
-		super.dispose();
-
 		for (const [, disposable] of this.watcherRequests) {
 			disposable.dispose();
 		}
 		this.watcherRequests.clear();
+
+		super.dispose();
 	}
 }

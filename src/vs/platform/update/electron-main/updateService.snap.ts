@@ -129,6 +129,11 @@ abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	abstract isLatestVersion(): Promise<boolean | undefined>;
+
+	async _applySpecificUpdate(packagePath: string): Promise<void> {
+		// noop
+	}
+
 	protected abstract doCheckForUpdates(context: any): void;
 }
 
@@ -160,7 +165,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 		this.setState(State.CheckingForUpdates(false));
 		this.isUpdateAvailable().then(result => {
 			if (result) {
-				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
+				this.setState(State.Ready({ version: 'something' }));
 			} else {
 				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: false });
 

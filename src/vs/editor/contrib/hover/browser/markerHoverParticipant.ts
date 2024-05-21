@@ -12,12 +12,13 @@ import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IModelDecoration } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { CodeActionSet, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
-import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/browser/types';
+import { getCodeActions, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
@@ -25,9 +26,6 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -50,12 +48,13 @@ export class MarkerHover implements IHoverPart {
 
 const markerCodeActionTrigger: CodeActionTrigger = {
 	type: CodeActionTriggerType.Invoke,
-	filter: { include: CodeActionKind.QuickFix }
+	filter: { include: CodeActionKind.QuickFix },
+	triggerAction: CodeActionTriggerSource.QuickFixHover
 };
 
 export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHover> {
 
-	public readonly hoverOrdinal: number = 5;
+	public readonly hoverOrdinal: number = 1;
 
 	private recentMarkerCodeActionsInfo: { marker: IMarker; hasCodeActions: boolean } | undefined = undefined;
 
@@ -67,7 +66,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	) { }
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
-		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
+		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range && !anchor.supportsMarkerHover) {
 			return [];
 		}
 
@@ -104,6 +103,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {
 		const hoverElement = $('div.hover-row');
+		hoverElement.tabIndex = 0;
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
 		const { source, message, code, relatedInformation } = markerHover.marker;
 
@@ -171,15 +171,18 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 	private renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover, disposables: DisposableStore): void {
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			context.statusBar.addAction({
-				label: nls.localize('view problem', "View Problem"),
-				commandId: NextMarkerAction.ID,
-				run: () => {
-					context.hide();
-					MarkerController.get(this._editor)?.showAtMarker(markerHover.marker);
-					this._editor.focus();
-				}
-			});
+			const markerController = MarkerController.get(this._editor);
+			if (markerController) {
+				context.statusBar.addAction({
+					label: nls.localize('view problem', "View Problem"),
+					commandId: NextMarkerAction.ID,
+					run: () => {
+						context.hide();
+						markerController.showAtMarker(markerHover.marker);
+						this._editor.focus();
+					}
+				});
+			}
 		}
 
 		if (!this._editor.getOption(EditorOption.readOnly)) {
@@ -193,7 +196,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					this.recentMarkerCodeActionsInfo = undefined;
 				}
 			}
-			const updatePlaceholderDisposable = this.recentMarkerCodeActionsInfo && !this.recentMarkerCodeActionsInfo.hasCodeActions ? Disposable.None : disposables.add(disposableTimeout(() => quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes..."), 200));
+			const updatePlaceholderDisposable = this.recentMarkerCodeActionsInfo && !this.recentMarkerCodeActionsInfo.hasCodeActions ? Disposable.None : disposableTimeout(() => quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes..."), 200, disposables);
 			if (!quickfixPlaceholderElement.textContent) {
 				// Have some content in here to avoid flickering
 				quickfixPlaceholderElement.textContent = String.fromCharCode(0xA0); // &nbsp;
@@ -220,17 +223,17 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 				context.statusBar.addAction({
 					label: nls.localize('quick fixes', "Quick Fix..."),
-					commandId: QuickFixAction.Id,
+					commandId: quickFixCommandId,
 					run: (target) => {
 						showing = true;
-						const controller = QuickFixController.get(this._editor);
+						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
 						// Hide the hover pre-emptively, otherwise the editor can close the code actions
 						// context menu as well when using keyboard navigation
 						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
-							x: elementPosition.left + 6,
-							y: elementPosition.top + elementPosition.height + 6,
+							x: elementPosition.left,
+							y: elementPosition.top,
 							width: elementPosition.width,
 							height: elementPosition.height
 						});
@@ -252,14 +255,3 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		});
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const linkFg = theme.getColor(textLinkForeground);
-	if (linkFg) {
-		collector.addRule(`.monaco-hover .hover-contents a.code-link span { color: ${linkFg}; }`);
-	}
-	const activeLinkFg = theme.getColor(textLinkActiveForeground);
-	if (activeLinkFg) {
-		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${activeLinkFg}; }`);
-	}
-});

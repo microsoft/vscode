@@ -10,7 +10,7 @@ import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -54,4 +54,4 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 	}
 }
 
-registerSingleton(ITextResourcePropertiesService, TextResourcePropertiesService, true);
+registerSingleton(ITextResourcePropertiesService, TextResourcePropertiesService, InstantiationType.Delayed);

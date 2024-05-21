@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook Editor', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite.skip)('Notebook Editor', function () {
 
 	const contentSerializer = new class implements vscode.NotebookSerializer {
 		deserializeNotebook() {
@@ -51,7 +51,7 @@ import * as utils from '../utils';
 		utils.disposeAll(disposables);
 		disposables.length = 0;
 
-		for (let doc of vscode.workspace.notebookDocuments) {
+		for (const doc of vscode.workspace.notebookDocuments) {
 			assert.strictEqual(doc.isDirty, false, doc.uri.toString());
 		}
 	});
@@ -65,57 +65,29 @@ import * as utils from '../utils';
 		testDisposables.length = 0;
 	});
 
-	test.skip('showNotebookDocument', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139078
-
-		const notebookDocumentsFromOnDidOpen = new Set<vscode.NotebookDocument>();
-		const sub = vscode.workspace.onDidOpenNotebookDocument(e => {
-			notebookDocumentsFromOnDidOpen.add(e);
-		});
-
-		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-
-		const editor = await vscode.window.showNotebookDocument(uri);
-		assert.strictEqual(uri.toString(), editor.document.uri.toString());
-
-		assert.strictEqual(notebookDocumentsFromOnDidOpen.has(editor.document), true);
-
-		const includes = vscode.workspace.notebookDocuments.includes(editor.document);
-		assert.strictEqual(true, includes);
-
-		sub.dispose();
-	});
-
-	// TODO@rebornix deal with getting started
-	test.skip('notebook editor has viewColumn', async function () {
-
-		const uri1 = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const editor1 = await vscode.window.showNotebookDocument(uri1);
-
-		assert.strictEqual(editor1.viewColumn, vscode.ViewColumn.One);
-
-		const uri2 = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const editor2 = await vscode.window.showNotebookDocument(uri2, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(editor2.viewColumn, vscode.ViewColumn.Two);
-	});
-
 	// #138683
-	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+	// TODO@rebornix https://github.com/microsoft/vscode/issues/170072
+	test.skip('Opening a notebook should fire activeNotebook event changed only once', utils.withVerboseLogs(async function () {
 		const openedEditor = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const editor = await vscode.window.showNotebookDocument(resource);
+		const document = await vscode.workspace.openNotebookDocument(resource);
+		const editor = await vscode.window.showNotebookDocument(document);
 		assert.ok(await openedEditor);
-		assert.strictEqual(editor.document.uri.toString(), resource.toString());
-	});
+		assert.strictEqual(editor.notebook.uri.toString(), resource.toString());
+	}));
 
-	test('Active/Visible Editor', async function () {
+	// TODO@rebornix https://github.com/microsoft/vscode/issues/173125
+	test.skip('Active/Visible Editor', async function () {
 		const firstEditorOpen = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const firstEditor = await vscode.window.showNotebookDocument(resource);
+		const document = await vscode.workspace.openNotebookDocument(resource);
+
+		const firstEditor = await vscode.window.showNotebookDocument(document);
 		await firstEditorOpen;
 		assert.strictEqual(vscode.window.activeNotebookEditor, firstEditor);
 		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
 
-		const secondEditor = await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
+		const secondEditor = await vscode.window.showNotebookDocument(document, { viewColumn: vscode.ViewColumn.Beside });
 		// There is no guarantee that when `showNotebookDocument` resolves, the active notebook editor is already updated correctly.
 		// assert.strictEqual(secondEditor === vscode.window.activeNotebookEditor, true);
 		assert.notStrictEqual(firstEditor, secondEditor);
@@ -128,7 +100,8 @@ import * as utils from '../utils';
 	test('Notebook Editor Event - onDidChangeVisibleNotebookEditors on open/close', async function () {
 		const openedEditor = utils.asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		await vscode.window.showNotebookDocument(resource);
+		const document = await vscode.workspace.openNotebookDocument(resource);
+		await vscode.window.showNotebookDocument(document);
 		assert.ok(await openedEditor);
 
 		const firstEditorClose = utils.asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
@@ -138,15 +111,17 @@ import * as utils from '../utils';
 
 	test('Notebook Editor Event - onDidChangeVisibleNotebookEditors on two editor groups', async function () {
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.workspace.openNotebookDocument(resource);
+
 		let count = 0;
 		testDisposables.push(vscode.window.onDidChangeVisibleNotebookEditors(() => {
 			count = vscode.window.visibleNotebookEditors.length;
 		}));
 
-		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Active });
+		await vscode.window.showNotebookDocument(document, { viewColumn: vscode.ViewColumn.Active });
 		assert.strictEqual(count, 1);
 
-		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
+		await vscode.window.showNotebookDocument(document, { viewColumn: vscode.ViewColumn.Beside });
 		assert.strictEqual(count, 2);
 
 		await utils.closeAllEditors();

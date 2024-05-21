@@ -27,9 +27,7 @@ export class ViewsWelcomeContribution extends Disposable implements IWorkbenchCo
 				for (const welcome of contribution.value) {
 					const disposable = this.viewWelcomeContents.get(welcome);
 
-					if (disposable) {
-						disposable.dispose();
-					}
+					disposable?.dispose();
 				}
 			}
 

@@ -11,7 +11,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
@@ -24,6 +24,9 @@ export class CodeEditorService extends AbstractCodeEditorService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(themeService);
+
+		this._register(this.registerCodeEditorOpenHandler(this.doOpenCodeEditor.bind(this)));
+		this._register(this.registerCodeEditorOpenHandler(this.doOpenCodeEditorFromDiff.bind(this)));
 	}
 
 	getActiveCodeEditor(): ICodeEditor | null {
@@ -44,7 +47,7 @@ export class CodeEditorService extends AbstractCodeEditorService {
 		return null;
 	}
 
-	async openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	private async doOpenCodeEditorFromDiff(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
 		// Special case: If the active editor is a diff editor and the request to open originates and
 		// targets the modified side of it, we just apply the request there to prevent opening the modified
@@ -66,10 +69,10 @@ export class CodeEditorService extends AbstractCodeEditorService {
 			return targetEditor;
 		}
 
-		// Open using our normal editor service
-		return this.doOpenCodeEditor(input, source, sideBySide);
+		return null;
 	}
 
+	// Open using our normal editor service
 	private async doOpenCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
 		// Special case: we want to detect the request to open an editor that
@@ -110,4 +113,4 @@ export class CodeEditorService extends AbstractCodeEditorService {
 	}
 }
 
-registerSingleton(ICodeEditorService, CodeEditorService, true);
+registerSingleton(ICodeEditorService, CodeEditorService, InstantiationType.Delayed);

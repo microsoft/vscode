@@ -268,9 +268,7 @@ export class Scrollable extends Disposable {
 		this._setState(newState, Boolean(this._smoothScrolling));
 
 		// Validate outstanding animated scroll position target
-		if (this._smoothScrolling) {
-			this._smoothScrolling.acceptScrollDimensions(this._state);
-		}
+		this._smoothScrolling?.acceptScrollDimensions(this._state);
 	}
 
 	/**
@@ -350,6 +348,10 @@ export class Scrollable extends Disposable {
 		});
 	}
 
+	public hasPendingScrollAnimation(): boolean {
+		return Boolean(this._smoothScrolling);
+	}
+
 	private _performSmoothScrolling(): void {
 		if (!this._smoothScrolling) {
 			return;
@@ -406,7 +408,7 @@ export class SmoothScrollingUpdate {
 
 }
 
-export interface IAnimation {
+interface IAnimation {
 	(completion: number): number;
 }
 

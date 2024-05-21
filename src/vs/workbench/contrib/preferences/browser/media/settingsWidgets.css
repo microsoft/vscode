@@ -18,11 +18,16 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
-	white-space: pre;
-	overflow: hidden;
+	white-space: nowrap;
 	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox {
+	background-color: var(--vscode-settings-checkboxBackground) !important;
+	color: var(--vscode-settings-checkboxForeground) !important;
+	border-color: var(--vscode-settings-checkboxBorder) !important;
+}
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox {
 	margin-left: 4px;
 	height: 24px;
@@ -30,7 +35,8 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox .setting-value-checkbox {
 	margin-top: 3px;
 }
-.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-list-object-value {
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-item-bool .setting-list-object-value {
+	width: 100%;
 	cursor: pointer;
 }
 
@@ -68,9 +74,9 @@
 	min-height: 24px;
 }
 
-/* Use monospace to display glob patterns in exclude widget */
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-value,
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-sibling {
+/* Use monospace to display glob patterns in include/exclude widget */
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget .setting-list-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget .setting-list-sibling {
 	font-family: var(--monaco-monospace-font);
 }
 
@@ -91,9 +97,24 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row {
 	display: flex;
 }
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.draggable {
 	cursor: pointer;
 	user-select: none;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover {
+	background-color: var(--vscode-list-dropBackground);
 }
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover * {
 	pointer-events: none;
@@ -121,10 +142,6 @@
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:focus {
-	outline: none;
-}
-
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover .monaco-action-bar,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected .monaco-action-bar {
 	display: block;
@@ -147,6 +164,7 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .monaco-text-button {
 	width: initial;
+	white-space: nowrap;
 	padding: 2px 14px;
 }
 
@@ -190,7 +208,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget {
 	margin-bottom: 1px;
 	padding: 1px;

@@ -1,0 +1,30 @@
+{
+	"original": {
+		"content": "console.log(1);\nconsole.log(2);\nconsole.log(3);\nconsole.log(4);\n",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "console.log(1)\nconsole.log(2)\nconsole.log(4)\n",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,5)",
+			"modifiedRange": "[1,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,15 -> 1,16 EOL]",
+					"modifiedRange": "[1,15 -> 1,15 EOL]"
+				},
+				{
+					"originalRange": "[2,15 -> 3,16 EOL]",
+					"modifiedRange": "[2,15 -> 2,15 EOL]"
+				},
+				{
+					"originalRange": "[4,15 -> 4,16 EOL]",
+					"modifiedRange": "[3,15 -> 3,15 EOL]"
+				}
+			]
+		}
+	]
+}

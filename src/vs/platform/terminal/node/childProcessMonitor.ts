@@ -29,8 +29,6 @@ export const ignoreProcessNames: string[] = [];
  * calls into the monitor.
  */
 export class ChildProcessMonitor extends Disposable {
-	private _isDisposed: boolean = false;
-
 	private _hasChildProcesses: boolean = false;
 	private set hasChildProcesses(value: boolean) {
 		if (this._hasChildProcesses !== value) {
@@ -57,11 +55,6 @@ export class ChildProcessMonitor extends Disposable {
 		super();
 	}
 
-	override dispose() {
-		this._isDisposed = true;
-		super.dispose();
-	}
-
 	/**
 	 * Input was triggered on the process.
 	 */
@@ -78,7 +71,7 @@ export class ChildProcessMonitor extends Disposable {
 
 	@debounce(Constants.ActiveDebounceDuration)
 	private async _refreshActive(): Promise<void> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		try {

@@ -3,23 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
+import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
-import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { hasSiblingPromiseFn, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
 	toCanonicalName: (encoding: string) => string;
 }
+interface IAITextQueryProviderPair {
+	query: IAITextQuery; provider: AITextSearchProvider;
+}
 
+interface ITextQueryProviderPair {
+	query: ITextQuery; provider: TextSearchProvider;
+}
 export class TextSearchManager {
 
 	private collector: TextSearchResultsCollector | null = null;
@@ -27,12 +32,17 @@ export class TextSearchManager {
 	private isLimitHit = false;
 	private resultCount = 0;
 
-	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils, private processType: ITextSearchStats['type']) { }
+	constructor(private queryProviderPair: IAITextQueryProviderPair | ITextQueryProviderPair,
+		private fileUtils: IFileUtils,
+		private processType: ITextSearchStats['type']) { }
+
+	private get query() {
+		return this.queryProviderPair.query;
+	}
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
-		const tokenSource = new CancellationTokenSource();
-		token.onCancellationRequested(() => tokenSource.cancel());
+		const tokenSource = new CancellationTokenSource(token);
 
 		return new Promise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
@@ -71,11 +81,11 @@ export class TextSearchManager {
 				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
 					limitHit: this.isLimitHit || someFolderHitLImit,
-					messages: flatten(results.map(result => {
+					messages: results.flatMap(result => {
 						if (!result?.message) { return []; }
-						if (isArray(result.message)) { return result.message; }
+						if (Array.isArray(result.message)) { return result.message; }
 						else { return [result.message]; }
-					})),
+					}),
 					stats: {
 						type: this.processType
 					}
@@ -148,7 +158,14 @@ export class TextSearchManager {
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		const result = await this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token);
+
+
+		let result;
+		if (this.queryProviderPair.query.type === QueryType.aiText) {
+			result = await (this.queryProviderPair as IAITextQueryProviderPair).provider.provideAITextSearchResults(this.queryProviderPair.query.contentPattern, searchOptions, progress, token);
+		} else {
+			result = await (this.queryProviderPair as ITextQueryProviderPair).provider.provideTextSearchResults(patternInfoToQuery(this.queryProviderPair.query.contentPattern), searchOptions, progress, token);
+		}
 		if (testingPs.length) {
 			await Promise.all(testingPs);
 		}
@@ -183,7 +200,7 @@ export class TextSearchManager {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
-		const options = <TextSearchOptions>{
+		const options = {
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
@@ -193,18 +210,20 @@ export class TextSearchManager {
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults,
+			maxResults: this.query.maxResults ?? Number.MAX_SAFE_INTEGER,
 			previewOptions: this.query.previewOptions,
 			afterContext: this.query.afterContext,
 			beforeContext: this.query.beforeContext
 		};
-		(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
+		if ('usePCRE2' in this.query) {
+			(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
+		}
 		return options;
 	}
 }
 
 function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
-	return <TextSearchQuery>{
+	return {
 		isCaseSensitive: patternInfo.isCaseSensitive || false,
 		isRegExp: patternInfo.isRegExp || false,
 		isWordMatch: patternInfo.isWordMatch || false,
@@ -264,7 +283,7 @@ export class TextSearchResultsCollector {
 function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
 	if (extensionResultIsMatch(data)) {
-		return <ITextSearchMatch>{
+		return {
 			preview: {
 				matches: mapArrayOrNot(data.preview.matches, m => ({
 					startLineNumber: m.start.line,
@@ -280,12 +299,12 @@ function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchRes
 				endLineNumber: r.end.line,
 				endColumn: r.end.character
 			}))
-		};
+		} satisfies ITextSearchMatch;
 	} else {
-		return <ITextSearchContext>{
+		return {
 			text: data.text,
 			lineNumber: data.lineNumber
-		};
+		} satisfies ITextSearchContext;
 	}
 }
 

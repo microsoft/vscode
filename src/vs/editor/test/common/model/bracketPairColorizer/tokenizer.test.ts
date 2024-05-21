@@ -3,19 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
 import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('Bracket Pair Colorizer - Tokenizer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Basic', () => {
 		const mode1 = 'testMode1';
 		const disposableStore = new DisposableStore();
@@ -123,7 +128,7 @@ function tokenToObj(token: Token, offset: Length, model: TextModel, keyProvider:
 	};
 }
 
-class TokenizedDocument {
+export class TokenizedDocument {
 	private readonly tokensByLine: readonly TokenInfo[][];
 	constructor(tokens: TokenInfo[]) {
 		const tokensByLine = new Array<TokenInfo[]>();
@@ -188,7 +193,7 @@ class TokenizedDocument {
 	}
 }
 
-class TokenInfo {
+export class TokenInfo {
 	constructor(
 		public readonly text: string,
 		public readonly languageId: LanguageId,

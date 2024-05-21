@@ -5,8 +5,8 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -17,18 +17,60 @@ import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { IBaseCellEditorOptions, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { ITextModelUpdateOptions } from 'vs/editor/common/model';
 
-export class CellEditorOptions extends CellPart {
+//todo@Yoyokrazy implenets is needed or not?
+export class CellEditorOptions extends CellContentPart implements ITextModelUpdateOptions {
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
+	private _tabSize?: number;
+	private _indentSize?: number | 'tabSize';
+	private _insertSpaces?: boolean;
+
+	set tabSize(value: number | undefined) {
+		if (this._tabSize !== value) {
+			this._tabSize = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get tabSize() {
+		return this._tabSize;
+	}
+
+	set indentSize(value: number | 'tabSize' | undefined) {
+		if (this._indentSize !== value) {
+			this._indentSize = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get indentSize() {
+		return this._indentSize;
+	}
+
+	set insertSpaces(value: boolean | undefined) {
+		if (this._insertSpaces !== value) {
+			this._insertSpaces = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get insertSpaces() {
+		return this._insertSpaces;
+	}
+
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _value: IEditorOptions;
 
-	constructor(private readonly base: IBaseCellEditorOptions, readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService) {
+	constructor(
+		private readonly base: IBaseCellEditorOptions,
+		readonly notebookOptions: NotebookOptions,
+		readonly configurationService: IConfigurationService) {
 		super();
 
 		this._register(base.onDidChange(() => {
@@ -50,15 +92,51 @@ export class CellEditorOptions extends CellPart {
 	}
 
 	private _computeEditorOptions() {
-		const renderLineNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-		const lineNumbers: LineNumbersType = renderLineNumbers ? 'on' : 'off';
+		const value = this.base.value; // base IEditorOptions
 
-		const value = this.base.value;
+		// TODO @Yoyokrazy find a different way to get the editor overrides, this is not the right way
+		const cellEditorOverridesRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
+		const indentSize = cellEditorOverridesRaw?.['editor.indentSize'];
+		if (indentSize !== undefined) {
+			this.indentSize = indentSize;
+		}
+		const insertSpaces = cellEditorOverridesRaw?.['editor.insertSpaces'];
+		if (insertSpaces !== undefined) {
+			this.insertSpaces = insertSpaces;
+		}
+		const tabSize = cellEditorOverridesRaw?.['editor.tabSize'];
+		if (tabSize !== undefined) {
+			this.tabSize = tabSize;
+		}
 
-		if (value.lineNumbers !== lineNumbers) {
+		let cellRenderLineNumber = value.lineNumbers;
+
+		switch (this._lineNumbers) {
+			case 'inherit':
+				// inherit from the notebook setting
+				if (this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on') {
+					if (value.lineNumbers === 'off') {
+						cellRenderLineNumber = 'on';
+					} // otherwise just use the editor setting
+				} else {
+					cellRenderLineNumber = 'off';
+				}
+				break;
+			case 'on':
+				// should turn on, ignore the editor line numbers off options
+				if (value.lineNumbers === 'off') {
+					cellRenderLineNumber = 'on';
+				} // otherwise just use the editor setting
+				break;
+			case 'off':
+				cellRenderLineNumber = 'off';
+				break;
+		}
+
+		if (value.lineNumbers !== cellRenderLineNumber) {
 			return {
 				...value,
-				...{ lineNumbers }
+				...{ lineNumbers: cellRenderLineNumber }
 			};
 		} else {
 			return Object.assign({}, value);
@@ -92,14 +170,7 @@ export class CellEditorOptions extends CellPart {
 
 	setLineNumbers(lineNumbers: 'on' | 'off' | 'inherit'): void {
 		this._lineNumbers = lineNumbers;
-		if (this._lineNumbers === 'inherit') {
-			const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
-			this._value.lineNumbers = lineNumbers;
-		} else {
-			this._value.lineNumbers = lineNumbers as LineNumbersType;
-		}
-		this._onDidChange.fire();
+		this._recomputeOptions();
 	}
 }
 
@@ -121,7 +192,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLineNumbers',
-			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			title: localize2('notebook.toggleLineNumbers', 'Toggle Notebook Line Numbers'),
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{
@@ -134,7 +205,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			f1: true,
 			toggled: {
 				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
-				title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
+				title: localize('notebook.showLineNumbers', "Notebook Line Numbers"),
 			}
 		});
 	}

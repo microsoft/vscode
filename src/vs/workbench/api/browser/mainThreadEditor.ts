@@ -16,12 +16,12 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
+import { ISnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetSession';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;
@@ -80,6 +80,8 @@ export class MainThreadTextEditorProperties {
 		return {
 			insertSpaces: modelOptions.insertSpaces,
 			tabSize: modelOptions.tabSize,
+			indentSize: modelOptions.indentSize,
+			originalIndentSize: modelOptions.originalIndentSize,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};
@@ -109,7 +111,7 @@ export class MainThreadTextEditorProperties {
 		if (!oldProps || !MainThreadTextEditorProperties._selectionsEqual(oldProps.selections, this.selections)) {
 			delta.selections = {
 				selections: this.selections,
-				source: withNullAsUndefined(selectionChangeSource)
+				source: selectionChangeSource ?? undefined,
 			};
 		}
 
@@ -146,6 +148,7 @@ export class MainThreadTextEditorProperties {
 		}
 		return (
 			a.tabSize === b.tabSize
+			&& a.indentSize === b.indentSize
 			&& a.insertSpaces === b.insertSpaces
 			&& a.cursorStyle === b.cursorStyle
 			&& a.lineNumbers === b.lineNumbers
@@ -376,6 +379,9 @@ export class MainThreadTextEditor {
 		if (typeof newConfiguration.tabSize !== 'undefined') {
 			newOpts.tabSize = newConfiguration.tabSize;
 		}
+		if (typeof newConfiguration.indentSize !== 'undefined') {
+			newOpts.indentSize = newConfiguration.indentSize;
+		}
 		this._model.updateOptions(newOpts);
 	}
 
@@ -394,13 +400,16 @@ export class MainThreadTextEditor {
 		}
 
 		if (typeof newConfiguration.lineNumbers !== 'undefined') {
-			let lineNumbers: 'on' | 'off' | 'relative';
+			let lineNumbers: 'on' | 'off' | 'relative' | 'interval';
 			switch (newConfiguration.lineNumbers) {
 				case RenderLineNumbersType.On:
 					lineNumbers = 'on';
 					break;
 				case RenderLineNumbersType.Relative:
 					lineNumbers = 'relative';
+					break;
+				case RenderLineNumbersType.Interval:
+					lineNumbers = 'interval';
 					break;
 				default:
 					lineNumbers = 'off';
@@ -415,7 +424,7 @@ export class MainThreadTextEditor {
 		if (!this._codeEditor) {
 			return;
 		}
-		this._codeEditor.setDecorations('exthost-api', key, ranges);
+		this._codeEditor.setDecorationsByType('exthost-api', key, ranges);
 	}
 
 	public setDecorationsFast(key: string, _ranges: number[]): void {
@@ -426,7 +435,7 @@ export class MainThreadTextEditor {
 		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
 			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
 		}
-		this._codeEditor.setDecorationsFast(key, ranges);
+		this._codeEditor.setDecorationsByTypeFast(key, ranges);
 	}
 
 	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
@@ -518,8 +527,7 @@ export class MainThreadTextEditor {
 		}
 
 		if (this._codeEditor.getModel().getVersionId() !== modelVersionId) {
-			// ignored because emmet tests fail...
-			// return false;
+			return false;
 		}
 
 		const snippetController = SnippetController2.get(this._codeEditor);
@@ -527,16 +535,11 @@ export class MainThreadTextEditor {
 			return false;
 		}
 
-		// cancel previous snippet mode
-		// snippetController.leaveSnippet();
-
-		// set selection, focus editor
-		const selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
-		this._codeEditor.setSelections(selections);
 		this._codeEditor.focus();
 
-		// make modifications
-		snippetController.insert(template, {
+		// make modifications as snippet edit
+		const edits: ISnippetEdit[] = ranges.map(range => ({ range: Range.lift(range), template }));
+		snippetController.apply(edits, {
 			overwriteBefore: 0, overwriteAfter: 0,
 			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
 			clipboardText

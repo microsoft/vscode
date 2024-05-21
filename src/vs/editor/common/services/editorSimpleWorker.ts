@@ -5,24 +5,30 @@
 
 import { stringDiff } from 'vs/base/common/diff/diff';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { globals } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { DiffComputer, IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
-import { EndOfLineSequence } from 'vs/editor/common/model';
+import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
+import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
-import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
-import * as types from 'vs/base/common/types';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
+import { DiffComputer, IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from '../diff/rangeMapping';
+import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
+import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
+import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { BugIndicatingError } from 'vs/base/common/errors';
+import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
+import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -54,7 +60,7 @@ export interface IRawModelData {
 /**
  * @internal
  */
-export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
+export interface ICommonModel extends ILinkComputerTarget, IDocumentColorComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
 	eol: string;
@@ -70,13 +76,14 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
+	findMatches(regex: RegExp): RegExpMatchArray[];
 }
 
 /**
  * Range of a word inside a model.
  * @internal
  */
-export interface IWordRange {
+interface IWordRange {
 	/**
 	 * The index where the word starts.
 	 */
@@ -90,7 +97,7 @@ export interface IWordRange {
 /**
  * @internal
  */
-export class MirrorModel extends BaseMirrorModel implements ICommonModel {
+class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
@@ -102,6 +109,22 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public getValue(): string {
 		return this.getText();
+	}
+
+	public findMatches(regex: RegExp): RegExpMatchArray[] {
+		const matches = [];
+		for (let i = 0; i < this._lines.length; i++) {
+			const line = this._lines[i];
+			const offsetToAdd = this.offsetAt(new Position(i + 1, 1));
+			const iteratorOverMatches = line.matchAll(regex);
+			for (const match of iteratorOverMatches) {
+				if (match.index || match.index === 0) {
+					match.index = match.index + offsetToAdd;
+				}
+				matches.push(match);
+			}
+		}
+		return matches;
 	}
 
 	public getLinesContent(): string[] {
@@ -379,35 +402,65 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return UnicodeTextModelHighlighter.computeUnicodeHighlights(model, options, range);
 	}
 
+	public async findSectionHeaders(url: string, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
+		const model = this._getModel(url);
+		if (!model) {
+			return [];
+		}
+		return findSectionHeaders(model, options);
+	}
+
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public async computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
+	public async computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
 			return null;
 		}
 
-		const originalLines = original.getLinesContent();
-		const modifiedLines = modified.getLinesContent();
-		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-			shouldComputeCharChanges: true,
-			shouldPostProcessCharChanges: true,
-			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-			shouldMakePrettyDiff: true,
-			maxComputationTime: maxComputationTime
-		});
+		const result = EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		return result;
+	}
 
-		const diffResult = diffComputer.computeDiff();
-		const identical = (diffResult.changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
+	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
+		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
+
+		const originalLines = originalTextModel.getLinesContent();
+		const modifiedLines = modifiedTextModel.getLinesContent();
+
+		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);
+
+		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
+
+		function getLineChanges(changes: readonly DetailedLineRangeMapping[]): ILineChange[] {
+			return changes.map(m => ([m.original.startLineNumber, m.original.endLineNumberExclusive, m.modified.startLineNumber, m.modified.endLineNumberExclusive, m.innerChanges?.map(m => [
+				m.originalRange.startLineNumber,
+				m.originalRange.startColumn,
+				m.originalRange.endLineNumber,
+				m.originalRange.endColumn,
+				m.modifiedRange.startLineNumber,
+				m.modifiedRange.startColumn,
+				m.modifiedRange.endLineNumber,
+				m.modifiedRange.endColumn,
+			])]));
+		}
+
 		return {
-			quitEarly: diffResult.quitEarly,
-			identical: identical,
-			changes: diffResult.changes
+			identical,
+			quitEarly: result.hitTimeout,
+			changes: getLineChanges(result.changes),
+			moves: result.moves.map(m => ([
+				m.lineRangeMapping.original.startLineNumber,
+				m.lineRangeMapping.original.endLineNumberExclusive,
+				m.lineRangeMapping.modified.startLineNumber,
+				m.lineRangeMapping.modified.endLineNumberExclusive,
+				getLineChanges(m.changes)
+			])),
 		};
 	}
 
-	private _modelsAreIdentical(original: ICommonModel, modified: ICommonModel): boolean {
+	private static _modelsAreIdentical(original: ICommonModel | ITextModel, modified: ICommonModel | ITextModel): boolean {
 		const originalLineCount = original.getLineCount();
 		const modifiedLineCount = modified.getLineCount();
 		if (originalLineCount !== modifiedLineCount) {
@@ -449,7 +502,89 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	private static readonly _diffLimit = 100000;
 
-	public async computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
+	public async computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], pretty: boolean): Promise<TextEdit[]> {
+		const model = this._getModel(modelUrl);
+		if (!model) {
+			return edits;
+		}
+
+		const result: TextEdit[] = [];
+		let lastEol: EndOfLineSequence | undefined = undefined;
+
+		edits = edits.slice(0).sort((a, b) => {
+			if (a.range && b.range) {
+				return Range.compareRangesUsingStarts(a.range, b.range);
+			}
+			// eol only changes should go to the end
+			const aRng = a.range ? 0 : 1;
+			const bRng = b.range ? 0 : 1;
+			return aRng - bRng;
+		});
+
+		// merge adjacent edits
+		let writeIndex = 0;
+		for (let readIndex = 1; readIndex < edits.length; readIndex++) {
+			if (Range.getEndPosition(edits[writeIndex].range).equals(Range.getStartPosition(edits[readIndex].range))) {
+				edits[writeIndex].range = Range.fromPositions(Range.getStartPosition(edits[writeIndex].range), Range.getEndPosition(edits[readIndex].range));
+				edits[writeIndex].text += edits[readIndex].text;
+			} else {
+				writeIndex++;
+				edits[writeIndex] = edits[readIndex];
+			}
+		}
+		edits.length = writeIndex + 1;
+
+		for (let { range, text, eol } of edits) {
+
+			if (typeof eol === 'number') {
+				lastEol = eol;
+			}
+
+			if (Range.isEmpty(range) && !text) {
+				// empty change
+				continue;
+			}
+
+			const original = model.getValueInRange(range);
+			text = text.replace(/\r\n|\n|\r/g, model.eol);
+
+			if (original === text) {
+				// noop
+				continue;
+			}
+
+			// make sure diff won't take too long
+			if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
+				result.push({ range, text });
+				continue;
+			}
+
+			// compute diff between original and edit.text
+			const changes = stringDiff(original, text, pretty);
+			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
+
+			for (const change of changes) {
+				const start = model.positionAt(editOffset + change.originalStart);
+				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
+				const newEdit: TextEdit = {
+					text: text.substr(change.modifiedStart, change.modifiedLength),
+					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
+				};
+
+				if (model.getValueInRange(newEdit.range) !== newEdit.text) {
+					result.push(newEdit);
+				}
+			}
+		}
+
+		if (typeof lastEol === 'number') {
+			result.push({ eol: lastEol, text: '', range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 } });
+		}
+
+		return result;
+	}
+
+	public computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): TextEdit[] {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;
@@ -494,19 +629,48 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			}
 
 			// compute diff between original and edit.text
-			const changes = stringDiff(original, text, false);
-			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
 
-			for (const change of changes) {
-				const start = model.positionAt(editOffset + change.originalStart);
-				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
-				const newEdit: TextEdit = {
-					text: text.substr(change.modifiedStart, change.modifiedLength),
-					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
-				};
+			const originalLines = original.split(/\r\n|\n|\r/);
+			const modifiedLines = text.split(/\r\n|\n|\r/);
 
-				if (model.getValueInRange(newEdit.range) !== newEdit.text) {
-					result.push(newEdit);
+			const diff = linesDiffComputers.getDefault().computeDiff(originalLines, modifiedLines, options);
+
+			const start = Range.lift(range).getStartPosition();
+
+			function addPositions(pos1: Position, pos2: Position): Position {
+				return new Position(pos1.lineNumber + pos2.lineNumber - 1, pos2.lineNumber === 1 ? pos1.column + pos2.column - 1 : pos2.column);
+			}
+
+			function getText(lines: string[], range: Range): string[] {
+				const result: string[] = [];
+				for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+					const line = lines[i - 1];
+					if (i === range.startLineNumber && i === range.endLineNumber) {
+						result.push(line.substring(range.startColumn - 1, range.endColumn - 1));
+					} else if (i === range.startLineNumber) {
+						result.push(line.substring(range.startColumn - 1));
+					} else if (i === range.endLineNumber) {
+						result.push(line.substring(0, range.endColumn - 1));
+					} else {
+						result.push(line);
+					}
+				}
+				return result;
+			}
+
+			for (const c of diff.changes) {
+				if (c.innerChanges) {
+					for (const x of c.innerChanges) {
+						result.push({
+							range: Range.fromPositions(
+								addPositions(start, x.originalRange.getStartPosition()),
+								addPositions(start, x.originalRange.getEndPosition())
+							),
+							text: getText(modifiedLines, x.modifiedRange).join(model.eol)
+						});
+					}
+				} else {
+					throw new BugIndicatingError('The experimental diff algorithm always produces inner changes');
 				}
 			}
 		}
@@ -529,23 +693,33 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return computeLinks(model);
 	}
 
+	// --- BEGIN default document colors -----------------------------------------------------------
+
+	public async computeDefaultDocumentColors(modelUrl: string): Promise<IColorInformation[] | null> {
+		const model = this._getModel(modelUrl);
+		if (!model) {
+			return null;
+		}
+		return computeDefaultDocumentColors(model);
+	}
+
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
 	private static readonly _suggestionsLimit = 10000;
 
 	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[]; duration: number } | null> {
 
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 		const seen = new Set<string>();
 
-		outer: for (let url of modelUrls) {
+		outer: for (const url of modelUrls) {
 			const model = this._getModel(url);
 			if (!model) {
 				continue;
 			}
 
-			for (let word of model.words(wordDefRegExp)) {
+			for (const word of model.words(wordDefRegExp)) {
 				if (word === leadingWord || !isNaN(Number(word))) {
 					continue;
 				}
@@ -630,7 +804,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return this._host.fhr(method, args);
 		};
 
-		const foreignHost = types.createProxyObject(foreignHostMethods, proxyMethodRequest);
+		const foreignHost = createProxyObject(foreignHostMethods, proxyMethodRequest);
 
 		const ctx: IWorkerContext<any> = {
 			host: foreignHost,
@@ -642,14 +816,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		if (this._foreignModuleFactory) {
 			this._foreignModule = this._foreignModuleFactory(ctx, createData);
 			// static foreing module
-			return Promise.resolve(types.getAllMethodNames(this._foreignModule));
+			return Promise.resolve(getAllMethodNames(this._foreignModule));
 		}
 		// ESM-comment-begin
 		return new Promise<any>((resolve, reject) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
-				resolve(types.getAllMethodNames(this._foreignModule));
+				resolve(getAllMethodNames(this._foreignModule));
 
 			}, reject);
 		});
@@ -689,5 +863,5 @@ declare function importScripts(...urls: string[]): void;
 
 if (typeof importScripts === 'function') {
 	// Running in a web worker
-	globals.monaco = createMonacoBaseAPI();
+	globalThis.monaco = createMonacoBaseAPI();
 }

@@ -5,31 +5,31 @@
 
 import 'vs/css!./media/editorplaceholder';
 import { localize } from 'vs/nls';
+import { truncate, truncateMiddle } from 'vs/base/common/strings';
 import Severity from 'vs/base/common/severity';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, $ } from 'vs/base/browser/dom';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Dimension, size, clearNode, $, EventHelper } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { assertAllDefined } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Link } from 'vs/platform/opener/browser/link';
+import { ButtonBar } from 'vs/base/browser/ui/button/button';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Codicon } from 'vs/base/common/codicons';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
@@ -48,18 +48,20 @@ export interface IErrorEditorPlaceholderOptions extends IEditorOptions {
 
 export abstract class EditorPlaceholder extends EditorPane {
 
+	protected static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
+
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
-	private inputDisposable = this._register(new MutableDisposable());
+	private readonly inputDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, storageService);
+		super(id, group, telemetryService, themeService, storageService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -96,30 +98,42 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
 		const { icon, label, actions } = await this.getContents(input, options, disposables);
+		const truncatedLabel = truncate(label, EditorPlaceholder.PLACEHOLDER_LABEL_MAX_LENGTH);
 
 		// Icon
 		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
-		const iconWidget = new SimpleIconLabel(iconContainer);
+		const iconWidget = disposables.add(new SimpleIconLabel(iconContainer));
 		iconWidget.text = icon;
 
 		// Label
 		const labelContainer = container.appendChild($('.editor-placeholder-label-container'));
 		const labelWidget = document.createElement('span');
-		labelWidget.textContent = label;
+		labelWidget.textContent = truncatedLabel;
 		labelContainer.appendChild(labelWidget);
 
 		// ARIA label
-		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${label}`);
+		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${truncatedLabel}`);
 
-		// Actions
-		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
-		for (const action of actions) {
-			disposables.add(this.instantiationService.createInstance(Link, actionsContainer, {
-				label: action.label,
-				href: ''
-			}, {
-				opener: () => action.run()
-			}));
+		// Buttons
+		if (actions.length) {
+			const actionsContainer = container.appendChild($('.editor-placeholder-buttons-container'));
+			const buttons = disposables.add(new ButtonBar(actionsContainer));
+
+			for (let i = 0; i < actions.length; i++) {
+				const button = disposables.add(buttons.addButton({
+					...defaultButtonStyles,
+					secondary: i !== 0
+				}));
+
+				button.label = actions[i].label;
+				disposables.add(button.onDidClick(e => {
+					if (e) {
+						EventHelper.stop(e, true);
+					}
+
+					actions[i].run();
+				}));
+			}
 		}
 
 		// Adjust scrollbar
@@ -154,9 +168,9 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	override focus(): void {
-		const container = assertIsDefined(this.container);
+		super.focus();
 
-		container.focus();
+		this.container?.focus();
 	}
 
 	override dispose(): void {
@@ -174,14 +188,14 @@ export class WorkspaceTrustRequiredPlaceholderEditor extends EditorPlaceholder {
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredPlaceholderEditor, WorkspaceTrustRequiredPlaceholderEditor.ID, WorkspaceTrustRequiredPlaceholderEditor.LABEL);
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService
 	) {
-		super(WorkspaceTrustRequiredPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
+		super(WorkspaceTrustRequiredPlaceholderEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	override getTitle(): string {
@@ -212,95 +226,75 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(ErrorPlaceholderEditor, ErrorPlaceholderEditor.ID, ErrorPlaceholderEditor.LABEL);
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
+		super(ErrorPlaceholderEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions, disposables: DisposableStore): Promise<IEditorPlaceholderContents> {
 		const resource = input.resource;
-		const group = this.group;
 		const error = options.error;
-		const isFileNotFound = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+		const isFileNotFound = (<FileOperationError | undefined>error)?.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 
 		// Error Label
 		let label: string;
 		if (isFileNotFound) {
 			label = localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
+		} else if (isEditorOpenError(error) && error.forceMessage) {
+			label = error.message;
 		} else if (error) {
-			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(error));
+			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", truncateMiddle(toErrorMessage(error), EditorPlaceholder.PLACEHOLDER_LABEL_MAX_LENGTH / 2));
 		} else {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}
 
+		// Error Icon
+		let icon = '$(error)';
+		if (isEditorOpenError(error)) {
+			if (error.forceSeverity === Severity.Info) {
+				icon = '$(info)';
+			} else if (error.forceSeverity === Severity.Warning) {
+				icon = '$(warning)';
+			}
+		}
+
 		// Actions
 		let actions: IEditorPlaceholderContentsAction[] | undefined = undefined;
-		if (isErrorWithActions(error) && error.actions.length > 0) {
+		if (isEditorOpenError(error) && error.actions.length > 0) {
 			actions = error.actions.map(action => {
 				return {
 					label: action.label,
 					run: () => {
 						const result = action.run();
 						if (result instanceof Promise) {
-							result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
+							result.catch(error => this.dialogService.error(toErrorMessage(error)));
 						}
 					}
 				};
 			});
-		} else if (group) {
+		} else {
 			actions = [
 				{
 					label: localize('retry', "Try Again"),
-					run: () => group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
+					run: () => this.group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
 				}
 			];
 		}
 
 		// Auto-reload when file is added
-		if (group && isFileNotFound && resource && this.fileService.hasProvider(resource)) {
+		if (isFileNotFound && resource && this.fileService.hasProvider(resource)) {
 			disposables.add(this.fileService.onDidFilesChange(e => {
 				if (e.contains(resource, FileChangeType.ADDED, FileChangeType.UPDATED)) {
-					group.openEditor(input, options);
+					this.group.openEditor(input, options);
 				}
 			}));
 		}
 
-		return { icon: '$(error)', label, actions: actions ?? [] };
+		return { icon, label, actions: actions ?? [] };
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Editor Placeholder Error Icon
-	const editorErrorIconForegroundColor = theme.getColor(editorErrorForeground);
-	if (editorErrorIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.error.cssSelector} {
-			color: ${editorErrorIconForegroundColor};
-		}`);
-	}
-
-	// Editor Placeholder Warning Icon
-	const editorWarningIconForegroundColor = theme.getColor(editorWarningForeground);
-	if (editorWarningIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.warning.cssSelector} {
-			color: ${editorWarningIconForegroundColor};
-		}`);
-	}
-
-	// Editor Placeholder Info/Trust Icon
-	const editorInfoIconForegroundColor = theme.getColor(editorInfoForeground);
-	if (editorInfoIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.info.cssSelector},
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.workspaceUntrusted.cssSelector} {
-			color: ${editorInfoIconForegroundColor};
-		}`);
-	}
-});

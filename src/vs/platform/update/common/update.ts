@@ -7,11 +7,12 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IUpdate {
+	// Windows and Linux: 9a19815253d91900be5ec1016e0ecc7cc9a6950 (Commit Hash). Mac: 1.54.0 (Product Version)
 	version: string;
-	productVersion: string;
-	supportsFastUpdate?: boolean;
+	productVersion?: string;
+	timestamp?: number;
 	url?: string;
-	hash?: string;
+	sha256hash?: string;
 }
 
 /**
@@ -35,6 +36,7 @@ export interface IUpdate {
 export const enum StateType {
 	Uninitialized = 'uninitialized',
 	Idle = 'idle',
+	Disabled = 'disabled',
 	CheckingForUpdates = 'checking for updates',
 	AvailableForDownload = 'available for download',
 	Downloading = 'downloading',
@@ -49,26 +51,37 @@ export const enum UpdateType {
 	Snap
 }
 
+export const enum DisablementReason {
+	NotBuilt,
+	DisabledByEnvironment,
+	ManuallyDisabled,
+	MissingConfiguration,
+	InvalidConfiguration,
+	RunningAsAdmin,
+}
+
 export type Uninitialized = { type: StateType.Uninitialized };
+export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
 export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
-export type Downloading = { type: StateType.Downloading; update: IUpdate };
+export type Downloading = { type: StateType.Downloading };
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate };
 export type Updating = { type: StateType.Updating; update: IUpdate };
 export type Ready = { type: StateType.Ready; update: IUpdate };
 
-export type State = Uninitialized | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready;
+export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready;
 
 export const State = {
 	Uninitialized: { type: StateType.Uninitialized } as Uninitialized,
+	Disabled: (reason: DisablementReason) => ({ type: StateType.Disabled, reason }) as Disabled,
 	Idle: (updateType: UpdateType, error?: string) => ({ type: StateType.Idle, updateType, error }) as Idle,
-	CheckingForUpdates: (explicit: boolean) => ({ type: StateType.CheckingForUpdates, explicit } as CheckingForUpdates),
-	AvailableForDownload: (update: IUpdate) => ({ type: StateType.AvailableForDownload, update } as AvailableForDownload),
-	Downloading: (update: IUpdate) => ({ type: StateType.Downloading, update } as Downloading),
-	Downloaded: (update: IUpdate) => ({ type: StateType.Downloaded, update } as Downloaded),
-	Updating: (update: IUpdate) => ({ type: StateType.Updating, update } as Updating),
-	Ready: (update: IUpdate) => ({ type: StateType.Ready, update } as Ready),
+	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
+	AvailableForDownload: (update: IUpdate): AvailableForDownload => ({ type: StateType.AvailableForDownload, update }),
+	Downloading: { type: StateType.Downloading } as Downloading,
+	Downloaded: (update: IUpdate): Downloaded => ({ type: StateType.Downloaded, update }),
+	Updating: (update: IUpdate): Updating => ({ type: StateType.Updating, update }),
+	Ready: (update: IUpdate): Ready => ({ type: StateType.Ready, update }),
 };
 
 export interface IAutoUpdater extends Event.NodeEventEmitter {
@@ -92,4 +105,5 @@ export interface IUpdateService {
 	quitAndInstall(): Promise<void>;
 
 	isLatestVersion(): Promise<boolean | undefined>;
+	_applySpecificUpdate(packagePath: string): Promise<void>;
 }
