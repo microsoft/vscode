@@ -1293,7 +1293,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			throw new BugIndicatingError();
 		}
 
-		const selection = this.groupView.selectedEditors;
+		let selection = this.groupView.selectedEditors;
 
 		// Unselect editors on other side of anchor in relation to the target
 		let currentIndex = anchorIndex;
@@ -1309,7 +1309,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				break;
 			}
 
-			selection.filter(editor => !editor.matches(currentEditor)); // TODO this is a no-op
+			selection = selection.filter(editor => !editor.matches(currentEditor));
 		}
 
 		// Select editors between anchor and target
