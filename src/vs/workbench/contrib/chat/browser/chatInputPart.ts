@@ -96,6 +96,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
 
+	private readonly inputEditorMaxHeight: number;
 	private inputEditorHeight = 0;
 	private container!: HTMLElement;
 
@@ -149,6 +150,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
+
+		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
 		this.inputEditorHasText = CONTEXT_CHAT_INPUT_HAS_TEXT.bindTo(contextKeyService);
 		this.chatCursorAtTop = CONTEXT_CHAT_INPUT_CURSOR_AT_TOP.bindTo(contextKeyService);
@@ -326,7 +329,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
-			const currentHeight = Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
+			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
 			if (currentHeight !== this.inputEditorHeight) {
 				this.inputEditorHeight = currentHeight;
 				this._onDidChangeHeight.fire();
@@ -509,7 +512,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return {
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
-			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT),
+			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 8 : 40,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 24,
 			implicitContextHeight: this.attachedContextContainer.offsetHeight,
