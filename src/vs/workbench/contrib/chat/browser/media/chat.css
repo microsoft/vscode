@@ -493,6 +493,10 @@
 	align-items: center;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
+	display: flex;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
 	display: flex !important;
 	align-items: center !important;

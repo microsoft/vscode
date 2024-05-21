@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
+import { TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
@@ -115,33 +112,46 @@ export interface IInlineChatCommandFollowup {
 
 export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandFollowup;
 
+/**
+ * @deprecated
+ */
 export interface IInlineChatSessionProvider {
 
 	extensionId: ExtensionIdentifier;
 	label: string;
-	supportIssueReporting?: boolean;
 
-	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
-
-	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
-
-	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IInlineChatFollowup[]>;
-
-	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
 
+/**
+ * @deprecated
+ */
 export const IInlineChatService = createDecorator<IInlineChatService>('IInlineChatService');
 
+/**
+ * @deprecated
+ */
 export interface InlineChatProviderChangeEvent {
 	readonly added?: IInlineChatSessionProvider;
 	readonly removed?: IInlineChatSessionProvider;
 }
 
+/**
+ * @deprecated
+ */
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
+	/**
+	 * @deprecated
+	 */
 	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
+	/**
+	 * @deprecated
+	 */
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
+	/**
+	 * @deprecated
+	 */
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }
 

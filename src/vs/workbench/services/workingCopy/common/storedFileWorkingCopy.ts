@@ -35,6 +35,16 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
  */
 export interface IStoredFileWorkingCopyModelFactory<M extends IStoredFileWorkingCopyModel> extends IFileWorkingCopyModelFactory<M> { }
 
+export async function createOptionalResult<T>(callback: (token: CancellationToken) => Promise<T | undefined>, token: CancellationToken): Promise<T | undefined> {
+	const result = await callback(token);
+	if (result === undefined && token.isCancellationRequested) {
+		return undefined;
+	}
+	else {
+		return assertIsDefined(result);
+	}
+}
+
 /**
  * The underlying model of a stored file working copy provides some
  * methods for the stored file working copy to function. The model is
