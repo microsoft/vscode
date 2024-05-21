@@ -26,6 +26,25 @@ suite('SCMRepositoryGraphController', () => {
 		assert.strictEqual(viewModels.length, 0);
 	});
 
+
+	/**
+	 *	* a
+	 */
+
+	test('single commit', () => {
+		const models = [
+			{ id: 'a', parentIds: [], message: '' },
+		] as ISCMHistoryItem[];
+
+		controller.appendHistoryItems(models);
+		const viewModels = controller.historyItems;
+
+		assert.strictEqual(viewModels.length, 1);
+
+		assert.strictEqual(viewModels[0].inputSwimlanes.length, 0);
+		assert.strictEqual(viewModels[0].outputSwimlanes.length, 0);
+	});
+
 	/**
 	 *	* a(b)
 	 *	* b(c)

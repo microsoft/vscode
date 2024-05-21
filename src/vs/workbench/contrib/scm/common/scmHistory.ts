@@ -65,7 +65,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	const outputIndex = historyItem.parentIds.length === 0 ? -1 : outputSwimlanes.findIndex(node => node.id === historyItem.parentIds[0]);
 
 	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
-	const circleColorIndex = inputIndex !== -1 ? inputSwimlanes[inputIndex].color : outputSwimlanes[circleIndex].color;
+	const circleColorIndex = inputIndex !== -1 ? inputSwimlanes[inputIndex].color : outputSwimlanes[circleIndex]?.color ?? 0;
 
 	for (let index = 0; index < inputSwimlanes.length; index++) {
 		const node = inputSwimlanes[index];
@@ -92,7 +92,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 				// find the first occurrence in the output swimlanes
 				// array
 				let nodeOutputIndex = -1;
-				for (let j = index - 1; j >= 0; j--) {
+				for (let j = Math.min(index, outputSwimlanes.length) - 1; j >= 0; j--) {
 					if (outputSwimlanes[j].id === node.id) {
 						nodeOutputIndex = j;
 						break;
@@ -168,12 +168,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	}
 
 	// Draw *
-	if (historyItem.parentIds.length === 1) {
-		// Node
-		// TODO@lszomoru - remove hardcoded color
-		const circle = drawCircle(circleIndex, CIRCLE_RADIUS, '#f8f8f8', graphColors[circleColorIndex]);
-		svg.append(circle);
-	} else {
+	if (historyItem.parentIds.length > 1) {
 		// Multi-parent node
 		// TODO@lszomoru - remove hardcoded color
 		const circleOuter = drawCircle(circleIndex, CIRCLE_RADIUS + 1, '#f8f8f8', graphColors[circleColorIndex]);
@@ -182,11 +177,16 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 		// TODO@lszomoru - remove hardcoded color
 		const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, '#f8f8f8', graphColors[circleColorIndex]);
 		svg.append(circleInner);
+	} else {
+		// Node
+		// TODO@lszomoru - remove hardcoded color
+		const circle = drawCircle(circleIndex, CIRCLE_RADIUS, '#f8f8f8', graphColors[circleColorIndex]);
+		svg.append(circle);
 	}
 
 	// Set dimensions
 	svg.style.height = `${SWIMLANE_HEIGHT}px`;
-	svg.style.width = `${SWIMLANE_WIDTH * (Math.max(inputSwimlanes.length, outputSwimlanes.length) + 1)}px`;
+	svg.style.width = `${SWIMLANE_WIDTH * (Math.max(inputSwimlanes.length, outputSwimlanes.length, 1) + 1)}px`;
 
 	return svg;
 }

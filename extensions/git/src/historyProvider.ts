@@ -113,7 +113,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		const refNames = new Set(['main', 'origin/main']);
+		const refNames = new Set(['main']);
 		if (this.currentHistoryItemGroup?.name) {
 			refNames.add(this.currentHistoryItemGroup.name);
 		}
