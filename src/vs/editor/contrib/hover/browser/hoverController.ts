@@ -418,16 +418,20 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.widget.isResizing || false;
 	}
 
-	public updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, focus: boolean = true): void {
-		this._getOrCreateContentWidget().updateLastFocusedMarkdownHoverVerbosityLevel(action, focus);
+	public updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index: number = -1, focus: boolean = true): void {
+		this._getOrCreateContentWidget().updateMarkdownHoverVerbosityLevel(action, index, focus);
 	}
 
-	public isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action: HoverVerbosityAction): boolean {
-		return this._getOrCreateContentWidget().isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action);
+	public focusedMarkdownHoverIndex(): number {
+		return this._getOrCreateContentWidget().focusedMarkdownHoverIndex();
 	}
 
-	public lastFocusedMarkdownHoverContent(): string {
-		return this._getOrCreateContentWidget().lastFocusedMarkdownHoverContent();
+	public markdownHoverContentAtIndex(index: number): string {
+		return this._getOrCreateContentWidget().markdownHoverContentAtIndex(index);
+	}
+
+	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._getOrCreateContentWidget().doesMarkdownHoverAtIndexSupportVerbosityAction(index, action);
 	}
 
 	public focus(): void {

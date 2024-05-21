@@ -360,16 +360,20 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async updateLastFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, focus: boolean = true): Promise<void> {
-		this._markdownHoverParticipant?.updateLastFocusedMarkdownHoverPartVerbosityLevel(action, focus);
+	public async updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index: number = -1, focus: boolean = true): Promise<void> {
+		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevel(action, index, focus);
 	}
 
-	public isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action: HoverVerbosityAction): boolean {
-		return this._markdownHoverParticipant?.isFocusOnMarkdownHoverWhichSupportsVerbosityAction(action) ?? false;
+	public focusedMarkdownHoverIndex(): number {
+		return this._markdownHoverParticipant?.focusedMarkdownHoverIndex() ?? -1;
 	}
 
-	public lastFocusedMarkdownHoverContent(): string {
-		return this._markdownHoverParticipant?.lastFocusedMarkdownHoverContent() ?? '';
+	public markdownHoverContentAtIndex(index: number): string {
+		return this._markdownHoverParticipant?.markdownHoverContentAtIndex(index) ?? '';
+	}
+
+	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._markdownHoverParticipant?.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action) ?? false;
 	}
 
 	public getWidgetContent(): string | undefined {

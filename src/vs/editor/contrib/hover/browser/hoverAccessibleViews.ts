@@ -63,6 +63,7 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 	public readonly actions: IAction[] = [];
 
 	private readonly _hoverController: HoverController | null = null;
+	private _markdownHoverFocusedIndex: number = -1;
 
 	private _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public onDidChangeContent: Event<void> = this._onDidChangeContent.event;
@@ -77,10 +78,10 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 			type: AccessibleViewType.View
 		};
 		this.actions.push(new Action(INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL, ThemeIcon.asClassName(Codicon.add), true, () => {
-			this._editor.getAction(INCREASE_HOVER_VERBOSITY_ACTION_ID)?.run({ focus: false });
+			this._editor.getAction(INCREASE_HOVER_VERBOSITY_ACTION_ID)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
 		}));
 		this.actions.push(new Action(DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, ThemeIcon.asClassName(Codicon.remove), true, () => {
-			this._editor.getAction(DECREASE_HOVER_VERBOSITY_ACTION_ID)?.run({ focus: false });
+			this._editor.getAction(DECREASE_HOVER_VERBOSITY_ACTION_ID)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
 		}));
 		this._hoverController = HoverController.get(this._editor);
 		if (this._hoverController) {
@@ -96,15 +97,18 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 			return content.join('\n');
 		}
 		this._hoverController.shouldRemainOpenOnEditorMouseMoveOrLeave = true;
-		const isFocusOnExpandableMarkdownHover = this._hoverController.isFocusOnMarkdownHoverWhichSupportsVerbosityAction(HoverVerbosityAction.Increase);
+		if (this._markdownHoverFocusedIndex === -1) {
+			this._markdownHoverFocusedIndex = this._hoverController.focusedMarkdownHoverIndex();
+		}
+		const isFocusOnExpandableMarkdownHover = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, HoverVerbosityAction.Increase);
 		if (isFocusOnExpandableMarkdownHover) {
 			content.push(this._descriptionForCommand(INCREASE_HOVER_VERBOSITY_ACTION_ID, HoverAccessibilityHelpNLS.increaseVerbosity, HoverAccessibilityHelpNLS.increaseVerbosityNoKb));
 		}
-		const isFocusOnContractableMarkdownHover = this._hoverController.isFocusOnMarkdownHoverWhichSupportsVerbosityAction(HoverVerbosityAction.Decrease);
+		const isFocusOnContractableMarkdownHover = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, HoverVerbosityAction.Decrease);
 		if (isFocusOnContractableMarkdownHover) {
 			content.push(this._descriptionForCommand(DECREASE_HOVER_VERBOSITY_ACTION_ID, HoverAccessibilityHelpNLS.decreaseVerbosity, HoverAccessibilityHelpNLS.decreaseVerbosityNoKb));
 		}
-		const hoverContent = this._hoverController.lastFocusedMarkdownHoverContent();
+		const hoverContent = this._hoverController.markdownHoverContentAtIndex(this._markdownHoverFocusedIndex);
 		if (hoverContent) {
 			content.push('\n' + HoverAccessibilityHelpNLS.hoverContent);
 			content.push('\n' + hoverContent);
@@ -118,6 +122,7 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		}
 		this._hoverController.focus();
 		this._hoverController.shouldRemainOpenOnEditorMouseMoveOrLeave = false;
+		this._markdownHoverFocusedIndex = -1;
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {

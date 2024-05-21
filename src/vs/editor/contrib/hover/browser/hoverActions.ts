@@ -431,8 +431,8 @@ export class IncreaseHoverVerbosityLevel extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { focus: boolean }): void {
-		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Increase, args?.focus);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { index: number; focus: boolean }): void {
+		HoverController.get(editor)?.updateMarkdownHoverVerbosityLevel(HoverVerbosityAction.Increase, args?.index, args?.focus);
 	}
 }
 
@@ -447,7 +447,7 @@ export class DecreaseHoverVerbosityLevel extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { focus: boolean }): void {
-		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Decrease, args?.focus);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { index: number; focus: boolean }): void {
+		HoverController.get(editor)?.updateMarkdownHoverVerbosityLevel(HoverVerbosityAction.Decrease, args?.index, args?.focus);
 	}
 }
