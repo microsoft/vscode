@@ -39,12 +39,14 @@ import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';
+import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -300,7 +302,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IFileService fileService: IFileService,
+		@IThemeService themeService: IThemeService,
+		@ITreeSitterTokenizationService treeSitterService: ITreeSitterTokenizationService,
 	) {
 		super();
 
@@ -336,7 +341,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._bracketPairs,
 			languageId,
 			this._attachedViews,
-			configurationService
+			configurationService,
+			fileService,
+			themeService,
+			treeSitterService
 		);
 
 		const bufferLineCount = this._buffer.getLineCount();

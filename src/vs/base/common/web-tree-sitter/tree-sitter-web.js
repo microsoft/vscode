@@ -9,15 +9,13 @@
 /* eslint-disable header/header */
 
 (function (global, factory) {
-	typeof define === "function" && define.amd
-		? define(["exports"], factory)
-		: typeof exports === "object" && typeof module !== "undefined"
-		? factory(exports)
-		: ((global =
-				typeof globalThis !== "undefined" ? globalThis : global || self),
-		  factory((global.Parser = {})));
-})(this, function () {
-	var Module = void 0 !== Module ? Module : {},
+	typeof define === 'function' && define.amd ? define(['exports'], factory) :
+		typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+			(global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.Parser = {}));
+})(this, (function () {
+
+	var Module = void 0 !== Module ? Module : {};
+
 		TreeSitter = (function () {
 			var initPromise,
 				document =
@@ -4028,4 +4026,4 @@
 	"object" == typeof exports && (module.exports = TreeSitter);
 
 	return { Parser: TreeSitter };
-});
+}));
