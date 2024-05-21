@@ -243,6 +243,7 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
+		provider.onOpen?.();
 		let viewContainer: HTMLElement | undefined;
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
@@ -611,6 +612,7 @@ export class AccessibleView extends Disposable {
 			provider.provideContent.bind(provider),
 			provider.onClose,
 			provider.verbositySettingKey,
+			provider.onOpen,
 			provider.actions,
 			provider.next,
 			provider.previous,
@@ -622,6 +624,7 @@ export class AccessibleView extends Disposable {
 			provider.options,
 			provider.provideContent.bind(provider),
 			provider.onClose,
+			provider.onOpen,
 			provider.next,
 			provider.previous,
 			provider.actions,

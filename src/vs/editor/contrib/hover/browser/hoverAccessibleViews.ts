@@ -20,7 +20,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 namespace HoverAccessibilityHelpNLS {
 	export const intro = localize('intro', "The hover widget is focused. Press the Tab key to cycle through the hover parts.");
@@ -62,6 +62,7 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 	public readonly verbositySettingKey = 'accessibility.verbosity.hover';
 	public readonly actions: IAction[] = [];
 
+	private readonly _disposableStore: DisposableStore = this._register(new DisposableStore());
 	private readonly _hoverController: HoverController | null = null;
 	private _markdownHoverFocusedIndex: number = -1;
 
@@ -80,7 +81,6 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 			type: AccessibleViewType.View
 		};
 		this._initializeActions();
-		this._hookListeners();
 	}
 
 	public provideContent(): string {
@@ -95,6 +95,10 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		return content.join('\n');
 	}
 
+	public onOpen(): void {
+		this._hookListeners();
+	}
+
 	public onClose(): void {
 		if (!this._hoverController) {
 			return;
@@ -102,6 +106,7 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		this._markdownHoverFocusedIndex = -1;
 		this._hoverController.focus();
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
+		this._unhookListeners();
 	}
 
 	private _initializeActions(): void {
@@ -113,9 +118,13 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		if (!this._hoverController) {
 			return;
 		}
-		this._register(this._hoverController.onHoverContentsChanged(() => {
+		this._disposableStore.add(this._hoverController.onHoverContentsChanged(() => {
 			this._onDidChangeContent.fire();
 		}));
+	}
+
+	private _unhookListeners(): void {
+		this._disposableStore.clear();
 	}
 
 	private _getActionFor(action: HoverVerbosityAction): IAction {
