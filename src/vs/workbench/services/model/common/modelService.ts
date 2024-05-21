@@ -13,6 +13,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
 
 export class WorkbenchModelService extends ModelService {
 	constructor(
@@ -22,8 +25,11 @@ export class WorkbenchModelService extends ModelService {
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageService languageService: ILanguageService,
 		@IPathService private readonly _pathService: IPathService,
+		@IFileService fileService: IFileService,
+		@IThemeService themeService: IThemeService,
+		@ITreeSitterTokenizationService treeSitterService: ITreeSitterTokenizationService
 	) {
-		super(configurationService, resourcePropertiesService, undoRedoService, languageService, languageConfigurationService);
+		super(configurationService, resourcePropertiesService, undoRedoService, languageService, languageConfigurationService, fileService, themeService, treeSitterService);
 	}
 
 	protected override _schemaShouldMaintainUndoRedoElements(resource: URI) {

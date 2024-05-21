@@ -1,5 +1,4 @@
-declare module 'web-tree-sitter' {
-  class Parser {
+export class Parser {
     /**
      *
      * @param moduleOptions Optional emscripten module-object, see https://emscripten.org/docs/api_reference/module.html
@@ -17,7 +16,7 @@ declare module 'web-tree-sitter' {
     setLogger(logFunc?: Parser.Logger | false | null): void;
   }
 
-  namespace Parser {
+export namespace Parser {
     export type Options = {
       includedRanges?: Range[];
     };
@@ -238,5 +237,3 @@ declare module 'web-tree-sitter' {
     }
   }
 
-  export = Parser
-}

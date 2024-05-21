@@ -24,6 +24,7 @@ import { AttachedViews, IAttachedViewState, TextModel } from 'vs/editor/common/m
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import { TreeSitterTokens } from 'vs/editor/common/model/treeSitterTokens';
+import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -33,6 +34,8 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 // Setting value will be an array of language IDs that will prefer tree sitter tokenization over textmate when they both exist.
 const TOKENIZATION_PROVIDER_SETTING = 'editor.experimental.preferTreeSitter';
@@ -60,6 +63,9 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		private _languageId: string,
 		private readonly _attachedViews: AttachedViews,
 		private readonly _configurationService: IConfigurationService,
+		private readonly _fileService: IFileService,
+		private readonly _themeService: IThemeService,
+		private readonly _treeSitterService: ITreeSitterTokenizationService,
 	) {
 		super();
 
@@ -84,7 +90,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	private createTreeSitterTokens() {
-		this.treeSitterTokens = this._register(new TreeSitterTokens(this._languageService.languageIdCodec));
+		this.treeSitterTokens = this._register(new TreeSitterTokens(this._fileService, this._themeService, this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId));
 	}
 
 	private createPreferredTokenProvider() {

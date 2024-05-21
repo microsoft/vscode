@@ -6,7 +6,7 @@
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme, ITextMateThemingRule, ITokenColorizationSetting } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isBoolean, isString } from 'vs/base/common/types';
 import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -231,18 +231,6 @@ export type IThemeScopableCustomizations =
 
 export interface ISemanticTokenRules {
 	[selector: string]: string | ISemanticTokenColorizationSetting | undefined;
-}
-
-export interface ITextMateThemingRule {
-	name?: string;
-	scope?: string | string[];
-	settings: ITokenColorizationSetting;
-}
-
-export interface ITokenColorizationSetting {
-	foreground?: string;
-	background?: string;
-	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
 }
 
 export interface ISemanticTokenColorizationSetting {

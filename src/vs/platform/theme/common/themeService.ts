@@ -40,6 +40,20 @@ export interface ITokenStyle {
 	readonly italic: boolean | undefined;
 }
 
+export interface ITextMateThemingRule {
+	name?: string;
+	scope?: string | string[];
+	settings: ITokenColorizationSetting;
+}
+
+export interface ITokenColorizationSetting {
+	foreground?: string;
+	background?: string;
+	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
+}
+
+export type ProbeScope = string[];
+
 export interface IColorTheme {
 
 	readonly type: ColorScheme;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestLifecycleService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -48,6 +48,7 @@ import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCop
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
 
 export class TestSharedProcessService implements ISharedProcessService {
 

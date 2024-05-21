@@ -10,7 +10,7 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { convertInternalMediaPathToFileURI } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 
 

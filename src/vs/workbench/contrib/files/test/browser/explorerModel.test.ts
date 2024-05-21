@@ -10,9 +10,10 @@ import { join } from 'vs/base/common/path';
 import { validateFileName } from 'vs/workbench/contrib/files/browser/fileActions';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NullFilesConfigurationService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
 
 
 suite('Files - View Model', function () {
