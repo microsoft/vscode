@@ -363,6 +363,13 @@ export class AccessibleView extends Disposable {
 		return symbols.length ? symbols : undefined;
 	}
 
+	openHelpLink(): void {
+		if (!this._currentProvider?.options.readMoreUrl) {
+			return;
+		}
+		this._openerService.open(URI.parse(this._currentProvider.options.readMoreUrl));
+	}
+
 	configureKeybindings(): void {
 		const items = this._currentProvider?.options?.configureKeybindingItems;
 		const provider = this._currentProvider;
@@ -470,7 +477,7 @@ export class AccessibleView extends Disposable {
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
-		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
+		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility<keybinding:{0}>.", AccessibilityCommandId.AccessibilityHelpOpenHelpLink) : '';
 		let disableHelpHint = '';
 		if (provider instanceof AdvancedContentProvider && provider.options.type === AccessibleViewType.Help && verbose) {
 			disableHelpHint = this._getDisableVerbosityHint();
@@ -749,6 +756,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	configureKeybindings(): void {
 		this._accessibleView?.configureKeybindings();
+	}
+	openHelpLink(): void {
+		this._accessibleView?.openHelpLink();
 	}
 	showLastProvider(id: AccessibleViewProviderId): void {
 		this._accessibleView?.showLastProvider(id);
