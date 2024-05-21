@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -34,6 +34,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatModel, IChatRequestModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 
 export type TelemetryData = {
@@ -160,7 +161,7 @@ export class Session {
 		 * The document into which AI edits went, when live this is `targetUri` otherwise it is a temporary document
 		 */
 		readonly textModelN: ITextModel,
-		readonly provider: IInlineChatSessionProvider,
+		readonly agent: IChatAgent,
 		readonly session: IInlineChatSession,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
@@ -168,7 +169,7 @@ export class Session {
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
-			extension: ExtensionIdentifier.toKey(provider.extensionId),
+			extension: ExtensionIdentifier.toKey(agent.extensionId),
 			startTime: this._startTime.toISOString(),
 			endTime: this._startTime.toISOString(),
 			edits: 0,
