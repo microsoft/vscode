@@ -51,7 +51,6 @@ function createCompile(src, build, emitError, transpileOnly) {
     }
     const transpileWithSwc = typeof transpileOnly !== 'boolean' && transpileOnly.swc;
     if (transpileWithSwc) {
-        console.log('trnswc');
         overrideOptions.allowSyntheticDefaultImports = true;
         overrideOptions.esModuleInterop = false;
     }
