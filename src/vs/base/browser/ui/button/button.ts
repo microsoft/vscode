@@ -24,6 +24,7 @@ import 'vs/css!./button';
 import { localize } from 'vs/nls';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { isFirefox } from 'vs/base/common/platform';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
@@ -80,6 +81,7 @@ export class Button extends Disposable implements IButton {
 	protected _labelElement: HTMLElement | undefined;
 	protected _labelShortElement: HTMLElement | undefined;
 	private _hover: IUpdatableHover | undefined;
+	private _canClick: boolean;
 
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
@@ -131,14 +133,26 @@ export class Button extends Disposable implements IButton {
 
 		[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
 			this._register(addDisposableListener(this._element, eventType, e => {
-				if (!this.enabled) {
+				if (!this.enabled || !this._canClick) {
 					EventHelper.stop(e);
 					return;
 				}
-
 				this._onDidClick.fire(e);
 			}));
 		});
+
+		// Prevent unintended click events in Firefox - #180833
+		if (isFirefox) {
+			this._canClick = false;
+			this._register(addDisposableListener(this._element, EventType.MOUSE_LEAVE, e => {
+				this._canClick = false;
+			}));
+			this._register(addDisposableListener(this._element, EventType.MOUSE_OVER, e => {
+				this._canClick = true;
+			}));
+		} else {
+			this._canClick = true;
+		}
 
 		this._register(addDisposableListener(this._element, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
@@ -347,7 +361,9 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		container.appendChild(this.element);
 
 		this.button = this._register(new Button(this.element, options));
-		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
+		this._register(this.button.onDidClick(e => {
+			this._onDidClick.fire(e);
+		}));
 		this.action = this._register(new Action('primaryAction', renderStringAsPlaintext(this.button.label), undefined, true, async () => this._onDidClick.fire(undefined)));
 
 		this.separatorContainer = document.createElement('div');

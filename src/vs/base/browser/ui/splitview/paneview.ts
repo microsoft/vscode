@@ -78,6 +78,8 @@ export abstract class Pane extends Disposable implements IView {
 	private readonly _onDidChangeExpansionState = this._register(new Emitter<boolean>());
 	readonly onDidChangeExpansionState: Event<boolean> = this._onDidChangeExpansionState.event;
 
+	private _canClick: boolean = true;
+
 	get ariaHeaderLabel(): string {
 		return this._ariaHeaderLabel;
 	}
@@ -271,11 +273,21 @@ export abstract class Pane extends Disposable implements IView {
 
 		[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
 			this._register(addDisposableListener(this.header, eventType, e => {
-				if (!e.defaultPrevented) {
+				if (!e.defaultPrevented && this._canClick) {
 					this.setExpanded(!this.isExpanded());
 				}
 			}));
 		});
+
+		if (isFirefox) {
+			this._canClick = false;
+			this._register(addDisposableListener(this.header, EventType.MOUSE_LEAVE, e => {
+				this._canClick = false;
+			}));
+			this._register(addDisposableListener(this.header, EventType.MOUSE_OVER, e => {
+				this._canClick = true;
+			}));
+		}
 
 		this.body = append(this.element, $('.pane-body'));
 

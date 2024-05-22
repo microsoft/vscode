@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isActiveDocument, reset } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, isActiveDocument, reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
@@ -22,6 +22,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { isFirefox } from 'vs/base/common/platform';
 
 export class CommandCenterControl {
 
@@ -111,7 +112,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 				groups.push([action]);
 			}
 		}
-
 
 		for (let i = 0; i < groups.length; i++) {
 			const group = groups[i];
@@ -213,6 +213,17 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 				icon.style.opacity = '0.5';
 				container.appendChild(icon);
 			}
+		}
+
+		// prevent Firefox from triggering a click on mouse up from a draggable element
+		if (isFirefox && this.element) {
+			this._canClick = false;
+			this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, e => {
+				this._canClick = true;
+			}));
+			this._register(addDisposableListener(this.element, EventType.MOUSE_LEAVE, e => {
+				this._canClick = false;
+			}));
 		}
 	}
 

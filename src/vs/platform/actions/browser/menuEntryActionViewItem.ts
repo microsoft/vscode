@@ -200,6 +200,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 			updateAltState();
 		}
+
 	}
 
 	protected override updateLabel(): void {

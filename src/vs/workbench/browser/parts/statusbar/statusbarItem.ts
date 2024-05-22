@@ -26,6 +26,7 @@ import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { isFirefox } from 'vs/base/common/platform';
 
 export class StatusbarEntryItem extends Disposable {
 
@@ -43,6 +44,7 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly focusOutListener = this._register(new MutableDisposable());
 
 	private hover: IUpdatableHover | undefined = undefined;
+	private _canClick: boolean;
 
 	readonly labelContainer: HTMLElement;
 	readonly beakContainer: HTMLElement;
@@ -82,6 +84,8 @@ export class StatusbarEntryItem extends Disposable {
 		this.beakContainer = document.createElement('div');
 		this.beakContainer.className = 'status-bar-item-beak-container';
 		this.container.appendChild(this.beakContainer);
+
+		this._canClick = true;
 
 		this.update(entry);
 	}
@@ -144,8 +148,16 @@ export class StatusbarEntryItem extends Disposable {
 
 			const command = entry.command;
 			if (command && (command !== ShowTooltipCommand || this.hover) /* "Show Hover" is only valid when we have a hover */) {
-				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
-				this.commandTouchListener.value = addDisposableListener(this.labelContainer, TouchEventType.Tap, () => this.executeCommand(command));
+				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => {
+					if (this._canClick) {
+						this.executeCommand(command);
+					}
+				});
+				this.commandTouchListener.value = addDisposableListener(this.labelContainer, TouchEventType.Tap, () => {
+					if (this._canClick) {
+						this.executeCommand(command);
+					}
+				});
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
@@ -198,6 +210,19 @@ export class StatusbarEntryItem extends Disposable {
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
 			this.container.classList.toggle('has-background-color', hasBackgroundColor);
 			this.applyColor(this.container, entry.backgroundColor, true);
+		}
+
+		// Prevent Firefox from triggering a click on mouse up from a draggable element - #180833
+		if (isFirefox) {
+			this._canClick = false;
+			this._register(addDisposableListener(this.labelContainer, EventType.MOUSE_LEAVE, e => {
+				this._canClick = false;
+			}));
+			this._register(addDisposableListener(this.labelContainer, EventType.MOUSE_OVER, e => {
+				this._canClick = true;
+			}));
+		} else {
+			this._canClick = true;
 		}
 
 		// Remember for next round
