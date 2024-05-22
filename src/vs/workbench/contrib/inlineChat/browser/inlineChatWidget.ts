@@ -49,7 +49,6 @@ import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateF
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 export interface InlineChatWidgetViewState {
@@ -300,9 +299,9 @@ export class InlineChatWidget {
 
 		// LEGACY - default chat model
 		// this is only here for as long as we offer updateChatMessage
-		this._defaultChatModel = this._chatService.startSession(location, CancellationToken.None) ?? this._store.add(this._instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
-		// this._defaultChatModel.startInitialize();
-		// this._defaultChatModel.initialize(undefined);
+		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
+		this._defaultChatModel.startInitialize();
+		this._defaultChatModel.initialize(undefined);
 		this.setChatModel(this._defaultChatModel);
 	}
 

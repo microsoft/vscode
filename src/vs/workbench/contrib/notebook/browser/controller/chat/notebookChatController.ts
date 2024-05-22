@@ -5,7 +5,7 @@
 
 import { Dimension, IFocusTracker, WindowIntervalTimer, getWindow, scheduleAtNextAnimationFrame, trackFocus } from 'vs/base/browser/dom';
 import { CancelablePromise, DeferredPromise, Queue, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
@@ -562,20 +562,23 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		this._ctxHasActiveRequest.set(true);
 
+		this._activeRequestCts?.cancel();
+		this._activeRequestCts = new CancellationTokenSource();
+
 		// Start a new session
 
 		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(ChatAgentLocation.Editor, CancellationToken.None);
+			this._model.value = this._chatService.startSession(ChatAgentLocation.Editor, this._activeRequestCts.token);
 			if (!this._model.value) {
 				throw new Error('Failed to start chat session');
 			}
 		}
 
+
+		const model = this._model.value;
+		this._widget.inlineChatWidget.setChatModel(model);
+
 		this._strategy = new EditStrategy();
-
-		this._activeRequestCts?.cancel();
-		this._activeRequestCts = new CancellationTokenSource();
-
 		const store = new DisposableStore();
 
 		try {
