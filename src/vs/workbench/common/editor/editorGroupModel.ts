@@ -691,12 +691,12 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this.editors.filter(editor => this.doIsSelected(editor)); // return in sequential order
 	}
 
-	isSelected(editorOrIndex: EditorInput | number): boolean {
+	isSelected(editorCandidateOrIndex: EditorInput | number): boolean {
 		let editor: EditorInput | undefined;
-		if (typeof editorOrIndex === 'number') {
-			editor = this.editors[editorOrIndex];
+		if (typeof editorCandidateOrIndex === 'number') {
+			editor = this.editors[editorCandidateOrIndex];
 		} else {
-			editor = this.findEditor(editorOrIndex)?.[0];
+			editor = this.findEditor(editorCandidateOrIndex)?.[0];
 		}
 
 		return !!editor && this.doIsSelected(editor);
@@ -856,12 +856,12 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 	}
 
-	isPinned(editorOrIndex: EditorInput | number): boolean {
+	isPinned(editorCandidateOrIndex: EditorInput | number): boolean {
 		let editor: EditorInput;
-		if (typeof editorOrIndex === 'number') {
-			editor = this.editors[editorOrIndex];
+		if (typeof editorCandidateOrIndex === 'number') {
+			editor = this.editors[editorCandidateOrIndex];
 		} else {
-			editor = editorOrIndex;
+			editor = editorCandidateOrIndex;
 		}
 
 		return !this.matches(this.preview, editor);
@@ -998,16 +998,16 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		this._onDidModelChange.fire(event);
 	}
 
-	isTransient(editorOrIndex: EditorInput | number): boolean {
+	isTransient(editorCandidateOrIndex: EditorInput | number): boolean {
 		if (this.transient.size === 0) {
 			return false; // no transient editor
 		}
 
 		let editor: EditorInput | undefined;
-		if (typeof editorOrIndex === 'number') {
-			editor = this.editors[editorOrIndex];
+		if (typeof editorCandidateOrIndex === 'number') {
+			editor = this.editors[editorCandidateOrIndex];
 		} else {
-			editor = this.findEditor(editorOrIndex)?.[0];
+			editor = this.findEditor(editorCandidateOrIndex)?.[0];
 		}
 
 		return !!editor && this.transient.has(editor);
