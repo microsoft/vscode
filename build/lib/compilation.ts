@@ -56,31 +56,32 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		overrideOptions.inlineSourceMap = true;
 	}
 
+	const transpileWithSwc = typeof transpileOnly !== 'boolean' && transpileOnly.swc
+	if (transpileWithSwc) {
+		console.log('trnswc')
+		overrideOptions.allowSyntheticDefaultImports = true
+		overrideOptions.esModuleInterop = false
+	} else {
+		overrideOptions.esModuleInterop = true
+	}
 
-
-
-	// TODO add compilation with type checking
-	const compilation = tsb.create(projectPath, {
-		...overrideOptions,
-		esModuleInterop: true
-	}, {
+	const compilation = tsb.create(projectPath, overrideOptions, {
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
-		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+		transpileWithSwc
 	}, err => reporter(err));
 
-
 	// TODO remove this when all imports are fixed
-	const fixAssertImports = es.through(function (this: es.ThroughStream, data: Vinyl) {
-		const newContents = data.contents.toString().replace(`import * as assert from 'assert';`, `import assert from 'assert';`)
-		if (data.path.endsWith('.ts')) {
-			this.queue(new Vinyl({
-				...data,
-				contents: Buffer.from(newContents)
-			}))
-		} else {
-			this.queue(data);
+	const fixAssertImports = es.map(function (file: Vinyl, callback: (error?: any, file?: any) => void) {
+		if (file.isNull() || !file.path.endsWith('.ts')) {
+			return callback(null, file)
 		}
+		if (file.isStream()) {
+			return callback(new Error('Streaming not supported'))
+		}
+		const newContents = file.contents.toString().replace(`import * as assert from 'assert';`, `import assert from 'assert';`)
+		file.contents = Buffer.from(newContents)
+		callback(null, file)
 	})
 
 	function pipeline(token?: util.ICancellationToken) {

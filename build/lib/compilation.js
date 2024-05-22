@@ -23,7 +23,6 @@ const postcss_1 = require("./postcss");
 const reporter_1 = require("./reporter");
 const task = require("./task");
 const util = require("./util");
-const Vinyl = require("vinyl");
 const ts = require("typescript");
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
@@ -50,27 +49,31 @@ function createCompile(src, build, emitError, transpileOnly) {
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }
-    // TODO add compilation with type checking
-    const compilation = tsb.create(projectPath, {
-        ...overrideOptions,
-        esModuleInterop: true
-    }, {
+    const transpileWithSwc = typeof transpileOnly !== 'boolean' && transpileOnly.swc;
+    if (transpileWithSwc) {
+        console.log('trnswc');
+        overrideOptions.allowSyntheticDefaultImports = true;
+        overrideOptions.esModuleInterop = false;
+    }
+    else {
+        overrideOptions.esModuleInterop = true;
+    }
+    const compilation = tsb.create(projectPath, overrideOptions, {
         verbose: false,
         transpileOnly: Boolean(transpileOnly),
-        transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+        transpileWithSwc
     }, err => reporter(err));
     // TODO remove this when all imports are fixed
-    const fixAssertImports = es.through(function (data) {
-        const newContents = data.contents.toString().replace(`import * as assert from 'assert';`, `import assert from 'assert';`);
-        if (data.path.endsWith('.ts')) {
-            this.queue(new Vinyl({
-                ...data,
-                contents: Buffer.from(newContents)
-            }));
+    const fixAssertImports = es.map(function (file, callback) {
+        if (file.isNull() || !file.path.endsWith('.ts')) {
+            return callback(null, file);
         }
-        else {
-            this.queue(data);
+        if (file.isStream()) {
+            return callback(new Error('Streaming not supported'));
         }
+        const newContents = file.contents.toString().replace(`import * as assert from 'assert';`, `import assert from 'assert';`);
+        file.contents = Buffer.from(newContents);
+        callback(null, file);
     });
     function pipeline(token) {
         const bom = require('gulp-bom');
