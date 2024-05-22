@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh } from 'vs/base/common/platform';
-import { getMachineId, getSqmMachineId, getVSDeviceId } from 'vs/base/node/id';
+import { getMachineId, getSqmMachineId, getdevDeviceId } from 'vs/base/node/id';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateReadService } from 'vs/platform/state/node/state';
-import { machineIdKey, sqmIdKey, vsDeviceIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { machineIdKey, sqmIdKey, devDeviceIdKey } from 'vs/platform/telemetry/common/telemetry';
 
 
 export async function resolveMachineId(stateService: IStateReadService, logService: ILogService): Promise<string> {
@@ -30,11 +30,11 @@ export async function resolveSqmId(stateService: IStateReadService, logService: 
 	return sqmId;
 }
 
-export async function resolveVSDeviceId(stateService: IStateReadService, logService: ILogService): Promise<string> {
-	let vsDeviceId = stateService.getItem<string>(vsDeviceIdKey);
-	if (typeof vsDeviceId !== 'string') {
-		vsDeviceId = await getVSDeviceId(logService.error.bind(logService));
+export async function resolvedevDeviceId(stateService: IStateReadService, logService: ILogService): Promise<string> {
+	let devDeviceId = stateService.getItem<string>(devDeviceIdKey);
+	if (typeof devDeviceId !== 'string') {
+		devDeviceId = await getdevDeviceId(logService.error.bind(logService));
 	}
 
-	return vsDeviceId;
+	return devDeviceId;
 }

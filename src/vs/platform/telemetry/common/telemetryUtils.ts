@@ -30,7 +30,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
 	readonly sqmId = 'someValue.sqmId';
-	readonly vsDeviceId = 'someValue.vsDeviceId';
+	readonly devDeviceId = 'someValue.devDeviceId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	publicLog() { }
