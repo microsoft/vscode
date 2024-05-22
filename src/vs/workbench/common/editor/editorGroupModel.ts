@@ -12,6 +12,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -567,22 +568,26 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					}
 				}
 
-				const newInactiveSelection = this.selection.filter(selected => selected !== newActive && selected !== editor);
-				this.doSetSelection(newActive, this.editors.indexOf(newActive), newInactiveSelection);
+				// Set editor active
+				const newInactiveSelectedEditors = this.selection.filter(selected => selected !== editor && selected !== newActive);
+				this.doSetSelection(newActive, this.editors.indexOf(newActive), newInactiveSelectedEditors);
 			}
 
 			// One Editor
 			else {
-				this.selection = [];
+				this.selection = []; // TODO this misses an event?
 			}
 		}
 
 		// Inactive Editor closed
 		else if (!isActiveEditor) {
+
+			// Remove Editor from selection
 			if (this.doIsSelected(editor)) {
-				const activeEditor = this.activeEditor;
-				const newInactiveSelection = this.selection.filter(selected => selected !== editor && selected !== activeEditor);
-				this.doSetSelection(activeEditor!, this.indexOf(activeEditor), newInactiveSelection);
+				const activeEditor = assertIsDefined(this.activeEditor);
+				const newInactiveSelectedEditors = this.selection.filter(selected => selected !== editor && selected !== activeEditor);
+
+				this.doSetSelection(activeEditor, this.indexOf(activeEditor), newInactiveSelectedEditors);
 			}
 		}
 
