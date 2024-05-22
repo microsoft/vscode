@@ -203,10 +203,10 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.layout();
 
 		// Have a InstantiationService that is scoped to the auxiliary window
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection(
+		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
 			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
 			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
-		));
+		)));
 
 		return {
 			part: editorPart,

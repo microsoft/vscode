@@ -34,6 +34,7 @@ export class SharedProcess extends Disposable {
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
+		private readonly vsDeviceId: string,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -180,6 +181,7 @@ export class SharedProcess extends Disposable {
 		return {
 			machineId: this.machineId,
 			sqmId: this.sqmId,
+			vsDeviceId: this.vsDeviceId,
 			codeCachePath: this.environmentMainService.codeCachePath,
 			profiles: {
 				home: this.userDataProfilesService.profilesHome,

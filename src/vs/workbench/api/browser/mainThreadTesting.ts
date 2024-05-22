@@ -18,13 +18,13 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
-export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
+export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly diffListener = this._register(new MutableDisposable());
 	private readonly testProviderRegistrations = new Map<string, {
@@ -233,6 +233,9 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			runTests: (reqs, token) => this.proxy.$runControllerTests(reqs, token),
 			startContinuousRun: (reqs, token) => this.proxy.$startContinuousRun(reqs, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
+			provideTestFollowups: (req, token) => this.proxy.$provideTestFollowups(req, token),
+			executeTestFollowup: id => this.proxy.$executeTestFollowup(id),
+			disposeTestFollowups: ids => this.proxy.$disposeTestFollowups(ids),
 		};
 
 		disposable.add(toDisposable(() => this.testProfiles.removeProfile(controllerId)));

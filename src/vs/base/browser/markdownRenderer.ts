@@ -492,15 +492,16 @@ export function renderStringAsPlaintext(string: IMarkdownString | string) {
 
 /**
  * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
+ * provide @param withCodeBlocks to retain code blocks
  */
-export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
+export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlocks?: boolean) {
 	// values that are too long will freeze the UI
 	let value = markdown.value ?? '';
 	if (value.length > 100_000) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { renderer: plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	const html = marked.parse(value, { renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 
 	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
 }
@@ -514,7 +515,7 @@ const unescapeInfo = new Map<string, string>([
 	['&gt;', '>'],
 ]);
 
-const plainTextRenderer = new Lazy<marked.Renderer>(() => {
+function createRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
 	renderer.code = (code: string): string => {
@@ -576,6 +577,14 @@ const plainTextRenderer = new Lazy<marked.Renderer>(() => {
 	};
 	renderer.link = (_href: string, _title: string, text: string): string => {
 		return text;
+	};
+	return renderer;
+}
+const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) => createRenderer());
+const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
+	const renderer = createRenderer();
+	renderer.code = (code: string): string => {
+		return '\n' + '```' + code + '```' + '\n';
 	};
 	return renderer;
 });

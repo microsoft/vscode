@@ -928,10 +928,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isSticky(_editor: EditorInput): boolean { return false; }
 	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
-	selectEditor(_editor: EditorInput, _active?: boolean): Promise<void> { throw new Error('not implemented'); }
-	selectEditors(_editors: EditorInput[], _activeEditor?: EditorInput): Promise<void> { throw new Error('not implemented'); }
-	unSelectEditor(_editor: EditorInput): Promise<void> { throw new Error('not implemented'); }
-	unSelectEditors(_editors: EditorInput[]): Promise<void> { throw new Error('not implemented'); }
+	setSelection(_activeSelectedEditor: EditorInput, _inactiveSelectedEditors: EditorInput[]): Promise<void> { throw new Error('not implemented'); }
 	isSelected(_editor: EditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): boolean { return true; }

@@ -211,6 +211,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
+		private readonly vsDeviceId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
@@ -1409,6 +1410,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			machineId: this.machineId,
 			sqmId: this.sqmId,
+			vsDeviceId: this.vsDeviceId,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 
