@@ -120,8 +120,6 @@ export abstract class AbstractTokens extends Disposable {
 			this.resetTokenization();
 		}));
 
-		this.resetTokenization();
-
 		this._register(attachedViews.onDidChangeVisibleRanges(({ view, state }) => {
 			if (state) {
 				let existing = this._attachedViewStates.get(view);
