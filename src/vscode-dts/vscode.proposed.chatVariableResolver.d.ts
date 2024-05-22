@@ -66,5 +66,13 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		resolve(name: string, context: ChatVariableContext, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
+
+		/**
+		 * A callback to resolve the value of a chat variable.
+		 * @param name The name of the variable.
+		 * @param context Contextual information about this chat request.
+		 * @param token A cancellation token.
+		*/
+		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
 }
