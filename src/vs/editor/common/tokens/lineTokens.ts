@@ -49,7 +49,7 @@ export class LineTokens implements IViewLineTokens {
 		return new LineTokens(tokens, lineContent, decoder);
 	}
 
-	public static createFromTextAndMetadata(data: { text: string, metadata: number }[], decoder: ILanguageIdCodec): LineTokens {
+	public static createFromTextAndMetadata(data: { text: string; metadata: number }[], decoder: ILanguageIdCodec): LineTokens {
 		let offset: number = 0;
 		let fullText: string = '';
 		const tokens = new Array<number>();
@@ -362,9 +362,7 @@ class SliceLineTokens implements IViewLineTokens {
 	}
 
 	public forEach(callback: (tokenIndex: number) => void): void {
-		const firstTokenIndex = 0;
-		const lastTokenIndex = this.getCount();
-		for (let tokenIndex = firstTokenIndex; tokenIndex < lastTokenIndex; tokenIndex++) {
+		for (let tokenIndex = 0; tokenIndex < this.getCount(); tokenIndex++) {
 			callback(tokenIndex);
 		}
 	}

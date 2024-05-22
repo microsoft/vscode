@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 
@@ -65,6 +65,10 @@ export class ScopedLineTokens {
 		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
 	}
 
+	public getLineLength(): number {
+		return this._lastCharOffset - this.firstCharOffset;
+	}
+
 	public getActualLineContentBefore(offset: number): string {
 		const actualLineContent = this._actual.getLineContent();
 		return actualLineContent.substring(0, this.firstCharOffset + offset);
@@ -80,6 +84,10 @@ export class ScopedLineTokens {
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
 		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
+	}
+
+	public toIViewLineTokens(): IViewLineTokens {
+		return this._actual.sliceAndInflate(this.firstCharOffset, this._lastCharOffset, 0);
 	}
 }
 

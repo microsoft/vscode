@@ -11,9 +11,7 @@ import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { IndentationContextProcessor, ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
-import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { Position } from 'vs/editor/common/core/position';
+import { IndentationContextProcessor, isLanguageDifferentFromLineStart, ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
 
 export interface IVirtualModel {
 	tokenization: {
@@ -451,11 +449,3 @@ function createVirtualModelWithModifiedTokensAtLine(model: ITextModel, modifiedL
 	return virtualModel;
 }
 
-function isLanguageDifferentFromLineStart(model: ITextModel, position: Position): boolean {
-	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
-	const scopedLineTokens = createScopedLineTokens(lineTokens, position.column - 1);
-	const doesScopeStartAtOffsetZero = scopedLineTokens.firstCharOffset === 0;
-	const isScopedLanguageEqualToFirstLanguageOnLine = lineTokens.getLanguageId(0) === scopedLineTokens.languageId;
-	const languageIsDifferentFromLineStart = !doesScopeStartAtOffsetZero && !isScopedLanguageEqualToFirstLanguageOnLine;
-	return languageIsDifferentFromLineStart;
-}

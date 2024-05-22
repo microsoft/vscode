@@ -24,7 +24,7 @@ import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
 import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
 
-enum Language {
+export enum Language {
 	TypeScript = 'ts-test',
 	Ruby = 'ruby-test',
 	PHP = 'php-test',
@@ -44,7 +44,7 @@ function testIndentationToTabsCommand(lines: string[], selection: Selection, tab
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
 }
 
-function registerLanguage(instantiationService: TestInstantiationService, language: Language): IDisposable {
+export function registerLanguage(instantiationService: TestInstantiationService, language: Language): IDisposable {
 	const disposables = new DisposableStore();
 	const languageService = instantiationService.get(ILanguageService);
 	disposables.add(registerLanguageConfiguration(instantiationService, language));
@@ -52,7 +52,7 @@ function registerLanguage(instantiationService: TestInstantiationService, langua
 	return disposables;
 }
 
-function registerLanguageConfiguration(instantiationService: TestInstantiationService, language: Language): IDisposable {
+export function registerLanguageConfiguration(instantiationService: TestInstantiationService, language: Language): IDisposable {
 	const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 	switch (language) {
 		case Language.TypeScript:
@@ -110,12 +110,12 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	}
 }
 
-interface StandardTokenTypeData {
+export interface StandardTokenTypeData {
 	startIndex: number;
 	standardTokenType: StandardTokenType;
 }
 
-function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: string): IDisposable {
+export function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: string): IDisposable {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
