@@ -85,6 +85,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
+	private _onDidDeleteContext = this._register(new Emitter<IChatRequestVariableEntry>());
+	readonly onDidDeleteContext = this._onDidDeleteContext.event;
+
 	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
@@ -456,6 +459,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.attachedContext.delete(attachment);
 				disp.dispose();
 				this._onDidChangeHeight.fire();
+				this._onDidDeleteContext.fire(attachment);
 			});
 			this.attachedContextDisposables.add(disp);
 		}

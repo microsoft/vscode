@@ -19,6 +19,7 @@ import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/co
 import { IQuickInputService, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
 import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
@@ -76,7 +77,8 @@ class AttachContextAction extends Action2 {
 				toAttach.push({ ...pick, fullName: pick.label });
 			}
 		}
-		widget?.attachContext(...toAttach);
+
+		widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, ...toAttach);
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {

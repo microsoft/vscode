@@ -96,6 +96,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidAcceptInput = this._register(new Emitter<void>());
 	readonly onDidAcceptInput = this._onDidAcceptInput.event;
 
+	private _onDidDeleteContext = this._register(new Emitter<IChatRequestVariableEntry>());
+	readonly onDidDeleteContext = this._onDidDeleteContext.event;
+
 	private _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
 
@@ -544,6 +547,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
+		this._register(this.inputPart.onDidDeleteContext((e) => this._onDidDeleteContext.fire(e)));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
 			if (!this.viewModel) {
 				return;
@@ -731,8 +735,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 
-	attachContext(...contentReferences: IChatRequestVariableEntry[]) {
+	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
+		if (overwrite) {
+			this.inputPart.attachedContext.clear();
+		}
 		this.inputPart.attachContext(...contentReferences);
+
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
 		}
