@@ -115,6 +115,17 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			},
+			getColumnNumber: (): string | undefined => {
+				const activeTextEditorControl = editorService.activeTextEditorControl;
+				if (isCodeEditor(activeTextEditorControl)) {
+					const selection = activeTextEditorControl.getSelection();
+					if (selection) {
+						const colNumber = selection.positionColumn;
+						return String(colNumber);
+					}
+				}
+				return undefined;
+			},
 			getExtension: id => {
 				return extensionService.getExtension(id);
 			},
