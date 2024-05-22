@@ -491,7 +491,7 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
-export interface IContextKeyProvider {
+export interface IEditorGroupContextKeyProvider {
 	/**
 	 * The context key that needs to be set for each editor group context and the global context.
 	 */
@@ -585,7 +585,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * @param provider - The context key provider to be registered.
 	 * @returns - A disposable object to unregister the provider.
 	 */
-	registerContextKeyProvider(provider: IContextKeyProvider): IDisposable;
+	registerContextKeyProvider(provider: IEditorGroupContextKeyProvider): IDisposable;
 }
 
 export const enum OpenEditorContext {

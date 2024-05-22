@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -700,38 +700,31 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	}
 
 	private removeGroupScopedContextKeys(group: IEditorGroupView): void {
-		const groupScopedContextKeys = this.scopedContextKeys.get(group.id);
-		if (groupScopedContextKeys) {
-			this.scopedContextKeys.delete(group.id);
-		}
-
-		const registeredContextKeys = this.registeredContextKeys.get(group.id);
-		if (registeredContextKeys) {
-			this.registeredContextKeys.delete(group.id);
-		}
+		this.scopedContextKeys.delete(group.id);
+		this.registeredContextKeys.delete(group.id);
 	}
 
-	private readonly contextKeyProviders = new Map<string, IContextKeyProvider>();
+	private readonly contextKeyProviders = new Map<string, IEditorGroupContextKeyProvider>();
 	private readonly registeredContextKeys = new Map<GroupIdentifier, Map<string, IContextKey>>();
 
-	registerContextKeyProvider(provider: IContextKeyProvider): IDisposable {
-		if (this.contextKeyProviders.has(provider.contextKey.key)) {
+	registerContextKeyProvider(provider: IEditorGroupContextKeyProvider): IDisposable {
+		if (this.contextKeyProviders.has(provider.contextKey.key) || this.globalContextKeys.has(provider.contextKey.key)) {
 			throw new Error(`A context key provider for key ${provider.contextKey.key} already exists.`);
 		}
 
 		this.contextKeyProviders.set(provider.contextKey.key, provider);
 
 		const setContextKeyForGroups = () => {
-			this.groups.forEach(group => {
+			for (const group of this.groups) {
 				this.runRegisteredContextKeyProvider(group, provider);
-			});
+			}
 		};
 
 		// Run initially
 		setContextKeyForGroups();
 
 		// Run when a change is registered for the provider
-		const onDidChange = provider.onDidChange?.(() => { setContextKeyForGroups(); });
+		const onDidChange = provider.onDidChange?.(() => setContextKeyForGroups());
 
 		return toDisposable(() => {
 			onDidChange?.dispose();
@@ -757,19 +750,19 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		this.groupContextKeyProviderRunners.deleteAndDispose(group.id);
 	}
 
-	private runRegisteredContextKeyProvider(group: IEditorGroupView, provider: IContextKeyProvider): void {
+	private runRegisteredContextKeyProvider(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider): void {
 		// Get the group scoped context keys for the provider
 		// If the providers context key has not yet been bound to the group, do so now
-		let groupregisteredContextKeys = this.registeredContextKeys.get(group.id);
-		if (!groupregisteredContextKeys) {
-			groupregisteredContextKeys = new Map<string, IContextKey>();
-			this.scopedContextKeys.set(group.id, groupregisteredContextKeys);
+		let groupRegisteredContextKeys = this.registeredContextKeys.get(group.id);
+		if (!groupRegisteredContextKeys) {
+			groupRegisteredContextKeys = new Map<string, IContextKey>();
+			this.scopedContextKeys.set(group.id, groupRegisteredContextKeys);
 		}
 
-		let scopedRegisteredContextKey = groupregisteredContextKeys.get(provider.contextKey.key);
+		let scopedRegisteredContextKey = groupRegisteredContextKeys.get(provider.contextKey.key);
 		if (!scopedRegisteredContextKey) {
 			scopedRegisteredContextKey = this.bind(provider.contextKey, group);
-			groupregisteredContextKeys.set(provider.contextKey.key, scopedRegisteredContextKey);
+			groupRegisteredContextKeys.set(provider.contextKey.key, scopedRegisteredContextKey);
 		}
 
 		// Set the context key value for the group context

@@ -19,7 +19,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { Schemas } from 'vs/base/common/network';
 import { Iterable } from 'vs/base/common/iterator';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
-import { IContextKeyProvider, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupContextKeyProvider, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 function getCount(repository: ISCMRepository): number {
@@ -314,13 +314,13 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 		}
 
 		// Create context key providers which will update the context keys based on each groups active editor
-		const hasChangesContextKeyProvider: IContextKeyProvider = {
+		const hasChangesContextKeyProvider: IEditorGroupContextKeyProvider = {
 			contextKey: activeResourceHasChangesContextKey,
 			getGroupContextKeyValue: (group) => this.getEditorHasChanges(group.activeEditor),
 			onDidChange: this.onDidRepositoryChange.event
 		};
 
-		const repositoryContextKeyProvider: IContextKeyProvider = {
+		const repositoryContextKeyProvider: IEditorGroupContextKeyProvider = {
 			contextKey: activeResourceRepositoryContextKey,
 			getGroupContextKeyValue: (group) => this.getEditorRepositoryId(group.activeEditor),
 			onDidChange: this.onDidRepositoryChange.event
