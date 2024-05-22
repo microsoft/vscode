@@ -12,7 +12,6 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined } from 'vs/base/common/types';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -551,7 +550,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		const editor = this.editors[index];
 		const sticky = this.isSticky(index);
 
-		// Active Editor closed
+		// Active editor closed
 		const isActiveEditor = this.active === editor;
 		if (openNext && isActiveEditor) {
 
@@ -568,26 +567,24 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					}
 				}
 
-				// Set editor active
+				// Select editor as active
 				const newInactiveSelectedEditors = this.selection.filter(selected => selected !== editor && selected !== newActive);
 				this.doSetSelection(newActive, this.editors.indexOf(newActive), newInactiveSelectedEditors);
 			}
 
-			// One Editor
+			// Last editor closed: clear selection
 			else {
-				this.selection = []; // TODO this misses an event?
+				this.doSetSelection(null, undefined, []);
 			}
 		}
 
-		// Inactive Editor closed
+		// Inactive editor closed
 		else if (!isActiveEditor) {
 
-			// Remove Editor from selection
+			// Remove editor from inactive selection
 			if (this.doIsSelected(editor)) {
-				const activeEditor = assertIsDefined(this.activeEditor);
-				const newInactiveSelectedEditors = this.selection.filter(selected => selected !== editor && selected !== activeEditor);
-
-				this.doSetSelection(activeEditor, this.indexOf(activeEditor), newInactiveSelectedEditors);
+				const newInactiveSelectedEditors = this.selection.filter(selected => selected !== editor && selected !== this.activeEditor);
+				this.doSetSelection(this.activeEditor, this.indexOf(this.activeEditor), newInactiveSelectedEditors);
 			}
 		}
 
@@ -737,16 +734,22 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		this.doSetSelection(activeSelectedEditor, activeSelectedEditorIndex, Array.from(inactiveSelectedEditors));
 	}
 
-	private doSetSelection(activeSelectedEditor: EditorInput, activeSelectedEditorIndex: number, inactiveSelectedEditors: EditorInput[]): void {
+	private doSetSelection(activeSelectedEditor: EditorInput | null, activeSelectedEditorIndex: number | undefined, inactiveSelectedEditors: EditorInput[]): void {
 		const previousActiveEditor = this.activeEditor;
 		const previousSelection = this.selection;
-		const newSelection = [activeSelectedEditor, ...inactiveSelectedEditors];
+
+		let newSelection: EditorInput[];
+		if (activeSelectedEditor) {
+			newSelection = [activeSelectedEditor, ...inactiveSelectedEditors];
+		} else {
+			newSelection = [];
+		}
 
 		// Update selection
 		this.selection = newSelection;
 
 		// Update active editor if it has changed
-		const activeEditorChanged = previousActiveEditor !== activeSelectedEditor;
+		const activeEditorChanged = activeSelectedEditor && typeof activeSelectedEditorIndex === 'number' && previousActiveEditor !== activeSelectedEditor;
 		if (activeEditorChanged) {
 
 			// Bring to front in MRU list
