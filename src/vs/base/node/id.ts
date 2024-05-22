@@ -114,3 +114,14 @@ export async function getSqmMachineId(errorLogger: (error: any) => void): Promis
 	}
 	return '';
 }
+
+export async function getVSDeviceId(errorLogger: (error: any) => void): Promise<string> {
+	try {
+		const deviceIdPackage = await import('@vscode/deviceid');
+		const id = await deviceIdPackage.getDeviceId();
+		return id;
+	} catch (err) {
+		errorLogger(err);
+		return '';
+	}
+}

@@ -24,6 +24,7 @@ export function resolveCommonProperties(
 	version: string | undefined,
 	machineId: string | undefined,
 	sqmId: string | undefined,
+	vsDeviceId: string | undefined,
 	isInternalTelemetry: boolean,
 	product?: string
 ): ICommonProperties {
@@ -33,6 +34,8 @@ export function resolveCommonProperties(
 	result['common.machineId'] = machineId;
 	// __GDPR__COMMON__ "common.sqmId" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
 	result['common.sqmId'] = sqmId;
+	// __GDPR__COMMON__ "common.vsDeviceId" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
+	result['common.vsDeviceId'] = vsDeviceId;
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['sessionID'] = generateUuid() + Date.now();
 	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }

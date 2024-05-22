@@ -23,6 +23,7 @@ export interface ITelemetryService {
 	readonly sessionId: string;
 	readonly machineId: string;
 	readonly sqmId: string;
+	readonly vsDeviceId: string;
 	readonly firstSessionDate: string;
 	readonly msftInternal?: boolean;
 
@@ -73,6 +74,7 @@ export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 export const machineIdKey = 'telemetry.machineId';
 export const sqmIdKey = 'telemetry.sqmId';
+export const vsDeviceIdKey = 'telemetry.vsDeviceId';
 
 // Configuration Keys
 export const TELEMETRY_SECTION_ID = 'telemetry';

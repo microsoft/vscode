@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { getMachineId, getSqmMachineId } from 'vs/base/node/id';
+import { getMachineId, getSqmMachineId, getVSDeviceId } from 'vs/base/node/id';
 import { Promises } from 'vs/base/node/pfs';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
@@ -132,11 +132,12 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	socketServer.registerChannel('userDataProfiles', new RemoteUserDataProfilesServiceChannel(userDataProfilesService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 	// Initialize
-	const [, , machineId, sqmId] = await Promise.all([
+	const [, , machineId, sqmId, vsDeviceId] = await Promise.all([
 		configurationService.initialize(),
 		userDataProfilesService.init(),
 		getMachineId(logService.error.bind(logService)),
-		getSqmMachineId(logService.error.bind(logService))
+		getSqmMachineId(logService.error.bind(logService)),
+		getVSDeviceId(logService.error.bind(logService))
 	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
@@ -156,7 +157,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const config: ITelemetryServiceConfig = {
 			appenders: [oneDsAppender],
-			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, isInternal, 'remoteAgent'),
+			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, vsDeviceId, isInternal, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];

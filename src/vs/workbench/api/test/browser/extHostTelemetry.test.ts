@@ -44,7 +44,8 @@ suite('ExtHostTelemetry', function () {
 		firstSessionDate: '2020-01-01T00:00:00.000Z',
 		sessionId: 'test',
 		machineId: 'test',
-		sqmId: 'test'
+		sqmId: 'test',
+		vsDeviceId: 'test'
 	};
 
 	const mockRemote = {

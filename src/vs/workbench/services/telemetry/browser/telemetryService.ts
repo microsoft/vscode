@@ -29,6 +29,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	get sessionId(): string { return this.impl.sessionId; }
 	get machineId(): string { return this.impl.machineId; }
 	get sqmId(): string { return this.impl.sqmId; }
+	get vsDeviceId(): string { return this.impl.vsDeviceId; }
 	get firstSessionDate(): string { return this.impl.firstSessionDate; }
 	get msftInternal(): boolean | undefined { return this.impl.msftInternal; }
 
