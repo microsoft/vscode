@@ -29,6 +29,9 @@ export interface IMainThreadTestController {
 	expandTest(id: string, levels: number): Promise<void>;
 	startContinuousRun(request: ICallProfileRunHandler[], token: CancellationToken): Promise<IStartControllerTestsResult[]>;
 	runTests(request: IStartControllerTests[], token: CancellationToken): Promise<IStartControllerTestsResult[]>;
+}
+
+export interface IMainThreadTestHostProxy {
 	provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<TestMessageFollowupResponse[]>;
 	executeTestFollowup(id: number): Promise<void>;
 	disposeTestFollowups(ids: number[]): void;
@@ -272,6 +275,11 @@ export interface ITestService {
 	 * Whether inline editor decorations should be visible.
 	 */
 	readonly showInlineOutput: MutableObservableValue<boolean>;
+
+	/**
+	 * Registers an interface that represents an extension host..
+	 */
+	registerExtHost(controller: IMainThreadTestHostProxy): IDisposable;
 
 	/**
 	 * Registers an interface that runs tests for the given provider ID.

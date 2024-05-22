@@ -27,13 +27,14 @@ import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingC
 import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestFollowups, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { AmbiguousRunTestsRequest, IMainThreadTestController, IMainThreadTestHostProxy, ITestFollowups, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ResolvedTestRunRequest, TestDiffOpType, TestMessageFollowupRequest, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
 	private testControllers = new Map<string, IMainThreadTestController>();
+	private testExtHosts = new Set<IMainThreadTestHostProxy>();
 
 	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
 	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
@@ -268,8 +269,8 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public async provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<ITestFollowups> {
-		const reqs = await Promise.all([...this.testControllers.values()]
-			.map(async ctrl => ({ ctrl, followups: await ctrl.provideTestFollowups(req, token) })));
+		const reqs = await Promise.all([...this.testExtHosts].map(async ctrl =>
+			({ ctrl, followups: await ctrl.provideTestFollowups(req, token) })));
 
 		const followups: ITestFollowups = {
 			followups: reqs.flatMap(({ ctrl, followups }) => followups.map(f => ({
@@ -349,6 +350,14 @@ export class TestService extends Disposable implements ITestService {
 		}
 		this.testRefreshCancellations.clear();
 		this.isRefreshingTests.set(false);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	registerExtHost(controller: IMainThreadTestHostProxy): IDisposable {
+		this.testExtHosts.add(controller);
+		return toDisposable(() => this.testExtHosts.delete(controller));
 	}
 
 	/**
