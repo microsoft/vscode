@@ -349,6 +349,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
 		private _shellLaunchConfig: IShellLaunchConfig,
+		private readonly _getPathForFile: undefined | ((file: File) => string),
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
@@ -1102,7 +1103,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _initDragAndDrop(container: HTMLElement) {
 		const store = new DisposableStore();
-		const dndController = store.add(this._scopedInstantiationService.createInstance(TerminalInstanceDragAndDropController, container));
+		const dndController = store.add(this._scopedInstantiationService.createInstance(TerminalInstanceDragAndDropController, container, this._getPathForFile?.bind(this)));
 		store.add(dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e)));
 		store.add(dndController.onDropFile(async path => {
 			this.focus();
@@ -2287,6 +2288,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 
 	constructor(
 		private readonly _container: HTMLElement,
+		private readonly _getPathForFile: undefined | ((file: File) => string),
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
@@ -2373,7 +2375,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && this._getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
+		if (!path && e.dataTransfer.files.length > 0 && this._getPathForFile?.(e.dataTransfer.files[0]) /* Electron only */) {
 			// Check if the file was dragged from the filesystem
 			path = URI.file(this._getPathForFile(e.dataTransfer.files[0]));
 		}
