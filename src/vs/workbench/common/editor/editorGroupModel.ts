@@ -723,7 +723,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		for (const inactiveSelectedEditorCandidate of inactiveSelectedEditorCandidates) {
 			const res = this.findEditor(inactiveSelectedEditorCandidate);
 			if (!res) {
-				continue; // not found
+				return; // not found
 			}
 
 			const [inactiveSelectedEditor] = res;
