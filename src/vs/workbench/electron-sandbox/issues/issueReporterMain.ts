@@ -7,7 +7,7 @@ import { safeInnerHtml } from 'vs/base/browser/dom';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import BaseHtml from 'vs/workbench/browser/issues/issueReporterPage';
-// import 'vs/css!./media/issueReporter';
+import 'vs/css!./media/issueReporter';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
