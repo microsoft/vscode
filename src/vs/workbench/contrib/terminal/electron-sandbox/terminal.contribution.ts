@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as nls from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -12,10 +10,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILocalPtyService, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IViewsRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { ITerminalProfileResolverService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend';
 import { ElectronTerminalInstanceService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalInstanceService';
 import { TerminalNativeContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalNativeContribution';
@@ -28,6 +24,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
 registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolverService, InstantiationType.Delayed);
+registerSingleton(ITerminalInstanceService, ElectronTerminalInstanceService, InstantiationType.Delayed);
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

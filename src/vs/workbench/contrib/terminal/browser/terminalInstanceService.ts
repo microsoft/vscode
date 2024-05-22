@@ -51,6 +51,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	createInstance(shellLaunchConfig: IShellLaunchConfig, target: TerminalLocation): ITerminalInstance;
 	createInstance(config: IShellLaunchConfig | ITerminalProfile, target: TerminalLocation): ITerminalInstance {
 		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
+		console.log('that', this.getPathForFile)
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalShellTypeContextKey,
 			this._terminalInRunCommandPicker,
