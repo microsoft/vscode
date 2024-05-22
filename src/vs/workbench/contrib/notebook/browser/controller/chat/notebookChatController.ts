@@ -26,6 +26,7 @@ import { ICursorStateComputer, ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -37,8 +38,9 @@ import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
+import { MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -423,10 +425,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			ChatAgentLocation.Notebook,
 			{
 				telemetrySource: 'notebook-generate-cell',
-				inputMenuId: MENU_CELL_CHAT_INPUT,
-				widgetMenuId: MENU_CELL_CHAT_WIDGET,
+				inputMenuId: MenuId.ChatExecute,
+				widgetMenuId: MENU_INLINE_CHAT_WIDGET,
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
-				feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
 						return isEqual(uri, this._widget?.parentEditor.getModel()?.uri)
