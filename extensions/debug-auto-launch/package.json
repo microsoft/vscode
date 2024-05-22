@@ -33,7 +33,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "prettier": {
     "printWidth": 100,

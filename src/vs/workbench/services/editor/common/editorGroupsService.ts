@@ -650,6 +650,12 @@ export interface IEditorGroup {
 	readonly activeEditor: EditorInput | null;
 
 	/**
+	 * All selected editor in this group in sequential order.
+	 * The active editor is always part of the selection.
+	 */
+	readonly selectedEditors: EditorInput[];
+
+	/**
 	 * The editor in the group that is in preview mode if any. There can
 	 * only ever be one editor in preview mode.
 	 */
@@ -766,6 +772,20 @@ export interface IEditorGroup {
 	 * Find out if the provided editor is active in the group.
 	 */
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
+
+	/**
+	 * Whether the editor is selected in the group.
+	 */
+	isSelected(editor: EditorInput): boolean;
+
+	/**
+	 * Set a new selection for this group. This will replace the current
+	 * selection with the new selection.
+	 *
+	 * @param activeSelectedEditor the editor to set as active selected editor
+	 * @param inactiveSelectedEditors the inactive editors to set as selected
+	 */
+	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): Promise<void>;
 
 	/**
 	 * Find out if a certain editor is included in the group.

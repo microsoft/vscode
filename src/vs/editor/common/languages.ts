@@ -834,6 +834,8 @@ export interface CodeActionProvider {
 
 	displayName?: string;
 
+	extensionId?: string;
+
 	/**
 	 * Provide commands for the given document and range.
 	 */
@@ -1880,6 +1882,13 @@ export interface CommentThread<T = IRange> {
 /**
  * @internal
  */
+export interface AddedCommentThread<T = IRange> extends CommentThread<T> {
+	editorId?: string;
+}
+
+/**
+ * @internal
+ */
 
 export interface CommentingRanges {
 	readonly resource: URI;
@@ -1971,7 +1980,7 @@ export interface CommentThreadChangedEvent<T> {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread<T>[];
+	readonly added: AddedCommentThread<T>[];
 
 	/**
 	 * Removed comment threads.
