@@ -297,8 +297,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this.active;
 	}
 
-	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
-		return this.matches(this.active, editor);
+	isActive(candidate: EditorInput | IUntypedEditorInput): boolean {
+		return this.matches(this.active, candidate);
 	}
 
 	get previewEditor(): EditorInput | null {
@@ -309,7 +309,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		const makeSticky = options?.sticky || (typeof options?.index === 'number' && this.isSticky(options.index));
 		const makePinned = options?.pinned || options?.sticky;
 		const makeTransient = !!options?.transient;
-		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
+		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.preview === this.activeEditor);
 
 		const existingEditorAndIndex = this.findEditor(candidate, options);
 
@@ -552,7 +552,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		const sticky = this.isSticky(index);
 
 		// Active Editor closed
-		const isActiveEditor = this.matches(this.active, editor);
+		const isActiveEditor = this.active === editor;
 		if (openNext && isActiveEditor) {
 
 			// More than one editor
@@ -592,7 +592,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 
 		// Preview Editor closed
-		if (this.matches(this.preview, editor)) {
+		if (this.preview === editor) {
 			this.preview = null;
 		}
 
@@ -746,7 +746,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		this.selection = newSelection;
 
 		// Update active editor if it has changed
-		const activeEditorChanged = !this.matches(previousActiveEditor, activeSelectedEditor);
+		const activeEditorChanged = previousActiveEditor !== activeSelectedEditor;
 		if (activeEditorChanged) {
 
 			// Bring to front in MRU list
