@@ -186,7 +186,8 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 						}
 						break;
 
-					// GC Events that block the event loop
+					// GC Events that block the main thread
+					// Refs: https://v8.dev/blog/trash-talk
 					case 'V8.GCFinalizeMC':
 					case 'V8.GCScavenger':
 						duration += event.dur;
