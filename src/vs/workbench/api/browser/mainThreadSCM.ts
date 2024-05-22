@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable, ReferenceCollection, DisposableMap } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable, ReferenceCollection, DisposableMap, toDisposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
@@ -577,7 +577,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		for (const group of groups) {
 			const ref = this._resourceGroupActions.acquire(group[1], group[2]);
-			resourceGroupDisposables.set(group[0], { dispose: () => ref.dispose() });
+			resourceGroupDisposables.set(group[0], toDisposable(ref.dispose));
 		}
 	}
 
