@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -18,11 +16,11 @@ import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IAttachedView } from 'vs/editor/common/model';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
-import { AttachedViews, IAttachedViewState, TextModel } from 'vs/editor/common/model/textModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
+import { AbstractTokens, AttachedViews } from 'vs/editor/common/model/tokens';
 import { TreeSitterTokens } from 'vs/editor/common/model/treeSitterTokens';
 import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -52,8 +50,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	private grammarTokens: GrammarTokens | undefined;
-	private treeSitterTokens: TreeSitterTokens | undefined;
+	private tokens!: AbstractTokens;
 
 	constructor(
 		private readonly _languageService: ILanguageService,
@@ -79,37 +76,38 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	private createGrammarTokens() {
-		this.grammarTokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
-		this._register(this.grammarTokens.onDidChangeTokens(e => {
+		return this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
+	}
+
+	private createTreeSitterTokens(): AbstractTokens {
+		return this._register(new TreeSitterTokens(this._fileService, this._themeService, this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
+	}
+
+	private createTokens(useTreeSitter: boolean): void {
+		this.tokens?.dispose();
+		this.tokens = useTreeSitter ? this.createTreeSitterTokens() : this.createGrammarTokens();
+		this._register(this.tokens.onDidChangeTokens(e => {
 			this._emitModelTokensChangedEvent(e);
 		}));
 
-		this._register(this.grammarTokens.onDidChangeBackgroundTokenizationState(e => {
+		this._register(this.tokens.onDidChangeBackgroundTokenizationState(e => {
 			this._bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
 		}));
-	}
-
-	private createTreeSitterTokens() {
-		this.treeSitterTokens = this._register(new TreeSitterTokens(this._fileService, this._themeService, this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId));
 	}
 
 	private createPreferredTokenProvider() {
 		const preferTreeSitter: string[] = this._configurationService.getValue<string[] | undefined>(TOKENIZATION_PROVIDER_SETTING) ?? [];
 		if ((preferTreeSitter.includes(this._languageId) && TreeSitterTokenizationRegistry.get(this._languageId))) {
-			if (this.treeSitterTokens) {
-				this.treeSitterTokens.resetTokenization(true);
+			if (this.tokens instanceof TreeSitterTokens) {
+				this.tokens.resetTokenization(true);
 			} else {
-				this.grammarTokens?.dispose();
-				this.grammarTokens = undefined;
-				this.createTreeSitterTokens();
+				this.createTokens(true);
 			}
 		} else {
-			if (this.grammarTokens) {
-				this.grammarTokens.resetTokenization(true);
+			if (this.tokens instanceof GrammarTokens) {
+				this.tokens.resetTokenization(true);
 			} else {
-				this.treeSitterTokens?.dispose();
-				this.treeSitterTokens = undefined;
-				this.createGrammarTokens();
+				this.createTokens(false);
 			}
 		}
 	}
@@ -137,11 +135,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			}
 		}
 
-		this.grammarTokens?.handleDidChangeContent(e);
+		this.tokens.handleDidChangeContent(e);
 	}
 
 	public handleDidChangeAttached(): void {
-		this.grammarTokens?.handleDidChangeAttached();
+		this.tokens.handleDidChangeAttached();
 	}
 
 	/**
@@ -149,7 +147,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	 */
 	public getLineTokens(lineNumber: number): LineTokens {
 		this.validateLineNumber(lineNumber);
-		const syntacticTokens = (this.treeSitterTokens?.getLineTokens(lineNumber) ?? this.grammarTokens?.getLineTokens(lineNumber))!;
+		const syntacticTokens = this.tokens.getLineTokens(lineNumber);
 		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
 	}
 
@@ -169,43 +167,43 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public get hasTokens(): boolean {
-		return !!this.grammarTokens?.hasTokens;
+		return !!this.tokens.hasTokens;
 	}
 
 	public resetTokenization() {
-		this.grammarTokens?.resetTokenization();
+		this.tokens.resetTokenization();
 	}
 
 	public get backgroundTokenizationState() {
-		return this.grammarTokens?.backgroundTokenizationState ?? BackgroundTokenizationState.InProgress;
+		return this.tokens.backgroundTokenizationState ?? BackgroundTokenizationState.InProgress;
 	}
 
 	public forceTokenization(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
-		this.grammarTokens?.forceTokenization(lineNumber);
+		this.tokens.forceTokenization(lineNumber);
 	}
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
-		return !!this.grammarTokens?.hasAccurateTokensForLine(lineNumber);
+		return !!this.tokens.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
-		return !!this.grammarTokens?.isCheapToTokenize(lineNumber);
+		return !!this.tokens.isCheapToTokenize(lineNumber);
 	}
 
 	public tokenizeIfCheap(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
-		this.grammarTokens?.tokenizeIfCheap(lineNumber);
+		this.tokens.tokenizeIfCheap(lineNumber);
 	}
 
 	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
-		return this.grammarTokens?.getTokenTypeIfInsertingCharacter(lineNumber, column, character) ?? StandardTokenType.Other;
+		return this.tokens.getTokenTypeIfInsertingCharacter(lineNumber, column, character) ?? StandardTokenType.Other;
 	}
 
 	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
-		return this.grammarTokens?.tokenizeLineWithEdit(position, length, newText) ?? null;
+		return this.tokens.tokenizeLineWithEdit(position, length, newText) ?? null;
 	}
 
 	// #endregion
@@ -378,7 +376,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	// #endregion
 }
 
-class GrammarTokens extends Disposable {
+class GrammarTokens extends AbstractTokens {
 	private _tokenizer: TokenizerWithStateStoreAndTextModel | null = null;
 	private _defaultBackgroundTokenizer: DefaultBackgroundTokenizer | null = null;
 	private readonly _backgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
@@ -389,51 +387,13 @@ class GrammarTokens extends Disposable {
 
 	private readonly _debugBackgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
 
-	private _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
-	public get backgroundTokenizationState(): BackgroundTokenizationState {
-		return this._backgroundTokenizationState;
-	}
-
-	private readonly _onDidChangeBackgroundTokenizationState = this._register(new Emitter<void>());
-	/** @internal, should not be exposed by the text model! */
-	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
-
-	private readonly _onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
-	/** @internal, should not be exposed by the text model! */
-	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
-
-	private readonly _attachedViewStates = this._register(new DisposableMap<IAttachedView, AttachedViewHandler>());
-
 	constructor(
-		private readonly _languageIdCodec: ILanguageIdCodec,
-		private readonly _textModel: TextModel,
-		private getLanguageId: () => string,
+		languageIdCodec: ILanguageIdCodec,
+		textModel: TextModel,
+		getLanguageId: () => string,
 		attachedViews: AttachedViews,
 	) {
-		super();
-
-		this._register(TokenizationRegistry.onDidChange((e) => {
-			const languageId = this.getLanguageId();
-			if (e.changedLanguages.indexOf(languageId) === -1) {
-				return;
-			}
-			this.resetTokenization();
-		}));
-
-		this.resetTokenization();
-
-		this._register(attachedViews.onDidChangeVisibleRanges(({ view, state }) => {
-			if (state) {
-				let existing = this._attachedViewStates.get(view);
-				if (!existing) {
-					existing = new AttachedViewHandler(() => this.refreshRanges(existing!.lineRanges));
-					this._attachedViewStates.set(view, existing);
-				}
-				existing.handleStateChange(state);
-			} else {
-				this._attachedViewStates.deleteAndDispose(view);
-			}
-		}));
+		super(languageIdCodec, textModel, getLanguageId, attachedViews);
 	}
 
 	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
@@ -579,7 +539,7 @@ class GrammarTokens extends Disposable {
 		this.refreshRanges(ranges);
 	}
 
-	private refreshRanges(ranges: readonly LineRange[]): void {
+	protected refreshRanges(ranges: readonly LineRange[]): void {
 		for (const range of ranges) {
 			this.refreshRange(range.startLineNumber, range.endLineNumberExclusive - 1);
 		}
@@ -630,12 +590,6 @@ class GrammarTokens extends Disposable {
 		return this._tokenizer.isCheapToTokenize(lineNumber);
 	}
 
-	public tokenizeIfCheap(lineNumber: number): void {
-		if (this.isCheapToTokenize(lineNumber)) {
-			this.forceTokenization(lineNumber);
-		}
-	}
-
 	public getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this._textModel.getLineContent(lineNumber);
 		const result = this._tokens.getTokens(
@@ -680,35 +634,5 @@ class GrammarTokens extends Disposable {
 
 	public get hasTokens(): boolean {
 		return this._tokens.hasTokens;
-	}
-}
-
-class AttachedViewHandler extends Disposable {
-	private readonly runner = this._register(new RunOnceScheduler(() => this.update(), 50));
-
-	private _computedLineRanges: readonly LineRange[] = [];
-	private _lineRanges: readonly LineRange[] = [];
-	public get lineRanges(): readonly LineRange[] { return this._lineRanges; }
-
-	constructor(private readonly _refreshTokens: () => void) {
-		super();
-	}
-
-	private update(): void {
-		if (equals(this._computedLineRanges, this._lineRanges, (a, b) => a.equals(b))) {
-			return;
-		}
-		this._computedLineRanges = this._lineRanges;
-		this._refreshTokens();
-	}
-
-	public handleStateChange(state: IAttachedViewState): void {
-		this._lineRanges = state.visibleLineRanges;
-		if (state.stabilized) {
-			this.runner.cancel();
-			this.update();
-		} else {
-			this.runner.schedule();
-		}
 	}
 }

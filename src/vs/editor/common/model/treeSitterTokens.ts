@@ -10,14 +10,17 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Parser } from 'vs/base/common/web-tree-sitter/tree-sitter-web';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { FontStyle, MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { AbstractTokens, AttachedViews } from 'vs/editor/common/model/tokens';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { IPosition } from 'vs/editor/common/core/position';
 
-export class TreeSitterTokens extends Disposable {
+export class TreeSitterTokens extends AbstractTokens {
 	private _colorThemeData: ColorThemeData;
 	private _parser: Parser | undefined;
 	private _language: Parser.Language | undefined;
@@ -28,10 +31,11 @@ export class TreeSitterTokens extends Disposable {
 	constructor(private readonly _fileService: IFileService,
 		private readonly _themeService: IThemeService,
 		private readonly _treeSitterService: ITreeSitterTokenizationService,
-		private readonly _languageIdCoded: ILanguageIdCodec,
-		private readonly _textModel: TextModel,
-		private readonly _languageId: () => string) {
-		super();
+		languageIdCodec: ILanguageIdCodec,
+		textModel: TextModel,
+		languageId: () => string,
+		attachedViews: AttachedViews) {
+		super(languageIdCodec, textModel, languageId, attachedViews);
 		// TODO @alexr00 respond to language changes
 		this._initialize();
 
@@ -42,14 +46,13 @@ export class TreeSitterTokens extends Disposable {
 
 	private async _initialize() {
 		const parser = await this._getParser();
-		const newLanguage = this._languageId();
+		const newLanguage = this.getLanguageId();
 		const [language, queries] = await Promise.all([this._getLanguage(newLanguage), this._getQueries(newLanguage)]);
 		parser.setLanguage(language);
 		if (!this._tokens || this._lastLanguageId !== newLanguage) {
 			this._tokens?.dispose();
 			this._tokens = new TextModelTokens(this._textModel, parser, queries, language, this._colorThemeData);
 		}
-
 	}
 
 	private async _getParser(): Promise<Parser> {
@@ -68,7 +71,7 @@ export class TreeSitterTokens extends Disposable {
 	}
 
 	private async _fetchLanguage() {
-		const grammarName = TreeSitterTokenizationRegistry.get(this._languageId());
+		const grammarName = TreeSitterTokenizationRegistry.get(this.getLanguageId());
 		const wasmPath: AppResourcePath = `vs/base/common/treeSitterLanguages/${grammarName?.name}/${grammarName?.name}.wasm`;
 		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(wasmPath)));
 		return Parser.Language.load(languageFile.value.buffer);
@@ -91,13 +94,67 @@ export class TreeSitterTokens extends Disposable {
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		if (this._tokens) {
-			return new LineTokens(this._tokens.lineTokens(lineNumber), this._textModel.getLineContent(lineNumber), this._languageIdCoded);
+			return new LineTokens(this._tokens.lineTokens(lineNumber), this._textModel.getLineContent(lineNumber), this._languageIdCodec);
 		}
-		return LineTokens.createEmpty('', this._languageIdCoded);
+		return LineTokens.createEmpty('', this._languageIdCodec);
 	}
 
 	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
-		// TODO @alexr00 determine if needed
+		this._tokens?.reset();
+		if (fireTokenChangeEvent) {
+			this._onDidChangeTokens.fire({
+				semanticTokensApplied: false,
+				ranges: [
+					{
+						fromLineNumber: 1,
+						toLineNumber: this._textModel.getLineCount(),
+					},
+				],
+			});
+		}
+	}
+
+	public override handleDidChangeAttached(): void {
+		// TODO @alexr00 implement for background tokenization
+	}
+
+	public override handleDidChangeContent(e: IModelContentChangedEvent): void {
+		if (e.isFlush) {
+			// Don't fire the event, as the view might not have got the text change event yet
+			this.resetTokenization(false);
+		} else if (!e.isEolChange) { // We don't have to do anything on an EOL change
+			this._tokens?.onDidChangeContent(e);
+		}
+	}
+	protected override refreshRanges(ranges: readonly LineRange[]): void {
+		// TODO @alexr00 implement
+	}
+
+	public override forceTokenization(lineNumber: number): void {
+		// TODO @alexr00 implement
+	}
+
+	public override hasAccurateTokensForLine(lineNumber: number): boolean {
+		// TODO @alexr00 update for background tokenization
+		return true;
+	}
+
+	public override isCheapToTokenize(lineNumber: number): boolean {
+		// TODO @alexr00 update for background tokenization
+		return true;
+	}
+
+	public override getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
+		// TODO @alexr00 implement once we have custom parsing and don't just feed in the whole text model value
+		return StandardTokenType.Other;
+	}
+	public override tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
+		// TODO @alexr00 understand what this is for and implement
+		return null;
+	}
+	public override get hasTokens(): boolean {
+		// TODO @alexr00 once we have a token store, implement properly
+		return true;
 	}
 
 }
@@ -116,10 +173,9 @@ class TextModelTokens extends Disposable {
 		private readonly _language: Parser.Language,
 		private readonly _colorThemeData: ColorThemeData) {
 		super();
-		this._register(this._textModel.onDidChangeContent((e) => this._onDidChangeContent(e)));
 	}
 
-	private _onDidChangeContent(e: IModelContentChangedEvent) {
+	public onDidChangeContent(e: IModelContentChangedEvent) {
 		if (!this._tree) {
 			return;
 		}
@@ -150,6 +206,11 @@ class TextModelTokens extends Disposable {
 			this._query = this._language.query(this._queries);
 		}
 		return this._query;
+	}
+
+	public reset() {
+		this._tree = undefined;
+		this._parser.reset();
 	}
 
 	/**
