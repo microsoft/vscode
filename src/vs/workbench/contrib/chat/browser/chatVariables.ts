@@ -18,6 +18,7 @@ import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 
 import { ChatRequestDynamicVariablePart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -64,7 +65,7 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		attachedContextVariables
 			?.forEach((attachment, i) => {
-				const data = this._resolver.get(attachment.name.toLowerCase());
+				const data = this._resolver.get(attachment.name?.toLowerCase());
 				if (data) {
 					const references: IChatContentReference[] = [];
 					const variableProgressCallback = (item: IChatVariableResolverProgress) => {
@@ -161,7 +162,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (key === 'file' && typeof value !== 'string') {
 			const uri = URI.isUri(value) ? value : value.uri;
 			const range = 'range' in value ? value.range : undefined;
-			widget.attachContext({ value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isDynamic: true });
+			widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isDynamic: true });
 			return;
 		}
 
@@ -170,6 +171,6 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
-		widget.attachContext({ ...resolved.data, value });
+		widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { ...resolved.data, value });
 	}
 }
