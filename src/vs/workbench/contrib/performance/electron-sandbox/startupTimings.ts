@@ -54,7 +54,7 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		@IUpdateService updateService: IUpdateService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
-		@IWorkspaceTrustManagementService workspaceTrustService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustManagementService workspaceTrustService: IWorkspaceTrustManagementService
 	) {
 		super(editorService, paneCompositeService, lifecycleService, updateService, workspaceTrustService);
 
@@ -83,6 +83,9 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 
 			const perfBaseline = await this._timerService.perfBaseline;
 			const heapStatistics = await this._resolveStartupHeapStatistics();
+			if (heapStatistics) {
+				this._telemetryLogHeapStatistics(heapStatistics);
+			}
 
 			if (appendTo) {
 				const content = coalesce([
@@ -197,6 +200,32 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		}
 
 		return undefined;
+	}
+
+	private _telemetryLogHeapStatistics({ allocated, garbage, majorGCs, minorGCs, duration }: IHeapStatistics): void {
+		type StartupHeapStatisticsClassification = {
+			owner: 'bpasero';
+			comment: 'An event that reports startup heap statistics for performance analysis.';
+			heapAllocated: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allocated heap' };
+			heapGarbage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Garbage heap' };
+			majorGarbageCollectioncount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Major GCs count' };
+			minorGCs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Minor GCs count' };
+			gcsDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'GCs duration' };
+		};
+		type StartupHeapStatisticsEvent = {
+			heapAllocated: number;
+			heapGarbage: number;
+			majorGCs: number;
+			minorGCs: number;
+			gcsDuration: number;
+		};
+		this._telemetryService.publicLog2<StartupHeapStatisticsEvent, StartupHeapStatisticsClassification>('startupHeapStatistics', {
+			heapAllocated: allocated,
+			heapGarbage: garbage,
+			majorGCs,
+			minorGCs,
+			gcsDuration: duration
+		});
 	}
 
 	private _printStartupHeapStatistics({ allocated, garbage, majorGCs, minorGCs, duration }: IHeapStatistics) {
