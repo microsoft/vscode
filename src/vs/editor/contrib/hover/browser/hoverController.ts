@@ -48,11 +48,9 @@ const enum HoverWidgetType {
 
 export class HoverController extends Disposable implements IEditorContribution {
 
-	// Listeners
 	private readonly _onHoverContentsChanged = this._register(new Emitter<void>());
 	public readonly onHoverContentsChanged = this._onHoverContentsChanged.event;
 
-	// Other fields
 	public static readonly ID = 'editor.contrib.hover';
 
 	public shouldKeepOpenOnEditorMouseMoveOrLeave: boolean = false;

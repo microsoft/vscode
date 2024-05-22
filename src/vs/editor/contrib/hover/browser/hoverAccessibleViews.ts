@@ -20,7 +20,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 namespace HoverAccessibilityHelpNLS {
 	export const intro = localize('intro', "The hover widget is focused. Press the Tab key to cycle through the hover parts.");
@@ -62,11 +62,10 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 	public readonly verbositySettingKey = 'accessibility.verbosity.hover';
 	public readonly actions: IAction[] = [];
 
-	private readonly _disposableStore: DisposableStore = this._register(new DisposableStore());
 	private readonly _hoverController: HoverController | null = null;
+	private _onHoverContentsChanged: IDisposable | undefined;
 	private _markdownHoverFocusedIndex: number = -1;
 
-	// Listener
 	private _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
@@ -75,11 +74,11 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
-		this._hoverController = HoverController.get(this._editor);
 		this.options = {
 			language: this._editor.getModel()?.getLanguageId(),
 			type: AccessibleViewType.View
 		};
+		this._hoverController = HoverController.get(this._editor);
 		this._initializeActions();
 	}
 
@@ -88,15 +87,20 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		if (!this._hoverController) {
 			return content.join('\n');
 		}
-		this._updateMarkdownHoverFocusedIndex(this._hoverController);
-		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = true;
 		content.push(...this._descriptionsOfVerbosityActions(this._hoverController));
 		content.push(...this._descriptionOfFocusedMarkdownHover(this._hoverController));
 		return content.join('\n');
 	}
 
 	public onOpen(): void {
-		this._hookListeners();
+		if (!this._hoverController) {
+			return;
+		}
+		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = true;
+		this._markdownHoverFocusedIndex = this._hoverController.focusedMarkdownHoverIndex();
+		this._onHoverContentsChanged = this._register(this._hoverController.onHoverContentsChanged(() => {
+			this._onDidChangeContent.fire();
+		}));
 	}
 
 	public onClose(): void {
@@ -106,25 +110,12 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		this._markdownHoverFocusedIndex = -1;
 		this._hoverController.focus();
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
-		this._unhookListeners();
+		this._onHoverContentsChanged?.dispose();
 	}
 
 	private _initializeActions(): void {
 		this.actions.push(this._getActionFor(HoverVerbosityAction.Increase));
 		this.actions.push(this._getActionFor(HoverVerbosityAction.Decrease));
-	}
-
-	private _hookListeners(): void {
-		if (!this._hoverController) {
-			return;
-		}
-		this._disposableStore.add(this._hoverController.onHoverContentsChanged(() => {
-			this._onDidChangeContent.fire();
-		}));
-	}
-
-	private _unhookListeners(): void {
-		this._disposableStore.clear();
 	}
 
 	private _getActionFor(action: HoverVerbosityAction): IAction {
@@ -149,12 +140,6 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		return new Action(accessibleActionId, actionLabel, ThemeIcon.asClassName(actionCodicon), true, () => {
 			this._editor.getAction(actionId)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
 		});
-	}
-
-	private _updateMarkdownHoverFocusedIndex(hoverController: HoverController) {
-		if (this._markdownHoverFocusedIndex === -1) {
-			this._markdownHoverFocusedIndex = hoverController.focusedMarkdownHoverIndex();
-		}
 	}
 
 	private _descriptionsOfVerbosityActions(hoverController: HoverController): string[] {
