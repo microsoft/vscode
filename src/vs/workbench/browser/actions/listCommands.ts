@@ -723,15 +723,28 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		// Check if the focused element has a hover, otherwise find the first child with a hover
-		const elementWithHover = focusedElement.matches('[custom-hover="true"]') ? focusedElement : focusedElement.querySelector('[custom-hover="true"]');
-		if (!elementWithHover) {
-			return;
+		const elementWithHover = getCustomHoverForElement(focusedElement as HTMLElement);
+		if (elementWithHover) {
+			accessor.get(IHoverService).triggerUpdatableHover(elementWithHover as HTMLElement);
 		}
-
-		accessor.get(IHoverService).triggerUpdatableHover(elementWithHover as HTMLElement);
 	},
 });
+
+function getCustomHoverForElement(element: HTMLElement): HTMLElement | undefined {
+	// Check if the element itself has a hover
+	if (element.matches('[custom-hover="true"]')) {
+		return element;
+	}
+
+	// Only consider children that are not action items or have a tabindex
+	// as these element are focusable and the user is able to trigger them already
+	const noneFocusableElementWithHover = element.querySelector('[custom-hover="true"]:not([tabindex]):not(.action-item)');
+	if (noneFocusableElementWithHover) {
+		return noneFocusableElementWithHover as HTMLElement;
+	}
+
+	return undefined;
+}
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.toggleExpand',
