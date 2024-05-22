@@ -36,6 +36,12 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
+	readonly sanitizerOptions?: ISanitizerOptions;
+}
+
+export interface ISanitizerOptions {
+	replaceWithPlaintext?: boolean;
+	allowedTags?: string[];
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -261,7 +267,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const htmlParser = new DOMParser();
-	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string, 'text/html');
+	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, renderedMarkdown) as unknown as string, 'text/html');
 
 	markdownHtmlDoc.body.querySelectorAll('img, audio, video, source')
 		.forEach(img => {
@@ -306,7 +312,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 		});
 
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, markdownHtmlDoc.body.innerHTML) as unknown as string;
+	element.innerHTML = sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, markdownHtmlDoc.body.innerHTML) as unknown as string;
 
 	if (codeBlocks.length > 0) {
 		Promise.all(codeBlocks).then((tuples) => {
@@ -378,8 +384,14 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 	}
 }
 
+interface IInternalSanitizerOptions extends ISanitizerOptions {
+	isTrusted?: boolean | MarkdownStringTrustedOptions;
+}
+
+const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
 function sanitizeRenderedMarkdown(
-	options: { isTrusted?: boolean | MarkdownStringTrustedOptions },
+	options: IInternalSanitizerOptions,
 	renderedMarkdown: string,
 ): TrustedHTML {
 	const { config, allowedSchemes } = getSanitizerOptions(options);
@@ -409,8 +421,43 @@ function sanitizeRenderedMarkdown(
 		if (e.tagName === 'input') {
 			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
 				element.setAttribute('disabled', '');
-			} else {
+			} else if (!options.replaceWithPlaintext) {
 				element.parentElement?.removeChild(element);
+			}
+		}
+
+		if (options.replaceWithPlaintext && !e.allowedTags[e.tagName] && e.tagName !== 'body') {
+			if (element.parentElement) {
+				let startTagText: string;
+				let endTagText: string | undefined;
+				if (e.tagName === '#comment') {
+					startTagText = `<!--${element.textContent}-->`;
+				} else {
+					const isSelfClosing = selfClosingTags.includes(e.tagName);
+					const attrString = element.attributes.length ?
+						' ' + Array.from(element.attributes)
+							.map(attr => `${attr.name}="${attr.value}"`)
+							.join(' ')
+						: '';
+					startTagText = `<${e.tagName}${attrString}>`;
+					if (!isSelfClosing) {
+						endTagText = `</${e.tagName}>`;
+					}
+				}
+
+				const fragment = document.createDocumentFragment();
+				const textNode = element.parentElement.ownerDocument.createTextNode(startTagText);
+				fragment.appendChild(textNode);
+				const endTagTextNode = endTagText ? element.parentElement.ownerDocument.createTextNode(endTagText) : undefined;
+				while (element.firstChild) {
+					fragment.appendChild(element.firstChild);
+				}
+
+				if (endTagTextNode) {
+					fragment.appendChild(endTagTextNode);
+				}
+
+				element.parentElement.replaceChild(fragment, element);
 			}
 		}
 	});
@@ -452,7 +499,7 @@ export const allowedMarkdownAttr = [
 	'start',
 ];
 
-function getSanitizerOptions(options: { readonly isTrusted?: boolean | MarkdownStringTrustedOptions }): { config: dompurify.Config; allowedSchemes: string[] } {
+function getSanitizerOptions(options: IInternalSanitizerOptions): { config: dompurify.Config; allowedSchemes: string[] } {
 	const allowedSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -474,7 +521,7 @@ function getSanitizerOptions(options: { readonly isTrusted?: boolean | MarkdownS
 			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
 			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-			ALLOWED_TAGS: [...DOM.basicMarkupHtmlTags],
+			ALLOWED_TAGS: options.allowedTags ?? [...DOM.basicMarkupHtmlTags],
 			ALLOWED_ATTR: allowedMarkdownAttr,
 			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},
