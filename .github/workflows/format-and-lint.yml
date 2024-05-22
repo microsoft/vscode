@@ -1,0 +1,31 @@
+name: Check Format and Lint
+
+on: [push, pull_request_target]
+
+jobs:
+  lint-and-format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y libkrb5-dev
+
+      - name: Install yarn
+        run: npm install -g yarn
+
+      - name: Install dependencies
+        run: yarn
+
+      - name: Run Prettier
+        run: yarn prettier --check './extensions/pearai-extension/**/src/**/*.{ts,tsx}'
+
+      - name: Run ESLint
+        run: yarn eslint './extensions/pearai-extension/**/src/**/*.{ts,tsx}' --quiet
