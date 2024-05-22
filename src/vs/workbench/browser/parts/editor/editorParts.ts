@@ -720,10 +720,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			}
 		};
 
-		// Run initially
+		// Run initially and on change
 		setContextKeyForGroups();
-
-		// Run when a change is registered for the provider
 		const onDidChange = provider.onDidChange?.(() => setContextKeyForGroups());
 
 		return toDisposable(() => {
