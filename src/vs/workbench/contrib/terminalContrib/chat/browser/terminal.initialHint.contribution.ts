@@ -21,7 +21,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInlineChatService, IInlineChatSessionProvider, InlineChatProviderChangeEvent } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,6 +28,7 @@ import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import 'vs/css!./media/terminalInitialHint';
 import { TerminalInitialHintSettingId } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';
+import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 const $ = dom.$;
 
@@ -38,7 +38,7 @@ export class InitialHintAddon extends Disposable implements ITerminalAddon {
 	private readonly _disposables = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
-		private readonly _onDidChangeProviders: Event<InlineChatProviderChangeEvent>) {
+		private readonly _onDidChangeAgents: Event<IChatAgent | undefined>) {
 		super();
 	}
 	activate(terminal: RawXtermTerminal): void {
@@ -58,8 +58,13 @@ export class InitialHintAddon extends Disposable implements ITerminalAddon {
 				}
 			}));
 		}
-
-		this._disposables.value?.add(Event.once(this._onDidChangeProviders)(() => this._onDidRequestCreateHint.fire()));
+		const agentListener = this._onDidChangeAgents((e) => {
+			if (e?.locations.includes(ChatAgentLocation.Terminal)) {
+				this._onDidRequestCreateHint.fire();
+				agentListener.dispose();
+			}
+		});
+		this._disposables.value?.add(agentListener);
 	}
 }
 
@@ -80,11 +85,11 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		private readonly _instance: Pick<ITerminalInstance, 'capabilities'> | IDetachedTerminalInstance,
 		processManager: ITerminalProcessManager | ITerminalProcessInfo | undefined,
 		widgetManager: TerminalWidgetManager | undefined,
-		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
 		super();
 	}
@@ -95,7 +100,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			return;
 		}
 		this._xterm = xterm;
-		this._addon = this._register(this._instantiationService.createInstance(InitialHintAddon, this._instance.capabilities, this._inlineChatService.onDidChangeProviders));
+		this._addon = this._register(this._instantiationService.createInstance(InitialHintAddon, this._instance.capabilities, this._chatAgentService.onDidChangeAgents));
 		this._xterm.raw.loadAddon(this._addon);
 		this._register(this._addon.onDidRequestCreateHint(() => this._createHint()));
 	}
@@ -148,11 +153,11 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		this._register(this._decoration);
 		this._register(this._decoration.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalGroupService.instances.length + this._terminalEditorService.instances.length === 1) {
-				const chatProviders = [...this._inlineChatService.getAllProvider()];
-				if (chatProviders?.length) {
+				const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));
+				if (terminalAgents?.length) {
 					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
 					this._addon?.dispose();
-					this._hintWidget = widget.getDomNode(chatProviders);
+					this._hintWidget = widget.getDomNode(terminalAgents);
 					if (!this._hintWidget) {
 						return;
 					}
@@ -213,8 +218,8 @@ class TerminalInitialHintWidget extends Disposable {
 		}));
 	}
 
-	private _getHintInlineChat(providers: IInlineChatSessionProvider[]) {
-		const providerName = (providers.length === 1 ? providers[0].label : undefined) ?? this.productService.nameShort;
+	private _getHintInlineChat(agents: IChatAgent[]) {
+		const providerName = (agents.length === 1 ? agents[0].fullName : undefined) ?? this.productService.nameShort;
 
 		let ariaLabel = `Ask ${providerName} something or start typing to dismiss.`;
 
@@ -289,12 +294,12 @@ class TerminalInitialHintWidget extends Disposable {
 		return { ariaLabel, hintHandler, hintElement };
 	}
 
-	getDomNode(providers: IInlineChatSessionProvider[]): HTMLElement {
+	getDomNode(agents: IChatAgent[]): HTMLElement {
 		if (!this.domNode) {
 			this.domNode = $('.terminal-initial-hint');
 			this.domNode!.style.paddingLeft = '4px';
 
-			const { hintElement, ariaLabel } = this._getHintInlineChat(providers);
+			const { hintElement, ariaLabel } = this._getHintInlineChat(agents);
 			this.domNode.append(hintElement);
 			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalChat));
 

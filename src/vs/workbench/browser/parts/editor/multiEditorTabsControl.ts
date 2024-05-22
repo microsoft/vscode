@@ -889,14 +889,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const editor = this.tabsModel.getEditorByIndex(tabIndex);
 			if (editor) {
 				if (e.shiftKey) {
-					let anchor;
+					let anchor: EditorInput;
 					if (this.lastSingleSelectSelectedEditor && this.tabsModel.isSelected(this.lastSingleSelectSelectedEditor)) {
 						// The last selected editor is the anchor
 						anchor = this.lastSingleSelectSelectedEditor;
 					} else {
 						// The active editor is the anchor
-						this.lastSingleSelectSelectedEditor = this.groupView.activeEditor!;
-						anchor = this.groupView.activeEditor!;
+						const activeEditor = assertIsDefined(this.groupView.activeEditor);
+						this.lastSingleSelectSelectedEditor = activeEditor;
+						anchor = activeEditor;
 					}
 					await this.selectEditorsBetween(editor, anchor);
 				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
@@ -1292,7 +1293,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			throw new BugIndicatingError();
 		}
 
-		const selection = this.groupView.selectedEditors;
+		let selection = this.groupView.selectedEditors;
 
 		// Unselect editors on other side of anchor in relation to the target
 		let currentIndex = anchorIndex;
@@ -1308,7 +1309,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				break;
 			}
 
-			selection.filter(editor => !editor.matches(currentEditor));
+			selection = selection.filter(editor => !editor.matches(currentEditor));
 		}
 
 		// Select editors between anchor and target
@@ -1334,7 +1335,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			return;
 		}
 
-		let newActiveEditor = this.groupView.activeEditor!;
+		let newActiveEditor = assertIsDefined(this.groupView.activeEditor);
 
 		// If active editor is bing unselected then find the most recently opened selected editor
 		// that is not the editor being unselected
@@ -1355,7 +1356,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private async unselectAllEditors(): Promise<void> {
 		if (this.groupView.selectedEditors.length > 1) {
-			await this.groupView.setSelection(this.groupView.activeEditor!, []);
+			const activeEditor = assertIsDefined(this.groupView.activeEditor);
+			await this.groupView.setSelection(activeEditor, []);
 		}
 	}
 
@@ -1643,7 +1645,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
-
 		const isActive = this.tabsModel.isActive(editor);
 		const isSelected = this.tabsModel.isSelected(editor);
 
@@ -1657,7 +1658,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (isActive) {
 			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
 			tabContainer.classList.toggle('tab-border-bottom', !!activeTabBorderColorBottom);
-			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom?.toString() ?? '');
+			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom ?? '');
 		}
 
 		// Set border TOP if theme defined color
@@ -2219,30 +2220,30 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 			if (Array.isArray(data) && data.length > 0) {
-				const sourceGroup = data.length ? this.editorPartsView.getGroup(data[0].identifier.groupId) : undefined;
-				const isLocalMove = sourceGroup === this.groupView;
+				const sourceGroup = this.editorPartsView.getGroup(data[0].identifier.groupId);
+				if (sourceGroup) {
+					for (const de of data) {
+						const editor = de.identifier.editor;
 
-				// Keep the same order when moving / copying editors within the same group
-				for (const de of data) {
-					const editor = de.identifier.editor;
+						// Only allow moving/copying from a single group source
+						if (sourceGroup.id !== de.identifier.groupId) {
+							continue;
+						}
 
-					// Only allow moving/copying from a single group source
-					if (!sourceGroup || sourceGroup.id !== de.identifier.groupId) {
-						continue;
+						// Keep the same order when moving / copying editors within the same group
+						const sourceEditorIndex = sourceGroup.getIndexOfEditor(editor);
+						if (sourceGroup === this.groupView && sourceEditorIndex < targetEditorIndex) {
+							targetEditorIndex--;
+						}
+
+						if (this.isMoveOperation(e, de.identifier.groupId, editor)) {
+							sourceGroup.moveEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
+						} else {
+							sourceGroup.copyEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
+						}
+
+						targetEditorIndex++;
 					}
-
-					const sourceEditorIndex = sourceGroup.getIndexOfEditor(editor);
-					if (isLocalMove && sourceEditorIndex < targetEditorIndex) {
-						targetEditorIndex--;
-					}
-
-					if (this.isMoveOperation(e, de.identifier.groupId, editor)) {
-						sourceGroup.moveEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
-					} else {
-						sourceGroup.copyEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
-					}
-
-					targetEditorIndex++;
 				}
 			}
 

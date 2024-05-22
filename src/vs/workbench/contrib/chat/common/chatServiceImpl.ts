@@ -6,6 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -656,6 +657,23 @@ export class ChatService extends Disposable implements IChatService {
 						});
 					}
 				}
+			} catch (err) {
+				const result = 'error';
+				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+					timeToFirstProgress: undefined,
+					totalTime: undefined,
+					result,
+					requestType,
+					agent: agentPart?.agent.id ?? '',
+					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
+					chatSessionId: model.sessionId,
+					location
+				});
+				const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
+				model.setResponse(request, rawResult);
+				completeResponseCreated();
+				this.trace('sendRequest', `Error while handling request: ${toErrorMessage(err)}`);
+				model.completeResponse(request);
 			} finally {
 				listener.dispose();
 			}
@@ -724,7 +742,9 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (model.initialLocation === ChatAgentLocation.Panel) {
-			this._persistedSessions[sessionId] = model.toJSON();
+			// Turn all the real objects into actual JSON, otherwise, calling 'revive' may fail when it tries to
+			// assign values to properties that are getters- microsoft/vscode-copilot-release#1233
+			this._persistedSessions[sessionId] = JSON.parse(JSON.stringify(model));
 		}
 
 		this._sessionModels.deleteAndDispose(sessionId);
