@@ -792,6 +792,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
 	readonly sqmId = 'someValue.sqmId';
+	readonly vsDeviceId = 'someValue.vsDeviceId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
