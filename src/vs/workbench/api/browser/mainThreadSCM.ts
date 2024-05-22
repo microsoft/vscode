@@ -576,7 +576,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		for (const group of groups) {
-			resourceGroupDisposables.set(group[0], this._resourceGroupActions.acquire(group[1], group[2]));
+			const ref = this._resourceGroupActions.acquire(group[1], group[2]);
+			resourceGroupDisposables.set(group[0], { dispose: () => ref.dispose() });
 		}
 	}
 
