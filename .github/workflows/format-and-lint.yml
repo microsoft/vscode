@@ -1,6 +1,6 @@
 name: Check Format and Lint
 
-on: [push, pull_request]
+on: [push, pull_request_target]
 
 jobs:
   lint-and-format:
@@ -9,6 +9,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v3

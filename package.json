@@ -1,7 +1,7 @@
 {
   "name": "pearai",
-  "version": "1.89.0",
-  "distro": "853f475a6e8e85ad811a2f8e49c3032bdb660558",
+  "version": "1.89.1",
+  "distro": "25c9442cad1fee4c5b7fd96dd526ae00022f881b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -30,7 +30,7 @@
     "watch-extensions": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js watch-extensions watch-extension-media",
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
-    "precommit": "",
+    "precommit": "node build/hygiene.js",
     "gulp": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron",
     "7z": "7z",
@@ -81,14 +81,14 @@
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",
     "@vscode/windows-registry": "^1.1.0",
-    "@xterm/addon-canvas": "0.8.0-beta.2",
-    "@xterm/addon-image": "0.9.0-beta.2",
-    "@xterm/addon-search": "0.16.0-beta.2",
-    "@xterm/addon-serialize": "0.14.0-beta.2",
-    "@xterm/addon-unicode11": "0.9.0-beta.2",
-    "@xterm/addon-webgl": "0.19.0-beta.2",
-    "@xterm/headless": "5.6.0-beta.2",
-    "@xterm/xterm": "5.6.0-beta.2",
+    "@xterm/addon-canvas": "0.8.0-beta.17",
+    "@xterm/addon-image": "0.9.0-beta.17",
+    "@xterm/addon-search": "0.16.0-beta.17",
+    "@xterm/addon-serialize": "0.14.0-beta.17",
+    "@xterm/addon-unicode11": "0.9.0-beta.17",
+    "@xterm/addon-webgl": "0.19.0-beta.17",
+    "@xterm/headless": "5.6.0-beta.17",
+    "@xterm/xterm": "5.6.0-beta.17",
     "graceful-fs": "4.2.11",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
@@ -197,8 +197,8 @@
     "path-browserify": "^1.0.1",
     "postcss": "^8.4.33",
     "postcss-nesting": "^12.0.2",
-    "prettier": "3.2.5",
     "pump": "^1.0.1",
+    "prettier": "3.2.5",
     "rcedit": "^1.1.0",
     "rimraf": "^2.2.8",
     "sinon": "^12.0.1",
@@ -221,10 +221,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/trypear/pearai-app.git"
+    "url": "https://github.com/microsoft/vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/trypear/pearai-app/issues"
+    "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
