@@ -91,11 +91,13 @@ export interface IUserDataProfileImportExportService {
 	registerProfileContentHandler(id: string, profileContentHandler: IUserDataProfileContentHandler): IDisposable;
 	unregisterProfileContentHandler(id: string): void;
 
+	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
 	exportProfile(): Promise<void>;
+	exportProfile2(profile: IUserDataProfile): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
 	createProfile(from?: IUserDataProfile | URI): Promise<void>;
-	createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void>;
+	createFromProfile(from: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void>;
 	editProfile(profile: IUserDataProfile): Promise<void>;
 	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;

@@ -73,18 +73,29 @@
 	flex: 1;
 }
 
-.profiles-editor .contents-container .profile-header .profile-button-container {
-	width: 150px;
+.profiles-editor .contents-container .profile-header .profile-actions-container {
+	display: flex;
+	height: 28px;
+}
+
+.profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container {
+	margin-left: 5px;
+	min-width: 120px;
+}
+
+.profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container .monaco-button {
+	padding-left: 10px;
+	padding-right: 10px;
 }
 
 .profiles-editor .contents-container .profile-body {
-	margin: 20px 0px 0px 10px;
+	margin-top: 20px;
 }
 
 .profiles-editor .contents-container .profile-name-container {
-	margin-bottom: 20px;
+	margin: 0px 0px 20px 15px;
 	display: flex;
-	width: 300px;
+	width: 330px;
 	align-items: center;
 }
 
@@ -99,42 +110,56 @@
 	margin-left: 10px;
 }
 
-.profiles-editor .contents-container .profile-copy-from-container {
-	display: flex;
-	align-items: center;
-	margin-bottom: 20px;
-}
-
-.profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
-	width: 90px;
-	display: inline-flex;
-	align-items: center;
-}
-
-.profiles-editor .contents-container .profile-copy-from-container > .profile-select-container {
+.profiles-editor .contents-container .profile-select-container {
 	overflow: hidden;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 210px;
 }
 
-.profiles-editor .contents-container .profile-copy-from-container > .profile-select-container > .monaco-select-box {
+.profiles-editor .contents-container .profile-select-container > .monaco-select-box {
 	cursor: pointer;
 	line-height: 17px;
 	padding: 2px 23px 2px 8px;
 	border-radius: 2px;
 }
 
-.profiles-editor .contents-container .profile-flags-container {
+.profiles-editor .contents-container .profile-copy-from-container {
 	display: flex;
 	align-items: center;
-	margin: 5px 0px;
-	height: 24px;
+	margin: 0px 0px 20px 20px;
 }
 
-.profiles-editor .contents-container .profile-flags-container > .useDefaultProfile {
-	padding-left: 10px;
-	opacity: 0.7;
+.profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
+	margin-right: 10px;
+	display: inline-flex;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-copy-from-container > .profile-select-container {
+	width: 250px;
+}
+
+.profiles-editor .contents-container .profile-contents-container {
+	margin: 0px 0px 10px 20px;
+	font-size: medium;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container {
+	display: flex;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
+	width: 250px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-select-container {
+	width: 170px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .profile-resource-type-description {
+	margin-left: 10px;
 	font-size: 0.9em;
+	opacity: 0.7;
 }

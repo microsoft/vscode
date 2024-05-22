@@ -555,7 +555,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, async () => {
 				exportAction.enabled = false;
 				try {
-					await this.doExportProfile(userDataProfilesExportState);
+					await this.doExportProfile(userDataProfilesExportState, EXPORT_PROFILE_PREVIEW_VIEW);
 				} catch (error) {
 					exportAction.enabled = true;
 					this.notificationService.error(error);
@@ -567,6 +567,16 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(e => barrier.open()));
 			await barrier.wait();
 			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
+		} finally {
+			disposables.dispose();
+		}
+	}
+
+	async exportProfile2(profile: IUserDataProfile): Promise<void> {
+		const disposables = new DisposableStore();
+		try {
+			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, profile));
+			await this.doExportProfile(userDataProfilesExportState, ProgressLocation.Notification);
 		} finally {
 			disposables.dispose();
 		}
@@ -620,7 +630,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	private async doExportProfile(userDataProfilesExportState: UserDataProfileExportState): Promise<void> {
+	private async doExportProfile(userDataProfilesExportState: UserDataProfileExportState, location: ProgressLocation | string): Promise<void> {
 		const profile = await userDataProfilesExportState.getProfileToExport();
 		if (!profile) {
 			return;
@@ -632,7 +642,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 		try {
 			await this.progressService.withProgress({
-				location: EXPORT_PROFILE_PREVIEW_VIEW,
+				location,
 				title: localize('profiles.exporting', "{0}: Exporting...", PROFILES_CATEGORY.value),
 			}, async progress => {
 				const id = await this.pickProfileContentHandler(profile.name);
@@ -685,7 +695,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	private async resolveProfileTemplate(uri: URI, options?: IProfileImportOptions): Promise<IUserDataProfileTemplate | null> {
+	async resolveProfileTemplate(uri: URI, options?: IProfileImportOptions): Promise<IUserDataProfileTemplate | null> {
 		const profileContent = await this.resolveProfileContent(uri);
 		if (profileContent === null) {
 			return null;
