@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorPart, IEditorPartUIState, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
@@ -127,9 +127,13 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			this.updateGlobalContextKeys();
 			this._onDidActiveGroupChange.fire(group);
 		}));
-		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
+		disposables.add(part.onDidAddGroup(group => {
+			this.registerRunContextKeyProvider(group);
+			this._onDidAddGroup.fire(group);
+		}));
 		disposables.add(part.onDidRemoveGroup(group => {
 			this.removeGroupScopedContextKeys(group);
+			this.unregisterRunContextKeyProvider(group);
 			this._onDidRemoveGroup.fire(group);
 		}));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
@@ -738,11 +742,19 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		});
 	}
 
-	runRegisteredContextProviders(group: IEditorGroupView): void {
-		// Run all registered context key providers for the group
-		for (const contextKeyProvider of this.contextKeyProviders.values()) {
-			this.runRegisteredContextKeyProvider(group, contextKeyProvider);
-		}
+	private groupContextKeyProviderRunners = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
+	private registerRunContextKeyProvider(group: IEditorGroupView): void {
+		// Run the context key providers when the active editor changes
+		const disposable = group.onDidActiveEditorChange(() => {
+			for (const contextKeyProvider of this.contextKeyProviders.values()) {
+				this.runRegisteredContextKeyProvider(group, contextKeyProvider);
+			}
+		});
+		this.groupContextKeyProviderRunners.set(group.id, disposable);
+	}
+
+	private unregisterRunContextKeyProvider(group: IEditorGroupView): void {
+		this.groupContextKeyProviderRunners.deleteAndDispose(group.id);
 	}
 
 	private runRegisteredContextKeyProvider(group: IEditorGroupView, provider: IContextKeyProvider): void {
