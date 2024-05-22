@@ -15,7 +15,7 @@ export interface ISharedProcessConfiguration {
 
 	readonly sqmId: string;
 
-	readonly vsDeviceId: string;
+	readonly devDeviceId: string;
 
 	readonly codeCachePath: string | undefined;
 

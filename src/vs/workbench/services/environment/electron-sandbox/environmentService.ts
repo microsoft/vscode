@@ -39,7 +39,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly os: IOSConfiguration;
 	readonly machineId: string;
 	readonly sqmId: string;
-	readonly vsDeviceId: string;
+	readonly devDeviceId: string;
 
 	// --- Paths
 	readonly execPath: string;
@@ -65,7 +65,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get sqmId() { return this.configuration.sqmId; }
 
 	@memoize
-	get vsDeviceId() { return this.configuration.vsDeviceId; }
+	get devDeviceId() { return this.configuration.devDeviceId; }
 
 	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
