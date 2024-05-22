@@ -72,9 +72,9 @@ class AttachContextAction extends Action2 {
 					toAttach.push({ ...pick, isDynamic: pick.isDynamic, value: pick.value, name: qualifiedName, fullName: `$(${pick.icon.id}) ${selection}` });
 				}
 			} else if (pick && typeof pick === 'object' && 'resource' in pick) {
-				toAttach.push({ ...pick, value: pick.resource });
+				toAttach.push({ ...pick, value: pick.resource, name: pick.label, id: pick.resource.toString(), isDynamic: true });
 			} else {
-				toAttach.push({ ...pick, fullName: pick.label });
+				toAttach.push({ ...pick, fullName: pick.label, name: 'name' in pick && typeof pick.name === 'string' ? pick.name : pick.label, icon: 'icon' in pick && ThemeIcon.isThemeIcon(pick.icon) ? pick.icon : undefined });
 			}
 		}
 
