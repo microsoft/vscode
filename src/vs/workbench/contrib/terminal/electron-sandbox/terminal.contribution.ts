@@ -13,6 +13,8 @@ import { TerminalNativeContribution } from 'vs/workbench/contrib/terminal/electr
 import { ElectronTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalProfileResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal.js';
+import { ElectronTerminalInstanceService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalInstanceService.js';
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
@@ -25,3 +27,6 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 // terminal while connecting to the remote.
 registerWorkbenchContribution2(LocalTerminalBackendContribution.ID, LocalTerminalBackendContribution, WorkbenchPhase.BlockStartup);
 workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, LifecyclePhase.Restored);
+
+
+registerSingleton(ITerminalInstanceService, ElectronTerminalInstanceService, InstantiationType.Delayed);

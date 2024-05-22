@@ -51,7 +51,6 @@ import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
-import { IWebUtilsService } from 'vs/workbench/contrib/webUtils/browser/webUtils';
 
 const $ = DOM.$;
 
@@ -578,7 +577,6 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IWebUtilsService private readonly _webUtilsService: IWebUtilsService,
 	) {
 		super();
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
