@@ -41,7 +41,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IMenuService, MenuId, IMenu, IMenuChangeEvent } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
@@ -867,7 +867,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
 	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable { return Disposable.None; }
-	registerContextKeyProvider(_provider: IEditorGroupContextKeyProvider): IDisposable { throw new Error('not implemented'); }
+	registerContextKeyProvider<T extends ContextKeyValue>(_provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('not implemented'); }
 
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
@@ -1844,7 +1844,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean> { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 
-	registerContextKeyProvider(provider: IEditorGroupContextKeyProvider): IDisposable { throw new Error('Method not implemented.'); }
+	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('Method not implemented.'); }
 }
 
 export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
