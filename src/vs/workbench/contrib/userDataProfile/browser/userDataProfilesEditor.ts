@@ -58,6 +58,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { AbstractUserDataProfileElement, IProfileElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
 import { Codicon } from 'vs/base/common/codicons';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -445,7 +446,12 @@ class ProfileWidget extends Disposable {
 		this.profileTitle = append(title, $('span'));
 		const actionsContainer = append(header, $('.profile-actions-container'));
 		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
-		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, actionsContainer, undefined));
+		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar,
+			actionsContainer,
+			{
+				hoverDelegate: this._register(createInstantHoverDelegate()),
+			}
+		));
 
 		const body = append(parent, $('.profile-body'));
 
