@@ -12,15 +12,15 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILocalPtyService, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IViewsRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/terminal/browser/terminal.contribution.js';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal.js';
+import { VIEW_CONTAINER } from 'vs/workbench/contrib/terminal/browser/terminal.contribution';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { ITerminalProfileResolverService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend';
-import { ElectronTerminalInstanceService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalInstanceService.js';
+import { ElectronTerminalInstanceService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalInstanceService';
 import { TerminalNativeContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalNativeContribution';
 import { ElectronTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalProfileResolverService';
-import { ElectronTerminalViewPane } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalView.js';
+import { ElectronTerminalViewPane } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalView';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 
