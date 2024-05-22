@@ -580,9 +580,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		// Inactive Editor closed
 		else if (!isActiveEditor) {
 			if (this.doIsSelected(editor)) {
-				const activeEditor = this.selection[0];
+				const activeEditor = this.activeEditor;
 				const newInactiveSelection = this.selection.filter(selected => selected !== editor && selected !== activeEditor);
-				this.doSetSelection(activeEditor, this.indexOf(activeEditor), newInactiveSelection);
+				this.doSetSelection(activeEditor!, this.indexOf(activeEditor), newInactiveSelection);
 			}
 		}
 
@@ -706,45 +706,44 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this.selection.includes(editor);
 	}
 
-	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): void {
-		const res = this.findEditor(activeSelectedEditor);
+	setSelection(activeSelectedEditorCandidate: EditorInput, inactiveSelectedEditorCandidates: EditorInput[]): void {
+		const res = this.findEditor(activeSelectedEditorCandidate);
 		if (!res) {
 			return; // not found
 		}
 
-		const [newActiveEditor, newActiveEditorIndex] = res;
+		const [activeSelectedEditor, activeSelectedEditorIndex] = res;
 
-		// Validate inactive selection and ensure they are not duplicates
-		const newInactiveSelection: EditorInput[] = [];
-		for (const candiate of inactiveSelectedEditors) {
-			const res = this.findEditor(candiate);
+		const inactiveSelectedEditors = new Set<EditorInput>();
+		for (const inactiveSelectedEditorCandidate of inactiveSelectedEditorCandidates) {
+			const res = this.findEditor(inactiveSelectedEditorCandidate);
 			if (!res) {
-				return; // not found
+				continue; // not found
 			}
 
-			const [inactiveEditor] = res;
-
-			if (inactiveEditor === newActiveEditor || newInactiveSelection.includes(inactiveEditor)) {
-				continue; // dedupe
+			const [inactiveSelectedEditor] = res;
+			if (inactiveSelectedEditor === activeSelectedEditor) {
+				continue; // already selected
 			}
 
-			newInactiveSelection.push(inactiveEditor);
+			inactiveSelectedEditors.add(inactiveSelectedEditor);
 		}
 
-		this.doSetSelection(newActiveEditor, newActiveEditorIndex, newInactiveSelection);
+		this.doSetSelection(activeSelectedEditor, activeSelectedEditorIndex, Array.from(inactiveSelectedEditors));
 	}
 
 	private doSetSelection(activeSelectedEditor: EditorInput, activeSelectedEditorIndex: number, inactiveSelectedEditors: EditorInput[]): void {
-		const previousActiveEditor = this.selection[0];
+		const previousActiveEditor = this.activeEditor;
 		const previousSelection = this.selection;
 		const newSelection = [activeSelectedEditor, ...inactiveSelectedEditors];
 
 		// Update selection
 		this.selection = newSelection;
 
-		// Update MRU if active editor has changed and fire event
+		// Update active editor if it has changed
 		const activeEditorChanged = !this.matches(previousActiveEditor, activeSelectedEditor);
 		if (activeEditorChanged) {
+
 			// Bring to front in MRU list
 			const mruIndex = this.indexOf(activeSelectedEditor, this.mru);
 			this.mru.splice(mruIndex, 1);
@@ -760,10 +759,13 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 
 		// Fire event if the selection has changed
-		const selectionChanged = activeEditorChanged || previousSelection.length !== newSelection.length || previousSelection.some(editor => !newSelection.includes(editor));
-		if (selectionChanged) {
+		if (
+			activeEditorChanged ||
+			previousSelection.length !== newSelection.length ||
+			previousSelection.some(editor => !newSelection.includes(editor))
+		) {
 			const event: IGroupModelChangeEvent = {
-				kind: GroupModelChangeKind.EDITORS_SELECTION,
+				kind: GroupModelChangeKind.EDITORS_SELECTION
 			};
 			this._onDidModelChange.fire(event);
 		}
