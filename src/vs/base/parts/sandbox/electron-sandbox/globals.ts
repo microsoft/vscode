@@ -13,6 +13,11 @@ import { IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils } from 'vs/base/part
 export interface ISandboxNodeProcess extends INodeProcess {
 
 	/**
+	 * The process.pid property returns the process ID of the process.
+	 */
+	readonly pid: number;
+
+	/**
 	 * The process.platform property returns a string identifying the operating system platform
 	 * on which the Node.js process is running.
 	 */

@@ -187,9 +187,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					this._register(that.onDidCompositeClose.event(e => this.onScopeClosed(e.getId())));
 				}
 			}());
-			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+			const compositeInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
-			));
+			)));
 
 			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
 			const disposable = new DisposableStore();
