@@ -40,15 +40,10 @@ impl DownloadCache {
 	/// on the persistant storage, else returns a new DownloadCache.
 	pub fn load(path: PathBuf) -> DownloadCache {
 		let state = PersistedState::<Vec::<String>>::new(path.join(PERSISTED_STATE_FILE_NAME));
-		match state.load().is_empty() {
-			true => DownloadCache {
-				state: PersistedState::new(path.join(PERSISTED_STATE_FILE_NAME)),
-				path,
-			},
-			false => DownloadCache {
-				state,
-				path,
-			}
+		state.load();
+		DownloadCache {
+			state,
+			path,
 		}
 	}
 
