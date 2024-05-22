@@ -35,7 +35,6 @@ interface ITracingData {
 
 interface IHeapStatistics {
 	readonly used: number;
-	readonly allocated: number;
 	readonly garbage: number;
 	readonly majorGCs: number;
 	readonly minorGCs: number;
@@ -161,10 +160,10 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 			return undefined; // unexpected arguments for startup heap statistics
 		}
 
+		const used = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize ?? 0; // https://developer.mozilla.org/en-US/docs/Web/API/Performance/memory
+
 		let minorGCs = 0;
 		let majorGCs = 0;
-		const used = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize ?? 0;
-		let allocated = 0;
 		let garbage = 0;
 		let duration = 0;
 
@@ -184,7 +183,6 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 						majorGCs++;
 						if (event.args && typeof event.args.usedHeapSizeAfter === 'number' && typeof event.args.usedHeapSizeBefore === 'number') {
 							garbage += (event.args.usedHeapSizeBefore - event.args.usedHeapSizeAfter);
-							allocated = event.args.usedHeapSizeAfter + garbage;
 						}
 						break;
 
@@ -196,7 +194,7 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 				}
 			}
 
-			return { minorGCs, majorGCs, used, allocated, garbage, duration: Math.round(duration / 1000) };
+			return { minorGCs, majorGCs, used, garbage, duration: Math.round(duration / 1000) };
 		} catch (error) {
 			console.error(error);
 		}
@@ -204,12 +202,11 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		return undefined;
 	}
 
-	private _telemetryLogHeapStatistics({ used, allocated, garbage, majorGCs, minorGCs, duration }: IHeapStatistics): void {
+	private _telemetryLogHeapStatistics({ used, garbage, majorGCs, minorGCs, duration }: IHeapStatistics): void {
 		type StartupHeapStatisticsClassification = {
 			owner: 'bpasero';
 			comment: 'An event that reports startup heap statistics for performance analysis.';
 			heapUsed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Used heap' };
-			heapAllocated: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allocated heap' };
 			heapGarbage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Garbage heap' };
 			majorGCs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Major GCs count' };
 			minorGCs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Minor GCs count' };
@@ -217,7 +214,6 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		};
 		type StartupHeapStatisticsEvent = {
 			heapUsed: number;
-			heapAllocated: number;
 			heapGarbage: number;
 			majorGCs: number;
 			minorGCs: number;
@@ -225,7 +221,6 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		};
 		this._telemetryService.publicLog2<StartupHeapStatisticsEvent, StartupHeapStatisticsClassification>('startupHeapStatistics', {
 			heapUsed: used,
-			heapAllocated: allocated,
 			heapGarbage: garbage,
 			majorGCs,
 			minorGCs,
@@ -233,8 +228,8 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		});
 	}
 
-	private _printStartupHeapStatistics({ used, allocated, garbage, majorGCs, minorGCs, duration }: IHeapStatistics) {
+	private _printStartupHeapStatistics({ used, garbage, majorGCs, minorGCs, duration }: IHeapStatistics) {
 		const MB = 1024 * 1024;
-		return `Heap: ${Math.round(used / MB)}MB (used) ${Math.round(allocated / MB)}MB (allocated) ${Math.round(garbage / MB)}MB (garbage) ${majorGCs} (MajorGC) ${minorGCs} (MinorGC) ${duration}ms (GC duration)`;
+		return `Heap: ${Math.round(used / MB)}MB (used) ${Math.round(garbage / MB)}MB (garbage) ${majorGCs} (MajorGC) ${minorGCs} (MinorGC) ${duration}ms (GC duration)`;
 	}
 }
