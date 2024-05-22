@@ -18,7 +18,8 @@ import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSi
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { AbstractTokens, AttachedViews } from 'vs/editor/common/model/tokens';
 import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _colorThemeData: ColorThemeData;
@@ -194,12 +195,27 @@ class TextModelTokens extends Disposable {
 				newEndPosition: { row: newEndPosition.lineNumber - 1, column: newEndPosition.column - 1 }
 			});
 		}
-		this._tree = this._parser.parse(this._textModel.getValue(), this._tree);
+		this._tree = this._parser.parse((index: number, position?: Parser.Point) => this._parseCallback(index, position), this._tree);
+	}
+
+	private _parseCallback(index: number, position?: Parser.Point): string | null {
+		try {
+			const modelPositionStart: Position = position ? new Position(position.row + 1, position.column + 1) : this._textModel.getPositionAt(index);
+			let modelPositionEnd = this._textModel.getPositionAt(index + 1);
+			let value = this._textModel.getValueInRange(Range.fromPositions(modelPositionStart, modelPositionEnd));
+			if (value.length === 0) { // When we hit the end of the line the value is an empty string, we need to get the next character.
+				modelPositionEnd = this._textModel.getPositionAt(index + 2);
+				value = this._textModel.getValueInRange(Range.fromPositions(modelPositionStart, modelPositionEnd));
+			}
+			return value;
+		} catch (e) {
+			return null;
+		}
 	}
 
 	private _ensureTree() {
 		if (!this._tree) {
-			this._tree = this._parser.parse(this._textModel.getValue());
+			this._tree = this._parser.parse((index: number, position?: Parser.Point) => this._parseCallback(index, position));
 		}
 		return this._tree;
 	}
