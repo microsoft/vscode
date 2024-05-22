@@ -154,7 +154,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				return {
 					command: agentCommand.name,
 					detail: agentCommand.description,
-					refer: agentCommand.name === 'explain' // TODO@jrieken @joyceerhl this should be cleaned up
 				} satisfies IInlineChatSlashCommand;
 			})
 		};

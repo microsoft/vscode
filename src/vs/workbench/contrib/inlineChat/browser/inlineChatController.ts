@@ -29,8 +29,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatAgentLeader, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IInlineChatSavingService } from './inlineChatSavingService';
 import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -42,12 +40,10 @@ import { StashedSession } from './inlineChatSession';
 import { IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { tail } from 'vs/base/common/arrays';
-import { IChatRequestModel, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatRequestModel, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { isEqual } from 'vs/base/common/resources';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
@@ -144,7 +140,6 @@ export class InlineChatController implements IEditorContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -428,14 +423,14 @@ export class InlineChatController implements IEditorContribution {
 				});
 			} else if (e.kind === 'removeRequest') {
 				// TODO@jrieken this currently is buggy when removing not the very last request/response
-				if (this._session!.lastExchange?.response instanceof ReplyResponse) {
-					try {
-						this._session!.hunkData.ignoreTextModelNChanges = true;
-						await this._strategy!.undoChanges(this._session!.lastExchange.response.modelAltVersionId);
-					} finally {
-						this._session!.hunkData.ignoreTextModelNChanges = false;
-					}
-				}
+				// if (this._session!.lastExchange?.response instanceof ReplyResponse) {
+				// 	try {
+				// 		this._session!.hunkData.ignoreTextModelNChanges = true;
+				// 		await this._strategy!.undoChanges(this._session!.lastExchange.response.modelAltVersionId);
+				// 	} finally {
+				// 		this._session!.hunkData.ignoreTextModelNChanges = false;
+				// 	}
+				// }
 			}
 		}));
 
@@ -468,7 +463,6 @@ export class InlineChatController implements IEditorContribution {
 						kind: CompletionItemKind.Text,
 						insertText: withSlash,
 						range: Range.fromPositions(new Position(1, 1), position),
-						command: command.executeImmediately ? { id: 'workbench.action.chat.acceptInput', title: withSlash } : undefined
 					});
 				}
 
@@ -599,55 +593,18 @@ export class InlineChatController implements IEditorContribution {
 		const input = request.message.text;
 		this._zone.value.widget.value = input;
 
-		// slash command referring
-		let slashCommandLike = request.message.parts.find(part => part instanceof ChatRequestAgentSubcommandPart || part instanceof ChatRequestSlashCommandPart);
-		const refer = this._session.session.slashCommands?.some(value => {
-			if (value.refer) {
-				if (slashCommandLike?.text === `/${value.command}`) {
-					return true;
-				}
-				if (request?.message.text.startsWith(`/${value.command}`)) {
-					slashCommandLike = new ChatRequestSlashCommandPart(new OffsetRange(0, 1), new Range(1, 1, 1, 1), { command: value.command, detail: value.detail ?? '' });
-					return true;
-				}
-			}
-			return false;
-		});
-		if (refer && slashCommandLike && !this._session.lastExchange) {
-			this._log('[IE] seeing refer command, continuing outside editor', this._session.agent.extensionId);
-
-			// cancel this request
-			this._chatService.cancelCurrentRequestForSession(request.session.sessionId);
-
-			this._editor.setSelection(this._session.wholeRange.value);
-			let massagedInput = input;
-			const withoutSubCommandLeader = slashCommandLike.text.slice(1);
-			for (const agent of this._chatAgentService.getActivatedAgents()) {
-				if (agent.locations.includes(ChatAgentLocation.Panel)) {
-					const commands = agent.slashCommands;
-					if (commands.find((command) => withoutSubCommandLeader.startsWith(command.name))) {
-						massagedInput = `${chatAgentLeader}${agent.name} ${slashCommandLike.text}`;
-						break;
-					}
-				}
-			}
-			// if agent has a refer command, massage the input to include the agent name
-			await this._instaService.invokeFunction(sendRequest, massagedInput);
-
-			return State.ACCEPT;
-		}
-
 		this._session.addInput(new SessionPrompt(request));
 
 		return State.SHOW_REQUEST;
 	}
 
 
-	private async [State.SHOW_REQUEST](): Promise<State.SHOW_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT> {
+	private async [State.SHOW_REQUEST](): Promise<State.SHOW_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT | State.WAIT_FOR_INPUT> {
 		assertType(this._session);
 		assertType(this._session.chatModel.requestInProgress);
 
-		const request: IChatRequestModel | undefined = tail(this._session.chatModel.getRequests());
+		const { chatModel } = this._session;
+		const request: IChatRequestModel | undefined = chatModel.getRequests().at(-1);
 
 		assertType(request);
 		assertType(request.response);
@@ -667,18 +624,30 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
+		let next: State.SHOW_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT | State.WAIT_FOR_INPUT = State.SHOW_RESPONSE;
+		store.add(Event.once(this._messages.event)(message => {
+			this._log('state=_makeRequest) message received', message);
+			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
+			if (message & Message.CANCEL_SESSION) {
+				next = State.CANCEL;
+			} else if (message & Message.PAUSE_SESSION) {
+				next = State.PAUSE;
+			} else if (message & Message.ACCEPT_SESSION) {
+				next = State.ACCEPT;
+			}
+		}));
 
-
-		let message = Message.NONE;
-		store.add(Event.once(this._messages.event)(m => {
-			this._log('state=_makeRequest) message received', m);
-			this._chatService.cancelCurrentRequestForSession(request.session.sessionId);
-			message = m;
+		store.add(chatModel.onDidChange(e => {
+			if (e.kind === 'removeRequest' && e.requestId === request.id) {
+				progressiveEditsCts.cancel();
+				responsePromise.complete();
+				next = State.CANCEL;
+			}
 		}));
 
 		// cancel the request when the user types
 		store.add(this._zone.value.widget.chatWidget.inputEditor.onDidChangeModelContent(() => {
-			this._chatService.cancelCurrentRequestForSession(request.session.sessionId);
+			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
 		}));
 
 		let lastLength = 0;
@@ -754,16 +723,9 @@ export class InlineChatController implements IEditorContribution {
 		await this._session.hunkData.recompute();
 
 		this._zone.value.widget.updateToolbar(true);
+		this._zone.value.widget.updateProgress(false);
 
-		if (message & Message.CANCEL_SESSION) {
-			return State.CANCEL;
-		} else if (message & Message.PAUSE_SESSION) {
-			return State.PAUSE;
-		} else if (message & Message.ACCEPT_SESSION) {
-			return State.ACCEPT;
-		} else {
-			return State.SHOW_RESPONSE;
-		}
+		return next;
 	}
 
 	private async[State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT> {
@@ -1040,11 +1002,21 @@ export class InlineChatController implements IEditorContribution {
 		this._strategy?.move?.(next);
 	}
 
-
-	viewInChat() {
-		if (this._session?.lastExchange?.response instanceof ReplyResponse) {
-			this._instaService.invokeFunction(showMessageResponse, this._session.lastExchange.prompt.value, this._session.lastExchange.response.mdContent.value);
+	async viewInChat() {
+		if (!this._strategy || !this._session) {
+			return;
 		}
+
+		// TODO@jrieken REMOVE this as soon as we can mark responses as accepted
+		// and as soon as hunks support request-linking
+		const textEditsResponseCount = this._session.chatModel.getRequests().filter(request => request.response?.response.value.some(part => part.kind === 'textEditGroup')).length;
+		if (textEditsResponseCount > 1) {
+			return;
+		}
+
+		this._strategy.cancel();
+		await this._instaService.invokeFunction(moveToPanelChat, this._session?.chatModel);
+		this.cancelSession();
 	}
 
 	toggleDiff() {
@@ -1061,7 +1033,7 @@ export class InlineChatController implements IEditorContribution {
 		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
 			const response = this._session?.lastExchange?.response.chatResponse;
 			this._chatService.notifyUserAction({
-				sessionId: response.session.sessionId,
+				sessionId: this._session.chatModel.sessionId,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
 				result: response.result,
@@ -1093,7 +1065,7 @@ export class InlineChatController implements IEditorContribution {
 			if (this._session.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
 				const response = this._session?.lastExchange?.response.chatResponse;
 				this._chatService.notifyUserAction({
-					sessionId: response.session.sessionId,
+					sessionId: this._session.chatModel.sessionId,
 					requestId: response.requestId,
 					agentId: response.agent?.id,
 					result: response.result,
@@ -1134,33 +1106,19 @@ export class InlineChatController implements IEditorContribution {
 	}
 }
 
-async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
-	const chatService = accessor.get(IChatService);
-	const chatAgentService = accessor.get(IChatAgentService);
-	const agent = chatAgentService.getActivatedAgents().find(agent => agent.locations.includes(ChatAgentLocation.Panel) && agent.isDefault);
-	if (!agent) {
-		return;
-	}
+async function moveToPanelChat(accessor: ServicesAccessor, model: ChatModel | undefined) {
 
-	const widget = await showChatView(accessor.get(IViewsService));
-	if (widget && widget.viewModel) {
-		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, 0, { message: response });
+	const viewsService = accessor.get(IViewsService);
+	const chatService = accessor.get(IChatService);
+
+	const widget = await showChatView(viewsService);
+
+	if (widget && widget.viewModel && model) {
+		for (const request of model.getRequests().slice()) {
+			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+		}
 		widget.focusLastMessage();
 	}
-}
-
-async function sendRequest(accessor: ServicesAccessor, query: string) {
-	const chatAgentService = accessor.get(IChatAgentService);
-	const agent = chatAgentService.getActivatedAgents().find(agent => agent.locations.includes(ChatAgentLocation.Panel) && agent.isDefault);
-	if (!agent) {
-		return;
-	}
-	const widget = await showChatView(accessor.get(IViewsService));
-	if (!widget) {
-		return;
-	}
-	widget.focusInput();
-	widget.acceptInput(query);
 }
 
 function asInlineChatResponseType(response: IResponse): InlineChatResponseTypes {
