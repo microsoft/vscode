@@ -5,8 +5,8 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
+import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable, ReferenceCollection, DisposableMap } from 'vs/base/common/lifecycle';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -25,6 +25,11 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel } from 'vs/editor/common/model';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { localize2 } from 'vs/nls';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -55,6 +60,33 @@ class SCMInputBoxContentProvider extends Disposable implements ITextModelContent
 			return existing;
 		}
 		return this.modelService.createModel('', this.languageService.createById('scminput'), resource);
+	}
+}
+
+class SCMResourceGroupActionReferenceCollection extends ReferenceCollection<IDisposable> {
+	protected override createReferencedObject(key: string, ...args: any[]): IDisposable {
+		return registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.scm.action.focus.${key}`,
+					title: { ...localize2('focusResourceGroup', "Focus on {0} Source Control Resource Group", args[0] as string) },
+					category: localize2('source control', "Source Control"),
+					f1: true
+				});
+			}
+
+			override async run(accessor: ServicesAccessor) {
+				const viewsService = accessor.get(IViewsService);
+				const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+				if (scmView) {
+					scmView.focusResourceGroup(key);
+				}
+			}
+		});
+	}
+
+	protected override destroyReferencedObject(key: string, object: IDisposable): void {
+		object.dispose();
 	}
 }
 
@@ -443,6 +475,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	private readonly _proxy: ExtHostSCMShape;
 	private _repositories = new Map<number, ISCMRepository>();
 	private _repositoryDisposables = new Map<number, IDisposable>();
+	private _resourceGroupActions = new SCMResourceGroupActionReferenceCollection();
+	private _resourceGroupDisposables = new Map<number, DisposableMap<number>>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -494,6 +528,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		this._repositoryDisposables.set(handle, disposable);
+		this._resourceGroupDisposables.set(handle, new DisposableMap<number>());
 	}
 
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
@@ -514,6 +549,9 @@ export class MainThreadSCM implements MainThreadSCMShape {
 			return;
 		}
 
+		this._resourceGroupDisposables.get(handle)!.dispose();
+		this._resourceGroupDisposables.delete(handle);
+
 		this._repositoryDisposables.get(handle)!.dispose();
 		this._repositoryDisposables.delete(handle);
 
@@ -531,6 +569,15 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$registerGroups(groups);
 		provider.$spliceGroupResourceStates(splices);
+
+		const resourceGroupDisposables = this._resourceGroupDisposables.get(sourceControlHandle);
+		if (!resourceGroupDisposables) {
+			return;
+		}
+
+		for (const group of groups) {
+			resourceGroupDisposables.set(group[0], this._resourceGroupActions.acquire(group[1], group[2]));
+		}
 	}
 
 	$updateGroup(sourceControlHandle: number, groupHandle: number, features: SCMGroupFeatures): void {
@@ -575,6 +622,13 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$unregisterGroup(handle);
+
+		const resourceGroupDisposables = this._resourceGroupDisposables.get(sourceControlHandle);
+		if (!resourceGroupDisposables) {
+			return;
+		}
+
+		resourceGroupDisposables.deleteAndDispose(handle);
 	}
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void {

@@ -1962,7 +1962,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.focusInput',
-			title: { ...localize2('focusInput', "Focus Input") },
+			title: { ...localize2('focusInput', "Focus on Source Control Input") },
 			category: localize2('source control', "Source Control"),
 			precondition: ContextKeys.RepositoryCount.notEqualsTo(0),
 			f1: true
@@ -3459,6 +3459,25 @@ export class SCMViewPane extends ViewPane {
 				if (this.scmViewService.focusedRepository) {
 					this.tree.reveal(this.scmViewService.focusedRepository.input, 0.5);
 					this.inputRenderer.getRenderedInputWidget(this.scmViewService.focusedRepository.input)?.focus();
+				}
+
+				resolve();
+			});
+		});
+	}
+
+	focusResourceGroup(id: string): void {
+		this.treeOperationSequencer.queue(() => {
+			return new Promise<void>(resolve => {
+				if (this.scmViewService.focusedRepository) {
+					const resourceGroup = this.scmViewService.focusedRepository.provider.groups.find(g => g.id === id);
+					if (resourceGroup && this.tree.hasElement(resourceGroup)) {
+						this.tree.reveal(resourceGroup, 0.5);
+
+						this.tree.setSelection([resourceGroup]);
+						this.tree.setFocus([resourceGroup]);
+						this.tree.domFocus();
+					}
 				}
 
 				resolve();
