@@ -54,8 +54,7 @@ impl DownloadCache {
 
 	/// Gets the value stored on the state
 	pub fn get(&self) -> Vec<String> {
-		let state_value = self.state.load();
-		state_value
+		self.state.load()
 	}
 
 	/// Gets the download cache path. Names of cache entries can be formed by
