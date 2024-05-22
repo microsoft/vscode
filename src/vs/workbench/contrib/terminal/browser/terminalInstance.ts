@@ -2289,7 +2289,6 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		private readonly _container: HTMLElement,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IWebUtilsService private readonly _webUtilsService: IWebUtilsService,
 	) {
 		super();
 		this._register(toDisposable(() => this._clearDropOverlay()));
@@ -2374,9 +2373,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && this._webUtilsService.getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
+		if (!path && e.dataTransfer.files.length > 0 && this._getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(this._webUtilsService.getPathForFile(e.dataTransfer.files[0]));
+			path = URI.file(this._getPathForFile(e.dataTransfer.files[0]));
 		}
 
 		if (!path) {
