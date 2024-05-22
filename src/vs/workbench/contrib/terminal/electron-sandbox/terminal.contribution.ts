@@ -24,6 +24,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
 registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolverService, InstantiationType.Delayed);
+
 registerSingleton(ITerminalInstanceService, ElectronTerminalInstanceService, InstantiationType.Delayed);
 
 // Register workbench contributions
