@@ -53,11 +53,11 @@ import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/ed
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractUserDataProfileElement, IProfileElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
 import { Codicon } from 'vs/base/common/codicons';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -223,7 +223,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 				if (e.element instanceof AbstractUserDataProfileElement) {
 					this.contextMenuService.showContextMenu({
 						getAnchor: () => e.anchor,
-						getActions: () => e.element instanceof AbstractUserDataProfileElement ? e.element.secondaryActions : [],
+						getActions: () => e.element instanceof AbstractUserDataProfileElement ? e.element.contextMenuActions.slice(0) : [],
 						getActionsContext: () => e.element
 					});
 				}
@@ -409,7 +409,7 @@ class ProfileTreeElementRenderer implements ITreeRenderer<IProfileElement, void,
 class ProfileWidget extends Disposable {
 
 	private readonly profileTitle: HTMLElement;
-	private readonly actionbar: ActionBar;
+	private readonly toolbar: WorkbenchToolBar;
 	private readonly buttonContainer: HTMLElement;
 	private readonly iconElement: HTMLElement;
 	private readonly nameContainer: HTMLElement;
@@ -445,7 +445,7 @@ class ProfileWidget extends Disposable {
 		this.profileTitle = append(title, $('span'));
 		const actionsContainer = append(header, $('.profile-actions-container'));
 		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
-		this.actionbar = this._register(new ActionBar(actionsContainer, { focusOnlyEnabledItems: true }));
+		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, actionsContainer, undefined));
 
 		const body = append(parent, $('.profile-body'));
 
@@ -695,10 +695,7 @@ class ProfileWidget extends Disposable {
 			this.buttonContainer.classList.add('hide');
 		}
 
-		this.actionbar.clear();
-		if (profileElement.secondaryActions.length > 0) {
-			this.actionbar.push(profileElement.secondaryActions.filter(a => !(a instanceof Separator)), { icon: true, label: false });
-		}
+		this.toolbar.setActions(profileElement.titleActions[0].slice(0), profileElement.titleActions[1].slice(0));
 
 		this.nameInput.focus();
 		if (profileElement instanceof NewProfileElement) {
