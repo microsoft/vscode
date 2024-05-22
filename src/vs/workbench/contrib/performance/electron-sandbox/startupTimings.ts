@@ -208,7 +208,7 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 			comment: 'An event that reports startup heap statistics for performance analysis.';
 			heapAllocated: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allocated heap' };
 			heapGarbage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Garbage heap' };
-			majorGarbageCollectioncount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Major GCs count' };
+			majorGCs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Major GCs count' };
 			minorGCs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Minor GCs count' };
 			gcsDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'GCs duration' };
 		};
