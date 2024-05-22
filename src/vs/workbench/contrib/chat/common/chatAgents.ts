@@ -148,6 +148,7 @@ interface IChatAgentEntry {
 
 export interface IChatAgentCompletionItem {
 	id: string;
+	name?: string;
 	fullName?: string;
 	icon?: ThemeIcon;
 	value: unknown;
