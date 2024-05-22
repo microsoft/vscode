@@ -569,7 +569,7 @@ export class ChatService extends Disposable implements IChatService {
 					const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
 
 					// TODO- should figure out how to get rid of implicit variables for inline chat
-					const implicitVariablesEnabled = location === ChatAgentLocation.Editor;
+					const implicitVariablesEnabled = (location === ChatAgentLocation.Editor || location === ChatAgentLocation.Notebook);
 					if (implicitVariablesEnabled) {
 						const implicitVariables = agent.defaultImplicitVariables;
 						if (implicitVariables) {
