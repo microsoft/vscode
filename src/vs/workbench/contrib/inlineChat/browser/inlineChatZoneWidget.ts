@@ -14,7 +14,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { isEqual } from 'vs/base/common/resources';
@@ -53,9 +53,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				menu: MENU_INLINE_CHAT_WIDGET_STATUS,
 				options: {
 					buttonConfigProvider: action => {
-						if (action.id === ACTION_REGENERATE_RESPONSE || action.id === ACTION_TOGGLE_DIFF) {
-							return { showIcon: true, showLabel: false, isSecondary: true };
-						} else if (action.id === ACTION_VIEW_IN_CHAT || action.id === ACTION_ACCEPT_CHANGES) {
+						if (new Set([ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF]).has(action.id)) {
+							return { isSecondary: true, showIcon: true, showLabel: false };
+						} else if (action.id === ACTION_ACCEPT_CHANGES) {
 							return { isSecondary: false };
 						} else {
 							return { isSecondary: true };

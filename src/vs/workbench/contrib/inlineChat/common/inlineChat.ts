@@ -23,8 +23,6 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 export interface IInlineChatSlashCommand {
 	command: string;
 	detail?: string;
-	refer?: boolean;
-	executeImmediately?: boolean;
 }
 
 export interface IInlineChatSession {

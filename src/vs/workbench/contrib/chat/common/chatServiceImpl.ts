@@ -700,6 +700,28 @@ export class ChatService extends Disposable implements IChatService {
 		model.removeRequest(requestId);
 	}
 
+	async adoptRequest(sessionId: string, request: IChatRequestModel) {
+		if (!(request instanceof ChatRequestModel)) {
+			throw new TypeError('Can only adopt requests of type ChatRequestModel');
+		}
+		const target = this._sessionModels.get(sessionId);
+		if (!target) {
+			throw new Error(`Unknown session: ${sessionId}`);
+		}
+
+		await target.waitForInitialization();
+
+		const oldOwner = request.session;
+		target.adoptRequest(request);
+
+		if (request.response && !request.response.isComplete) {
+			const cts = this._pendingRequests.deleteAndLeak(oldOwner.sessionId);
+			if (cts) {
+				this._pendingRequests.set(target.sessionId, cts);
+			}
+		}
+	}
+
 	async addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): Promise<void> {
 		this.trace('addCompleteRequest', `message: ${message}`);
 

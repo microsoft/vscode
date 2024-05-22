@@ -29,6 +29,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -482,15 +483,14 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 			icon: Codicon.commentDiscussion,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: {
-				id: MENU_INLINE_CHAT_WIDGET_STATUS,
-				when: CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages),
-				group: '0_main',
-				order: 1
+				id: MENU_INLINE_CHAT_WIDGET,
+				group: 'navigation',
+				order: 5
 			}
 		});
 	}
-	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.viewInChat();
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]) {
+		return ctrl.viewInChat();
 	}
 }
 
@@ -501,6 +501,7 @@ export class RerunAction extends AbstractInlineChatAction {
 			title: localize2('chat.rerun.label', "Rerun Request"),
 			f1: false,
 			icon: Codicon.refresh,
+			precondition: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
 			menu: {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
