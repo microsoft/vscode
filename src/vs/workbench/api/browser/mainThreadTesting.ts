@@ -44,6 +44,12 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostTesting);
 
+		this._register(this.testService.registerExtHost({
+			provideTestFollowups: (req, token) => this.proxy.$provideTestFollowups(req, token),
+			executeTestFollowup: id => this.proxy.$executeTestFollowup(id),
+			disposeTestFollowups: ids => this.proxy.$disposeTestFollowups(ids),
+		}));
+
 		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
 			this.proxy.$cancelExtensionTestRun(runId);
 		}));
@@ -233,9 +239,6 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			runTests: (reqs, token) => this.proxy.$runControllerTests(reqs, token),
 			startContinuousRun: (reqs, token) => this.proxy.$startContinuousRun(reqs, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
-			provideTestFollowups: (req, token) => this.proxy.$provideTestFollowups(req, token),
-			executeTestFollowup: id => this.proxy.$executeTestFollowup(id),
-			disposeTestFollowups: ids => this.proxy.$disposeTestFollowups(ids),
 		};
 
 		disposable.add(toDisposable(() => this.testProfiles.removeProfile(controllerId)));
