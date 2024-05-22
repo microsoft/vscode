@@ -177,7 +177,8 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	}
 
 	abstract readonly primaryAction?: Action;
-	abstract readonly secondaryActions: IAction[];
+	abstract readonly titleActions: [IAction[], IAction[]];
+	abstract readonly contextMenuActions: IAction[];
 }
 
 export class UserDataProfileElement extends AbstractUserDataProfileElement implements IProfileElement {
@@ -190,7 +191,8 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 
 	constructor(
 		private _profile: IUserDataProfile,
-		readonly secondaryActions: IAction[],
+		readonly titleActions: [IAction[], IAction[]],
+		readonly contextMenuActions: IAction[],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
@@ -273,7 +275,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly primaryAction: Action,
-		readonly secondaryActions: Action[],
+		readonly titleActions: [IAction[], IAction[]],
+		readonly contextMenuActions: Action[],
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
@@ -421,6 +424,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
@@ -453,16 +457,37 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
 		const disposables = new DisposableStore();
-		const actions: IAction[] = [];
-		actions.push(new Action('userDataProfile.copyFromProfile', localize('copyFromProfile', "Save As..."), ThemeIcon.asClassName(Codicon.copy), true, () => this.createNewProfile(profile)));
-		actions.push(new Action('userDataProfile.export', localize('export', "Export..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportProfile(profile)));
+
+		const activateAction = disposables.add(new Action('userDataProfile.activate', localize('active', "Activate"), ThemeIcon.asClassName(Codicon.check), true, () => this.userDataProfileManagementService.switchProfile(profile)));
+		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
+		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() => activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id));
+		const copyFromProfileAction = disposables.add(new Action('userDataProfile.copyFromProfile', localize('copyFromProfile', "Save As..."), ThemeIcon.asClassName(Codicon.copy), true, () => this.createNewProfile(profile)));
+		const exportAction = disposables.add(new Action('userDataProfile.export', localize('export', "Export..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportProfile(profile)));
+		const deleteAction = disposables.add(new Action('userDataProfile.delete', localize('delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), true, () => this.removeProfile(profile)));
+
+		const titlePrimaryActions: IAction[] = [];
+		titlePrimaryActions.push(activateAction);
+		titlePrimaryActions.push(exportAction);
 		if (!profile.isDefault) {
-			actions.push(new Separator());
-			actions.push(new Action('userDataProfile.delete', localize('delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), true, () => this.removeProfile(profile)));
+			titlePrimaryActions.push(deleteAction);
+		}
+
+		const titleSecondaryActions: IAction[] = [];
+		titleSecondaryActions.push(copyFromProfileAction);
+
+		const secondaryActions: IAction[] = [];
+		secondaryActions.push(activateAction);
+		secondaryActions.push(new Separator());
+		secondaryActions.push(copyFromProfileAction);
+		secondaryActions.push(exportAction);
+		if (!profile.isDefault) {
+			secondaryActions.push(new Separator());
+			secondaryActions.push(deleteAction);
 		}
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
-			actions
+			[titlePrimaryActions, titleSecondaryActions],
+			secondaryActions,
 		));
 		return [profileElement, disposables];
 	}
@@ -470,16 +495,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	createNewProfile(copyFrom?: URI | IUserDataProfile): IProfileElement {
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
+			const discardAction = disposables.add(new Action('userDataProfile.discard', localize('discard', "Discard"), ThemeIcon.asClassName(Codicon.close), true, () => {
+				this.removeNewProfile();
+				this._onDidChange.fire(undefined);
+			}));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				localize('untitled', "Untitled"),
 				copyFrom,
-				new Action('userDataProfile.create', localize('create', "Create & Apply"), undefined, true, () => this.saveNewProfile()),
-				[
-					new Action('userDataProfile.discard', localize('discard', "Discard"), ThemeIcon.asClassName(Codicon.close), true, () => {
-						this.removeNewProfile();
-						this._onDidChange.fire(undefined);
-					})
-				]
+				disposables.add(new Action('userDataProfile.create', localize('create', "Create & Apply"), undefined, true, () => this.saveNewProfile())),
+				[[discardAction], []],
+				[discardAction],
 			));
 			this._profiles.push([this.newProfileElement, disposables]);
 			this._onDidChange.fire(this.newProfileElement);

@@ -53,11 +53,12 @@ import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/ed
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractUserDataProfileElement, IProfileElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
 import { Codicon } from 'vs/base/common/codicons';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -80,6 +81,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		@IStorageService storageService: IStorageService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -115,7 +117,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			onDidChange: Event.None,
 			element: sidebarView,
 			minimumSize: 175,
-			maximumSize: 300,
+			maximumSize: 350,
 			layout: (width, _, height) => {
 				sidebarView.style.width = `${width}px`;
 				if (height && this.profilesTree) {
@@ -123,7 +125,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 					this.profilesTree.layout(height - 38, width);
 				}
 			}
-		}, 250, undefined, true);
+		}, 300, undefined, true);
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: contentsView,
@@ -192,7 +194,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 					if (this.templates.length) {
 						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"),
 							this.templates.map(template => new Action(`template:${template.url}`, template.name, undefined, true, async () => {
-								this.model?.createNewProfile(URI.parse(template.url));
+								this.createNewProfile(URI.parse(template.url));
 							}))));
 						actions.push(new Separator());
 					}
@@ -206,12 +208,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			...defaultButtonStyles
 		}));
 		button.label = `$(add) ${localize('newProfile', "New Profile")}`;
-		this._register(button.onDidClick(e => {
-			if (this.model) {
-				const element = this.model.createNewProfile();
-				this.updateProfilesTree(element);
-			}
-		}));
+		this._register(button.onDidClick(e => this.createNewProfile()));
 	}
 
 	private registerListeners(): void {
@@ -227,7 +224,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 				if (e.element instanceof AbstractUserDataProfileElement) {
 					this.contextMenuService.showContextMenu({
 						getAnchor: () => e.anchor,
-						getActions: () => e.element instanceof AbstractUserDataProfileElement ? e.element.secondaryActions : [],
+						getActions: () => e.element instanceof AbstractUserDataProfileElement ? e.element.contextMenuActions.slice(0) : [],
 						getActionsContext: () => e.element
 					});
 				}
@@ -263,13 +260,28 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			}
 			const url = selectedItem.label === quickPick.value ? URI.parse(quickPick.value) : await this.getProfileUriFromFileSystem();
 			if (url) {
-				this.model?.createNewProfile(url);
+				this.createNewProfile(url);
 			}
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 		quickPick.show();
 	}
 
+	private async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void> {
+		if (this.model?.profiles.some(p => p instanceof NewProfileElement)) {
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				message: localize('new profile exists', "A new profile is already being created. Do you want to discard it and create a new one?"),
+				primaryButton: localize('discard', "Discard & Create"),
+				cancelButton: localize('cancel', "Cancel")
+			});
+			if (!result.confirmed) {
+				return;
+			}
+			this.model.revert();
+		}
+		this.model?.createNewProfile(copyFrom);
+	}
 
 	private async getProfileUriFromFileSystem(): Promise<URI | null> {
 		const profileLocation = await this.fileDialogService.showOpenDialog({
@@ -398,7 +410,7 @@ class ProfileTreeElementRenderer implements ITreeRenderer<IProfileElement, void,
 class ProfileWidget extends Disposable {
 
 	private readonly profileTitle: HTMLElement;
-	private readonly actionbar: ActionBar;
+	private readonly toolbar: WorkbenchToolBar;
 	private readonly buttonContainer: HTMLElement;
 	private readonly iconElement: HTMLElement;
 	private readonly nameContainer: HTMLElement;
@@ -434,8 +446,12 @@ class ProfileWidget extends Disposable {
 		this.profileTitle = append(title, $('span'));
 		const actionsContainer = append(header, $('.profile-actions-container'));
 		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
-		this.actionbar = new ActionBar(actionsContainer);
-		this.actionbar.setFocusable(true);
+		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar,
+			actionsContainer,
+			{
+				hoverDelegate: this._register(createInstantHoverDelegate()),
+			}
+		));
 
 		const body = append(parent, $('.profile-body'));
 
@@ -685,10 +701,7 @@ class ProfileWidget extends Disposable {
 			this.buttonContainer.classList.add('hide');
 		}
 
-		this.actionbar.clear();
-		if (profileElement.secondaryActions.length > 0) {
-			this.actionbar.push(profileElement.secondaryActions.filter(a => !(a instanceof Separator)), { icon: true, label: false });
-		}
+		this.toolbar.setActions(profileElement.titleActions[0].slice(0), profileElement.titleActions[1].slice(0));
 
 		this.nameInput.focus();
 		if (profileElement instanceof NewProfileElement) {
@@ -806,7 +819,6 @@ interface INewProfileResourceTemplateData extends IProfileResourceTemplateData {
 	readonly label: HTMLElement;
 	readonly selectContainer: HTMLElement;
 	readonly selectBox: SelectBox;
-	readonly description: HTMLElement;
 }
 
 interface IProfileResourceChildTreeItemTemplateData extends IProfileResourceTemplateData {
@@ -907,12 +919,11 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		const container = append(parent, $('.profile-tree-item-container.new-profile-resource-type-container'));
 		const labelContainer = append(container, $('.profile-resource-type-label-container'));
 		const label = append(labelContainer, $('span.profile-resource-type-label'));
-		const description = append(labelContainer, $('span.profile-resource-type-description', undefined, localize('use default', "Use Default Profile")));
 		const selectBox = this._register(this.instantiationService.createInstance(SelectBox,
 			[
-				{ text: localize('copy', "Copy"), description: localize('copy from selected', "Copy from selected") },
 				{ text: localize('empty', "Empty") },
-				{ text: localize('exclude', "Exclude"), description: localize('use default', "Use Default Profile") }
+				{ text: localize('copy', "Copy") },
+				{ text: localize('default', "Use Default Profile") }
 			],
 			0,
 			this.contextViewService,
@@ -924,7 +935,7 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		const selectContainer = append(container, $('.profile-select-container'));
 		selectBox.render(selectContainer);
 
-		return { label, selectContainer, selectBox, description, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { label, selectContainer, selectBox, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData, height: number | undefined): void {
@@ -937,16 +948,10 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 			throw new Error('NewProfileResourceTreeRenderer can only profile resoyrce types');
 		}
 		templateData.label.textContent = this.getResourceTypeTitle(element);
-		templateData.description.classList.toggle('hide', !root.getFlag(element));
-		templateData.selectBox.select(root.getCopyFlag(element) ? 0 : root.getFlag(element) ? 2 : 1);
+		templateData.selectBox.select(root.getCopyFlag(element) ? 1 : root.getFlag(element) ? 2 : 0);
 		templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
 			root.setFlag(element, option.index === 2);
-			root.setCopyFlag(element, option.index === 0);
-		}));
-		templateData.elementDisposables.add(root.onDidChange(e => {
-			if (e.flags) {
-				templateData.description.classList.toggle('hide', !root.getFlag(element));
-			}
+			root.setCopyFlag(element, option.index === 1);
 		}));
 	}
 }
