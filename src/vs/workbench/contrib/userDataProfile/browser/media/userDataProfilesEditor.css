@@ -83,6 +83,11 @@
 	min-width: 120px;
 }
 
+.profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container .monaco-button.error,
+.profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container.error {
+	border: 1px solid var(--vscode-inputValidation-errorBorder, transparent);
+}
+
 .profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container .monaco-button {
 	padding-left: 10px;
 	padding-right: 10px;

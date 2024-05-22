@@ -15,7 +15,6 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/objects';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import Severity from 'vs/base/common/severity';
 import { ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
 import { SettingsResource, SettingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/settingsResource';
 import { KeybindingsResource, KeybindingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/keybindingsResource';
@@ -26,8 +25,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { generateUuid } from 'vs/base/common/uuid';
-
-export type Message = { readonly text: string; readonly severity: Severity };
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -47,7 +44,7 @@ export interface IProfileElement {
 	readonly flags?: UseDefaultProfileFlags;
 	readonly active?: boolean;
 	readonly dirty?: boolean;
-	readonly message?: Message;
+	readonly message?: string;
 }
 
 export abstract class AbstractUserDataProfileElement extends Disposable {
@@ -77,6 +74,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			if (!e.message) {
 				this.validate();
 			}
+			this.primaryAction.enabled = !this.message && this.dirty;
 		}));
 	}
 
@@ -125,10 +123,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		}
 	}
 
-	private _message: Message | undefined;
-	get message(): Message | undefined { return this._message; }
-	set message(message: Message | undefined) {
-		if (!equals(this._message, message)) {
+	private _message: string | undefined;
+	get message(): string | undefined { return this._message; }
+	set message(message: string | undefined) {
+		if (this._message !== message) {
 			this._message = message;
 			this._onDidChange.fire({ message: true });
 		}
@@ -153,20 +151,18 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			this.message = undefined;
 			return;
 		}
+		if (!this.name) {
+			this.message = localize('profileNameRequired', "Profile name is required.");
+			return;
+		}
 		if (this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
-			this.message = {
-				text: localize('profileExists', "Profile with name {0} already exists.", this.name),
-				severity: Severity.Error
-			};
+			this.message = localize('profileExists', "Profile with name {0} already exists.", this.name);
 			return;
 		}
 		if (
 			this.flags && this.flags.settings && this.flags.keybindings && this.flags.tasks && this.flags.snippets && this.flags.extensions
 		) {
-			this.message = {
-				text: localize('invalid configurations', "The profile should contain at least one configuration."),
-				severity: Severity.Error
-			};
+			this.message = localize('invalid configurations', "The profile should contain at least one configuration.");
 			return;
 		}
 		this.message = undefined;
@@ -235,11 +231,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 				this.name = profile.name;
 				this.icon = profile.icon;
 				this.flags = profile.useDefaultFlags;
-			}
-		}));
-		this._register(this.onDidChange(e => {
-			if (e.dirty || e.message) {
-				this.primaryAction.enabled = !e.message && this.dirty;
 			}
 		}));
 	}
@@ -318,6 +309,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 			instantiationService,
 		);
 		this._copyFrom = copyFrom;
+		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this._register(this.fileService.registerProvider(USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, this._register(new InMemoryFileSystemProvider())));
 	}
 
@@ -328,13 +320,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 			this._copyFrom = copyFrom;
 			this._onDidChange.fire({ copyFrom: true });
 			this.flags = undefined;
-			this.copyFlags = copyFrom ? {
-				settings: true,
-				keybindings: true,
-				snippets: true,
-				tasks: true,
-				extensions: true
-			} : undefined;
+			this.copyFlags = this.getCopyFlagsFrom(copyFrom);
 		}
 	}
 
@@ -345,6 +331,16 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 			this._copyFlags = flags;
 			this._onDidChange.fire({ copyFlags: true });
 		}
+	}
+
+	private getCopyFlagsFrom(copyFrom: URI | IUserDataProfile | undefined): UseDefaultProfileFlags | undefined {
+		return copyFrom ? {
+			settings: true,
+			keybindings: true,
+			snippets: true,
+			tasks: true,
+			extensions: true
+		} : undefined;
 	}
 
 	getCopyFlag(key: ProfileResourceType): boolean {
@@ -429,6 +425,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		return this._profiles
 			.map(([profile]) => profile)
 			.sort((a, b) => {
+				if (a instanceof NewProfileElement) {
+					return 1;
+				}
+				if (b instanceof NewProfileElement) {
+					return -1;
+				}
 				if (a instanceof UserDataProfileElement && a.profile.isDefault) {
 					return -1;
 				}
@@ -507,7 +509,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				copyFrom,
 				new Action('userDataProfile.create', localize('create', "Create & Apply"), undefined, true, () => this.saveNewProfile()),
 				[
-					new Action('userDataProfile.delete', localize('delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), true, () => {
+					new Action('userDataProfile.discard', localize('discard', "Discard"), ThemeIcon.asClassName(Codicon.trash), true, () => {
 						this.removeNewProfile();
 						this._onDidChange.fire(undefined);
 					})

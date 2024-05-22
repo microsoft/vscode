@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/userDataProfilesEditor';
 import { $, addDisposableListener, append, Dimension, EventHelper, EventType, IDomPosition } from 'vs/base/browser/dom';
-import { Action, Separator } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
@@ -32,7 +32,7 @@ import { IAsyncDataSource, IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectT
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Checkbox } from 'vs/base/browser/ui/toggle/toggle';
 import { DEFAULT_ICON, ICONS } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
 import { WorkbenchIconSelectBox } from 'vs/workbench/services/userDataProfile/browser/iconSelectBox';
@@ -58,7 +58,6 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractUserDataProfileElement, IProfileElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
 import { Codicon } from 'vs/base/common/codicons';
-import Severity from 'vs/base/common/severity';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -72,6 +71,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	private profileWidget: ProfileWidget | undefined;
 
 	private model: UserDataProfilesEditorModel | undefined;
+	private templates: IProfileTemplateInfo[] = [];
 
 	constructor(
 		group: IEditorGroup,
@@ -142,7 +142,10 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 
 		this.registerListeners();
 
-		this.userDataProfileManagementService.getBuiltinProfileTemplates().then(templates => this.profileWidget!.templates = templates);
+		this.userDataProfileManagementService.getBuiltinProfileTemplates().then(templates => {
+			this.templates = templates;
+			this.profileWidget!.templates = templates;
+		});
 	}
 
 	private renderSidebar(parent: HTMLElement): void {
@@ -183,9 +186,20 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 
 	private renderNewProfileButton(parent: HTMLElement): void {
 		const button = this._register(new ButtonWithDropdown(parent, {
-			actions: [
-				new Action('importProfile', localize('importProfile', "Import Profile..."), undefined, true, () => this.importProfile()),
-			],
+			actions: {
+				getActions: () => {
+					const actions: IAction[] = [];
+					if (this.templates.length) {
+						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"),
+							this.templates.map(template => new Action(`template:${template.url}`, template.name, undefined, true, async () => {
+								this.model?.createNewProfile(URI.parse(template.url));
+							}))));
+						actions.push(new Separator());
+					}
+					actions.push(new Action('importProfile', localize('importProfile', "Import Profile..."), undefined, true, () => this.importProfile()));
+					return actions;
+				}
+			},
 			addPrimaryActionToDropdown: false,
 			contextMenuProvider: this.contextMenuService,
 			supportIcons: true,
@@ -613,7 +627,6 @@ class ProfileWidget extends Disposable {
 
 		const profile = profileElement instanceof UserDataProfileElement ? profileElement.profile : undefined;
 		this.nameInput.setEnabled(!profile?.isDefault);
-		this.copyFromContainer.classList.toggle('hide', !!profile);
 
 		this.resourcesTree.setInput(profileElement);
 		disposables.add(profileElement.onDidChange(e => {
@@ -638,6 +651,12 @@ class ProfileWidget extends Disposable {
 				button.enabled = profileElement.primaryAction.enabled;
 			}
 		}));
+		disposables.add(profileElement.onDidChange(e => {
+			if (e.message) {
+				button.setTitle(profileElement.message ?? profileElement.primaryAction.label);
+				button.element.classList.toggle('error', !!profileElement.message);
+			}
+		}));
 
 		this.actionbar.clear();
 		if (profileElement.secondaryActions.length > 0) {
@@ -645,27 +664,35 @@ class ProfileWidget extends Disposable {
 		}
 
 		this.nameInput.focus();
+		if (profileElement instanceof NewProfileElement) {
+			this.nameInput.select();
+		}
 	}
 
 	private renderProfileElement(profileElement: AbstractUserDataProfileElement): void {
 		this.profileTitle.textContent = profileElement.name;
 		this.nameInput.value = profileElement.name;
-		if (profileElement.message) {
-			this.nameInput.showMessage({ content: profileElement.message.text, type: profileElement.message.severity === Severity.Error ? MessageType.ERROR : profileElement.message.severity === Severity.Warning ? MessageType.WARNING : MessageType.INFO });
-		} else {
-			this.nameInput.hideMessage();
-		}
 		if (profileElement.icon) {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(profileElement.icon));
 		} else {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(DEFAULT_ICON.id));
 		}
 		if (profileElement instanceof NewProfileElement) {
+			this.copyFromContainer.classList.remove('hide');
 			const id = profileElement.copyFrom instanceof URI ? profileElement.copyFrom.toString() : profileElement.copyFrom?.id;
 			const index = id
 				? this.copyFromOptions.findIndex(option => option.id === id)
 				: 0;
-			this.copyFromSelectBox.select(index);
+			if (index !== -1) {
+				this.copyFromSelectBox.setOptions(this.copyFromOptions);
+				this.copyFromSelectBox.setEnabled(true);
+				this.copyFromSelectBox.select(index);
+			} else {
+				this.copyFromSelectBox.setOptions([{ text: basename(profileElement.copyFrom as URI) }]);
+				this.copyFromSelectBox.setEnabled(false);
+			}
+		} else {
+			this.copyFromContainer.classList.add('hide');
 		}
 	}
 }
