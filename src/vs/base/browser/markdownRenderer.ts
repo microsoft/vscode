@@ -227,6 +227,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		// We always pass the output through dompurify after this so that we don't rely on
 		// marked for sanitization.
 		markedOptions.sanitizer = (html: string): string => {
+			if (options.sanitizerOptions?.replaceWithPlaintext) {
+				return escape(html);
+			}
+
 			const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
 			return match ? html : '';
 		};
