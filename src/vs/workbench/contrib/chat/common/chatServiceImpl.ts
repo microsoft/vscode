@@ -742,7 +742,9 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (model.initialLocation === ChatAgentLocation.Panel) {
-			this._persistedSessions[sessionId] = model.toJSON();
+			// Turn all the real objects into actual JSON, otherwise, calling 'revive' may fail when it tries to
+			// assign values to properties that are getters- microsoft/vscode-copilot-release#1233
+			this._persistedSessions[sessionId] = JSON.parse(JSON.stringify(model));
 		}
 
 		this._sessionModels.deleteAndDispose(sessionId);
