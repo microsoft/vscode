@@ -29,6 +29,17 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		@IIssueMainService issueMainService: IIssueMainService
 	) {
 		super(disableExtensions, data, os, product, window, true, issueMainService);
+
+		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
+
+		const webInfo = this.window.navigator.userAgent;
+		if (webInfo) {
+			target?.appendChild(this.window.document.createTextNode(webInfo));
+			this.receivedSystemInfo = true;
+			this.issueReporterModel.update({ systemInfoWeb: webInfo });
+
+		}
+
 		this.setEventHandlers();
 		this.handleExtensionData(data.enabledExtensions);
 	}

@@ -13,6 +13,7 @@ export interface IssueReporterData {
 
 	versionInfo?: any;
 	systemInfo?: SystemInfo;
+	systemInfoWeb?: string;
 	processInfo?: string;
 	workspaceInfo?: string;
 
@@ -137,6 +138,10 @@ ${this.getInfos()}
 
 			if (this._data.includeSystemInfo && this._data.systemInfo) {
 				info += this.generateSystemInfoMd();
+			}
+
+			if (this._data.includeSystemInfo && this._data.systemInfoWeb) {
+				info += 'System Info: ' + this._data.systemInfoWeb;
 			}
 		}
 
