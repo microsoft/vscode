@@ -277,6 +277,9 @@
 	overflow: hidden;
 	pointer-events: none;
 	background: linear-gradient(transparent, var(--vscode-peekViewEditor-background) 50%);
+	display: flex;
+	align-items: center;
+	gap: 14px;
 
 	&.animated {
 		animation: fadeIn 150ms ease-out;
@@ -289,6 +292,7 @@
 		cursor: pointer;
 		pointer-events: auto;
 		width: fit-content;
+		flex-shrink: 0;
 
 		&, .codicon {
 			color: var(--vscode-textLink-foreground);

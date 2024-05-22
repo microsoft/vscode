@@ -159,6 +159,11 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	private handleAndRegisterChatExtensions(): void {
 		chatParticipantExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
+				if (this.productService.quality === 'stable' && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+					this.logService.warn(`Chat participants are not yet enabled in VS Code Stable (${extension.description.identifier.value})`);
+					continue;
+				}
+
 				for (const providerDescriptor of extension.value) {
 					if (!providerDescriptor.name.match(/^[\w0-9_-]+$/)) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with invalid name: ${providerDescriptor.name}. Name must match /^[\\w0-9_-]+$/.`);

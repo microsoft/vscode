@@ -69,6 +69,7 @@ import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listSe
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -780,6 +781,7 @@ class FollowupActionWidget extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		@ITestService private readonly testService: ITestService,
+		@IQuickInputService private readonly quickInput: IQuickInputService,
 	) {
 		super();
 	}
@@ -794,6 +796,12 @@ class FollowupActionWidget extends Disposable {
 	private async showMessage(subject: MessageSubject) {
 		const cts = this.visibleStore.add(new CancellationTokenSource());
 		const start = Date.now();
+
+		// Wait for completion otherwise results will not be available to the ext host:
+		if (subject.result instanceof LiveTestResult && !subject.result.completedAt) {
+			await new Promise(r => Event.once((subject.result as LiveTestResult).onComplete)(r));
+		}
+
 		const followups = await this.testService.provideTestFollowups({
 			extId: subject.test.extId,
 			messageIndex: subject.messageIndex,
@@ -811,26 +819,52 @@ class FollowupActionWidget extends Disposable {
 
 		dom.clearNode(this.el.root);
 		this.el.root.classList.toggle('animated', Date.now() - start > FOLLOWUP_ANIMATION_MIN_TIME);
-		for (const fu of followups.followups) {
-			const link = document.createElement('a');
-			link.tabIndex = 0;
-			dom.reset(link, ...renderLabelWithIcons(fu.message));
 
-			this.visibleStore.add(dom.addDisposableListener(link, 'click', () => this.actionFollowup(link, fu)));
-			this.visibleStore.add(dom.addDisposableListener(link, 'keydown', e => {
-				const event = new StandardKeyboardEvent(e);
-				if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
-					this.actionFollowup(link, fu);
-				}
-			}));
-
-			this.el.root.appendChild(link);
+		this.el.root.appendChild(this.makeFollowupLink(followups.followups[0]));
+		if (followups.followups.length > 1) {
+			this.el.root.appendChild(this.makeMoreLink(followups.followups));
 		}
 
 		this.container.appendChild(this.el.root);
 		this.visibleStore.add(toDisposable(() => {
 			this.el.root.parentElement?.removeChild(this.el.root);
 		}));
+	}
+
+	private makeFollowupLink(first: ITestFollowup) {
+		const link = this.makeLink(() => this.actionFollowup(link, first));
+		dom.reset(link, ...renderLabelWithIcons(first.message));
+		return link;
+	}
+
+	private makeMoreLink(followups: ITestFollowup[]) {
+		const link = this.makeLink(() =>
+			this.quickInput.pick(followups.map((f, i) => ({
+				label: f.message,
+				index: i
+			}))).then(picked => {
+				if (picked?.length) {
+					followups[picked[0].index].execute();
+				}
+			})
+		);
+
+		link.innerText = localize('testFollowup.more', '+{0} More...', followups.length - 1);
+		return link;
+	}
+
+	private makeLink(onClick: () => void) {
+		const link = document.createElement('a');
+		link.tabIndex = 0;
+		this.visibleStore.add(dom.addDisposableListener(link, 'click', onClick));
+		this.visibleStore.add(dom.addDisposableListener(link, 'keydown', e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+				onClick();
+			}
+		}));
+
+		return link;
 	}
 
 	private actionFollowup(link: HTMLAnchorElement, fu: ITestFollowup) {

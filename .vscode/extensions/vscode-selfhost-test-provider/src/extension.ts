@@ -41,16 +41,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	const ctrl = vscode.tests.createTestController('selfhost-test-controller', 'VS Code Tests');
 	const fileChangedEmitter = new vscode.EventEmitter<FileChangeEvent>();
 
-	// todo@connor4312: tidy this up and make it work
-	// context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
-	// 	async provideFollowup(result, test, taskIndex, messageIndex, token) {
-	// 		await new Promise(r => setTimeout(r, 2000));
-	// 		return [{
-	// 			title: '$(sparkle) Ask copilot for help',
-	// 			command: 'asdf'
-	// 		}];
-	// 	},
-	// }));
+	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
+		async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
+			return [{
+				title: '$(sparkle) Ask copilot for help',
+				command: 'github.copilot.tests.fixTestFailure',
+				arguments: [{ source: 'peekFollowup', test, message: test.taskStates[taskIndex].messages[messageIndex] }]
+			}];
+		},
+	}));
 
 
 	ctrl.resolveHandler = async test => {

@@ -275,13 +275,13 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 	}
 });
 
-CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean, feature?: string) => {
+CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean, feature?: string, sideByside?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const commandService = accessor.get(ICommandService);
 
 	const [extension] = await extensionService.getExtensions([{ id: extensionId }], CancellationToken.None);
 	if (extension) {
-		return extensionService.open(extension, { tab, preserveFocus, feature });
+		return extensionService.open(extension, { tab, preserveFocus, feature, sideByside });
 	}
 
 	return commandService.executeCommand('_extensions.manage', extensionId, tab, preserveFocus, feature);
