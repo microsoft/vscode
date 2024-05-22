@@ -153,7 +153,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			this.message = undefined;
 			return;
 		}
-		if (this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
+		if (this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
 			this.message = {
 				text: localize('profileExists', "Profile with name {0} already exists.", this.name),
 				severity: Severity.Error
@@ -161,7 +161,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			return;
 		}
 		if (
-			this.flags && this.flags.settings && this.flags.keybindings && this.flags.tasks && this.flags.globalState && this.flags.extensions
+			this.flags && this.flags.settings && this.flags.keybindings && this.flags.tasks && this.flags.snippets && this.flags.extensions
 		) {
 			this.message = {
 				text: localize('invalid configurations', "The profile should contain at least one configuration."),
@@ -193,6 +193,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				return this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, profile).getChildren();
 		}
 		return [];
+	}
+
+	protected getInitialName(): string {
+		return '';
 	}
 
 	abstract readonly primaryAction: Action;
@@ -234,8 +238,8 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 			}
 		}));
 		this._register(this.onDidChange(e => {
-			if (e.dirty) {
-				this.primaryAction.enabled = this.dirty;
+			if (e.dirty || e.message) {
+				this.primaryAction.enabled = !e.message && this.dirty;
 			}
 		}));
 	}
@@ -283,6 +287,11 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 		this.icon = this.profile.icon;
 		this.flags = this.profile.useDefaultFlags;
 	}
+
+	protected override getInitialName(): string {
+		return this.profile.name;
+	}
+
 }
 
 const USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME = 'userdataprofiletemplatepreview';
