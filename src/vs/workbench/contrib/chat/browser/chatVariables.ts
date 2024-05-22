@@ -63,6 +63,7 @@ export class ChatVariablesService implements IChatVariablesService {
 				}
 			});
 
+		const resolvedAttachedContext: IChatRequestVariableEntry[] = [];
 		attachedContextVariables
 			?.forEach((attachment, i) => {
 				const data = this._resolver.get(attachment.name?.toLowerCase());
@@ -77,11 +78,11 @@ export class ChatVariablesService implements IChatVariablesService {
 					};
 					jobs.push(data.resolver(prompt.text, '', model, variableProgressCallback, token).then(value => {
 						if (value) {
-							resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
+							resolvedAttachedContext[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
 						}
 					}).catch(onUnexpectedExternalError));
 				} else if (attachment.isDynamic) {
-					resolvedVariables[i] = { id: attachment.id, name: attachment.name, value: attachment.value };
+					resolvedAttachedContext[i] = { id: attachment.id, name: attachment.name, value: attachment.value };
 				}
 			});
 
@@ -91,6 +92,7 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		// "reverse", high index first so that replacement is simple
 		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
+		resolvedVariables.push(...resolvedAttachedContext);
 
 		return {
 			variables: resolvedVariables,
