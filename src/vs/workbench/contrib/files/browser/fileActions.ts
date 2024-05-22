@@ -60,7 +60,6 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IWebUtilsService } from 'vs/workbench/contrib/webUtils/browser/webUtils';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
@@ -1102,7 +1101,7 @@ CommandsRegistry.registerCommand({
 	handler: uploadFileHandler
 });
 
-export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
+export const pasteFileHandler = (getPathForFile?: (file: File) => string) => async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
@@ -1111,8 +1110,6 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const configurationService = accessor.get(IConfigurationService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const dialogService = accessor.get(IDialogService);
-	const webUtilsService = accessor.get(IWebUtilsService);
-
 	const context = explorerService.getContext(false);
 	const hasNativeFilesToPaste = fileList && fileList.length > 0;
 	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
@@ -1127,8 +1124,8 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			if (toPaste.type === 'paths' && item instanceof URI) {
 				return item.path
 			}
-			if (toPaste.type === 'paths' && item instanceof File && webUtilsService.getPathForFile(item)) {
-				return webUtilsService.getPathForFile(item)
+			if (toPaste.type === 'paths' && item instanceof File && getPathForFile?.(item)) {
+				return getPathForFile(item)
 			}
 			if (item instanceof File) {
 				return item.name
