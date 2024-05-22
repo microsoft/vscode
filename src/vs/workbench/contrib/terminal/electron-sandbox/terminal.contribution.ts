@@ -40,20 +40,12 @@ workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, Life
 
 registerSingleton(ITerminalInstanceService, ElectronTerminalInstanceService, InstantiationType.Delayed);
 
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-	id: TERMINAL_VIEW_ID,
-	name: nls.localize2('terminal', "Terminal"),
-	containerIcon: terminalViewIcon,
-	canToggleVisibility: false,
-	canMoveView: true,
-	ctorDescriptor: new SyncDescriptor(ElectronTerminalViewPane),
-	openCommandActionDescriptor: {
-		id: TerminalCommandId.Toggle,
-		mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
-		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyCode.Backquote,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.Backquote }
-		},
-		order: 3
-	}
-}], VIEW_CONTAINER);
+const registry =
+	Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry)
+
+const view = registry.getView(TERMINAL_VIEW_ID)
+
+if (view) {
+	// @ts-ignore
+	view.ctorDescriptor = new SyncDescriptor(ElectronTerminalViewPane)
+}
