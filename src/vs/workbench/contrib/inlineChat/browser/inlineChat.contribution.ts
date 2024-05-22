@@ -37,8 +37,6 @@ registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
 registerAction2(InlineChatActions.DiscardHunkAction);
 registerAction2(InlineChatActions.DiscardAction);
-registerAction2(InlineChatActions.DiscardToClipboardAction);
-registerAction2(InlineChatActions.DiscardUndoToNewFileAction);
 registerAction2(InlineChatActions.RerunAction);
 registerAction2(InlineChatActions.CancelSessionAction);
 registerAction2(InlineChatActions.MoveToNextHunk);
