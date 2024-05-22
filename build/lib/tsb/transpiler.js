@@ -305,7 +305,7 @@ class SwcTranspiler {
         },
         module: {
             type: 'amd',
-            importInterop: 'node'
+            importInterop: 'swc'
         },
         minify: false,
     };
