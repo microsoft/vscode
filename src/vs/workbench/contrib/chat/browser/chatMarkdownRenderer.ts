@@ -69,6 +69,8 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		const mdWithBody: IMarkdownString | undefined = (markdown && markdown.supportHtml) ?
 			{
 				...markdown,
+
+				// dompurify uses DOMParser, which strips leading comments. Wrapping it all in 'body' prevents this.
 				value: `<body>${markdown.value}</body>`,
 			}
 			: markdown;

@@ -7,6 +7,8 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
+import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
+import { MockTrustedDomainService } from 'vs/workbench/contrib/url/test/browser/mockTrustedDomainService';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('ChatMarkdownRenderer', () => {
@@ -15,6 +17,7 @@ suite('ChatMarkdownRenderer', () => {
 	let testRenderer: ChatMarkdownRenderer;
 	setup(() => {
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(ITrustedDomainService, new MockTrustedDomainService(['http://allowed.com']));
 		testRenderer = instantiationService.createInstance(ChatMarkdownRenderer, {});
 	});
 
@@ -82,6 +85,13 @@ suite('ChatMarkdownRenderer', () => {
 
 	test('CDATA', async () => {
 		const md = new MarkdownString('<![CDATA[<div>content</div>]]>');
+		md.supportHtml = true;
+		const result = store.add(testRenderer.render(md));
+		await assertSnapshot(result.element.outerHTML);
+	});
+
+	test('remote images', async () => {
+		const md = new MarkdownString('<img src="http://allowed.com/image.jpg"> <img src="http://disallowed.com/image.jpg">');
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
