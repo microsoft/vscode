@@ -129,7 +129,7 @@ Registry.as<IDragAndDropContributionRegistry>(DragAndDropExtensions.DragAndDropC
 });
 
 // Register views
-const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+export const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
 	title: nls.localize2('terminal', "Terminal"),
 	icon: terminalViewIcon,

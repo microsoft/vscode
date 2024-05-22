@@ -71,6 +71,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 	constructor(
 		container: HTMLElement,
+		getPathForFile: undefined | ((file: File) => string),
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -88,7 +89,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER),
+				() => this.getSelectedElements())],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -100,7 +102,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				paddingBottom: TerminalTabsListSizes.TabHeight,
-				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
+				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop, getPathForFile),
 				openOnSingleClick: true
 			},
 			contextKeyService,
@@ -575,6 +577,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	private _primaryBackend: ITerminalBackend | undefined;
 
 	constructor(
+		private readonly _getPathForFile: undefined | ((file: File) => string),
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
@@ -733,9 +736,9 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			resource = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!resource && e.dataTransfer.files.length > 0 && this._webUtilsService.getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
+		if (!resource && e.dataTransfer.files.length > 0 && this._getPathForFile?.(e.dataTransfer.files[0]) /* Electron only */) {
 			// Check if the file was dragged from the filesystem
-			resource = URI.file(this._webUtilsService.getPathForFile(e.dataTransfer.files[0]));
+			resource = URI.file(this?._getPathForFile(e.dataTransfer.files[0]));
 		}
 
 		if (!resource) {

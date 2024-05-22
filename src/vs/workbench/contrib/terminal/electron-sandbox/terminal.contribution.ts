@@ -3,18 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import * as nls from 'vs/nls';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILocalPtyService, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
-import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IViewsRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { VIEW_CONTAINER } from 'vs/workbench/contrib/terminal/browser/terminal.contribution.js';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal.js';
+import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { ITerminalProfileResolverService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend';
+import { ElectronTerminalInstanceService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalInstanceService.js';
 import { TerminalNativeContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalNativeContribution';
 import { ElectronTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalProfileResolverService';
+import { ElectronTerminalViewPane } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalView.js';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal.js';
-import { ElectronTerminalInstanceService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalInstanceService.js';
+
+
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
@@ -30,3 +39,21 @@ workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, Life
 
 
 registerSingleton(ITerminalInstanceService, ElectronTerminalInstanceService, InstantiationType.Delayed);
+
+Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
+	id: TERMINAL_VIEW_ID,
+	name: nls.localize2('terminal', "Terminal"),
+	containerIcon: terminalViewIcon,
+	canToggleVisibility: false,
+	canMoveView: true,
+	ctorDescriptor: new SyncDescriptor(ElectronTerminalViewPane),
+	openCommandActionDescriptor: {
+		id: TerminalCommandId.Toggle,
+		mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyCode.Backquote,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.Backquote }
+		},
+		order: 3
+	}
+}], VIEW_CONTAINER);
