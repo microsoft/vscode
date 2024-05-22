@@ -128,12 +128,12 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			this._onDidActiveGroupChange.fire(group);
 		}));
 		disposables.add(part.onDidAddGroup(group => {
-			this.registerRunContextKeyProvider(group);
+			this.registerRunGroupContextKeyProviders(group);
 			this._onDidAddGroup.fire(group);
 		}));
 		disposables.add(part.onDidRemoveGroup(group => {
 			this.removeGroupScopedContextKeys(group);
-			this.unregisterRunContextKeyProvider(group);
+			this.unregisterRunGroupContextKeyProviders(group);
 			this._onDidRemoveGroup.fire(group);
 		}));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
@@ -735,19 +735,23 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		});
 	}
 
-	private groupContextKeyProviderRunners = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
-	private registerRunContextKeyProvider(group: IEditorGroupView): void {
+	private groupContextKeyProvidersRunners = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
+	private registerRunGroupContextKeyProviders(group: IEditorGroupView): void {
+		if (this.groupContextKeyProvidersRunners.has(group.id)) {
+			throw new Error(`A context key provider runner for group ${group.id} already exists.`);
+		}
+
 		// Run the context key providers when the active editor changes
 		const disposable = group.onDidActiveEditorChange(() => {
 			for (const contextKeyProvider of this.contextKeyProviders.values()) {
 				this.runRegisteredContextKeyProvider(group, contextKeyProvider);
 			}
 		});
-		this.groupContextKeyProviderRunners.set(group.id, disposable);
+		this.groupContextKeyProvidersRunners.set(group.id, disposable);
 	}
 
-	private unregisterRunContextKeyProvider(group: IEditorGroupView): void {
-		this.groupContextKeyProviderRunners.deleteAndDispose(group.id);
+	private unregisterRunGroupContextKeyProviders(group: IEditorGroupView): void {
+		this.groupContextKeyProvidersRunners.deleteAndDispose(group.id);
 	}
 
 	private runRegisteredContextKeyProvider<T extends ContextKeyValue>(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider<T>): void {

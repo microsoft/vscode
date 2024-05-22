@@ -295,8 +295,6 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 
 	private readonly disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
-	private hasChangesContextKeyProvider: IDisposable;
-	private repositoryContextKeyProvider: IDisposable;
 	private onDidRepositoryChange = new Emitter<void>();
 
 	constructor(
@@ -326,8 +324,8 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 			onDidChange: this.onDidRepositoryChange.event
 		};
 
-		this.hasChangesContextKeyProvider = editorGroupsService.registerContextKeyProvider(hasChangesContextKeyProvider);
-		this.repositoryContextKeyProvider = editorGroupsService.registerContextKeyProvider(repositoryContextKeyProvider);
+		this.disposables.add(editorGroupsService.registerContextKeyProvider(hasChangesContextKeyProvider));
+		this.disposables.add(editorGroupsService.registerContextKeyProvider(repositoryContextKeyProvider));
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -387,7 +385,6 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 		this.disposables.dispose();
 		dispose(this.repositoryDisposables.values());
 		this.repositoryDisposables.clear();
-		this.hasChangesContextKeyProvider.dispose();
-		this.repositoryContextKeyProvider.dispose();
+		this.onDidRepositoryChange.dispose();
 	}
 }
