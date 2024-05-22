@@ -1,5 +1,5 @@
 {
-  "name": "code-oss-dev",
+  "name": "pearai",
   "version": "1.89.0",
   "distro": "853f475a6e8e85ad811a2f8e49c3032bdb660558",
   "author": {
@@ -221,10 +221,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/trypear/pearai-app.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/trypear/pearai-app/issues"
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
