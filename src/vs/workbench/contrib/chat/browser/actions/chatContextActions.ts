@@ -38,28 +38,28 @@ export interface IFileQuickPickItem extends IQuickPickItem {
 	id: string;
 	name: string;
 	value: URI;
+	isDynamic: true;
 
 	resource: URI;
-	isDynamic: true;
 }
 
 export interface IDynamicVariableQuickPickItem extends IQuickPickItem {
 	id: string;
 	name?: string;
 	value: unknown;
-	icon?: ThemeIcon;
-
-	command?: Command;
 	isDynamic: true;
+
+	icon?: ThemeIcon;
+	command?: Command;
 }
 
 export interface IStaticVariableQuickPickItem extends IQuickPickItem {
 	id: string;
 	name: string;
 	value: unknown;
-	icon?: ThemeIcon;
-
 	isDynamic?: false;
+
+	icon?: ThemeIcon;
 }
 
 class AttachContextAction extends Action2 {
@@ -92,6 +92,10 @@ class AttachContextAction extends Action2 {
 		});
 	}
 
+	private _getFileContextId(item: { resource: URI }) {
+		return item.resource.toString();
+	}
+
 	private async _attachContext(widget: IChatWidget, commandService: ICommandService, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
@@ -114,7 +118,7 @@ class AttachContextAction extends Action2 {
 				// #file variable
 				toAttach.push({
 					...pick,
-					id: pick.resource.toString(),
+					id: this._getFileContextId(pick),
 					value: pick.resource,
 					name: pick.label,
 					isDynamic: true
@@ -195,10 +199,20 @@ class AttachContextAction extends Action2 {
 				},
 				additionPicks: quickPickItems,
 				includeSymbols: false,
-				filter: (item) => {
+				filter: (item: IChatContextQuickPickItem) => {
+					// Avoid attaching the same context twice
+					const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
+
 					if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
-						return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme);
+						return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme)
+							&& !attachedContext.has(this._getFileContextId({ resource: item.resource })); // Hack because Typescript doesn't narrow this type correctly
 					}
+
+					if (!('command' in item)) {
+						return !attachedContext.has(item.id);
+					}
+
+					// Don't filter out dynamic variables which show secondary data (temporary)
 					return true;
 				}
 			}
