@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/userDataProfilesEditor';
-import { $, addDisposableListener, append, Dimension, EventHelper, EventType, IDomPosition } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, Dimension, EventHelper, EventType, IDomPosition, trackFocus } from 'vs/base/browser/dom';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -32,7 +32,7 @@ import { IAsyncDataSource, IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectT
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Checkbox } from 'vs/base/browser/ui/toggle/toggle';
 import { DEFAULT_ICON, ICONS } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
 import { WorkbenchIconSelectBox } from 'vs/workbench/services/userDataProfile/browser/iconSelectBox';
@@ -433,11 +433,9 @@ class ProfileWidget extends Disposable {
 		append(title, $('span', undefined, localize('profile', "Profile: ")));
 		this.profileTitle = append(title, $('span'));
 		const actionsContainer = append(header, $('.profile-actions-container'));
-		this.actionbar = new ActionBar(actionsContainer, {
-			focusOnlyEnabledItems: true
-		});
-		this.actionbar.setFocusable(false);
 		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
+		this.actionbar = new ActionBar(actionsContainer);
+		this.actionbar.setFocusable(true);
 
 		const body = append(parent, $('.profile-body'));
 
@@ -452,13 +450,37 @@ class ProfileWidget extends Disposable {
 				inputBoxStyles: defaultInputBoxStyles,
 				ariaLabel: localize('profileName', "Profile Name"),
 				placeholder: localize('profileName', "Profile Name"),
+				validationOptions: {
+					validation: (value) => {
+						if (!value) {
+							return {
+								content: localize('name required', "Profile name is required and must be a non-empty value."),
+								type: MessageType.ERROR
+							};
+						}
+						const initialName = this._profileElement.value?.element instanceof UserDataProfileElement ? this._profileElement.value.element.profile.name : undefined;
+						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
+							return {
+								content: localize('profileExists', "Profile with name {0} already exists.", value),
+								type: MessageType.ERROR
+							};
+						}
+						return null;
+					}
+				}
 			}
 		));
 		this.nameInput.onDidChange(value => {
-			if (this._profileElement.value) {
+			if (this._profileElement.value && value) {
 				this._profileElement.value.element.name = value;
 			}
 		});
+		const focusTracker = this._register(trackFocus(this.nameInput.inputElement));
+		this._register(focusTracker.onDidBlur(() => {
+			if (this._profileElement.value && !this.nameInput.value) {
+				this.nameInput.value = this._profileElement.value.element.name;
+			}
+		}));
 
 		this.copyFromContainer = append(body, $('.profile-copy-from-container'));
 		append(this.copyFromContainer, $('.profile-copy-from-label', undefined, localize('create from', "Copy from:")));
@@ -639,24 +661,29 @@ class ProfileWidget extends Disposable {
 			}
 		}));
 
-		const button = disposables.add(new Button(this.buttonContainer, {
-			supportIcons: true,
-			...defaultButtonStyles
-		}));
-		button.label = profileElement.primaryAction.label;
-		button.enabled = profileElement.primaryAction.enabled;
-		disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(profileElement.primaryAction.run())));
-		disposables.add(profileElement.primaryAction.onDidChange((e) => {
-			if (!isUndefined(e.enabled)) {
-				button.enabled = profileElement.primaryAction.enabled;
-			}
-		}));
-		disposables.add(profileElement.onDidChange(e => {
-			if (e.message) {
-				button.setTitle(profileElement.message ?? profileElement.primaryAction.label);
-				button.element.classList.toggle('error', !!profileElement.message);
-			}
-		}));
+		if (profileElement.primaryAction) {
+			this.buttonContainer.classList.remove('hide');
+			const button = disposables.add(new Button(this.buttonContainer, {
+				supportIcons: true,
+				...defaultButtonStyles
+			}));
+			button.label = profileElement.primaryAction.label;
+			button.enabled = profileElement.primaryAction.enabled;
+			disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(profileElement.primaryAction!.run())));
+			disposables.add(profileElement.primaryAction.onDidChange((e) => {
+				if (!isUndefined(e.enabled)) {
+					button.enabled = profileElement.primaryAction!.enabled;
+				}
+			}));
+			disposables.add(profileElement.onDidChange(e => {
+				if (e.message) {
+					button.setTitle(profileElement.message ?? profileElement.primaryAction!.label);
+					button.element.classList.toggle('error', !!profileElement.message);
+				}
+			}));
+		} else {
+			this.buttonContainer.classList.add('hide');
+		}
 
 		this.actionbar.clear();
 		if (profileElement.secondaryActions.length > 0) {
@@ -987,12 +1014,21 @@ export class UserDataProfilesEditorInput extends EditorInput {
 
 	private readonly model: UserDataProfilesEditorModel;
 
+	private _dirty: boolean = false;
+	get dirty(): boolean { return this._dirty; }
+	set dirty(dirty: boolean) {
+		if (this._dirty !== dirty) {
+			this._dirty = dirty;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.model = UserDataProfilesEditorModel.getInstance(this.instantiationService);
-		this._register(this.model.onDidChangeDirty(e => this._onDidChangeDirty.fire()));
+		this._register(this.model.onDidChange(e => this.dirty = this.model.profiles.some(profile => profile instanceof NewProfileElement)));
 	}
 
 	override get typeId(): string { return UserDataProfilesEditorInput.ID; }
@@ -1004,10 +1040,11 @@ export class UserDataProfilesEditorInput extends EditorInput {
 	}
 
 	override isDirty(): boolean {
-		return this.model.isDirty();
+		return this.dirty;
 	}
 
 	override async save(): Promise<EditorInput> {
+		await this.model.saveNewProfile();
 		return this;
 	}
 

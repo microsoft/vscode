@@ -25,13 +25,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { generateUuid } from 'vs/base/common/uuid';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
 	readonly icon?: boolean;
 	readonly flags?: boolean;
 	readonly active?: boolean;
-	readonly dirty?: boolean;
 	readonly message?: boolean;
 	readonly copyFrom?: boolean;
 	readonly copyFlags?: boolean;
@@ -43,7 +43,6 @@ export interface IProfileElement {
 	readonly icon?: string;
 	readonly flags?: UseDefaultProfileFlags;
 	readonly active?: boolean;
-	readonly dirty?: boolean;
 	readonly message?: string;
 }
 
@@ -57,7 +56,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		icon: string | undefined,
 		flags: UseDefaultProfileFlags | undefined,
 		isActive: boolean,
-		isDirty: boolean,
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
@@ -66,15 +64,13 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		this._icon = icon;
 		this._flags = flags;
 		this._active = isActive;
-		this._dirty = isDirty;
 		this._register(this.onDidChange(e => {
-			if (!e.dirty) {
-				this.dirty = this.hasUnsavedChanges();
-			}
 			if (!e.message) {
 				this.validate();
 			}
-			this.primaryAction.enabled = !this.message && this.dirty;
+			if (this.primaryAction) {
+				this.primaryAction.enabled = !this.message;
+			}
 		}));
 	}
 
@@ -114,15 +110,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		}
 	}
 
-	private _dirty: boolean = false;
-	get dirty(): boolean { return this._dirty; }
-	set dirty(isDirty: boolean) {
-		if (this._dirty !== isDirty) {
-			this._dirty = isDirty;
-			this._onDidChange.fire({ dirty: true });
-		}
-	}
-
 	private _message: string | undefined;
 	get message(): string | undefined { return this._message; }
 	set message(message: string | undefined) {
@@ -147,10 +134,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	}
 
 	validate(): void {
-		if (!this.dirty) {
-			this.message = undefined;
-			return;
-		}
 		if (!this.name) {
 			this.message = localize('profileNameRequired', "Profile name is required.");
 			return;
@@ -171,8 +154,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
 		return [];
 	}
-
-	reset(): void { }
 
 	protected async getChildrenFromProfile(profile: IUserDataProfile, resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
 		profile = this.getFlag(resourceType) ? this.userDataProfilesService.defaultProfile : profile;
@@ -195,16 +176,17 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return '';
 	}
 
-	abstract readonly primaryAction: Action;
+	abstract readonly primaryAction?: Action;
 	abstract readonly secondaryActions: IAction[];
-	protected abstract hasUnsavedChanges(): boolean;
 }
 
 export class UserDataProfileElement extends AbstractUserDataProfileElement implements IProfileElement {
 
 	get profile(): IUserDataProfile { return this._profile; }
 
-	readonly primaryAction = new Action('userDataProfile.save', localize('save', "Save"), undefined, this.dirty, () => this.save());
+	readonly primaryAction = undefined;
+
+	private readonly saveScheduler = this._register(new RunOnceScheduler(() => this.doSave(), 500));
 
 	constructor(
 		private _profile: IUserDataProfile,
@@ -219,7 +201,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 			_profile.icon,
 			_profile.useDefaultFlags,
 			userDataProfileService.currentProfile.id === _profile.id,
-			false,
 			userDataProfilesService,
 			instantiationService,
 		);
@@ -233,9 +214,12 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 				this.flags = profile.useDefaultFlags;
 			}
 		}));
+		this._register(this.onDidChange(e => {
+			this.save();
+		}));
 	}
 
-	protected hasUnsavedChanges(): boolean {
+	private hasUnsavedChanges(): boolean {
 		if (this.name !== this.profile.name) {
 			return true;
 		}
@@ -248,8 +232,12 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 		return false;
 	}
 
-	private async save(): Promise<void> {
-		if (!this.dirty) {
+	save(): void {
+		this.saveScheduler.schedule();
+	}
+
+	private async doSave(): Promise<void> {
+		if (!this.hasUnsavedChanges()) {
 			return;
 		}
 		this.validate();
@@ -265,18 +253,10 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 			icon: this.icon,
 			useDefaultFlags: this.profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags
 		});
-
-		this.dirty = false;
 	}
 
 	override async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
 		return this.getChildrenFromProfile(this.profile, resourceType);
-	}
-
-	override reset(): void {
-		this.name = this.profile.name;
-		this.icon = this.profile.icon;
-		this.flags = this.profile.useDefaultFlags;
 	}
 
 	protected override getInitialName(): string {
@@ -304,7 +284,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 			undefined,
 			undefined,
 			false,
-			true,
 			userDataProfilesService,
 			instantiationService,
 		);
@@ -351,10 +330,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 		const flags = this.copyFlags ? { ...this.copyFlags } : {};
 		flags[key] = value;
 		this.copyFlags = flags;
-	}
-
-	protected hasUnsavedChanges(): boolean {
-		return true;
 	}
 
 	override async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
@@ -445,9 +420,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private _onDidChange = this._register(new Emitter<AbstractUserDataProfileElement | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _onDidChangeDirty = this._register(new Emitter<boolean>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
-
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
@@ -492,11 +464,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			profile,
 			actions
 		));
-		disposables.add(profileElement.onDidChange(e => {
-			if (e.dirty) {
-				this._onDidChangeDirty.fire(this.isDirty());
-			}
-		}));
 		return [profileElement, disposables];
 	}
 
@@ -508,7 +475,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				copyFrom,
 				new Action('userDataProfile.create', localize('create', "Create & Apply"), undefined, true, () => this.saveNewProfile()),
 				[
-					new Action('userDataProfile.discard', localize('discard', "Discard"), ThemeIcon.asClassName(Codicon.trash), true, () => {
+					new Action('userDataProfile.discard', localize('discard', "Discard"), ThemeIcon.asClassName(Codicon.close), true, () => {
 						this.removeNewProfile();
 						this._onDidChange.fire(undefined);
 					})
@@ -520,16 +487,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		return this.newProfileElement;
 	}
 
-	isDirty(): boolean {
-		return this._profiles.some(([p]) => p.dirty);
-	}
-
 	revert(): void {
 		this.removeNewProfile();
-		for (const [profile] of this._profiles) {
-			profile.reset();
-		}
-		this._onDidChangeDirty.fire(false);
 		this._onDidChange.fire(undefined);
 	}
 
@@ -543,7 +502,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 	}
 
-	private async saveNewProfile(): Promise<void> {
+	async saveNewProfile(): Promise<void> {
 		if (!this.newProfileElement) {
 			return;
 		}
