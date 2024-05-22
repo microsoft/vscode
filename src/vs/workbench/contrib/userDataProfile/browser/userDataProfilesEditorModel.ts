@@ -9,7 +9,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, toUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags, toUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IProfileResourceChildTreeItem, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -324,16 +324,16 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 		}
 	}
 
-	private _copyFlags: UseDefaultProfileFlags | undefined;
-	get copyFlags(): UseDefaultProfileFlags | undefined { return this._copyFlags; }
-	set copyFlags(flags: UseDefaultProfileFlags | undefined) {
+	private _copyFlags: ProfileResourceTypeFlags | undefined;
+	get copyFlags(): ProfileResourceTypeFlags | undefined { return this._copyFlags; }
+	set copyFlags(flags: ProfileResourceTypeFlags | undefined) {
 		if (!equals(this._copyFlags, flags)) {
 			this._copyFlags = flags;
 			this._onDidChange.fire({ copyFlags: true });
 		}
 	}
 
-	private getCopyFlagsFrom(copyFrom: URI | IUserDataProfile | undefined): UseDefaultProfileFlags | undefined {
+	private getCopyFlagsFrom(copyFrom: URI | IUserDataProfile | undefined): ProfileResourceTypeFlags | undefined {
 		return copyFrom ? {
 			settings: true,
 			keybindings: true,
@@ -349,11 +349,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 
 	setCopyFlag(key: ProfileResourceType, value: boolean): void {
 		const flags = this.copyFlags ? { ...this.copyFlags } : {};
-		if (value) {
-			flags[key] = true;
-		} else {
-			delete flags[key];
-		}
+		flags[key] = value;
 		this.copyFlags = flags;
 	}
 
@@ -362,6 +358,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement implements
 	}
 
 	override async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
+		if (!this.getCopyFlag(resourceType)) {
+			return [];
+		}
 		if (this.copyFrom instanceof URI) {
 			const template = await this.userDataProfileImportExportService.resolveProfileTemplate(this.copyFrom);
 			if (!template) {
@@ -569,10 +568,10 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		if (copyFrom instanceof URI) {
 			this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
-			await this.userDataProfileImportExportService.importProfile(copyFrom, { mode: 'apply', name: name, useDefaultFlags, icon: icon ? icon : undefined });
+			await this.userDataProfileImportExportService.importProfile(copyFrom, { mode: 'apply', name: name, useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags });
 		} else if (isUserDataProfile(copyFrom)) {
 			this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
-			await this.userDataProfileImportExportService.createFromProfile(copyFrom, name, { useDefaultFlags, icon: icon ? icon : undefined });
+			await this.userDataProfileImportExportService.createFromProfile(copyFrom, name, { useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags });
 		} else {
 			this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
 			await this.userDataProfileManagementService.createAndEnterProfile(name, { useDefaultFlags, icon: icon ? icon : undefined });
