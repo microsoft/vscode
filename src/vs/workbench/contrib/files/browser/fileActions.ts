@@ -1101,7 +1101,7 @@ CommandsRegistry.registerCommand({
 	handler: uploadFileHandler
 });
 
-export const pasteFileHandler = (getPathForFile?: (file: File) => string) => async (accessor: ServicesAccessor, fileList?: FileList) => {
+export const createPasteFileHandler = (getPathForFile?: (file: File) => string) => async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);

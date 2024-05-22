@@ -24,7 +24,7 @@ import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/ed
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands.js';
-import { pasteFileHandler as createPasteFileHandler } from 'vs/workbench/contrib/files/browser/fileActions.js';
+import { createPasteFileHandler as createPasteFileHandler } from 'vs/workbench/contrib/files/browser/fileActions.js';
 import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals.js';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
