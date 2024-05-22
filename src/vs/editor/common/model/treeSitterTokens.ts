@@ -15,6 +15,7 @@ import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 
 export class TreeSitterTokens extends Disposable {
 	private _colorThemeData: ColorThemeData;
@@ -115,13 +116,26 @@ class TextModelTokens extends Disposable {
 		private readonly _language: Parser.Language,
 		private readonly _colorThemeData: ColorThemeData) {
 		super();
-		this._register(this._textModel.onDidChangeContent(() => this._onDidChangeContent()));
+		this._register(this._textModel.onDidChangeContent((e) => this._onDidChangeContent(e)));
 	}
 
-	private _onDidChangeContent() {
-		// TODO @alexr00 this is an extremely naive implementation and should absolutely not be pushed to main, it's just a placeholder.
-		this._tree?.delete();
-		this._tree = undefined;
+	private _onDidChangeContent(e: IModelContentChangedEvent) {
+		if (!this._tree) {
+			return;
+		}
+		for (const change of e.changes) {
+			const newEndOffset = change.rangeOffset + change.text.length;
+			const newEndPosition = this._textModel.getPositionAt(newEndOffset);
+			this._tree.edit({
+				startIndex: change.rangeOffset,
+				oldEndIndex: change.rangeOffset + change.rangeLength,
+				newEndIndex: change.rangeOffset + change.text.length,
+				startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
+				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
+				newEndPosition: { row: newEndPosition.lineNumber - 1, column: newEndPosition.column - 1 }
+			});
+		}
+		this._tree = this._parser.parse(this._textModel.getValue(), this._tree);
 	}
 
 	private _ensureTree() {
