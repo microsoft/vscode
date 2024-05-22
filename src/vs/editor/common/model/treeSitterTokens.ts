@@ -41,7 +41,10 @@ export class TreeSitterTokens extends AbstractTokens {
 
 		// TODO @alexr00 remove the cast
 		this._colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
-		// TODO @alexr00 respond to theme changes
+		this._register(this._themeService.onDidColorThemeChange(() => {
+			this._colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
+			this._tokens?.reset(this._colorThemeData);
+		}));
 	}
 
 	private async _initialize() {
@@ -171,7 +174,7 @@ class TextModelTokens extends Disposable {
 		private readonly _parser: Parser,
 		private readonly _queries: string,
 		private readonly _language: Parser.Language,
-		private readonly _colorThemeData: ColorThemeData) {
+		private _colorThemeData: ColorThemeData) {
 		super();
 	}
 
@@ -208,9 +211,14 @@ class TextModelTokens extends Disposable {
 		return this._query;
 	}
 
-	public reset() {
-		this._tree = undefined;
-		this._parser.reset();
+	public reset(colorThemeData?: ColorThemeData) {
+		if (colorThemeData) {
+			this._colorThemeData = colorThemeData;
+		} else {
+			this._tree?.delete();
+			this._tree = undefined;
+			this._parser.reset();
+		}
 	}
 
 	/**

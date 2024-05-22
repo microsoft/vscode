@@ -394,6 +394,7 @@ class GrammarTokens extends AbstractTokens {
 		attachedViews: AttachedViews,
 	) {
 		super(languageIdCodec, textModel, getLanguageId, attachedViews);
+		this.resetTokenization();
 	}
 
 	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
