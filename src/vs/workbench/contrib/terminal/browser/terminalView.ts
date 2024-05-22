@@ -49,7 +49,14 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
-export class TerminalViewPane extends ViewPane {
+interface WithPathForFile {
+	getPathForFile?(file: File): string
+}
+
+
+export class TerminalViewPane extends ViewPane implements WithPathForFile {
+	getPathForFile?(file: File): string;
+
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
@@ -229,7 +236,7 @@ export class TerminalViewPane extends ViewPane {
 		if (!this._parentDomElement) {
 			return;
 		}
-		this._terminalTabbedView = this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement, this._getPathForFile?.bind(this));
+		this._terminalTabbedView = this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement, this.getPathForFile?.bind(this));
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention

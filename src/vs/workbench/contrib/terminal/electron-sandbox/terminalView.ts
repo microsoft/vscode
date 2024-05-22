@@ -7,7 +7,7 @@ import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 
 export class ElectronTerminalViewPane extends TerminalViewPane {
-	getPathForFile(file: File) {
+	override getPathForFile(file: File) {
 		return webUtils.getPathForFile(file)
 	}
 }
