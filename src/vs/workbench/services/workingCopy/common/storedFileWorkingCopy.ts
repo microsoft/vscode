@@ -35,16 +35,6 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
  */
 export interface IStoredFileWorkingCopyModelFactory<M extends IStoredFileWorkingCopyModel> extends IFileWorkingCopyModelFactory<M> { }
 
-export async function createOptionalResult<T>(callback: (token: CancellationToken) => Promise<T | undefined>, token: CancellationToken): Promise<T | undefined> {
-	const result = await callback(token);
-	if (result === undefined && token.isCancellationRequested) {
-		return undefined;
-	}
-	else {
-		return assertIsDefined(result);
-	}
-}
-
 /**
  * The underlying model of a stored file working copy provides some
  * methods for the stored file working copy to function. The model is
@@ -101,18 +91,6 @@ export interface IStoredFileWorkingCopyModelContentChangedEvent {
 	 * Flag that indicates that this event was generated while redoing.
 	 */
 	readonly isRedoing: boolean;
-}
-
-async function optionalIfCancelled<T>(callback: (token: CancellationToken) => Promise<T>, token: CancellationToken): Promise<T | undefined> {
-	try {
-		return await callback(token);
-	} catch (error) {
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-
-		throw error;
-	}
 }
 
 /**
@@ -1041,6 +1019,18 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Delegate to working copy model save method if any
 					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
+						const optionalIfCancelled = async <T>(callback: (token: CancellationToken) => Promise<T>, token: CancellationToken): Promise<T | undefined> => {
+							try {
+								return await callback(token);
+							} catch (error) {
+								if (token.isCancellationRequested) {
+									return undefined;
+								}
+
+								throw error;
+							}
+						};
+
 						const result = await optionalIfCancelled((token) => resolvedFileWorkingCopy.model.save!(writeFileOptions, token), saveCancellation.token);
 						if (!result) {
 							return;
