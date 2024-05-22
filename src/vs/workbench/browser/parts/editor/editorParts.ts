@@ -704,10 +704,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		this.registeredContextKeys.delete(group.id);
 	}
 
-	private readonly contextKeyProviders = new Map<string, IEditorGroupContextKeyProvider>();
+	private readonly contextKeyProviders = new Map<string, IEditorGroupContextKeyProvider<ContextKeyValue>>();
 	private readonly registeredContextKeys = new Map<GroupIdentifier, Map<string, IContextKey>>();
 
-	registerContextKeyProvider(provider: IEditorGroupContextKeyProvider): IDisposable {
+	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable {
 		if (this.contextKeyProviders.has(provider.contextKey.key) || this.globalContextKeys.has(provider.contextKey.key)) {
 			throw new Error(`A context key provider for key ${provider.contextKey.key} already exists.`);
 		}
@@ -750,7 +750,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		this.groupContextKeyProviderRunners.deleteAndDispose(group.id);
 	}
 
-	private runRegisteredContextKeyProvider(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider): void {
+	private runRegisteredContextKeyProvider<T extends ContextKeyValue>(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider<T>): void {
 		// Get the group scoped context keys for the provider
 		// If the providers context key has not yet been bound to the group, do so now
 		let groupRegisteredContextKeys = this.registeredContextKeys.get(group.id);

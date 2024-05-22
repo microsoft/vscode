@@ -491,16 +491,16 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
-export interface IEditorGroupContextKeyProvider {
+export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
 	/**
 	 * The context key that needs to be set for each editor group context and the global context.
 	 */
-	readonly contextKey: RawContextKey<ContextKeyValue>;
+	readonly contextKey: RawContextKey<T>;
 
 	/**
 	 * Retrieves the context key value for the given editor group.
 	 */
-	readonly getGroupContextKeyValue: (group: IEditorGroup) => ContextKeyValue;
+	readonly getGroupContextKeyValue: (group: IEditorGroup) => T;
 
 	/**
 	 * An event that is fired when there was a change leading to the context key value to be re-evaluated.
@@ -585,7 +585,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * @param provider - The context key provider to be registered.
 	 * @returns - A disposable object to unregister the provider.
 	 */
-	registerContextKeyProvider(provider: IEditorGroupContextKeyProvider): IDisposable;
+	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable;
 }
 
 export const enum OpenEditorContext {
