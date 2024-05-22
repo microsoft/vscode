@@ -6,7 +6,7 @@
 .profiles-editor {
 	height: 100%;
 	overflow: hidden;
-	max-width: 1200px;
+	max-width: 1000px;
 	margin: 20px auto 0px auto;
 }
 
@@ -159,7 +159,7 @@
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
-	width: 250px;
+	width: 150px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-select-container {

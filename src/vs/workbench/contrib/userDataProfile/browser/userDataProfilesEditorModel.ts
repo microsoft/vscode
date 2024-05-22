@@ -421,6 +421,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
@@ -454,11 +455,18 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
 		const disposables = new DisposableStore();
 		const actions: IAction[] = [];
-		actions.push(new Action('userDataProfile.copyFromProfile', localize('copyFromProfile', "Save As..."), ThemeIcon.asClassName(Codicon.copy), true, () => this.createNewProfile(profile)));
-		actions.push(new Action('userDataProfile.export', localize('export', "Export..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportProfile(profile)));
+
+		const activateAction = disposables.add(new Action('userDataProfile.activate', localize('active', "Activate"), ThemeIcon.asClassName(Codicon.check), true, () => this.userDataProfileManagementService.switchProfile(profile)));
+		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
+		actions.push(activateAction);
+		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() => activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id));
+
+		actions.push(new Separator());
+		actions.push(disposables.add(new Action('userDataProfile.copyFromProfile', localize('copyFromProfile', "Save As..."), ThemeIcon.asClassName(Codicon.copy), true, () => this.createNewProfile(profile))));
+		actions.push(disposables.add(new Action('userDataProfile.export', localize('export', "Export..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportProfile(profile))));
 		if (!profile.isDefault) {
 			actions.push(new Separator());
-			actions.push(new Action('userDataProfile.delete', localize('delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), true, () => this.removeProfile(profile)));
+			actions.push(disposables.add(new Action('userDataProfile.delete', localize('delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), true, () => this.removeProfile(profile))));
 		}
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
@@ -473,12 +481,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				localize('untitled', "Untitled"),
 				copyFrom,
-				new Action('userDataProfile.create', localize('create', "Create & Apply"), undefined, true, () => this.saveNewProfile()),
+				disposables.add(new Action('userDataProfile.create', localize('create', "Create & Apply"), undefined, true, () => this.saveNewProfile())),
 				[
-					new Action('userDataProfile.discard', localize('discard', "Discard"), ThemeIcon.asClassName(Codicon.close), true, () => {
+					disposables.add(new Action('userDataProfile.discard', localize('discard', "Discard"), ThemeIcon.asClassName(Codicon.close), true, () => {
 						this.removeNewProfile();
 						this._onDidChange.fire(undefined);
-					})
+					}))
 				]
 			));
 			this._profiles.push([this.newProfileElement, disposables]);
