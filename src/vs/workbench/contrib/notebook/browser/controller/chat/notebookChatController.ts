@@ -5,7 +5,7 @@
 
 import { Dimension, IFocusTracker, WindowIntervalTimer, getWindow, scheduleAtNextAnimationFrame, trackFocus } from 'vs/base/browser/dom';
 import { CancelablePromise, DeferredPromise, Queue, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
@@ -476,8 +476,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			}, 0, this._store);
 
 			this._sessionCtor = createCancelablePromise<void>(async token => {
-
+				await this._startSession(token);
 				if (fakeParentEditor.hasModel()) {
+
 					if (this._widget) {
 						this._focusWidget();
 					}
@@ -492,6 +493,18 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				}
 			});
 		});
+	}
+
+	private async _startSession(token: CancellationToken) {
+		if (!this._model.value) {
+			this._model.value = this._chatService.startSession(ChatAgentLocation.Editor, token);
+
+			if (!this._model.value) {
+				throw new Error('Failed to start chat session');
+			}
+		}
+
+		this._strategy = new EditStrategy();
 	}
 
 	private _scrollWidgetIntoView(index: number) {
@@ -529,6 +542,12 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 	async acceptInput() {
 		assertType(this._widget);
+		await this._sessionCtor;
+		assertType(this._model.value);
+		assertType(this._strategy);
+
+		const model = this._model.value;
+		this._widget.inlineChatWidget.setChatModel(model);
 
 		const lastInput = this._widget.inlineChatWidget.value;
 		this._historyUpdate(lastInput);
@@ -565,20 +584,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._activeRequestCts?.cancel();
 		this._activeRequestCts = new CancellationTokenSource();
 
-		// Start a new session
-
-		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(ChatAgentLocation.Editor, this._activeRequestCts.token);
-			if (!this._model.value) {
-				throw new Error('Failed to start chat session');
-			}
-		}
-
-
-		const model = this._model.value;
-		this._widget.inlineChatWidget.setChatModel(model);
-
-		this._strategy = new EditStrategy();
 		const store = new DisposableStore();
 
 		try {
