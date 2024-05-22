@@ -120,7 +120,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				return getProfilesTitle();
 			},
 			submenu: ProfilesMenu,
-			group: '4_configuration',
+			group: '2_configuration',
 			order: 1,
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
@@ -128,7 +128,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				return getProfilesTitle();
 			},
 			submenu: ProfilesMenu,
-			group: '4_configuration',
+			group: '2_configuration',
 			order: 1,
 			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
@@ -136,6 +136,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerManageProfilesAction(): IDisposable {
 		const disposables = new DisposableStore();
+		const when = ContextKeyExpr.equals('config.workbench.experimental.enableNewProfilesUI', true);
 		disposables.add(registerAction2(class ManageProfilesAction extends Action2 {
 			constructor() {
 				super({
@@ -148,11 +149,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
+							when,
 							order: 1
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
 							group: '2_configuration',
+							when,
 							order: 1
 						}
 					]
@@ -169,6 +172,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				id: 'workbench.profiles.actions.manageProfiles',
 				category: Categories.Preferences,
 				title: localize2('open profiles', "Open Profiles (UI)"),
+				precondition: when,
 			},
 		}));
 
