@@ -17,7 +17,8 @@ export class ArrayNavigator<T> implements INavigator<T> {
 		private readonly items: readonly T[],
 		protected start: number = 0,
 		protected end: number = items.length,
-		protected index = start - 1
+		protected index: number = start - 1,
+		protected loop: boolean = false
 	) { }
 
 	current(): T | null {
@@ -30,11 +31,17 @@ export class ArrayNavigator<T> implements INavigator<T> {
 
 	next(): T | null {
 		this.index = Math.min(this.index + 1, this.end);
+		if (this.loop && this.index === this.end) {
+			this.index = this.start;
+		}
 		return this.current();
 	}
 
 	previous(): T | null {
 		this.index = Math.max(this.index - 1, this.start - 1);
+		if (this.loop && this.index === this.start - 1) {
+			this.index = this.end - 1;
+		}
 		return this.current();
 	}
 

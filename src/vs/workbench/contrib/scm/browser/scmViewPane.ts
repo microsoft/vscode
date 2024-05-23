@@ -3436,7 +3436,7 @@ export class SCMViewPane extends ViewPane {
 	focusPreviousInput(): void {
 		this.treeOperationSequencer.queue(async () => {
 			const getRepository = (items: readonly ISCMRepository[], index: number): ISCMRepository | null => {
-				return new ArrayNavigator(items, 0, items.length, index).previous();
+				return new ArrayNavigator(items, 0, items.length, index, true).previous();
 			};
 
 			await this.focusInput(getRepository);
@@ -3446,7 +3446,7 @@ export class SCMViewPane extends ViewPane {
 	focusNextInput(): void {
 		this.treeOperationSequencer.queue(async () => {
 			const getRepository = (items: readonly ISCMRepository[], index: number): ISCMRepository | null => {
-				return new ArrayNavigator(items, 0, items.length, index).next();
+				return new ArrayNavigator(items, 0, items.length, index, true).next();
 			};
 
 			await this.focusInput(getRepository);
