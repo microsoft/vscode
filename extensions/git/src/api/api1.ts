@@ -192,7 +192,7 @@ export class ApiRepository implements Repository {
 		return this.repository.getRefs(query, cancellationToken);
 	}
 
-	getIgnored(paths: string[]): Promise<Set<string>> {
+	checkIgnore(paths: string[]): Promise<Set<string>> {
 		return this.repository.checkIgnore(paths);
 	}
 
