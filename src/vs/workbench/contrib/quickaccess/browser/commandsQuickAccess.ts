@@ -123,7 +123,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		const quickPicks = [
+		return [
 			...this.getCodeEditorCommandPicks(),
 			...this.getGlobalCommandPicks()
 		].map(picks => ({
@@ -137,12 +137,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				return TriggerAction.CLOSE_PICKER;
 			},
 		}));
-		const args = quickPicks.filter(p => p.commandWhen).map(p => 'label: ' + p.label + ' commandId: ' + p.commandId).join('\n');
-		const args2 = quickPicks.filter(p => !p.commandWhen).map(p => 'label: ' + p.label + ' commandId: ' + p.commandId).join('\n');
-		console.log(args);
-		console.log(args2);
-		// console.log(noArgs);
-		return quickPicks;
 	}
 
 	protected hasAdditionalCommandPicks(filter: string, token: CancellationToken): boolean {
