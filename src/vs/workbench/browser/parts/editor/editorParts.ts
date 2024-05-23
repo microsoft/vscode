@@ -62,6 +62,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private registerListeners(): void {
 		this._register(this.onDidChangeMementoValue(StorageScope.WORKSPACE, this._store)(e => this.onDidChangeMementoState(e)));
+		this.registerContextKeyListeners();
 	}
 
 	protected createMainEditorPart(): MainEditorPart {
@@ -123,19 +124,9 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}));
 		disposables.add(toDisposable(() => this.doUpdateMostRecentActive(part)));
 
-		disposables.add(part.onDidChangeActiveGroup(group => {
-			this.updateGlobalContextKeys();
-			this._onDidActiveGroupChange.fire(group);
-		}));
-		disposables.add(part.onDidAddGroup(group => {
-			this.registerRunGroupContextKeyProviders(group);
-			this._onDidAddGroup.fire(group);
-		}));
-		disposables.add(part.onDidRemoveGroup(group => {
-			this.removeGroupScopedContextKeys(group);
-			this.unregisterRunGroupContextKeyProviders(group);
-			this._onDidRemoveGroup.fire(group);
-		}));
+		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
+		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
+		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
@@ -639,6 +630,15 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		return this.getPart(container).createEditorDropTarget(container, delegate);
 	}
 
+	private registerContextKeyListeners(): void {
+		this._register(this.onDidChangeActiveGroup(group => this.updateGlobalContextKeys()));
+		this._register(this.onDidAddGroup(group => this.registerRunGroupContextKeyProviders(group)));
+		this._register(this.onDidRemoveGroup(group => {
+			this.unregisterRunGroupContextKeyProviders(group);
+			this.removeGroupScopedContextKeys(group);
+		}));
+	}
+
 	private readonly globalContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
 	private readonly scopedContextKeys = new Map<GroupIdentifier, Map<string, IContextKey<ContextKeyValue>>>();
 
@@ -735,10 +735,6 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private readonly groupContextKeyProvidersRunners = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
 	private registerRunGroupContextKeyProviders(group: IEditorGroupView): void {
-		if (this.groupContextKeyProvidersRunners.has(group.id)) {
-			throw new Error(`A context key provider runner for group ${group.id} already exists.`);
-		}
-
 		// Run the context key providers when the active editor changes
 		const disposable = group.onDidActiveEditorChange(() => {
 			for (const contextKeyProvider of this.contextKeyProviders.values()) {
