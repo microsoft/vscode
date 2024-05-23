@@ -232,6 +232,9 @@ class MarkdownRenderedHoverParts extends Disposable {
 				renderedHoverPart.disposables.dispose();
 			});
 		}));
+		this._register(toDisposable(() => {
+			this._ongoingHoverOperations.forEach(operation => { operation.tokenSource.dispose(true); });
+		}));
 	}
 
 	private _renderHoverParts(
@@ -372,11 +375,10 @@ class MarkdownRenderedHoverParts extends Disposable {
 	private async _fetchHover(hoverSource: HoverSource, model: ITextModel, action: HoverVerbosityAction): Promise<Hover | null | undefined> {
 		let verbosityDelta = action === HoverVerbosityAction.Increase ? 1 : -1;
 		const provider = hoverSource.hoverProvider;
-		const doesOngoingOperationExist = this._ongoingHoverOperations.has(provider);
-		if (doesOngoingOperationExist) {
-			const ongoingOperation = this._ongoingHoverOperations.get(provider)!;
-			ongoingOperation.tokenSource.cancel();
-			verbosityDelta += ongoingOperation.verbosityDelta;
+		const ongoingHoverOperation = this._ongoingHoverOperations.get(provider);
+		if (ongoingHoverOperation) {
+			ongoingHoverOperation.tokenSource.cancel();
+			verbosityDelta += ongoingHoverOperation.verbosityDelta;
 		}
 		const tokenSource = new CancellationTokenSource();
 		this._ongoingHoverOperations.set(provider, { verbosityDelta, tokenSource });
