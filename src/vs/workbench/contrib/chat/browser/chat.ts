@@ -77,6 +77,12 @@ export interface IChatAccessibilityService {
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void;
 }
 
+export const IChatCommandExecutionService = createDecorator<IChatCommandExecutionService>('chatCommandExecutionService');
+export interface IChatCommandExecutionService {
+	readonly _serviceBrand: undefined;
+	acceptResponse(response: IChatResponseViewModel | string | undefined): Promise<void>;
+}
+
 export interface IChatCodeBlockInfo {
 	codeBlockIndex: number;
 	element: IChatResponseViewModel;

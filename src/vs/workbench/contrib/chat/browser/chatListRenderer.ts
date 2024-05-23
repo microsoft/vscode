@@ -1691,7 +1691,7 @@ function isProgressMessageRenderData(item: IChatRenderData): item is IChatProgre
 	return item && 'isAtEndOfResponse' in item;
 }
 
-function isCommandButtonRenderData(item: IChatRenderData): item is IChatCommandButton {
+export function isCommandButtonRenderData(item: IChatRenderData): item is IChatCommandButton {
 	return item && 'kind' in item && item.kind === 'command';
 }
 
