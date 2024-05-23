@@ -23,12 +23,43 @@ import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contri
 import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
+}
+
+export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem;
+
+export interface IFileQuickPickItem extends IQuickPickItem {
+	id: string;
+	name: string;
+	value: URI;
+	isDynamic: true;
+
+	resource: URI;
+}
+
+export interface IDynamicVariableQuickPickItem extends IQuickPickItem {
+	id: string;
+	name?: string;
+	value: unknown;
+	isDynamic: true;
+
+	icon?: ThemeIcon;
+	command?: Command;
+}
+
+export interface IStaticVariableQuickPickItem extends IQuickPickItem {
+	id: string;
+	name: string;
+	value: unknown;
+	isDynamic?: false;
+
+	icon?: ThemeIcon;
 }
 
 class AttachContextAction extends Action2 {
@@ -61,20 +92,47 @@ class AttachContextAction extends Action2 {
 		});
 	}
 
-	private async _attachContext(widget: IChatWidget, commandService: ICommandService, ...picks: any[]) {
-		const toAttach = [];
-		for (const pick of picks) {
-			if (pick && typeof pick === 'object' && 'command' in pick) {
-				const selection = await commandService.executeCommand(pick.command.id, ...(pick.command.arguments ?? []));
-				if (selection) {
-					const qualifiedName = `${typeof pick.value === 'string' && pick.value.startsWith('#') ? pick.value.slice(1) : ''}${selection}`;
+	private _getFileContextId(item: { resource: URI }) {
+		return item.resource.toString();
+	}
 
-					toAttach.push({ ...pick, isDynamic: pick.isDynamic, value: pick.value, name: qualifiedName, fullName: `$(${pick.icon.id}) ${selection}` });
+	private async _attachContext(widget: IChatWidget, commandService: ICommandService, ...picks: IChatContextQuickPickItem[]) {
+		const toAttach: IChatRequestVariableEntry[] = [];
+		for (const pick of picks) {
+			if (pick && typeof pick === 'object' && 'command' in pick && pick.command) {
+				// Dynamic variable with a followup command
+				const selection = await commandService.executeCommand(pick.command.id, ...(pick.command.arguments ?? []));
+				if (!selection) {
+					// User made no selection, skip this variable
+					continue;
 				}
+				toAttach.push({
+					...pick,
+					isDynamic: pick.isDynamic,
+					value: pick.value,
+					name: `${typeof pick.value === 'string' && pick.value.startsWith('#') ? pick.value.slice(1) : ''}${selection}`,
+					// Apply the original icon with the new name
+					fullName: `${pick.icon ? `$(${pick.icon.id}) ` : ''}${selection}`
+				});
 			} else if (pick && typeof pick === 'object' && 'resource' in pick) {
-				toAttach.push({ ...pick, value: pick.resource, name: pick.label, id: pick.resource.toString(), isDynamic: true });
+				// #file variable
+				toAttach.push({
+					...pick,
+					id: this._getFileContextId(pick),
+					value: pick.resource,
+					name: pick.label,
+					isDynamic: true
+				});
 			} else {
-				toAttach.push({ ...pick, fullName: pick.label, name: 'name' in pick && typeof pick.name === 'string' ? pick.name : pick.label, icon: 'icon' in pick && ThemeIcon.isThemeIcon(pick.icon) ? pick.icon : undefined });
+				// All other dynamic variables and static variables
+				toAttach.push({
+					...pick,
+					id: pick.id,
+					value: pick.value,
+					fullName: pick.label,
+					name: 'name' in pick && typeof pick.name === 'string' ? pick.name : pick.label,
+					icon: 'icon' in pick && ThemeIcon.isThemeIcon(pick.icon) ? pick.icon : undefined
+				});
 			}
 		}
 
@@ -95,10 +153,15 @@ class AttachContextAction extends Action2 {
 
 		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
 		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
-		const quickPickItems: (QuickPickItem & { isDynamic?: boolean; name?: string; icon?: ThemeIcon; command?: Command; value?: unknown })[] = [];
+		const quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] = [];
 		for (const variable of chatVariablesService.getVariables()) {
 			if (variable.fullName && (!variable.isSlow || slowSupported)) {
-				quickPickItems.push({ label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`, name: variable.name, id: variable.id, icon: variable.icon });
+				quickPickItems.push({
+					label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`,
+					name: variable.name,
+					id: variable.id,
+					icon: variable.icon
+				});
 			}
 		}
 
@@ -108,7 +171,15 @@ class AttachContextAction extends Action2 {
 				const completions = await chatAgentService.getAgentCompletionItems(agentPart.agent.id, '', CancellationToken.None);
 				for (const variable of completions) {
 					if (variable.fullName) {
-						quickPickItems.push({ label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`, id: variable.id, command: variable.command, icon: variable.icon, value: variable.value, isDynamic: true });
+						quickPickItems.push({
+							label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`,
+							id: variable.id,
+							command: variable.command,
+							icon: variable.icon,
+							value: variable.value,
+							isDynamic: true,
+							name: variable.name
+						});
 					}
 				}
 			}
@@ -123,15 +194,25 @@ class AttachContextAction extends Action2 {
 			enabledProviderPrefixes: [AnythingQuickAccessProvider.PREFIX],
 			placeholder: localize('chatContext.attach.placeholder', 'Search attachments'),
 			providerOptions: <AnythingQuickAccessProviderRunOptions>{
-				handleAccept: (item: IQuickPickItem) => {
+				handleAccept: (item: IChatContextQuickPickItem) => {
 					this._attachContext(widget, commandService, item);
 				},
 				additionPicks: quickPickItems,
 				includeSymbols: false,
-				filter: (item) => {
+				filter: (item: IChatContextQuickPickItem) => {
+					// Avoid attaching the same context twice
+					const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
+
 					if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
-						return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme);
+						return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme)
+							&& !attachedContext.has(this._getFileContextId({ resource: item.resource })); // Hack because Typescript doesn't narrow this type correctly
 					}
+
+					if (!('command' in item)) {
+						return !attachedContext.has(item.id);
+					}
+
+					// Don't filter out dynamic variables which show secondary data (temporary)
 					return true;
 				}
 			}
